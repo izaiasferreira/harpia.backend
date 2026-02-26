@@ -7,7 +7,10 @@ from functions.postgres_functions import pendencias, cnl, perdas
 
 load_dotenv()
 
+    
+
 app = FastAPI(title="API Banco", version="1.0.0", debug=True)
+
 
 @app.get("/health")
 def health():
@@ -17,15 +20,23 @@ def health():
     }
 
 @app.get("/pendencias")
-def pendencias_query(regional: str = 'all', dateinit: str = datetime.now().strftime("%d.%m.%Y"), dateend: str = datetime.now().strftime("%d.%m.%Y")):
+def pendencias_query(token=None,regional: str = 'all', dateinit: str = datetime.now().strftime("%d.%m.%Y"), dateend: str = datetime.now().strftime("%d.%m.%Y")):
+    if token != os.getenv("API_TOKEN"):
+        return {"error": "Token inválido"}
     return pendencias(regional, dateinit.replace("/", "."), dateend.replace("/", "."))
 
 @app.get("/cnl")
-def cnl_query(regional: str = 'all', dateinit: str = datetime.now().strftime("%d.%m.%Y"), dateend: str = datetime.now().strftime("%d.%m.%Y")):
+def cnl_query(token=None,regional: str = 'all', dateinit: str = datetime.now().strftime("%d.%m.%Y"), dateend: str = datetime.now().strftime("%d.%m.%Y")):
+    if token != os.getenv("API_TOKEN"):
+        return {"error": "Token inválido"}
     return cnl(regional, dateinit.replace("/", "."), dateend.replace("/", "."))
 
 @app.get("/perdas")
-def perdas_query(regional: str = 'all', dateinit: str = datetime.now().strftime("%d.%m.%Y"), dateend: str = datetime.now().strftime("%d.%m.%Y")):
+def perdas_query(token=None,regional: str = 'all', dateinit: str = datetime.now().strftime("%d.%m.%Y"), dateend: str = datetime.now().strftime("%d.%m.%Y")):
+    print(os.getenv("API_TOKEN"))
+    print(token)
+    if token != os.getenv("API_TOKEN"):
+        return {"error": "Token inválido"}
     return perdas(regional, dateinit.replace("/", "."), dateend.replace("/", "."))
 
 
