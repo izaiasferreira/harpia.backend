@@ -52,12 +52,16 @@ def pendencias(region="all"):
         total = 0
         text += f"REGIONAL {regional}\n"
         for seccional in unified[regional]:
-            text += f" - {seccional.strip()} :"
+            text += f" - {seccional.strip()} : \n"
             etapas = []
             for row in unified[regional][seccional]:
                 if row[1] not in etapas:
                     etapas.append(row[1])
             
+            #organizar etapas
+            etapas.sort()
+            print(etapas)
+
             for etapa in etapas:
                 quant = len([row for row in unified[regional][seccional] if row[1] == etapa])
                 text += f"  - Etapa {etapa}: {quant}\n"
