@@ -23,7 +23,7 @@ def health():
 def pendencias_query(token=None,regional: str = 'all', dateinit: str = datetime.now().strftime("%d.%m.%Y"), dateend: str = datetime.now().strftime("%d.%m.%Y")):
     if token != os.getenv("API_TOKEN"):
         return {"error": "Token inválido"}
-    return pendencias(regional, dateinit.replace("/", "."), dateend.replace("/", "."))
+    return pendencias(regional)
 
 @app.get("/cnl")
 def cnl_query(token=None,regional: str = 'all', dateinit: str = datetime.now().strftime("%d.%m.%Y"), dateend: str = datetime.now().strftime("%d.%m.%Y")):

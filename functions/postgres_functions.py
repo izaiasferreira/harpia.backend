@@ -15,71 +15,9 @@ def connect_postgres():
     return conn
 
 
-def get_user(id):
-    try:
-        conn = connect_postgres()
-        cur = conn.cursor()
-        
-        query = f"""
-            SELECT ID 
-            FROM login
-            WHERE TELEGRAM_ID IN ('{str(id).lower()}');;
-        """
-        cur.execute(query)
-        data = cur.fetchall()
-
-        cur.close()
-        conn.close()
-        
-        return data[0] if data else None
-    except Exception as e:
-        print(e)
-        return None
-
-
-
-def create_user(id,telegram_id):
-    try:
-        conn = connect_postgres()
-        cur = conn.cursor()
-
-        # Create table if not exists
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS login (
-                ID TEXT PRIMARY KEY,
-                TELEGRAM_ID TEXT
-            );
-        """)
-        conn.commit()
-        
-        
-        cur.execute("""
-            DELETE FROM login
-            WHERE ID = %s OR TELEGRAM_ID = %s;
-        """, (str(id), str(telegram_id.lower())))
-        conn.commit()
-        
-        query = """
-            INSERT INTO login (ID, TELEGRAM_ID)
-            VALUES (%s, %s);
-        """
-        cur.execute(query, (str(id), str(telegram_id.lower())))
-        conn.commit()
-        
-        cur.close()
-        conn.close()
-        print(f"User {id} created with telegram_id {telegram_id}")
-        return True
-    except Exception as e:
-        print(e)
-        return False
-
-
-def pendencias(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=datetime.now().strftime("%d.%m.%Y")):
+def pendencias(region="all"):
     conn = connect_postgres()
     cur = conn.cursor()
-
-    params = [dateinit, dateend]
     
     query = f"""
         SELECT
@@ -89,16 +27,14 @@ def pendencias(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), datee
             regional,
             concluido
         FROM matriz
-        WHERE TO_DATE(NULLIF(data_leit_prev, '00.00.0000'), 'DD.MM.YYYY') 
-            BETWEEN TO_DATE(%s, 'DD.MM.YYYY') AND TO_DATE(%s, 'DD.MM.YYYY')
+        WHERE concluido = 'PENDENTE'
     """
 
 
     if region != "all":
-        query += f"AND regional = %s"
-        params.append(region.upper())
+        query += f"AND regional = '{region.upper()}'"
 
-    cur.execute(query, params)
+    cur.execute(query)
     data = cur.fetchall()
     conn.close()
     
@@ -113,17 +49,21 @@ def pendencias(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), datee
         unified[row[3]][row[2]].append(row)
     text = ''
     for regional in unified:
+        total = 0
         text += f"REGIONAL {regional}\n"
-        total ={
-            'pendente': 0,
-            'concluido': 0
-        }
         for seccional in unified[regional]:
-            text += f" - {seccional.strip()} : PENDENTES: {len([row for row in unified[regional][seccional] if row[4] == 'PENDENTE'])} | CONCLUIDOS: {len([row for row in unified[regional][seccional] if row[4] == 'CONCLUIDO'])}\n"
-            total['pendente'] += len([row for row in unified[regional][seccional] if row[4] == 'PENDENTE'])
-            total['concluido'] += len([row for row in unified[regional][seccional] if row[4] == 'CONCLUIDO'])
-        unified[regional]['total'] = total
-        text += f"\nTOTAL: PENDENTES: {total['pendente']} | CONCLUIDOS: {total['concluido']}\n"
+            text += f" - {seccional.strip()} :"
+            etapas = []
+            for row in unified[regional][seccional]:
+                if row[1] not in etapas:
+                    etapas.append(row[1])
+            
+            for etapa in etapas:
+                quant = len([row for row in unified[regional][seccional] if row[1] == etapa])
+                text += f"  - Etapa {etapa}: {quant}\n"
+                total += quant
+            
+        text += f"\nTOTAL:{total}\n"
     return {'type': 'text', 'text': text}
 
 def cnl(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=datetime.now().strftime("%d.%m.%Y")):
