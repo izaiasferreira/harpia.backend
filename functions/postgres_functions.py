@@ -167,7 +167,9 @@ def C12_json(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend
             agente,
             nome_agente,
             status_ds,
-            hora_conclusao
+            hora_conclusao,
+            latitude,
+            longitude
         FROM matriz
         WHERE TO_DATE(NULLIF(data_leit_prev, '00.00.0000'), 'DD.MM.YYYY') 
             BETWEEN TO_DATE(%s, 'DD.MM.YYYY') AND TO_DATE(%s, 'DD.MM.YYYY')
