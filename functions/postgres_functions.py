@@ -70,6 +70,46 @@ def pendencias(region="all"):
         text += f"\nTOTAL:{total}\n"
     return {'type': 'text', 'text': text}
 
+def pendencias_json(region="all"):
+    conn = connect_postgres()
+    cur = conn.cursor()
+    
+    query = f"""
+        SELECT
+            instalacao,
+            etapa,
+            seccional,
+            regional,
+            concluido
+        FROM matriz
+        WHERE concluido = 'PENDENTE'
+    """
+
+
+    if region != "all":
+        query += f"AND regional = '{region.upper()}'"
+
+    cur.execute(query)
+    data = cur.fetchall()
+    conn.close()
+    
+    if len(data) == 0:
+        return None
+    unified ={}
+    for row in data:
+        if row[3] not in unified:
+            unified[row[3]] = {}
+        if row[2] not in unified[row[3]]:
+            unified[row[3]][row[2]] = []
+        unified[row[3]][row[2]].append(row)
+    
+    for regional in unified:
+        for seccional in unified[regional]:
+            unified[regional][seccional] = len(unified[regional][seccional])
+
+    return unified
+
+
 def cnl(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=datetime.now().strftime("%d.%m.%Y")):
     conn = connect_postgres()
     cur = conn.cursor()
@@ -125,6 +165,51 @@ def cnl(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=date
         unified[regional]['total'] = total
         text += f"\nTOTAL: {total}\n"
     return {'type': 'text', 'text': text}
+
+def C12_json(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=datetime.now().strftime("%d.%m.%Y")):
+    conn = connect_postgres()
+    cur = conn.cursor()
+
+    params = [dateinit, dateend]
+    
+    query = f"""
+        SELECT
+            instalacao,
+            etapa,
+            seccional,
+            regional,
+            ntlei,
+            agente,
+            nome_agente,
+            status_ds
+        FROM matriz
+        WHERE TO_DATE(NULLIF(data_leit_prev, '00.00.0000'), 'DD.MM.YYYY') 
+            BETWEEN TO_DATE(%s, 'DD.MM.YYYY') AND TO_DATE(%s, 'DD.MM.YYYY')
+            AND ntlei = 'C12'
+            AND status_ds = 'LG'
+    """
+
+
+    if region != "all":
+        query += f"AND regional = %s"
+        params.append(region.upper())
+
+    
+    cur.execute(query, params)
+    data = cur.fetchall()
+    conn.close()
+    
+    print(len(data))
+
+    if len(data) == 0:
+        return None
+    unified ={}
+    for row in data:
+        if row[3] not in unified:
+            unified[row[3]] = []
+        unified[row[3]].append(row)
+    return unified
+
 
 def perdas(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=datetime.now().strftime("%d.%m.%Y")):
     conn = connect_postgres()
@@ -183,6 +268,41 @@ def perdas(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=d
 
         text += f"\nTOTAL: {perda_regional} kWh\n"
     return {'type': 'text', 'text': text}
+
+def perdas_json(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=datetime.now().strftime("%d.%m.%Y")):
+    conn = connect_postgres()
+    cur = conn.cursor()
+
+    params = [dateinit, dateend]
+    
+    query = f"""
+        SELECT
+            instalacao,
+            etapa,
+            seccional,
+            regional,
+            motivo_perda,
+            perda_prevista_mensal,
+            agente,
+            nome_agente
+        FROM matriz
+        WHERE TO_DATE(NULLIF(data_leit_prev, '00.00.0000'), 'DD.MM.YYYY') 
+            BETWEEN TO_DATE(%s, 'DD.MM.YYYY') AND TO_DATE(%s, 'DD.MM.YYYY')
+            AND tem_perda = 'PERDA'
+            AND perda_prevista_mensal <> '0'
+    """
+
+
+    if region != "all":
+        query += f"AND regional = %s"
+        params.append(region.upper())
+
+    
+    cur.execute(query, params)
+    data = cur.fetchall()
+    conn.close()
+
+    return data
 
 def get_installation(insts=[], method="INSTALACAO"):
     conn = connect_postgres()
