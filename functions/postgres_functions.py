@@ -284,7 +284,9 @@ def perdas_json(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), date
             motivo_perda,
             perda_prevista_mensal,
             agente,
-            nome_agente
+            nome_agente,
+            latitude,
+            longitude
         FROM matriz
         WHERE TO_DATE(NULLIF(data_leit_prev, '00.00.0000'), 'DD.MM.YYYY') 
             BETWEEN TO_DATE(%s, 'DD.MM.YYYY') AND TO_DATE(%s, 'DD.MM.YYYY')
