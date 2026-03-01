@@ -14,7 +14,6 @@ def connect_postgres():
     )
     return conn
 
-
 def pendencias(region="all"):
     conn = connect_postgres()
     cur = conn.cursor()
@@ -93,7 +92,6 @@ def pendencias_json(region="all"):
     conn.close()
     
     return data
-
 
 def cnl(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=datetime.now().strftime("%d.%m.%Y")):
     conn = connect_postgres()
@@ -189,7 +187,6 @@ def C12_json(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend
     
     return data
 
-
 def perdas(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=datetime.now().strftime("%d.%m.%Y")):
     conn = connect_postgres()
     cur = conn.cursor()
@@ -265,8 +262,7 @@ def perdas_json(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), date
             agente,
             nome_agente,
             latitude,
-            longitude,
-            medidor
+            longitude
         FROM matriz
         WHERE TO_DATE(NULLIF(data_leit_prev, '00.00.0000'), 'DD.MM.YYYY') 
             BETWEEN TO_DATE(%s, 'DD.MM.YYYY') AND TO_DATE(%s, 'DD.MM.YYYY')
@@ -333,3 +329,39 @@ def get_installation(insts=[], method="INSTALACAO"):
         return {'type': 'text', 'text': result}
     if len(data) > 2:
         return {'type': 'file', 'path': transform_result_to_excel(data)}
+
+def get_files_for_revalidate():
+    conn = connect_postgres()
+    cur = conn.cursor()
+
+    query = f"""
+        SELECT
+            *
+        FROM auditoria
+        WHERE VALIDACAO = 'FALSO'
+        AND revalidacao = 'None'
+    """
+    cur.execute(query)
+    data = cur.fetchall()
+    conn.close()
+    
+    if len(data) == 0:
+        return []
+    
+    return [{'instalacao': row[0], 'data_foto': row[4], 'hora_foto':row[5],'apontamento': row[1], 'foto':os.getenv("API_URL") + "/" + row[11]} for row in data]
+
+def save_revalidate_file(instalacao, data, validation):
+    conn = connect_postgres()
+    cur = conn.cursor()
+    
+    query = f"""
+        UPDATE auditoria
+        SET revalidacao = '{validation}'
+        WHERE instalacao = '{instalacao}'
+        AND data_conclusao = '{data}'
+    """
+    cur.execute(query)
+    conn.commit()
+    conn.close()
+    
+    return {'status': 'success'}
