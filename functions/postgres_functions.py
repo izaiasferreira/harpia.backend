@@ -79,8 +79,7 @@ def pendencias_json(region="all"):
             instalacao,
             etapa,
             seccional,
-            regional,
-            concluido
+            regional
         FROM matriz
         WHERE concluido = 'PENDENTE'
     """
@@ -93,21 +92,7 @@ def pendencias_json(region="all"):
     data = cur.fetchall()
     conn.close()
     
-    if len(data) == 0:
-        return None
-    unified ={}
-    for row in data:
-        if row[3] not in unified:
-            unified[row[3]] = {}
-        if row[2] not in unified[row[3]]:
-            unified[row[3]][row[2]] = []
-        unified[row[3]][row[2]].append(row)
-    
-    for regional in unified:
-        for seccional in unified[regional]:
-            unified[regional][seccional] = len(unified[regional][seccional])
-
-    return unified
+    return data
 
 
 def cnl(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=datetime.now().strftime("%d.%m.%Y")):
@@ -200,16 +185,7 @@ def C12_json(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend
     data = cur.fetchall()
     conn.close()
     
-    print(len(data))
-
-    if len(data) == 0:
-        return None
-    unified ={}
-    for row in data:
-        if row[3] not in unified:
-            unified[row[3]] = []
-        unified[row[3]].append(row)
-    return unified
+    return data
 
 
 def perdas(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=datetime.now().strftime("%d.%m.%Y")):
