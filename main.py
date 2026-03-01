@@ -68,12 +68,16 @@ def perdas_json_endpoint(token=None,regional: str = 'all', dateinit: str = datet
 def webhook_perdas(token=None, body: dict = Body(...)):
     if token != os.getenv("API_TOKEN"):
         return {"error": "Token inválido"}
-    image_url = list(body['data']['completionData'].values())[0]
-    return send_message_whatsapp_file(
-        number=os.getenv("WHATSAPP_NUMBER_PERDAS"),
-        messageText=f"Perda Recuperada: \\nIN:{body['data']['title']} \\nDESCRIÇÃO: {body['data']['description'].replace('\n', '\\n')}",
-        file=image_url
-    )
+
+    print(body)
+    if body['event'] == 'service.completed':
+        image_url = list(body['data']['completionData'].values())[0]
+        return send_message_whatsapp_file(
+            number=os.getenv("WHATSAPP_NUMBER_PERDAS"),
+            messageText=f"Perda Recuperada: \\nIN:{body['data']['title']} \\nDESCRIÇÃO: {body['data']['description'].replace('\n', '\\n')}",
+            file=image_url
+        )
+    return {"error": "Evento inválido"}
 
 
 if __name__ == "__main__":
