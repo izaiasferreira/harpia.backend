@@ -1,8 +1,9 @@
 import os
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Body
 from datetime import datetime
 from dotenv import load_dotenv
+from functions.requests_functions import send_message_whatsapp_text, send_message_whatsapp_file
 from functions.postgres_functions import (
     pendencias,
     cnl,
@@ -61,6 +62,18 @@ def perdas_json_endpoint(token=None,regional: str = 'all', dateinit: str = datet
     if token != os.getenv("API_TOKEN"):
         return {"error": "Token inválido"}
     return perdas_json(regional, dateinit.replace("/", "."), dateend.replace("/", "."))
+
+
+@app.post("/webhook_perdas")
+def webhook_perdas(token=None, body: dict = Body(...)):
+    if token != os.getenv("API_TOKEN"):
+        return {"error": "Token inválido"}
+    image_url = list(body['data']['completionData'].values())[0]
+    return send_message_whatsapp_file(
+        number=os.getenv("WHATSAPP_NUMBER_PERDAS"),
+        messageText=f"Perda Recuperada: \\nIN:{body['data']['title']} \\nDESCRIÇÃO: {body['data']['description'].replace('\n', '\\n')}",
+        file=image_url
+    )
 
 
 if __name__ == "__main__":
