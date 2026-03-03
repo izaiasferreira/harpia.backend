@@ -116,7 +116,9 @@ Recupera os dados que precisam de revalidação de fotos.
 - **Parâmetros de Query:**
   - `token` (obrigatório): Token de autenticação.
 - **Retorno:**
-  Retorna uma lista contendo os itens onde `VALIDACAO = 'FALSO'` e ainda não passaram por revalidação (`revalidacao = 'None'`). A URL gerada da imagem baseia-se na `API_URL` especificada no `.env`.
+   ```json
+  [{"instalacao": "ID ou codigo da instalacao", "data_foto": "Data da conclusao do item", "hora_foto":"Hora da conclusao do item", "apontamento": "Apontamento do item", "foto":"URL da foto"}, ...]
+  ```
 
 ### `POST /revalidate_file`
 Salva o status consolidado de uma revalidação.

@@ -282,15 +282,9 @@ def perdas_json(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), date
 
     return data
 
-def get_installation(insts=[], method="INSTALACAO"):
+def get_installation(insts=None):
     conn = connect_postgres()
     cur = conn.cursor()
-    
-    installations = ""
-    for row in insts:
-        installations += f"'{row}',"
-        
-    installations = installations[:-1]
     
     query = f"""
         SELECT
@@ -310,25 +304,34 @@ def get_installation(insts=[], method="INSTALACAO"):
             LTRIM(MEDIDOR_ANTERIOR, '0') AS MEDIDOR_ANTERIOR,
             LTRIM(MEDIDOR_POSTERIOR, '0') AS MEDIDOR_POSTERIOR
         FROM cadastro
-        WHERE 
-            {method} IN (
-                {installations}
-            );
+        WHERE LTRIM(INSTALACAO, '0') = LTRIM('{insts}', '0')
     """
+    print(query)
     cur.execute(query)
-    data = cur.fetchall()
+    data = cur.fetchone()
     conn.close()
     
-    if len(data) == 0:
-        return {'type': 'text', 'text': "Nenhuma instalação encontrada."}
-    if len(data) > 0 and len(data) <= 2:
-        result = ""
-        for row in data:
-            result += f"""INSTALAÇÃO: {row[0]} \nCONTA CONTRATO: {row[1]} \nMEDIDOR: {row[2]} \nNOME: {row[3]} \nENDEREÇO: {row[4]} \nCOMPLEMENTO: {row[5]} \nBAIRRO: {row[6]} \nLOCALIDADE: {row[7]} \nCEP: {row[8]} \nPONTO REF: {row[9]} \nCONTATO: {row[10]} \nMED. VIZINHO ANTERIOR: {row[13]} \nMED. VIZINHO POSTERIOR: {row[14]} \nLOCALIZAÇÃO: https://www.google.com/maps?q={row[11]},{row[12]} \n\n====================\n\n"""
     
-        return {'type': 'text', 'text': result}
-    if len(data) > 2:
-        return {'type': 'file', 'path': transform_result_to_excel(data)}
+    if data is None:
+        return []
+    if data is not None:
+        result = {
+            "instalacao": data[0],
+            "conta_contrato": data[1],
+            "medidor": data[2],
+            "nome": data[3],
+            "endereco": data[4],
+            "complemento": data[5],
+            "bairro": data[6],
+            "localidade": data[7],
+            "cep": data[8],
+            "ponto_referencia": data[9],
+            "contato": data[10],
+            "medidor_anterior": data[13],
+            "medidor_posterior": data[14],
+            "localizacao": f"https://www.google.com/maps?q={data[11]},{data[12]}"
+        }
+        return result
 
 def get_files_for_revalidate():
     conn = connect_postgres()

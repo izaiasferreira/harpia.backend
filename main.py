@@ -1,3 +1,4 @@
+from functions.postgres_functions import get_installation
 from functions.postgres_functions import save_revalidate_file
 from functions.postgres_functions import get_files_for_revalidate
 import os
@@ -85,6 +86,14 @@ def webhook_perdas(token=None, body: dict = Body(...)):
             file=image_url
         )
     return {"error": "Evento inválido"}
+
+
+@app.get("/instalacao")
+def search_instalacao(token=None, inst: str = None):
+    if token != os.getenv("API_TOKEN"):
+        return {"error": "Token inválido"}
+
+    return get_installation(inst)
 
 # Endpoint para revalidação de fotos
 @app.get("/files_for_revalidate")
