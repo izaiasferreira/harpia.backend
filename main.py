@@ -18,7 +18,8 @@ from functions.postgres_functions import (
     perdas_json,
     pendencias_json,
     C12_json,
-    not_start_services
+    not_start_services,
+    completed_services
 )
 
 load_dotenv()
@@ -86,10 +87,16 @@ def c16_json_endpoint(token=None,regional: str = 'all', dateinit: str = datetime
     return C16_json(regional, dateinit.replace("/", "."), dateend.replace("/", "."))
 
 @app.get("/not_start_services")
-def not_start_services_endpoint(token=None,regional: str = 'all', dateinit: str = datetime.now().strftime("%d.%m.%Y"), dateend: str = datetime.now().strftime("%d.%m.%Y")):
+def not_start_services_endpoint(token=None):
     if token != os.getenv("API_TOKEN"):
         return {"error": "Token inválido"}
-    return not_start_services(dateinit.replace("/", "."), dateend.replace("/", "."))
+    return not_start_services()
+
+@app.get("/completed_services")
+def completed_services_endpoint(token=None):
+    if token != os.getenv("API_TOKEN"):
+        return {"error": "Token inválido"}
+    return completed_services()
 
 
 # Webhooks

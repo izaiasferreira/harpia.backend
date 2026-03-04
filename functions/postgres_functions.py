@@ -268,7 +268,7 @@ def C16_json(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend
     
     return data
 
-def not_start_services(dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=datetime.now().strftime("%d.%m.%Y")):
+def not_start_services():
     conn = connect_postgres()
     cur = conn.cursor()
 
@@ -278,7 +278,8 @@ def not_start_services(dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=dat
             nome_agente, 
             seccional, 
             regional,
-            COUNT(*) FILTER (WHERE concluido = 'PENDENTE') AS total_pendencias
+            COUNT(*) FILTER (WHERE concluido = 'PENDENTE') AS total_pendencias,
+            TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY') as date
         FROM matriz
         WHERE 
             data_leit_prev LIKE '%' || TO_CHAR(CURRENT_DATE, 'MM.YYYY')
@@ -287,6 +288,35 @@ def not_start_services(dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=dat
         HAVING 
             COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) = 0
             AND COUNT(*) FILTER (WHERE concluido = 'PENDENTE') > 0
+    """
+
+    
+    cur.execute(query)
+    data = cur.fetchall()
+    conn.close()
+    
+    return data
+
+def completed_services():
+    conn = connect_postgres()
+    cur = conn.cursor()
+
+    query = f"""
+        SELECT 
+            agente, 
+            nome_agente, 
+            seccional, 
+            regional,
+            COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO') AS total_concluidas,
+            TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY') as date
+        FROM matriz
+        WHERE 
+            data_leit_prev LIKE '%' || TO_CHAR(CURRENT_DATE, 'MM.YYYY')
+            and agente <> ''
+        GROUP BY agente, nome_agente, seccional, regional
+        HAVING 
+            COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) > 0
+            AND COUNT(*) FILTER (WHERE concluido = 'PENDENTE') = 0
     """
 
     
