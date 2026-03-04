@@ -1,3 +1,5 @@
+from functions.postgres_functions import C16_json
+from functions.postgres_functions import E02_json
 from functions.postgres_functions import get_installation
 from functions.postgres_functions import save_revalidate_file
 from functions.postgres_functions import get_files_for_revalidate
@@ -16,6 +18,7 @@ from functions.postgres_functions import (
     perdas_json,
     pendencias_json,
     C12_json,
+    not_start_services
 )
 
 load_dotenv()
@@ -69,6 +72,24 @@ def perdas_json_endpoint(token=None,regional: str = 'all', dateinit: str = datet
     if token != os.getenv("API_TOKEN"):
         return {"error": "Token inválido"}
     return perdas_json(regional, dateinit.replace("/", "."), dateend.replace("/", "."))
+
+@app.get("/e02_json")
+def e02_json_endpoint(token=None,regional: str = 'all', dateinit: str = datetime.now().strftime("%d.%m.%Y"), dateend: str = datetime.now().strftime("%d.%m.%Y")):
+    if token != os.getenv("API_TOKEN"):
+        return {"error": "Token inválido"}
+    return E02_json(regional, dateinit.replace("/", "."), dateend.replace("/", "."))
+
+@app.get("/c16_json")
+def c16_json_endpoint(token=None,regional: str = 'all', dateinit: str = datetime.now().strftime("%d.%m.%Y"), dateend: str = datetime.now().strftime("%d.%m.%Y")):
+    if token != os.getenv("API_TOKEN"):
+        return {"error": "Token inválido"}
+    return C16_json(regional, dateinit.replace("/", "."), dateend.replace("/", "."))
+
+@app.get("/not_start_services")
+def not_start_services_endpoint(token=None,regional: str = 'all', dateinit: str = datetime.now().strftime("%d.%m.%Y"), dateend: str = datetime.now().strftime("%d.%m.%Y")):
+    if token != os.getenv("API_TOKEN"):
+        return {"error": "Token inválido"}
+    return not_start_services(dateinit.replace("/", "."), dateend.replace("/", "."))
 
 
 # Webhooks

@@ -27,6 +27,7 @@ def pendencias(region="all"):
             concluido
         FROM matriz
         WHERE concluido = 'PENDENTE'
+        AND data_leit_prev LIKE '%' || TO_CHAR(CURRENT_DATE, 'MM.YYYY')
     """
 
 
@@ -78,9 +79,14 @@ def pendencias_json(region="all"):
             instalacao,
             etapa,
             seccional,
-            regional
+            regional,
+            concluido,
+            data_leit_prev,
+            agente,
+            nome_agente
         FROM matriz
         WHERE concluido = 'PENDENTE'
+        AND data_leit_prev LIKE '%' || TO_CHAR(CURRENT_DATE, 'MM.YYYY')
     """
 
 
@@ -182,6 +188,109 @@ def C12_json(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend
 
     
     cur.execute(query, params)
+    data = cur.fetchall()
+    conn.close()
+    
+    return data
+
+
+def E02_json(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=datetime.now().strftime("%d.%m.%Y")):
+    conn = connect_postgres()
+    cur = conn.cursor()
+
+    params = [dateinit, dateend]
+    
+    query = f"""
+        SELECT
+            instalacao,
+            etapa,
+            seccional,
+            regional,
+            ntlei,
+            agente,
+            nome_agente,
+            status_ds,
+            hora_conclusao,
+            latitude,
+            longitude
+        FROM matriz
+        WHERE TO_DATE(NULLIF(data_leit_prev, '00.00.0000'), 'DD.MM.YYYY') 
+            BETWEEN TO_DATE(%s, 'DD.MM.YYYY') AND TO_DATE(%s, 'DD.MM.YYYY')
+            AND ntlei = 'E02'
+    """
+
+
+    if region != "all":
+        query += f"AND regional = %s"
+        params.append(region.upper())
+
+    
+    cur.execute(query, params)
+    data = cur.fetchall()
+    conn.close()
+    
+    return data
+
+def C16_json(region="all", dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=datetime.now().strftime("%d.%m.%Y")):
+    conn = connect_postgres()
+    cur = conn.cursor()
+
+    params = [dateinit, dateend]
+    
+    query = f"""
+        SELECT
+            instalacao,
+            etapa,
+            seccional,
+            regional,
+            ntlei,
+            agente,
+            nome_agente,
+            status_ds,
+            hora_conclusao,
+            latitude,
+            longitude
+        FROM matriz
+        WHERE TO_DATE(NULLIF(data_leit_prev, '00.00.0000'), 'DD.MM.YYYY') 
+            BETWEEN TO_DATE(%s, 'DD.MM.YYYY') AND TO_DATE(%s, 'DD.MM.YYYY')
+            AND ntlei = 'C16'
+    """
+
+
+    if region != "all":
+        query += f"AND regional = %s"
+        params.append(region.upper())
+
+    
+    cur.execute(query, params)
+    data = cur.fetchall()
+    conn.close()
+    
+    return data
+
+def not_start_services(dateinit=datetime.now().strftime("%d.%m.%Y"), dateend=datetime.now().strftime("%d.%m.%Y")):
+    conn = connect_postgres()
+    cur = conn.cursor()
+
+    query = f"""
+        SELECT 
+            agente, 
+            nome_agente, 
+            seccional, 
+            regional,
+            COUNT(*) FILTER (WHERE concluido = 'PENDENTE') AS total_pendencias
+        FROM matriz
+        WHERE 
+            data_leit_prev LIKE '%' || TO_CHAR(CURRENT_DATE, 'MM.YYYY')
+            and agente <> ''
+        GROUP BY agente, nome_agente, seccional, regional
+        HAVING 
+            COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) = 0
+            AND COUNT(*) FILTER (WHERE concluido = 'PENDENTE') > 0
+    """
+
+    
+    cur.execute(query)
     data = cur.fetchall()
     conn.close()
     
