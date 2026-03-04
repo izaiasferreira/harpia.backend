@@ -492,6 +492,43 @@ def get_files_for_revalidate():
     
     return [{'instalacao': row[0], 'data_foto': row[4], 'hora_foto':row[5],'apontamento': row[1], 'foto':os.getenv("API_URL") + "/" + row[11]} for row in data]
 
+def get_files_for_view(date=datetime.now().strftime("%d.%m.%Y"), regional=None, seccional=None, agent=None):
+    if not regional or not seccional or not agent :
+        return []
+    
+    regional = regional.upper()
+    seccional = seccional.upper()
+    agent = agent.upper()
+    date = date.replace("/", ".")
+
+
+    conn = connect_postgres()
+    cur = conn.cursor()
+
+    query = f"""
+        SELECT
+            *
+        FROM auditoria
+        WHERE agente = '{agent}'
+        AND seccional = '{seccional}'
+        AND regional = '{regional}'
+        AND data_conclusao = '{date}'
+        and validacao <> 'None'
+    """
+    cur.execute(query)
+    data = cur.fetchall()
+    conn.close()
+    
+    if len(data) == 0:
+        print("Nenhuma instalação encontrada.")
+        return []
+
+    data = [row for row in data if row[8] == 'FALSO' and row[12] != 'None' or row[8] == 'VERDADEIRO']
+    
+    return [{'instalacao': row[0], 'data_foto': row[4], 'hora_foto':row[5],'apontamento': row[1], 'foto':os.getenv("API_URL") + "/" + row[11], 'validacao': row[8]} for row in data]
+
+
+
 def save_revalidate_file(instalacao, data, validation):
     conn = connect_postgres()
     cur = conn.cursor()
@@ -507,3 +544,6 @@ def save_revalidate_file(instalacao, data, validation):
     conn.close()
     
     return {'status': 'success'}
+
+
+print(get_files_for_view(date='04.03.2026', regional='METROPOLITANA', seccional='UAC TERESINA', agent='D37173521'))

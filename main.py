@@ -1,3 +1,4 @@
+from functions.postgres_functions import get_files_for_view
 from functions.postgres_functions import C16_json
 from functions.postgres_functions import E02_json
 from functions.postgres_functions import get_installation
@@ -131,6 +132,17 @@ def serve_public_files(token=None):
         return {"error": "Token inválido"}
     
     return get_files_for_revalidate()
+
+
+@app.get("/files_for_view")
+def serve_public_files(token=None, date: str = datetime.now().strftime("%d.%m.%Y"), regional: str = None, seccional: str = None, agent: str = None):
+    
+    if token != os.getenv("API_TOKEN"):
+        return {"error": "Token inválido"}
+    
+    return get_files_for_view(date, regional, seccional, agent)
+
+
 
 @app.post("/revalidate_file")
 def revalidate_file(token=None, body: dict = Body(...)):
