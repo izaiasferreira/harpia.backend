@@ -545,5 +545,3 @@ def save_revalidate_file(instalacao, data, validation):
     
     return {'status': 'success'}
 
-
-print(get_files_for_view(date='04.03.2026', regional='METROPOLITANA', seccional='UAC TERESINA', agent='D37173521'))
