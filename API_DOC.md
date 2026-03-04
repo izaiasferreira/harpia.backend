@@ -123,7 +123,8 @@ Retorna todos os agentes, seccionais, regionais e datas de conclusão (únicos) 
       "agentes": ["Agente 1", "Agente 2", ...],
       "seccionais": ["Seccional 1", ...],
       "regionais": ["Regional 1", ...],
-      "datas_conclusao": ["10.10.2023", ...]
+      "datas_conclusao": ["10.10.2023", ...],
+      "validacoes": ["VERDADEIRO", "FALSO"]
   }
   ```
 

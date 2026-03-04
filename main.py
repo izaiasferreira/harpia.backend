@@ -142,12 +142,12 @@ def serve_public_files(token=None):
 
 
 @app.get("/files_for_view")
-def serve_public_files(token=None, date: str = datetime.now().strftime("%d.%m.%Y"), regional: str = None, seccional: str = None, agent: str = None):
+def serve_public_files(token=None, date: str = datetime.now().strftime("%d.%m.%Y"), regional: str = None, seccional: str = None, agent: str = None, validation: str = None):
     
     if token != os.getenv("API_TOKEN"):
         return {"error": "Token inválido"}
     
-    return get_files_for_view(date, regional, seccional, agent)
+    return get_files_for_view(date, regional, seccional, agent, validation)
 
 
 

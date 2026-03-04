@@ -492,30 +492,38 @@ def get_files_for_revalidate():
     
     return [{'instalacao': row[0], 'data_foto': row[4], 'hora_foto':row[5],'apontamento': row[1], 'foto':os.getenv("API_URL") + "/" + row[11]} for row in data]
 
-def get_files_for_view(date=datetime.now().strftime("%d.%m.%Y"), regional=None, seccional=None, agent=None):
-    if not regional or not seccional or not agent :
-        return []
+def get_files_for_view(date=datetime.now().strftime("%d.%m.%Y"), regional=None, seccional=None, agent=None, validacao=None):
     
-    regional = regional.upper()
-    seccional = seccional.upper()
-    agent = agent.upper()
+    params = [date]
+    query = """
+        SELECT
+            *
+        FROM auditoria
+        WHERE data_conclusao = %s
+        and validacao <> 'None'
+    """
+    
+    if regional is not None:
+        query += "AND regional = %s"
+        params.append(regional.upper())
+    if seccional is not None:
+        query += "AND seccional = %s"
+        params.append(seccional.upper())
+    if agent is not None:
+        query += "AND agente = %s"
+        params.append(agent.upper())
+    if validacao is not None:
+        query += "AND validacao = %s"
+        params.append(validacao.upper())
+    
     date = date.replace("/", ".")
 
 
     conn = connect_postgres()
     cur = conn.cursor()
 
-    query = f"""
-        SELECT
-            *
-        FROM auditoria
-        WHERE agente = '{agent}'
-        AND seccional = '{seccional}'
-        AND regional = '{regional}'
-        AND data_conclusao = '{date}'
-        and validacao <> 'None'
-    """
-    cur.execute(query)
+    
+    cur.execute(query, params)
     data = cur.fetchall()
     conn.close()
     
@@ -565,6 +573,7 @@ def get_filter_options():
         'agentes': res[0] if res[0] else [],
         'seccionais': res[1] if res[1] else [],
         'regionais': res[2] if res[2] else [],
-        'datas_conclusao': res[3] if res[3] else []
+        'datas_conclusao': res[3] if res[3] else [],
+        'validacoes': ['VERDADEIRO', 'FALSO']
     }
 
