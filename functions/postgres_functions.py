@@ -545,3 +545,26 @@ def save_revalidate_file(instalacao, data, validation):
     
     return {'status': 'success'}
 
+def get_filter_options():
+    conn = connect_postgres()
+    cur = conn.cursor()
+
+    query = """
+        SELECT 
+            (SELECT array_agg(DISTINCT agente) FROM matriz WHERE agente IS NOT NULL AND agente != ''),
+            (SELECT array_agg(DISTINCT seccional) FROM matriz WHERE seccional IS NOT NULL AND seccional != ''),
+            (SELECT array_agg(DISTINCT regional) FROM matriz WHERE regional IS NOT NULL AND regional != ''),
+            (SELECT array_agg(DISTINCT data_conclusao) FROM matriz WHERE data_conclusao IS NOT NULL AND data_conclusao != '')
+    """
+    
+    cur.execute(query)
+    res = cur.fetchone()
+    conn.close()
+    
+    return {
+        'agentes': res[0] if res[0] else [],
+        'seccionais': res[1] if res[1] else [],
+        'regionais': res[2] if res[2] else [],
+        'datas_conclusao': res[3] if res[3] else []
+    }
+

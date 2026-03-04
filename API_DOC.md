@@ -81,6 +81,52 @@ Consulta registros de perdas retornando em formato JSON.
   - `dateinit` (opcional): Data de início. Padrão: data atual.
   - `dateend` (opcional): Data final. Padrão: data atual.
 
+### `GET /e02_json`
+Consulta dados formato JSON relacionados a "E02".
+- **Parâmetros de Query:**
+  - `token` (obrigatório): Token de autenticação.
+  - `regional` (opcional): Filtra por regional. Padrão: `'all'`.
+  - `dateinit` (opcional): Data de início. Padrão: data atual.
+  - `dateend` (opcional): Data final. Padrão: data atual.
+
+### `GET /c16_json`
+Consulta dados formato JSON relacionados a "C16".
+- **Parâmetros de Query:**
+  - `token` (obrigatório): Token de autenticação.
+  - `regional` (opcional): Filtra por regional. Padrão: `'all'`.
+  - `dateinit` (opcional): Data de início. Padrão: data atual.
+  - `dateend` (opcional): Data final. Padrão: data atual.
+
+### `GET /not_start_services`
+Consulta a contagem de serviços pendentes (não iniciados) agrupados por agente.
+- **Parâmetros de Query:**
+  - `token` (obrigatório): Token de autenticação.
+
+### `GET /completed_services`
+Consulta a contagem de serviços concluídos agrupados por agente.
+- **Parâmetros de Query:**
+  - `token` (obrigatório): Token de autenticação.
+
+### `GET /instalacao`
+Busca informações de cadastro de uma instalação específica.
+- **Parâmetros de Query:**
+  - `token` (obrigatório): Token de autenticação.
+  - `inst` (opcional): String contendo o ID ou código da instalação.
+
+### `GET /filter_options`
+Retorna todos os agentes, seccionais, regionais e datas de conclusão (únicos) existentes na base de dados, ignorando strings vazias ou nulas.
+- **Parâmetros de Query:**
+  - `token` (obrigatório): Token de autenticação.
+- **Retorno Esperado (JSON):**
+  ```json
+  {
+      "agentes": ["Agente 1", "Agente 2", ...],
+      "seccionais": ["Seccional 1", ...],
+      "regionais": ["Regional 1", ...],
+      "datas_conclusao": ["10.10.2023", ...]
+  }
+  ```
+
 ---
 
 ## 3. Webhooks
@@ -109,7 +155,7 @@ Endpoint destinado a receber notificações de eventos (webhooks). Exige autenti
 
 ---
 
-## 4. Revalidação de Fotos (Auditoria)
+## 4. Revalidação e Visualização de Fotos (Auditoria)
 
 ### `GET /files_for_revalidate`
 Recupera os dados que precisam de revalidação de fotos.
@@ -124,6 +170,7 @@ Recupera os dados que precisam de revalidação de fotos.
 Salva o status consolidado de uma revalidação.
 - **Parâmetros de Query:**
   - `token` (obrigatório): Token de autenticação.
+  - `body` (obrigatório): JSON contendo os dados da revalidação.
 - **Body Esperado (JSON):**
   ```json
   {
@@ -133,6 +180,19 @@ Salva o status consolidado de uma revalidação.
   }
   ```
 - **Retorno:** Confirmação do update na base de dados (`{"status": "success"}`).
+
+### `GET /files_for_view`
+Recupera as fotos (arquivos) de uma data, regional, seccional e agente específicos para visualização.
+- **Parâmetros de Query:**
+  - `token` (obrigatório): Token de autenticação.
+  - `date` (opcional): Data da conclusão do serviço. Padrão: data atual.
+  - `regional` (opcional): Filtra por regional.
+  - `seccional` (opcional): Filtra por seccional.
+  - `agent` (opcional): Filtra por agente.
+- **Retorno:**
+  ```json
+  [{"instalacao": "ID ou codigo da instalacao", "data_foto": "Data da conclusao do item", "hora_foto":"Hora da conclusao do item", "apontamento": "Apontamento do item", "foto":"URL da foto", "validacao": "Status da revalidação"}, ...]
+  ```
 
 ---
 

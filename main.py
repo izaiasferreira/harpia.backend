@@ -20,7 +20,8 @@ from functions.postgres_functions import (
     pendencias_json,
     C12_json,
     not_start_services,
-    completed_services
+    completed_services,
+    get_filter_options
 )
 
 load_dotenv()
@@ -98,6 +99,12 @@ def completed_services_endpoint(token=None):
     if token != os.getenv("API_TOKEN"):
         return {"error": "Token inválido"}
     return completed_services()
+
+@app.get("/filter_options")
+def filter_options_endpoint(token=None):
+    if token != os.getenv("API_TOKEN"):
+        return {"error": "Token inválido"}
+    return get_filter_options()
 
 
 # Webhooks
