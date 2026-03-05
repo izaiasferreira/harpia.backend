@@ -3,3 +3,4 @@ venv
 state.json
 __pycache__
 server_log.txt
+node_modules
