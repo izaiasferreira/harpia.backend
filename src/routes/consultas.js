@@ -7,6 +7,8 @@ const {
     c12Json,
     perdas,
     perdasJson,
+    notStartServices,
+    completedServices
 } = require('../functions/postgresFunctions');
 
 function today() {
@@ -90,6 +92,26 @@ router.get('/perdas_json', async (req, res) => {
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
         const result = await perdasJson(regional, dateinit, dateend);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/not_start_services', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const result = await notStartServices();
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/completed_services', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const result = await completedServices();
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });

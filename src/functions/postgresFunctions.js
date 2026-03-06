@@ -197,6 +197,8 @@ async function completedServices() {
       COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) > 0
       AND COUNT(*) FILTER (WHERE concluido = 'PENDENTE') = 0
   `;
+
+  console.log(query);
     const { rows } = await pool.query(query);
     return rows;
 }
