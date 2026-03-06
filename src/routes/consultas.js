@@ -5,10 +5,13 @@ const {
     pendenciasJson,
     cnl,
     c12Json,
+    e02Json,
+    c16Json,
     perdas,
     perdasJson,
     notStartServices,
-    completedServices
+    completedServices,
+    firstC12Json
 } = require('../functions/postgresFunctions');
 
 function today() {
@@ -66,6 +69,45 @@ router.get('/c12_json', async (req, res) => {
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
         const result = await c12Json(regional, dateinit, dateend);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/e02_json', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const regional = req.query.regional || 'all';
+        const dateinit = (req.query.dateinit || today()).replace('/', '.');
+        const dateend = (req.query.dateend || today()).replace('/', '.');
+        const result = await e02Json(regional, dateinit, dateend);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/c16_json', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const regional = req.query.regional || 'all';
+        const dateinit = (req.query.dateinit || today()).replace('/', '.');
+        const dateend = (req.query.dateend || today()).replace('/', '.');
+        const result = await c16Json(regional, dateinit, dateend);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/first_c12_json', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const regional = req.query.regional || 'all';
+        const dateinit = (req.query.dateinit || today()).replace('/', '.');
+        const dateend = (req.query.dateend || today()).replace('/', '.');
+        const result = await firstC12Json(regional, dateinit, dateend);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });

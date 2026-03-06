@@ -71,7 +71,7 @@ async function cnl(region = 'all', dateinit = today(), dateend = today()) {
     let query = `
     SELECT instalacao, etapa, seccional, regional, ntlei, concluido, status_ds
     FROM matriz
-    WHERE TO_DATE(NULLIF(data_leit_prev, '00.00.0000'), 'DD.MM.YYYY')
+    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
       AND concluido = 'CONCLUIDO'
       AND ntlei NOT LIKE 'A%'
@@ -114,11 +114,44 @@ async function c12Json(region = 'all', dateinit = today(), dateend = today()) {
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
            status_ds, hora_conclusao, latitude, longitude
     FROM matriz
-    WHERE TO_DATE(NULLIF(data_leit_prev, '00.00.0000'), 'DD.MM.YYYY')
+    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
       AND ntlei = 'C12'
       AND status_ds = 'LG'
   `;
+    if (region !== 'all') {
+        params.push(region.toUpperCase());
+        query += ` AND regional = $${params.length}`;
+    }
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
+async function firstC12Json(region = 'all', dateinit = today(), dateend = today()) {
+    const params = [dateinit, dateend];
+    let query = `
+   WITH historico_agentes AS (
+    SELECT 
+        instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
+        status_ds, hora_conclusao, latitude, longitude, data_conclusao,
+        LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as ntlei_ant,
+        LAG(status_ds) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as status_ant,
+        LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as ntlei_ant2,
+        LAG(status_ds, 2) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as status_ant2
+        FROM matriz
+    )
+    SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
+        status_ds, hora_conclusao, latitude, longitude
+    FROM historico_agentes
+    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY') 
+        BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
+    AND ntlei = 'C12'
+    AND status_ds = 'LG'
+    AND (ntlei_ant  LIKE 'A%' OR ntlei_ant  IN ('B09', 'B10', 'B15') )
+    AND (ntlei_ant2  LIKE 'A%' OR ntlei_ant2  IN ('B09', 'B10', 'B15'))
+  `;
+
+  
     if (region !== 'all') {
         params.push(region.toUpperCase());
         query += ` AND regional = $${params.length}`;
@@ -134,7 +167,7 @@ async function e02Json(region = 'all', dateinit = today(), dateend = today()) {
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
            status_ds, hora_conclusao, latitude, longitude
     FROM matriz
-    WHERE TO_DATE(NULLIF(data_leit_prev, '00.00.0000'), 'DD.MM.YYYY')
+    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
       AND ntlei = 'E02'
   `;
@@ -153,7 +186,7 @@ async function c16Json(region = 'all', dateinit = today(), dateend = today()) {
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
            status_ds, hora_conclusao, latitude, longitude
     FROM matriz
-    WHERE TO_DATE(NULLIF(data_leit_prev, '00.00.0000'), 'DD.MM.YYYY')
+    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
       AND ntlei = 'C16'
   `;
@@ -168,16 +201,23 @@ async function c16Json(region = 'all', dateinit = today(), dateend = today()) {
 // ─── notStartServices ──────────────────────────────────────────────────────────
 async function notStartServices() {
     const query = `
-    SELECT agente, nome_agente, seccional, regional,
-           COUNT(*) FILTER (WHERE concluido = 'PENDENTE') AS total_pendencias,
-           TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY') as date
+    SELECT 
+    agente, 
+    nome_agente, 
+    seccional, 
+    regional,
+    COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) AS total_concluidas,
+    COUNT(*) FILTER (WHERE concluido <> 'CONCLUIDO') AS total_pend,
+    TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY') AS date
     FROM matriz
-    WHERE data_leit_prev LIKE '%' || TO_CHAR(CURRENT_DATE, 'MM.YYYY')
-      AND agente <> ''
+    WHERE 
+        -- Correção da sintaxe da função RIGHT
+        RIGHT(data_leit_prev, 7) = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
+        AND agente <> ''
     GROUP BY agente, nome_agente, seccional, regional
-    HAVING
-      COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) = 0
-      AND COUNT(*) FILTER (WHERE concluido = 'PENDENTE') > 0
+    HAVING 
+        COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) = 0
+        AND COUNT(*) FILTER (WHERE concluido <> 'CONCLUIDO') > 0;
   `;
     const { rows } = await pool.query(query);
     return rows;
@@ -186,19 +226,24 @@ async function notStartServices() {
 // ─── completedServices ────────────────────────────────────────────────────────
 async function completedServices() {
     const query = `
-    SELECT agente, nome_agente, seccional, regional,
-           COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO') AS total_concluidas,
-           TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY') as date
+    SELECT 
+    agente, 
+    nome_agente, 
+    seccional, 
+    regional,
+    COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) AS total_concluidas,
+    COUNT(*) FILTER (WHERE concluido <> 'CONCLUIDO') AS total_pend,
+    TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY') AS date
     FROM matriz
-    WHERE data_leit_prev LIKE '%' || TO_CHAR(CURRENT_DATE, 'MM.YYYY')
-      AND agente <> ''
+    WHERE 
+        -- Correção da sintaxe da função RIGHT
+        RIGHT(data_leit_prev, 7) = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
+        AND agente <> ''
     GROUP BY agente, nome_agente, seccional, regional
-    HAVING
-      COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) > 0
-      AND COUNT(*) FILTER (WHERE concluido = 'PENDENTE') = 0
+    HAVING 
+        COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) > 0
+        AND COUNT(*) FILTER (WHERE concluido <> 'CONCLUIDO') = 0;
   `;
-
-  console.log(query);
     const { rows } = await pool.query(query);
     return rows;
 }
@@ -210,7 +255,7 @@ async function perdas(region = 'all', dateinit = today(), dateend = today()) {
     SELECT instalacao, etapa, seccional, regional, ntlei,
            apontamento, tem_perda, motivo_perda, perda_prevista_mensal
     FROM matriz
-    WHERE TO_DATE(NULLIF(data_leit_prev, '00.00.0000'), 'DD.MM.YYYY')
+    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
       AND tem_perda = 'PERDA'
       AND perda_prevista_mensal <> '0'
@@ -251,7 +296,7 @@ async function perdasJson(region = 'all', dateinit = today(), dateend = today())
     SELECT instalacao, etapa, seccional, regional, motivo_perda,
            perda_prevista_mensal, agente, nome_agente, latitude, longitude
     FROM matriz
-    WHERE TO_DATE(NULLIF(data_leit_prev, '00.00.0000'), 'DD.MM.YYYY')
+    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
       AND tem_perda = 'PERDA'
       AND perda_prevista_mensal <> '0'
@@ -398,4 +443,5 @@ module.exports = {
     getFilesForView,
     saveRevalidateFile,
     getFilterOptions,
+    firstC12Json
 };
