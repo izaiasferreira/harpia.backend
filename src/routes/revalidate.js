@@ -44,7 +44,7 @@ router.get('/filter_options', async (req, res) => {
 router.get('/files_for_view', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
-        const { date, regional, seccional, agent, validacao } = req.query;
+        const { date, regional, seccional, agent, validation: validacao } = req.query;
         const result = await getFilesForView(date, regional, seccional, agent, validacao);
         res.json(result);
     } catch (err) {

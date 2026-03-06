@@ -340,10 +340,10 @@ async function getFilesForView(date = today(), regional = null, seccional = null
 
     return filtered.map(row => ({
         instalacao: row.instalacao,
-        data_foto: row.data_foto,
-        hora_foto: row.hora_foto,
+        data_foto: row.data_conclusao,
+        hora_foto: row.hora,
         apontamento: row.apontamento,
-        foto: process.env.API_URL + '/' + row.foto,
+        foto: process.env.API_URL + '/' + row.caminho_foto,
         validacao: row.validacao,
     }));
 }

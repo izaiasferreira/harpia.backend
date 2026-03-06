@@ -19,7 +19,7 @@ router.post('/webhook_perdas', async (req, res) => {
         const imageUrl = Object.values(body.data.completionData)[0];
         const result = await sendMessageWhatsappFile(
             process.env.WHATSAPP_NUMBER_PERDAS,
-            `Perda Recuperada: \\nIN:${body.data.title} \\nDESCRIÇÃO: ${body.data.description.replace(/\n/g, '\\n')}`,
+            `Perda Recuperada: \\nIN:${body.data.title} \\nDESCRIÇÃO: \\n${body.data.description.replace(/\n/g, '\\n')}`,
             imageUrl
         );
         return res.json(result);
