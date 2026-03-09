@@ -11,7 +11,8 @@ const {
     perdasJson,
     notStartServices,
     completedServices,
-    firstC12Json
+    firstC12Json,
+    CNLToLidoJson
 } = require('../functions/postgresFunctions');
 
 function today() {
@@ -56,6 +57,18 @@ router.get('/cnl', async (req, res) => {
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
         const result = await cnl(regional, dateinit, dateend);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/cnl_to_lido_json', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const regional = req.query.regional || 'all';
+        const dateinit = (req.query.dateinit || today()).replace('/', '.');
+        const result = await CNLToLidoJson(regional, dateinit);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });

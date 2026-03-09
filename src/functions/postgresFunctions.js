@@ -160,6 +160,34 @@ async function firstC12Json(region = 'all', dateinit = today(), dateend = today(
     return rows;
 }
 
+async function CNLToLidoJson(region = 'all', dateinit = today()) {
+    const params = [dateinit];
+    let query = `
+   WITH historico_agentes AS (
+    SELECT 
+        instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
+        status_ds, hora_conclusao, latitude, longitude, data_conclusao, 
+        LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as ntlei_ant,
+        LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as ntlei_ant2
+    FROM matriz
+    )
+    SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
+        status_ds, hora_conclusao, latitude, longitude
+    FROM historico_agentes
+    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY') = TO_DATE($1, 'DD.MM.YYYY')
+    AND (ntlei LIKE 'A%' OR ntlei IN ('B09', 'B10', 'B15'))
+    AND (ntlei_ant NOT LIKE 'A%' AND ntlei_ant NOT IN ('B09', 'B10', 'B15'))
+    AND (ntlei_ant2 NOT LIKE 'A%' AND ntlei_ant2 NOT IN ('B09', 'B10', 'B15'));
+  `;
+
+  
+    if (region !== 'all') {
+        params.push(region.toUpperCase());
+        query += ` AND regional = $${params.length}`;
+    }
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
 // ─── e02Json ────────────────────────────────────────────────────────────────────
 async function e02Json(region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
@@ -443,5 +471,6 @@ module.exports = {
     getFilesForView,
     saveRevalidateFile,
     getFilterOptions,
-    firstC12Json
+    firstC12Json,
+    CNLToLidoJson
 };
