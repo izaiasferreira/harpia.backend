@@ -12,7 +12,10 @@ const {
     notStartServices,
     completedServices,
     firstC12Json,
-    CNLToLidoJson
+    CNLToLidoJson,
+    firstCNLJson,
+    C12ToLidoJson,
+    incompletedServices
 } = require('../functions/postgresFunctions');
 
 function today() {
@@ -75,6 +78,19 @@ router.get('/cnl_to_lido_json', async (req, res) => {
     }
 });
 
+router.get('/first_cnl_json', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const regional = req.query.regional || 'all';
+        const dateinit = (req.query.dateinit || today()).replace('/', '.');
+        const dateend = (req.query.dateend || today()).replace('/', '.');
+        const result = await firstCNLJson(regional, dateinit, dateend);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.get('/c12_json', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
@@ -82,6 +98,31 @@ router.get('/c12_json', async (req, res) => {
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
         const result = await c12Json(regional, dateinit, dateend);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/c12_to_lido_json', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const regional = req.query.regional || 'all';
+        const dateinit = (req.query.dateinit || today()).replace('/', '.');
+        const result = await C12ToLidoJson(regional, dateinit);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/first_c12_json', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const regional = req.query.regional || 'all';
+        const dateinit = (req.query.dateinit || today()).replace('/', '.');
+        const dateend = (req.query.dateend || today()).replace('/', '.');
+        const result = await firstC12Json(regional, dateinit, dateend);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -108,19 +149,6 @@ router.get('/c16_json', async (req, res) => {
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
         const result = await c16Json(regional, dateinit, dateend);
-        res.json(result);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-router.get('/first_c12_json', async (req, res) => {
-    if (!checkToken(req, res)) return;
-    try {
-        const regional = req.query.regional || 'all';
-        const dateinit = (req.query.dateinit || today()).replace('/', '.');
-        const dateend = (req.query.dateend || today()).replace('/', '.');
-        const result = await firstC12Json(regional, dateinit, dateend);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -167,6 +195,16 @@ router.get('/completed_services', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
         const result = await completedServices();
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/incompleted_services', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const result = await incompletedServices();
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });

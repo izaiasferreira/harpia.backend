@@ -1,10 +1,10 @@
 # Documentação da API Banco
 
-Esta é a documentação dos endpoints disponíveis na **API Banco**, desenvolvida utilizando o framework **FastAPI**.
+Esta é a documentação atualizada dos endpoints disponíveis na **API Banco**, desenvolvida em **Node.js** com **Express**.
 
 ## Visão Geral e Autenticação
 
-A maioria dos endpoints da API requer autenticação através de um parâmetro de query chamado `token`. Para usar a API validamente, você deve enviar o valor do token que corresponde variável de ambiente `API_TOKEN`.
+A maioria dos endpoints da API requer autenticação através de um parâmetro de query chamado `token`. O valor deve corresponder à variável de ambiente `API_TOKEN`.
 
 Caso o token enviado não seja válido, a API retornará:
 ```json
@@ -18,195 +18,125 @@ Caso o token enviado não seja válido, a API retornará:
 ## 1. Endpoints de Saúde (Health Check)
 
 ### `GET /health`
-Verifica se a API está no ar e funcionando.
-- **Autenticação Required:** Não
-- **Parâmetros:** Nenhum
-- **Retorno de Sucesso:**
+Verifica se a API está online.
+- **Autenticação Requerida:** Não
+- **Retorno:** 
   ```json
   {
       "status": "ok",
-      "timestamp": "2023-10-25T12:00:00.000000Z"
+      "timestamp": "2026-03-12T23:55:00.000Z"
   }
   ```
 
 ---
 
-## 2. Endpoints de Consultas
+## 2. Endpoints de Consultas Gerais
 
-Todos os endpoints desta seção efetuam consultas na base de dados (PostgreSQL) e requerem autenticação (`token`). O comportamento de filtros de data (`dateinit` e `dateend`) tem como padrão o dia atual no formato `DD.MM.YYYY`.
+Estes endpoints consultam a tabela `matriz` do PostgreSQL. Parâmetros de data (`dateinit`, `dateend`) utilizam o formato `DD.MM.YYYY`.
 
 ### `GET /pendencias`
-Consulta dados de pendências, com a possibilidade de retorno ou envio de arquivo (faturado através do postgres_functions).
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
-  - `regional` (opcional): Filtra por regional. Padrão: `'all'`.
-  - `dateinit` (opcional): Data inicial da consulta. Padrão: data atual.
-  - `dateend` (opcional): Data final da consulta. Padrão: data atual.
+Retorna um resumo formatado em texto das pendências por regional e seccional.
+- **Parâmetros:** `token`, `regional` (default: 'all').
 
 ### `GET /pendencias_json`
-Retorna de forma explícita os dados de pendências em formato JSON.
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
-  - `regional` (opcional): Filtra por regional. Padrão: `'all'`.
+Retorna a lista bruta de pendências em formato JSON.
+- **Parâmetros:** `token`, `regional` (default: 'all').
 
 ### `GET /cnl`
-Consulta dados relacionados a "CNL". 
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
-  - `regional` (opcional): Filtra por regional. Padrão: `'all'`.
-  - `dateinit` (opcional): Data de início (formato esperado ou ajustado com \`.`). Padrão: data atual.
-  - `dateend` (opcional): Data final (formato esperado ou ajustado com \`.`). Padrão: data atual.
+Retorna resumo em texto de serviços concluídos (NTLEI não inicia com 'A' e não é B09/B10/B15).
+- **Parâmetros:** `token`, `regional`, `dateinit`, `dateend`.
 
 ### `GET /c12_json`
-Consulta dados formato JSON relacionados a "C12".
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
-  - `regional` (opcional): Filtra por regional. Padrão: `'all'`.
-  - `dateinit` (opcional): Data de início. Padrão: data atual.
-  - `dateend` (opcional): Data final. Padrão: data atual.
-
-### `GET /perdas`
-Consulta registros de perdas. 
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
-  - `regional` (opcional): Filtra por regional. Padrão: `'all'`.
-  - `dateinit` (opcional): Data de início. Padrão: data atual.
-  - `dateend` (opcional): Data final. Padrão: data atual.
-
-### `GET /perdas_json`
-Consulta registros de perdas retornando em formato JSON.
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
-  - `regional` (opcional): Filtra por regional. Padrão: `'all'`.
-  - `dateinit` (opcional): Data de início. Padrão: data atual.
-  - `dateend` (opcional): Data final. Padrão: data atual.
+Retorna registros de NTLEI 'C12' com status 'LG' entre as datas informadas.
+- **Parâmetros:** `token`, `regional`, `dateinit`, `dateend`.
 
 ### `GET /e02_json`
-Consulta dados formato JSON relacionados a "E02".
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
-  - `regional` (opcional): Filtra por regional. Padrão: `'all'`.
-  - `dateinit` (opcional): Data de início. Padrão: data atual.
-  - `dateend` (opcional): Data final. Padrão: data atual.
+Retorna registros de NTLEI 'E02' entre as datas informadas.
+- **Parâmetros:** `token`, `regional`, `dateinit`, `dateend`.
 
 ### `GET /c16_json`
-Consulta dados formato JSON relacionados a "C16".
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
-  - `regional` (opcional): Filtra por regional. Padrão: `'all'`.
-  - `dateinit` (opcional): Data de início. Padrão: data atual.
-  - `dateend` (opcional): Data final. Padrão: data atual.
+Retorna registros de NTLEI 'C16' entre as datas informadas.
+- **Parâmetros:** `token`, `regional`, `dateinit`, `dateend`.
+
+### `GET /perdas` e `GET /perdas_json`
+Consultam registros onde `tem_perda = 'PERDA'`.
+- **Parâmetros:** `token`, `regional`, `dateinit`, `dateend`.
+
+---
+
+## 3. Histórico e Transições (Novos Endpoints)
+
+Estes endpoints utilizam lógicas de janela (Window Functions) para analisar o histórico das instalações.
+
+### `GET /first_c12_json`
+Identifica o primeiro registro 'C12' (LG) que foi antecedido por dois registros de leitura (A/B09/B10/B15).
+- **Parâmetros:** `token`, `regional`, `dateinit`, `dateend`.
+
+### `GET /first_cnl_json`
+Identifica registros de CNL (NTLEI não 'A' ou Bxx) antecedidos por dois registros de leitura.
+- **Parâmetros:** `token`, `regional`, `dateinit`, `dateend`.
+
+### `GET /c12_to_lido_json`
+Identifica instalações que mudaram de 'C12' para leitura (A/B09/B10/B15) no dia informado.
+- **Parâmetros:** `token`, `regional`, `dateinit`.
+
+### `GET /cnl_to_lido_json`
+Identifica instalações que mudaram de CNL para leitura no dia informado.
+- **Parâmetros:** `token`, `regional`, `dateinit`.
+
+---
+
+## 4. Dashboard de Serviços
+
+Monitoramento de performance dos agentes para o dia atual.
 
 ### `GET /not_start_services`
-Consulta a contagem de serviços pendentes (não iniciados) agrupados por agente.
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
+Agentes que possuem pendências mas ainda não concluíram nenhum serviço hoje.
+- **Parâmetros:** `token`.
 
 ### `GET /completed_services`
-Consulta a contagem de serviços concluídos agrupados por agente.
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
+Agentes que já completaram todas as suas pendências hoje. Retorna tempos de trabalho e pausas.
+- **Parâmetros:** `token`.
 
-### `GET /instalacao`
-Busca informações de cadastro de uma instalação específica.
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
-  - `inst` (opcional): String contendo o ID ou código da instalação.
-
-### `GET /filter_options`
-Retorna todos os agentes, seccionais, regionais e datas de conclusão (únicos) existentes na base de dados, ignorando strings vazias ou nulas.
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
-- **Retorno Esperado (JSON):**
-  ```json
-  {
-      "agentes": ["Agente 1", "Agente 2", ...],
-      "seccionais": ["Seccional 1", ...],
-      "regionais": ["Regional 1", ...],
-      "datas_conclusao": ["10.10.2023", ...],
-      "validacoes": ["VERDADEIRO", "FALSO"]
-  }
-  ```
+### `GET /incompleted_services`
+Agentes que iniciaram o trabalho (concluíram > 0) mas ainda possuem mais de 10 pendências.
+- **Parâmetros:** `token`.
 
 ---
 
-## 3. Webhooks
+## 5. Webhooks
 
 ### `POST /webhook_perdas`
-Endpoint destinado a receber notificações de eventos (webhooks). Exige autenticação por token no query param e um body JSON vindo da requisição que disparou o evento.
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
-- **Body Esperado (JSON):**
-  A estrutura baseia-se no evento processado. Para recuperar a imagem e disparar o WhatsApp:
-  ```json
-  {
-      "event": "service.completed",
-      "data": {
-          "title": "...",
-          "description": "...",
-          "completionData": {
-              "key": "image_url_aqui"
-          }
-      }
-  }
-  ```
-- **Fluxo do Endpoint:**
-  - Se o evento for `service.completed`, envia uma mensagem de arquivo via WhatsApp avisando sobre a "Perda Recuperada".
-  - Retorna erro caso o evento recebido seja inválido.
+Recebe notificações externas de conclusão de serviço.
+- **Evento:** `service.completed`
+- **Ação:** Dispara uma mensagem com imagem via WhatsApp (configurado no `.env`).
 
 ---
 
-## 4. Revalidação e Visualização de Fotos (Auditoria)
+## 6. Revalidação de Fotos (Auditoria)
+
+Endpoints para o fluxo de auditoria de campo.
 
 ### `GET /files_for_revalidate`
-Recupera os dados que precisam de revalidação de fotos.
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
-- **Retorno:**
-   ```json
-  [{"instalacao": "ID ou codigo da instalacao", "data_foto": "Data da conclusao do item", "hora_foto":"Hora da conclusao do item", "apontamento": "Apontamento do item", "foto":"URL da foto"}, ...]
-  ```
+Busca fotos marcadas como `VALIDACAO = 'FALSO'` e `revalidacao = 'None'`.
 
 ### `POST /revalidate_file`
-Salva o status consolidado de uma revalidação.
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
-  - `body` (obrigatório): JSON contendo os dados da revalidação.
-- **Body Esperado (JSON):**
-  ```json
-  {
-      "instalacao": "ID ou codigo da instalacao",
-      "data": "Data da conclusao do item",
-      "validation": "Status da revalidação (ex: VERDADEIRO, FALSO)"
-  }
-  ```
-- **Retorno:** Confirmação do update na base de dados (`{"status": "success"}`).
+Atualiza o campo `revalidacao` na tabela de auditoria.
+- **Body:** `{ "instalacao", "data", "validation" }`
+
+### `GET /filter_options`
+Retorna as opções únicas de filtro (agentes, seccionais, regionais, datas) para a interface de auditoria.
 
 ### `GET /files_for_view`
-Recupera as fotos (arquivos) de uma data, regional, seccional e agente específicos para visualização.
-- **Parâmetros de Query:**
-  - `token` (obrigatório): Token de autenticação.
-  - `date` (opcional): Data da conclusão do serviço. Padrão: data atual.
-  - `regional` (opcional): Filtra por regional.
-  - `seccional` (opcional): Filtra por seccional.
-  - `agent` (opcional): Filtra por agente.
-- **Retorno:**
-  ```json
-  [{"instalacao": "ID ou codigo da instalacao", "data_foto": "Data da conclusao do item", "hora_foto":"Hora da conclusao do item", "apontamento": "Apontamento do item", "foto":"URL da foto", "validacao": "Status da revalidação"}, ...]
-  ```
+Busca fotos validadas (`VERDADEIRO` ou `FALSO` com revalidação feita) para visualização.
+- **Parâmetros:** `token`, `date`, `regional`, `seccional`, `agent`, `validation`.
 
 ---
 
-## 5. Servidor de Arquivos Estáticos / Publicos
+## 7. Servidor de Arquivos
 
-Endpoints dinâmicos projetados para expor e servir arquivos estaticamente.
+### `GET /`
+Mensagem de boas-vindas/erro 404 (instrução de uso).
 
-### `GET /` e `GET /{file_path:path}`
-Serve arquivos contidos no diretório especificado na variável de ambiente `FILES_ROOT` ou em uma subpasta denominada `public` na raiz do projeto.
-- **Parâmetros de Rota:**
-  - `file_path`: O caminho para o arquivo sendo buscado.
-- **Comportamentos:**
-  - Um acesso à raiz do server (`/`) sem especificar arquivo gera um Erro 404 seguro com detalhamento amigável.
-  - Bloqueia e corrige tentativas de *Path Traversal* mantendo o serviço confinado à pasta raiz pretendida.
-  - Se um arquivo for encontrado será retornado através do `FileResponse`.
-  - Se não for encontrado nada, retorna 404 em formato JSON.
+### `GET /*` (Qualquer outro caminho)
+Serve arquivos estáticos da pasta definida em `FILES_ROOT`. Possui proteção contra *path traversal*.
