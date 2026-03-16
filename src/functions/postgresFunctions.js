@@ -502,7 +502,7 @@ async function perdasJson(region = 'all', dateinit = today(), dateend = today())
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, motivo_perda,
-           perda_prevista_mensal, agente, nome_agente, latitude, longitude, data_conclusao, supervisor
+           perda_prevista_mensal, agente, nome_agente, latitude, longitude, data_conclusao, supervisor, tipo_perda, ntlei as apontamento_atual, apontamento as apontamento_anterior, grupo_cnl
     FROM matriz
     WHERE data_conclusao::date
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
