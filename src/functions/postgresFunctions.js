@@ -12,7 +12,7 @@ async function pendencias(region = 'all') {
     SELECT instalacao, etapa, seccional, regional, concluido
     FROM matriz
     WHERE concluido = 'PENDENTE'
-    AND data_leit_prev LIKE '%' || TO_CHAR(CURRENT_DATE, 'MM.YYYY')
+    AND TO_CHAR(data_leit_prev, 'MM.YYYY') = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
   `;
     const params = [];
     if (region !== 'all') {
@@ -51,10 +51,10 @@ async function pendencias(region = 'all') {
 // ─── pendencias_json ────────────────────────────────────────────────────────────
 async function pendenciasJson(region = 'all') {
     let query = `
-    SELECT instalacao, etapa, seccional, regional, concluido, data_leit_prev, agente, nome_agente
+    SELECT instalacao, etapa, seccional, regional, concluido, data_leit_prev, agente, nome_agente, supervisor
     FROM matriz
     WHERE concluido = 'PENDENTE'
-    AND data_leit_prev LIKE '%' || TO_CHAR(CURRENT_DATE, 'MM.YYYY')
+    AND TO_CHAR(data_leit_prev, 'MM.YYYY') = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
   `;
     const params = [];
     if (region !== 'all') {
@@ -71,7 +71,7 @@ async function cnl(region = 'all', dateinit = today(), dateend = today()) {
     let query = `
     SELECT instalacao, etapa, seccional, regional, ntlei, concluido, status_ds
     FROM matriz
-    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')
+    WHERE data_conclusao::date
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
       AND concluido = 'CONCLUIDO'
       AND ntlei NOT LIKE 'A%'
@@ -111,14 +111,13 @@ async function cnl(region = 'all', dateinit = today(), dateend = today()) {
 async function c12_out_hour_Json(region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
-    SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
-           status_ds, hora_conclusao, latitude, longitude
+    SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
+           status_ds, data_conclusao, latitude, longitude
     FROM matriz
-    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')
+    WHERE data_conclusao::date
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
       AND ntlei = 'C12'
       AND status_ds = 'LG'
-      AND hora_conclusao > '12:00:00'
       AND tipo_perda NOT LIKE 'CLIENTE CR SEM EVOLUCAO%'
   `;
     if (region !== 'all') {
@@ -126,7 +125,12 @@ async function c12_out_hour_Json(region = 'all', dateinit = today(), dateend = t
         query += ` AND regional = $${params.length}`;
     }
     const { rows } = await pool.query(query, params);
-    return rows;
+    return rows?.map(r => {
+        const dt = new Date(r.data_conclusao);
+        r.data_conclusao = dt.toLocaleDateString('pt-BR');
+        r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+        return r;
+    });
 }
 
 async function firstC12Json(region = 'all', dateinit = today(), dateend = today()) {
@@ -135,17 +139,17 @@ async function firstC12Json(region = 'all', dateinit = today(), dateend = today(
    WITH historico_agentes AS (
     SELECT 
         instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
-        status_ds, hora_conclusao, latitude, longitude, data_conclusao,
-        LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as ntlei_ant,
-        LAG(status_ds) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as status_ant,
-        LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as ntlei_ant2,
-        LAG(status_ds, 2) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as status_ant2
+        status_ds, data_conclusao, latitude, longitude,
+        LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant,
+        LAG(status_ds) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as status_ant,
+        LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant2,
+        LAG(status_ds, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as status_ant2
         FROM matriz
     )
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
-        status_ds, hora_conclusao, latitude, longitude
+        status_ds, data_conclusao, latitude, longitude
     FROM historico_agentes
-    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY') 
+    WHERE data_conclusao::date
         BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
     AND ntlei = 'C12'
     AND status_ds = 'LG'
@@ -168,17 +172,17 @@ async function firstCNLJson(region = 'all', dateinit = today(), dateend = today(
    WITH historico_agentes AS (
     SELECT 
         instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
-        status_ds, hora_conclusao, latitude, longitude, data_conclusao,
-        LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as ntlei_ant,
-        LAG(status_ds) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as status_ant,
-        LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as ntlei_ant2,
-        LAG(status_ds, 2) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as status_ant2
+        status_ds, data_conclusao, latitude, longitude,
+        LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant,
+        LAG(status_ds) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as status_ant,
+        LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant2,
+        LAG(status_ds, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as status_ant2
         FROM matriz
     )
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
-        status_ds, hora_conclusao, latitude, longitude
+        status_ds, data_conclusao, latitude, longitude
     FROM historico_agentes
-    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY') 
+    WHERE data_conclusao::date
         BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
     AND (ntlei NOT LIKE 'A%' AND ntlei NOT IN ('B09', 'B10', 'B15'))
     AND (ntlei_ant  LIKE 'A%' OR ntlei_ant  IN ('B09', 'B10', 'B15') )
@@ -200,15 +204,15 @@ async function C12ToLidoJson(region = 'all', dateinit = today()) {
    WITH historico_agentes AS (
     SELECT 
         instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
-        status_ds, hora_conclusao, latitude, longitude, data_conclusao, 
-        LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as ntlei_ant,
-        LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as ntlei_ant2
+        status_ds, data_conclusao, latitude, longitude,
+        LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant,
+        LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant2
     FROM matriz
     )
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
-        status_ds, hora_conclusao, latitude, longitude
+        status_ds, data_conclusao, latitude, longitude
     FROM historico_agentes
-    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY') = TO_DATE($1, 'DD.MM.YYYY')
+    WHERE data_conclusao::date = TO_DATE($1, 'DD.MM.YYYY')
     AND (ntlei LIKE 'A%' OR ntlei IN ('B09', 'B10', 'B15'))
     AND (ntlei_ant = 'C12')
     AND (ntlei_ant2 = 'C12');
@@ -229,15 +233,15 @@ async function CNLToLidoJson(region = 'all', dateinit = today()) {
    WITH historico_agentes AS (
     SELECT 
         instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
-        status_ds, hora_conclusao, latitude, longitude, data_conclusao, 
-        LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as ntlei_ant,
-        LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')) as ntlei_ant2
+        status_ds, data_conclusao, latitude, longitude,
+        LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant,
+        LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant2
     FROM matriz
     )
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
-        status_ds, hora_conclusao, latitude, longitude
+        status_ds, data_conclusao, latitude, longitude
     FROM historico_agentes
-    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY') = TO_DATE($1, 'DD.MM.YYYY')
+    WHERE data_conclusao::date = TO_DATE($1, 'DD.MM.YYYY')
     AND (ntlei LIKE 'A%' OR ntlei IN ('B09', 'B10', 'B15'))
     AND (ntlei_ant NOT LIKE 'A%' AND ntlei_ant NOT IN ('B09', 'B10', 'B15'))
     AND (ntlei_ant2 NOT LIKE 'A%' AND ntlei_ant2 NOT IN ('B09', 'B10', 'B15'));
@@ -255,10 +259,10 @@ async function CNLToLidoJson(region = 'all', dateinit = today()) {
 async function e02Json(region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
-    SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
-           status_ds, hora_conclusao, latitude, longitude
+    SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
+           status_ds, data_conclusao, latitude, longitude
     FROM matriz
-    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')
+    WHERE data_conclusao::date
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
       AND ntlei = 'E02'
   `;
@@ -267,17 +271,22 @@ async function e02Json(region = 'all', dateinit = today(), dateend = today()) {
         query += ` AND regional = $${params.length}`;
     }
     const { rows } = await pool.query(query, params);
-    return rows;
+    return rows?.map(r => {
+        const dt = new Date(r.data_conclusao);
+        r.data_conclusao = dt.toLocaleDateString('pt-BR');
+        r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+        return r;
+    });
 }
 
 // ─── c16Json ────────────────────────────────────────────────────────────────────
 async function c16Json(region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
-    SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
-           status_ds, hora_conclusao, latitude, longitude
+    SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
+           status_ds, data_conclusao, latitude, longitude
     FROM matriz
-    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')
+    WHERE data_conclusao::date
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
       AND ntlei = 'C16'
   `;
@@ -286,7 +295,12 @@ async function c16Json(region = 'all', dateinit = today(), dateend = today()) {
         query += ` AND regional = $${params.length}`;
     }
     const { rows } = await pool.query(query, params);
-    return rows;
+    return rows?.map(r => {
+        const dt = new Date(r.data_conclusao);
+        r.data_conclusao = dt.toLocaleDateString('pt-BR');
+        r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+        return r;
+    });
 }
 
 // ─── notStartServices ──────────────────────────────────────────────────────────
@@ -297,17 +311,17 @@ async function notStartServices() {
     nome_agente, 
     seccional, 
     regional,
-    COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) AS total_concluidas,
+    supervisor,
+    COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao::date = CURRENT_DATE) AS total_concluidas,
     COUNT(*) FILTER (WHERE concluido <> 'CONCLUIDO') AS total_pend,
-    TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY') AS date
+    TO_CHAR(CURRENT_DATE, 'DD/MM/YYYY') AS date
     FROM matriz
     WHERE 
-        -- Correção da sintaxe da função RIGHT
-        RIGHT(data_leit_prev, 7) = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
+        TO_CHAR(data_leit_prev, 'MM.YYYY') = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
         AND agente <> ''
-    GROUP BY agente, nome_agente, seccional, regional
+    GROUP BY agente, nome_agente,supervisor, seccional, regional
     HAVING 
-        COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) = 0
+        COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao::date = CURRENT_DATE) = 0
         AND COUNT(*) FILTER (WHERE concluido <> 'CONCLUIDO') > 0;
   `;
     const { rows } = await pool.query(query);
@@ -320,18 +334,18 @@ async function completedServices() {
     WITH servicos_detalhados AS (
     -- 1. Buscamos todos os registros: concluídos hoje (para tempo) e pendentes (para contagem)
     SELECT 
-        agente, nome_agente, seccional, regional, concluido, data_conclusao, data_leit_prev,
-        -- Convertemos a hora para tipo TIME para cálculos matemáticos
-        CAST(NULLIF(hora_conclusao, '00:00:00') AS TIME) as hora_fim_time,
+        agente, nome_agente, seccional, regional, concluido, data_conclusao, data_leit_prev, supervisor,
+        -- Extraímos a hora do timestamp para cálculos matemáticos
+        data_conclusao::time as hora_fim_time,
         -- Buscamos a hora do serviço anterior do mesmo agente no mesmo dia
-        LAG(CAST(NULLIF(hora_conclusao, '00:00:00') AS TIME)) OVER (
-            PARTITION BY agente, data_conclusao 
-            ORDER BY hora_conclusao ASC
+        LAG(data_conclusao::time) OVER (
+            PARTITION BY agente, data_conclusao::date
+            ORDER BY data_conclusao ASC
         ) as hora_fim_anterior
     FROM matriz
     WHERE agente <> ''
       AND (
-          (concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY'))
+          (concluido = 'CONCLUIDO' AND data_conclusao::date = CURRENT_DATE)
           OR 
           concluido = 'PENDENTE'
       )
@@ -355,8 +369,9 @@ calculo_intervalos AS (
         nome_agente, 
         seccional, 
         regional,
+        supervisor,
         -- Contagens solicitadas
-        COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) AS total_conc,
+        COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao::date = CURRENT_DATE) AS total_conc,
         COUNT(*) FILTER (WHERE concluido = 'PENDENTE') AS total_pend,
         -- Horários de Início e Fim (Baseado no primeiro e último concluído)
         TO_CHAR(MIN(hora_fim_time) FILTER (WHERE concluido = 'CONCLUIDO'), 'HH24:MI:SS') as hora_inicio,
@@ -365,11 +380,11 @@ calculo_intervalos AS (
         TO_CHAR(SUM(diff_servico), 'HH24:MI:SS') as tempo_total,
         TO_CHAR(SUM(CASE WHEN diff_servico > INTERVAL '20 minutes' THEN diff_servico ELSE INTERVAL '0' END), 'HH24:MI:SS') as tempo_pausas
     FROM calculo_intervalos
-    WHERE RIGHT(data_leit_prev, 7) = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
-    GROUP BY agente, nome_agente, seccional, regional
+    WHERE TO_CHAR(data_leit_prev, 'MM.YYYY') = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
+    GROUP BY agente, nome_agente, supervisor, seccional, regional
     HAVING 
         -- Filtro: Teve pelo menos 1 concluído hoje
-        COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) > 10
+        COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao::date = CURRENT_DATE) > 10
         -- Filtro: Tem mais de 10 pendentes
         AND COUNT(*) FILTER (WHERE concluido = 'PENDENTE') = 0;
   `;
@@ -383,17 +398,17 @@ async function incompletedServices() {
     -- 1. Buscamos todos os registros: concluídos hoje (para tempo) e pendentes (para contagem)
     SELECT 
         agente, nome_agente, seccional, regional, concluido, data_conclusao, data_leit_prev,
-        -- Convertemos a hora para tipo TIME para cálculos matemáticos
-        CAST(NULLIF(hora_conclusao, '00:00:00') AS TIME) as hora_fim_time,
+        -- Extraímos a hora do timestamp para cálculos matemáticos
+        data_conclusao::time as hora_fim_time,
         -- Buscamos a hora do serviço anterior do mesmo agente no mesmo dia
-        LAG(CAST(NULLIF(hora_conclusao, '00:00:00') AS TIME)) OVER (
-            PARTITION BY agente, data_conclusao 
-            ORDER BY hora_conclusao ASC
+        LAG(data_conclusao::time) OVER (
+            PARTITION BY agente, data_conclusao::date
+            ORDER BY data_conclusao ASC
         ) as hora_fim_anterior
     FROM matriz
     WHERE agente <> ''
       AND (
-          (concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY'))
+          (concluido = 'CONCLUIDO' AND data_conclusao::date = CURRENT_DATE)
           OR 
           concluido = 'PENDENTE'
       )
@@ -418,7 +433,7 @@ async function incompletedServices() {
         seccional, 
         regional,
         -- Contagens solicitadas
-        COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) AS total_conc,
+        COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao::date = CURRENT_DATE) AS total_conc,
         COUNT(*) FILTER (WHERE concluido = 'PENDENTE') AS total_pend,
         -- Horários de Início e Fim (Baseado no primeiro e último concluído)
         TO_CHAR(MIN(hora_fim_time) FILTER (WHERE concluido = 'CONCLUIDO'), 'HH24:MI:SS') as hora_inicio,
@@ -427,11 +442,11 @@ async function incompletedServices() {
         TO_CHAR(SUM(diff_servico), 'HH24:MI:SS') as tempo_total,
         TO_CHAR(SUM(CASE WHEN diff_servico > INTERVAL '20 minutes' THEN diff_servico ELSE INTERVAL '0' END), 'HH24:MI:SS') as tempo_pausas
     FROM calculo_intervalos
-    WHERE RIGHT(data_leit_prev, 7) = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
+    WHERE TO_CHAR(data_leit_prev, 'MM.YYYY') = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
     GROUP BY agente, nome_agente, seccional, regional
     HAVING 
         -- Filtro: Teve pelo menos 1 concluído hoje
-        COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao = TO_CHAR(CURRENT_DATE, 'DD.MM.YYYY')) > 10
+        COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao::date = CURRENT_DATE) > 10
         -- Filtro: Tem mais de 10 pendentes
         AND COUNT(*) FILTER (WHERE concluido = 'PENDENTE') > 10;
   `;
@@ -448,7 +463,7 @@ async function perdas(region = 'all', dateinit = today(), dateend = today()) {
     SELECT instalacao, etapa, seccional, regional, ntlei,
            apontamento, tem_perda, motivo_perda, perda_prevista_mensal
     FROM matriz
-    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')
+    WHERE data_conclusao::date
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
       AND tem_perda = 'PERDA'
       AND perda_prevista_mensal <> '0'
@@ -487,9 +502,9 @@ async function perdasJson(region = 'all', dateinit = today(), dateend = today())
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, motivo_perda,
-           perda_prevista_mensal, agente, nome_agente, latitude, longitude
+           perda_prevista_mensal, agente, nome_agente, latitude, longitude, data_conclusao, supervisor
     FROM matriz
-    WHERE TO_DATE(NULLIF(data_conclusao, '00.00.0000'), 'DD.MM.YYYY')
+    WHERE data_conclusao::date
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
       AND tem_perda = 'PERDA'
       AND perda_prevista_mensal <> '0'
@@ -499,7 +514,12 @@ async function perdasJson(region = 'all', dateinit = today(), dateend = today())
         query += ` AND regional = $${params.length}`;
     }
     const { rows } = await pool.query(query, params);
-    return rows;
+    return rows?.map(r => {
+        const dt = new Date(r.data_conclusao);
+        r.data_conclusao = dt.toLocaleDateString('pt-BR');
+        r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+        return r;
+    });
 }
 
 // ─── getInstallation ──────────────────────────────────────────────────────────
@@ -607,7 +627,7 @@ async function getFilterOptions() {
       (SELECT array_agg(DISTINCT agente) FROM matriz WHERE agente IS NOT NULL AND agente != '') AS agentes,
       (SELECT array_agg(DISTINCT seccional) FROM matriz WHERE seccional IS NOT NULL AND seccional != '') AS seccionais,
       (SELECT array_agg(DISTINCT regional) FROM matriz WHERE regional IS NOT NULL AND regional != '') AS regionais,
-      (SELECT array_agg(DISTINCT data_conclusao) FROM matriz WHERE data_conclusao IS NOT NULL AND data_conclusao != '') AS datas_conclusao
+      (SELECT array_agg(DISTINCT TO_CHAR(data_conclusao, 'DD.MM.YYYY')) FROM matriz WHERE data_conclusao IS NOT NULL) AS datas_conclusao
   `;
     const { rows } = await pool.query(query);
     const res = rows[0];
