@@ -15,7 +15,9 @@ const {
     CNLToLidoJson,
     firstCNLJson,
     C12ToLidoJson,
-    incompletedServices
+    incompletedServices,
+    fastC12Json,
+    licacaoNovaC12Json
 } = require('../functions/postgresFunctions');
 
 function today() {
@@ -123,6 +125,32 @@ router.get('/first_c12_json', async (req, res) => {
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
         const result = await firstC12Json(regional, dateinit, dateend);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/fast_c12_json', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const regional = req.query.regional || 'all';
+        const dateinit = (req.query.dateinit || today()).replace('/', '.');
+        const dateend = (req.query.dateend || today()).replace('/', '.');
+        const result = await fastC12Json(regional, dateinit, dateend);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/licacao_nova_c12_json', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const regional = req.query.regional || 'all';
+        const dateinit = (req.query.dateinit || today()).replace('/', '.');
+        const dateend = (req.query.dateend || today()).replace('/', '.');
+        const result = await licacaoNovaC12Json(regional, dateinit, dateend);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
