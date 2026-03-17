@@ -232,7 +232,7 @@ async function fastC12Json(region = 'all', dateinit = today(), dateend = today()
             FROM timeline_agente
         )
         SELECT 
-            instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
+            instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
             status_ds, data_conclusao, latitude, longitude,
             tempo_execucao_segundos,
             to_char((tempo_execucao_segundos || ' seconds')::interval, 'HH24:MI:SS') as tempo_formatado
