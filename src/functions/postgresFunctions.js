@@ -1,5 +1,5 @@
 require('dotenv').config();
-const pool = require('../db');
+const { pi_pool, ma_pool } = require('../db');
 
 function today() {
     const d = new Date();
@@ -7,7 +7,7 @@ function today() {
 }
 
 // ─── pendencias ────────────────────────────────────────────────────────────────
-async function pendencias(region = 'all') {
+async function pendencias(state = 'pi', region = 'all') {
     let query = `
     SELECT instalacao, etapa, seccional, regional, concluido
     FROM matriz
@@ -20,7 +20,7 @@ async function pendencias(region = 'all') {
         params.push(region.toUpperCase());
     }
 
-    const { rows } = await pool.query(query, params);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     if (rows.length === 0) return { type: 'text', text: 'Nenhuma instalação encontrada.' };
 
     const unified = {};
@@ -49,7 +49,7 @@ async function pendencias(region = 'all') {
 }
 
 // ─── pendencias_json ────────────────────────────────────────────────────────────
-async function pendenciasJson(region = 'all') {
+async function pendenciasJson(state = 'pi', region = 'all') {
     let query = `
     SELECT instalacao, etapa, seccional, regional, concluido, data_leit_prev, agente, nome_agente, supervisor
     FROM matriz
@@ -61,12 +61,12 @@ async function pendenciasJson(region = 'all') {
         query += ` AND regional = $1`;
         params.push(region.toUpperCase());
     }
-    const { rows } = await pool.query(query, params);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     return rows;
 }
 
 // ─── cnl ────────────────────────────────────────────────────────────────────────
-async function cnl(region = 'all', dateinit = today(), dateend = today()) {
+async function cnl(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, ntlei, concluido, status_ds
@@ -83,8 +83,8 @@ async function cnl(region = 'all', dateinit = today(), dateend = today()) {
         query += ` AND regional = $${params.length}`;
     }
 
-    const { rows } = await pool.query(query, params);
-    console.log(rows.length);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
+
     if (rows.length === 0) return { type: 'text', text: 'Nenhuma instalação encontrada.' };
 
     const unified = {};
@@ -108,7 +108,7 @@ async function cnl(region = 'all', dateinit = today(), dateend = today()) {
 }
 
 // ─── c12Json ────────────────────────────────────────────────────────────────────
-async function c12_out_hour_Json(region = 'all', dateinit = today(), dateend = today()) {
+async function c12_out_hour_Json(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
@@ -124,7 +124,7 @@ async function c12_out_hour_Json(region = 'all', dateinit = today(), dateend = t
         params.push(region.toUpperCase());
         query += ` AND regional = $${params.length}`;
     }
-    const { rows } = await pool.query(query, params);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     return rows?.map(r => {
         const dt = new Date(r.data_conclusao);
         r.data_conclusao = dt.toLocaleDateString('pt-BR');
@@ -133,7 +133,7 @@ async function c12_out_hour_Json(region = 'all', dateinit = today(), dateend = t
     });
 }
 
-async function firstC12Json(region = 'all', dateinit = today(), dateend = today()) {
+async function firstC12Json(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
    WITH historico_agentes AS (
@@ -162,7 +162,7 @@ async function firstC12Json(region = 'all', dateinit = today(), dateend = today(
         params.push(region.toUpperCase());
         query += ` AND regional = $${params.length}`;
     }
-    const { rows } = await pool.query(query, params);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     return rows?.map(r => {
         const dt = new Date(r.data_conclusao);
         r.data_conclusao = dt.toLocaleDateString('pt-BR');
@@ -171,7 +171,7 @@ async function firstC12Json(region = 'all', dateinit = today(), dateend = today(
     });
 }
 
-async function licacaoNovaC12Json(region = 'all', dateinit = today(), dateend = today()) {
+async function licacaoNovaC12Json(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
    WITH historico_agentes AS (
@@ -199,7 +199,7 @@ async function licacaoNovaC12Json(region = 'all', dateinit = today(), dateend = 
         params.push(region.toUpperCase());
         query += ` AND regional = $${params.length}`;
     }
-    const { rows } = await pool.query(query, params);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     return rows?.map(r => {
         const dt = new Date(r.data_conclusao);
         r.data_conclusao = dt.toLocaleDateString('pt-BR');
@@ -208,7 +208,7 @@ async function licacaoNovaC12Json(region = 'all', dateinit = today(), dateend = 
     });
 }
 
-async function fastC12Json(region = 'all', dateinit = today(), dateend = today()) {
+async function fastC12Json(state = 'pi',region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
     WITH timeline_agente AS (
@@ -249,7 +249,7 @@ async function fastC12Json(region = 'all', dateinit = today(), dateend = today()
         params.push(region.toUpperCase());
         query += ` AND regional = $${params.length}`;
     }
-    const { rows } = await pool.query(query, params);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     return rows?.map(r => {
         const dt = new Date(r.data_conclusao);
         r.data_conclusao = dt.toLocaleDateString('pt-BR');
@@ -258,7 +258,7 @@ async function fastC12Json(region = 'all', dateinit = today(), dateend = today()
     });
 }
 
-async function firstCNLJson(region = 'all', dateinit = today(), dateend = today()) {
+async function firstCNLJson(state = 'pi',region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
    WITH historico_agentes AS (
@@ -286,11 +286,11 @@ async function firstCNLJson(region = 'all', dateinit = today(), dateend = today(
         params.push(region.toUpperCase());
         query += ` AND regional = $${params.length}`;
     }
-    const { rows } = await pool.query(query, params);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     return rows;
 }
 
-async function C12ToLidoJson(region = 'all', dateinit = today()) {
+async function C12ToLidoJson(state = 'pi',region = 'all', dateinit = today()) {
     const params = [dateinit];
     let query = `
    WITH historico_agentes AS (
@@ -315,11 +315,11 @@ async function C12ToLidoJson(region = 'all', dateinit = today()) {
         params.push(region.toUpperCase());
         query += ` AND regional = $${params.length}`;
     }
-    const { rows } = await pool.query(query, params);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     return rows;
 }
 
-async function CNLToLidoJson(region = 'all', dateinit = today()) {
+async function CNLToLidoJson(state = 'pi',region = 'all', dateinit = today()) {
     const params = [dateinit];
     let query = `
    WITH historico_agentes AS (
@@ -344,11 +344,11 @@ async function CNLToLidoJson(region = 'all', dateinit = today()) {
         params.push(region.toUpperCase());
         query += ` AND regional = $${params.length}`;
     }
-    const { rows } = await pool.query(query, params);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     return rows;
 }
 // ─── e02Json ────────────────────────────────────────────────────────────────────
-async function e02Json(region = 'all', dateinit = today(), dateend = today()) {
+async function e02Json(state = 'pi',region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
@@ -362,7 +362,7 @@ async function e02Json(region = 'all', dateinit = today(), dateend = today()) {
         params.push(region.toUpperCase());
         query += ` AND regional = $${params.length}`;
     }
-    const { rows } = await pool.query(query, params);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     return rows?.map(r => {
         const dt = new Date(r.data_conclusao);
         r.data_conclusao = dt.toLocaleDateString('pt-BR');
@@ -372,7 +372,7 @@ async function e02Json(region = 'all', dateinit = today(), dateend = today()) {
 }
 
 // ─── c16Json ────────────────────────────────────────────────────────────────────
-async function c16Json(region = 'all', dateinit = today(), dateend = today()) {
+async function c16Json(state = 'pi',region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
@@ -386,7 +386,7 @@ async function c16Json(region = 'all', dateinit = today(), dateend = today()) {
         params.push(region.toUpperCase());
         query += ` AND regional = $${params.length}`;
     }
-    const { rows } = await pool.query(query, params);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     return rows?.map(r => {
         const dt = new Date(r.data_conclusao);
         r.data_conclusao = dt.toLocaleDateString('pt-BR');
@@ -396,7 +396,7 @@ async function c16Json(region = 'all', dateinit = today(), dateend = today()) {
 }
 
 // ─── notStartServices ──────────────────────────────────────────────────────────
-async function notStartServices() {
+async function notStartServices(state = 'pi',) {
     const query = `
     SELECT 
     agente, 
@@ -416,12 +416,12 @@ async function notStartServices() {
         COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao::date = CURRENT_DATE) = 0
         AND COUNT(*) FILTER (WHERE concluido <> 'CONCLUIDO') > 0;
   `;
-    const { rows } = await pool.query(query);
+    const { rows } = state === 'pi' ? await pi_pool.query(query) : await ma_pool.query(query);
     return rows;
 }
 
 // ─── completedServices ────────────────────────────────────────────────────────
-async function completedServices() {
+async function completedServices(state = 'pi',) {
     const query = `
     WITH servicos_detalhados AS (
     -- 1. Buscamos todos os registros: concluídos hoje (para tempo) e pendentes (para contagem)
@@ -480,11 +480,11 @@ calculo_intervalos AS (
         -- Filtro: Tem mais de 10 pendentes
         AND COUNT(*) FILTER (WHERE concluido = 'PENDENTE') = 0;
   `;
-    const { rows } = await pool.query(query);
+    const { rows } = state === 'pi' ? await pi_pool.query(query) : await ma_pool.query(query);
     return rows;
 }
 
-async function incompletedServices() {
+async function incompletedServices(state = 'pi',) {
     const query = `
     WITH servicos_detalhados AS (
     -- 1. Buscamos todos os registros: concluídos hoje (para tempo) e pendentes (para contagem)
@@ -544,13 +544,12 @@ async function incompletedServices() {
         AND COUNT(*) FILTER (WHERE concluido = 'PENDENTE') > 10;
   `;
 
-    const { rows } = await pool.query(query);
-    console.log(rows[0]);
+    const { rows } = state === 'pi' ? await pi_pool.query(query) : await ma_pool.query(query);
     return rows;
 }
 
 // ─── perdas ────────────────────────────────────────────────────────────────────
-async function perdas(region = 'all', dateinit = today(), dateend = today()) {
+async function perdas(state = 'pi',region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, ntlei,
@@ -566,7 +565,7 @@ async function perdas(region = 'all', dateinit = today(), dateend = today()) {
         query += ` AND regional = $${params.length}`;
     }
 
-    const { rows } = await pool.query(query, params);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     if (rows.length === 0) return { type: 'text', text: 'Nenhuma instalação encontrada.' };
 
     const unified = {};
@@ -591,7 +590,7 @@ async function perdas(region = 'all', dateinit = today(), dateend = today()) {
 }
 
 // ─── perdasJson ───────────────────────────────────────────────────────────────
-async function perdasJson(region = 'all', dateinit = today(), dateend = today()) {
+async function perdasJson(state = 'pi',region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, motivo_perda,
@@ -606,7 +605,7 @@ async function perdasJson(region = 'all', dateinit = today(), dateend = today())
         params.push(region.toUpperCase());
         query += ` AND regional = $${params.length}`;
     }
-    const { rows } = await pool.query(query, params);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     return rows?.map(r => {
         const dt = new Date(r.data_conclusao);
         r.data_conclusao = dt.toLocaleDateString('pt-BR');

@@ -36,8 +36,9 @@ function checkToken(req, res) {
 router.get('/pendencias', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
+        const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
-        const result = await pendencias(regional);
+        const result = await pendencias(state, regional);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -47,8 +48,9 @@ router.get('/pendencias', async (req, res) => {
 router.get('/pendencias_json', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
+        const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
-        const result = await pendenciasJson(regional);
+        const result = await pendenciasJson(state, regional);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -58,10 +60,11 @@ router.get('/pendencias_json', async (req, res) => {
 router.get('/cnl', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
+        const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
-        const result = await cnl(regional, dateinit, dateend);
+        const result = await cnl(state, regional, dateinit, dateend);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -71,9 +74,10 @@ router.get('/cnl', async (req, res) => {
 router.get('/cnl_to_lido_json', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
+        const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
-        const result = await CNLToLidoJson(regional, dateinit);
+        const result = await CNLToLidoJson(state, regional, dateinit);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -83,10 +87,11 @@ router.get('/cnl_to_lido_json', async (req, res) => {
 router.get('/first_cnl_json', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
+        const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
-        const result = await firstCNLJson(regional, dateinit, dateend);
+        const result = await firstCNLJson(state, regional, dateinit, dateend);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -96,10 +101,11 @@ router.get('/first_cnl_json', async (req, res) => {
 router.get('/c12_json', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
+        const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
-        const result = await c12Json(regional, dateinit, dateend);
+        const result = await c12Json(state, regional, dateinit, dateend);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -109,9 +115,10 @@ router.get('/c12_json', async (req, res) => {
 router.get('/c12_to_lido_json', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
+        const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
-        const result = await C12ToLidoJson(regional, dateinit);
+        const result = await C12ToLidoJson(state, regional, dateinit);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -121,10 +128,11 @@ router.get('/c12_to_lido_json', async (req, res) => {
 router.get('/first_c12_json', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
+        const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
-        const result = await firstC12Json(regional, dateinit, dateend);
+        const result = await firstC12Json(state, regional, dateinit, dateend);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -134,10 +142,11 @@ router.get('/first_c12_json', async (req, res) => {
 router.get('/fast_c12_json', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
+        const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
-        const result = await fastC12Json(regional, dateinit, dateend);
+        const result = await fastC12Json(state, regional, dateinit, dateend);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -147,10 +156,11 @@ router.get('/fast_c12_json', async (req, res) => {
 router.get('/licacao_nova_c12_json', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
+        const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
-        const result = await licacaoNovaC12Json(regional, dateinit, dateend);
+        const result = await licacaoNovaC12Json(state, regional, dateinit, dateend);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -160,10 +170,11 @@ router.get('/licacao_nova_c12_json', async (req, res) => {
 router.get('/e02_json', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
+        const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
-        const result = await e02Json(regional, dateinit, dateend);
+        const result = await e02Json(state, regional, dateinit, dateend);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -173,10 +184,11 @@ router.get('/e02_json', async (req, res) => {
 router.get('/c16_json', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
+        const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
-        const result = await c16Json(regional, dateinit, dateend);
+        const result = await c16Json(state, regional, dateinit, dateend);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -186,10 +198,11 @@ router.get('/c16_json', async (req, res) => {
 router.get('/perdas', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
+        const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
-        const result = await perdas(regional, dateinit, dateend);
+        const result = await perdas(state, regional, dateinit, dateend);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -199,10 +212,11 @@ router.get('/perdas', async (req, res) => {
 router.get('/perdas_json', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
+        const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
         const dateinit = (req.query.dateinit || today()).replace('/', '.');
         const dateend = (req.query.dateend || today()).replace('/', '.');
-        const result = await perdasJson(regional, dateinit, dateend);
+        const result = await perdasJson(state, regional, dateinit, dateend);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -212,7 +226,8 @@ router.get('/perdas_json', async (req, res) => {
 router.get('/not_start_services', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
-        const result = await notStartServices();
+        const state = req.query.state || 'pi';
+        const result = await notStartServices(state);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -222,7 +237,8 @@ router.get('/not_start_services', async (req, res) => {
 router.get('/completed_services', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
-        const result = await completedServices();
+        const state = req.query.state || 'pi';
+        const result = await completedServices(state);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -232,7 +248,8 @@ router.get('/completed_services', async (req, res) => {
 router.get('/incompleted_services', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
-        const result = await incompletedServices();
+        const state = req.query.state || 'pi';
+        const result = await incompletedServices(state);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
