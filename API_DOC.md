@@ -84,6 +84,14 @@ Identifica instalações que mudaram de 'C12' para leitura (A/B09/B10/B15) no di
 Identifica instalações que mudaram de CNL para leitura no dia informado.
 - **Parâmetros:** `token`, `regional`, `dateinit`.
 
+### `GET /fast_c12_json`
+Identifica execuções de 'C12' com tempo extremamente curto (menor que 90 segundos), indicando possível fraude ou erro de processo.
+- **Parâmetros:** `token`, `regional`, `dateinit`, `dateend`.
+
+### `GET /licacao_nova_c12_json`
+Identifica registros de 'C12' (LG) em instalações que iniciam com o prefixo '200', caracterizando ligações novas.
+- **Parâmetros:** `token`, `regional`, `dateinit`, `dateend`.
+
 ---
 
 ## 4. Dashboard de Serviços
@@ -140,3 +148,50 @@ Mensagem de boas-vindas/erro 404 (instrução de uso).
 
 ### `GET /*` (Qualquer outro caminho)
 Serve arquivos estáticos da pasta definida em `FILES_ROOT`. Possui proteção contra *path traversal*.
+
+---
+
+## 8. Agente (Evolução e Estatísticas)
+
+### `GET /agent_statistics`
+Retorna o dashboard principal de indicadores consolidados para a performance de um agente específico.
+- **Query Params:** `token`, `id` (matrícula do agente), `state` (default: 'pi'), `date` (opcional, formato YYYY-MM-DD ou DD.MM.YYYY, padrão: hoje).
+- **Retorno:**
+  ```json
+  [
+      { "title": "Leituras Realizadas", "value": 150, "color": "#00c742ff", "unity": "" },
+      { "title": "Perdas Geradas", "value": 450, "color": "#EF4444", "unity": "Kwh" },
+      { "title": "CNL", "value": "10/9", "color": "#00c742ff", "unity": "" },
+      { "title": "Percentual de CNL", "value": "6.5", "color": "#00c742ff", "unity": "%" },
+      { "title": "Qtd. de C12", "value": 5, "color": "#00c742ff", "unity": "" },
+      { "title": "C12 Fora de Horário", "value": 0, "color": "#00c742ff", "unity": "" }
+  ]
+  ```
+
+### `GET /agent_statistics_more`
+Retorna indicadores adicionais e mais sensíveis de qualidade da leitura do agente, focados no registro de C12.
+- **Query Params:** `token`, `id`, `state` (default: 'pi'), `date` (opcional).
+- **Retorno:**
+  ```json
+  [
+      { "title": "C12 Rápidos", "value": 2, "color": "#EF4444", "unity": "" },
+      { "title": "C12 em Ligação Nova", "value": 0, "color": "#00c742ff", "unity": "" },
+      { "title": "C12 Entrante", "value": 1, "color": "#00c742ff", "unity": "" }
+  ]
+  ```
+
+### `POST /agent_services`
+Retorna a lista detalhada e ordenada cronologicamente de todos os serviços realizados pelo agente na data informada, incluindo os cálculos de produtividade (`tempo_execucao`).
+- **Query Params:** `token`, `id`, `state` (default: 'pi').
+- **Body:** `{ "page": 1, "date": "2026-03-23" }` (A data e a página são opcionais).
+- **Retorno:** Array de objetos com dados de cada instalação lida.
+
+### `GET /calendar`
+Busca e retorna a tabela de etapas de roteiro e calendário do sistema.
+- **Query Params:** `token`, `state` (default: 'pi').
+- **Retorno:** Array com o calendário da filial selecionada.
+
+### `GET /agent_telegram_id`
+Recupera o ID do Telegram vinculado à matrícula (login) do agente para realizar os disparos do bot.
+- **Query Params:** `token`, `id`, `state` (default: 'pi').
+- **Retorno:** `{ "telegram_id": "123456789" }` ou `{ "telegram_id": null }` caso não seja encontrado.

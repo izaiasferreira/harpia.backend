@@ -1,10 +1,7 @@
 require('dotenv').config();
 const { pi_pool, ma_pool } = require('../db');
+const { today } = require('../utils/dates');
 
-function today() {
-    const d = new Date();
-    return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
-}
 
 // ─── pendencias ────────────────────────────────────────────────────────────────
 async function pendencias(state = 'pi', region = 'all') {
@@ -208,7 +205,7 @@ async function licacaoNovaC12Json(state = 'pi', region = 'all', dateinit = today
     });
 }
 
-async function fastC12Json(state = 'pi',region = 'all', dateinit = today(), dateend = today()) {
+async function fastC12Json(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
     WITH timeline_agente AS (
@@ -239,8 +236,8 @@ async function fastC12Json(state = 'pi',region = 'all', dateinit = today(), date
         FROM calculo_tempo
         WHERE data_conclusao::date BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
         AND ntlei = 'C12'
-        -- FILTRO: Apenas execuções menores que 1 minuto e meio (90 segundos)
-        AND tempo_execucao_segundos < 90
+        -- FILTRO: Apenas execuções menores que 1 minuto
+        AND tempo_execucao_segundos < 60
         ORDER BY agente, data_conclusao;
   `;
 
@@ -258,12 +255,12 @@ async function fastC12Json(state = 'pi',region = 'all', dateinit = today(), date
     });
 }
 
-async function firstCNLJson(state = 'pi',region = 'all', dateinit = today(), dateend = today()) {
+async function firstCNLJson(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
    WITH historico_agentes AS (
     SELECT 
-        instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
+        instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
         status_ds, data_conclusao, latitude, longitude,
         LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant,
         LAG(status_ds) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as status_ant,
@@ -271,7 +268,7 @@ async function firstCNLJson(state = 'pi',region = 'all', dateinit = today(), dat
         LAG(status_ds, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as status_ant2
         FROM matriz
     )
-    SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
+    SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
         status_ds, data_conclusao, latitude, longitude
     FROM historico_agentes
     WHERE data_conclusao::date
@@ -290,7 +287,7 @@ async function firstCNLJson(state = 'pi',region = 'all', dateinit = today(), dat
     return rows;
 }
 
-async function C12ToLidoJson(state = 'pi',region = 'all', dateinit = today()) {
+async function C12ToLidoJson(state = 'pi', region = 'all', dateinit = today()) {
     const params = [dateinit];
     let query = `
    WITH historico_agentes AS (
@@ -319,7 +316,7 @@ async function C12ToLidoJson(state = 'pi',region = 'all', dateinit = today()) {
     return rows;
 }
 
-async function CNLToLidoJson(state = 'pi',region = 'all', dateinit = today()) {
+async function CNLToLidoJson(state = 'pi', region = 'all', dateinit = today()) {
     const params = [dateinit];
     let query = `
    WITH historico_agentes AS (
@@ -348,7 +345,7 @@ async function CNLToLidoJson(state = 'pi',region = 'all', dateinit = today()) {
     return rows;
 }
 // ─── e02Json ────────────────────────────────────────────────────────────────────
-async function e02Json(state = 'pi',region = 'all', dateinit = today(), dateend = today()) {
+async function e02Json(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
@@ -372,7 +369,7 @@ async function e02Json(state = 'pi',region = 'all', dateinit = today(), dateend 
 }
 
 // ─── c16Json ────────────────────────────────────────────────────────────────────
-async function c16Json(state = 'pi',region = 'all', dateinit = today(), dateend = today()) {
+async function c16Json(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
@@ -549,7 +546,7 @@ async function incompletedServices(state = 'pi',) {
 }
 
 // ─── perdas ────────────────────────────────────────────────────────────────────
-async function perdas(state = 'pi',region = 'all', dateinit = today(), dateend = today()) {
+async function perdas(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, ntlei,
@@ -590,7 +587,7 @@ async function perdas(state = 'pi',region = 'all', dateinit = today(), dateend =
 }
 
 // ─── perdasJson ───────────────────────────────────────────────────────────────
-async function perdasJson(state = 'pi',region = 'all', dateinit = today(), dateend = today()) {
+async function perdasJson(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, motivo_perda,
@@ -732,6 +729,184 @@ async function getFilterOptions() {
     };
 }
 
+// ─── agentes ─────────────────────────────────────────────────────────────────
+
+async function getCalendarForAgent({ state = 'pi' }) {
+    const query = `
+    SELECT 
+        *
+    FROM etapas
+    `;
+    const { rows } = state === 'pi' ? await pi_pool.query(query) : await ma_pool.query(query);
+    return rows;
+}
+async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1, limit = 20 }) {
+    const query = `
+    WITH historico_completo AS (
+        SELECT 
+            instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, nome_agente, latitude, longitude
+        FROM matriz
+        WHERE agente = '${id}'
+        AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+    )
+    SELECT *
+    FROM historico_completo
+    LIMIT ${limit} OFFSET ${(page - 1) * limit}
+    `;
+
+    const { rows } = state === 'pi' ? await pi_pool.query(query) : await ma_pool.query(query);
+    if (rows.length === 0) return [];
+
+    // 1. Primeiro ordena os registros usando o data_conclusao ORIGINAL (antes de virar string "dd/mm/yyyy")
+    const ordenados = rows.sort((a, b) => new Date(a.data_conclusao) - new Date(b.data_conclusao));
+
+    let prevDt = null;
+
+    // 2. Calcula as diferenças entre datas originais e formata os dados
+    return ordenados.reduce((acc, r) => {
+        const dt = new Date(r.data_conclusao);
+        let diff = 60; // 60 segundos por padrão para a primeira leitura do dia
+
+        if (prevDt) {
+            diff = Math.floor((dt - prevDt) / 1000);
+
+            // Tratamento caso a leitura anterior não seja do mesmo dia (improvável pelo filtro SQL, mas seguro)
+            if (diff < 0) diff = 60;
+        }
+
+        prevDt = dt; // Salva o Date real para a PRÓXIMA iteração ANTES de sobrescrever r.data_conclusao
+
+        const h = Math.floor(diff / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        const s = diff % 60;
+
+        r.tempo_execucao = [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
+        r.data_conclusao = dt.toLocaleDateString('pt-BR');
+        r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        r.time = dt.toLocaleTimeString('pt-BR', { hour12: false });
+
+        acc.push(r);
+        return acc;
+    }, []);
+
+}
+
+async function firstC12ForAgent({ state = 'pi', id, date = today() }) {
+    let query = `
+   WITH historico_agentes AS (
+    SELECT 
+        instalacao, etapa, ntlei, agente,
+        status_ds, data_conclusao,
+        LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant,
+        LAG(status_ds) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as status_ant,
+        LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant2,
+        LAG(status_ds, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as status_ant2
+        FROM matriz
+    )
+    SELECT instalacao, etapa, ntlei, agente, status_ds, data_conclusao
+    FROM historico_agentes
+    WHERE 
+    agente = '${id}'
+    AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+    AND ntlei = 'C12'
+    AND status_ds = 'LG'
+    AND (ntlei_ant  LIKE 'A%' OR ntlei_ant  IN ('B09', 'B10', 'B15') )
+    AND (ntlei_ant2  LIKE 'A%' OR ntlei_ant2  IN ('B09', 'B10', 'B15'))
+  `;
+
+
+    const { rows } = state === 'pi' ? await pi_pool.query(query) : await ma_pool.query(query);
+    return rows;
+}
+
+async function licacaoNovaC12ForAgent({ state = 'pi', id, date = today() }) {
+    let query = `
+   WITH historico_agentes AS (
+    SELECT 
+        instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
+        status_ds, data_conclusao, latitude, longitude,
+        LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant,
+        LAG(status_ds) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as status_ant,
+        LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant2,
+        LAG(status_ds, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as status_ant2
+        FROM matriz
+    )
+    SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
+        status_ds, data_conclusao, latitude, longitude
+    FROM historico_agentes
+    WHERE agente = '${id}'
+    AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+    AND ntlei = 'C12'
+    AND instalacao LIKE '200%'
+    AND status_ds = 'LG'
+  `;
+
+    const { rows } = state === 'pi' ? await pi_pool.query(query) : await ma_pool.query(query);
+    return rows?.map(r => {
+        const dt = new Date(r.data_conclusao);
+        r.data_conclusao = dt.toLocaleDateString('pt-BR');
+        r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+        return r;
+    });
+}
+
+async function fastC12ForAgent({ state = 'pi', id, date = today() }) {
+    let query = `
+    WITH timeline_agente AS (
+        SELECT 
+            *,
+            -- Pega a conclusão do serviço anterior do mesmo agente no mesmo dia
+            LAG(data_conclusao) OVER (
+                PARTITION BY agente, data_conclusao::date 
+                ORDER BY data_conclusao
+            ) as conclusao_anterior
+        FROM matriz
+        ),
+        calculo_tempo AS (
+            SELECT 
+                *,
+                -- Diferença em segundos. Se for o primeiro do dia, assume 60s
+                COALESCE(
+                    EXTRACT(EPOCH FROM (data_conclusao - conclusao_anterior)), 
+                    60
+                ) as tempo_execucao_segundos
+            FROM timeline_agente
+        )
+        SELECT 
+            instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
+            status_ds, data_conclusao, latitude, longitude,
+            tempo_execucao_segundos,
+            to_char((tempo_execucao_segundos || ' seconds')::interval, 'HH24:MI:SS') as tempo_formatado
+        FROM calculo_tempo
+        WHERE agente = '${id}'
+        AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+        AND ntlei = 'C12'
+        -- FILTRO: Apenas execuções menores que 1 minuto e meio (90 segundos)
+        AND tempo_execucao_segundos < 90
+        ORDER BY agente, data_conclusao;
+  `;
+
+
+    const { rows } = state === 'pi' ? await pi_pool.query(query) : await ma_pool.query(query);
+    return rows?.map(r => {
+        const dt = new Date(r.data_conclusao);
+        r.data_conclusao = dt.toLocaleDateString('pt-BR');
+        r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+        return r;
+    });
+}
+
+async function getAgentTelegramId({ state = 'pi', id }) {
+    const query = `
+    SELECT * 
+    FROM login 
+    WHERE id in ('${id.toUpperCase()}', '${id.toLowerCase()}')
+    `;
+
+    const { rows } = await pi_pool.query(query);
+    return rows;
+}
+
 module.exports = {
     pendencias,
     pendenciasJson,
@@ -754,5 +929,11 @@ module.exports = {
     licacaoNovaC12Json,
     CNLToLidoJson,
     firstCNLJson,
-    incompletedServices
+    incompletedServices,
+    getLeiturasForAgent,
+    firstC12ForAgent,
+    fastC12ForAgent,
+    licacaoNovaC12ForAgent,
+    getCalendarForAgent,
+    getAgentTelegramId
 };
