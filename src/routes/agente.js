@@ -13,22 +13,23 @@ router.get('/agent_statistics', async (req, res) => {
         const id = req.query.id;
         const today_date = req.query.date || today();
         const result = await getLeiturasForAgent({ state, id, date: today_date, limit: 99999 });
-        const quant_leituras = result.length;
-        const cnl = result.filter(r => !r.ntlei.startsWith('A') && !['B09', 'B10', 'B15'].includes(r.ntlei)).length;
+        const quant_leituras = result.length || 0;
+        const cnl = result.filter(r => !r.ntlei.startsWith('A') && !['B09', 'B10', 'B15'].includes(r.ntlei)).length || 0;
         const meta_cnl = quant_leituras * 0.06;
-        const perdas = result.filter(r => r.tem_perda === "PERDA" && parseInt(r.perda_prevista_mensal) > 0).reduce((acc, r) => acc + parseInt(r.perda_prevista_mensal), 0)
-        const percent_cnl = (cnl / quant_leituras) * 100;
-        const quant_c12 = result.filter(r => r.ntlei === 'C12').length;
-        const quant_c12_out_hour = result.filter(r => r.ntlei === 'C12' && parseInt(r.hora_conclusao.split(':')[0]) < 8).length;
-   
+        const perdas = result.filter(r => r.tem_perda === "PERDA" && parseInt(r.perda_prevista_mensal) > 0).reduce((acc, r) => acc + parseInt(r.perda_prevista_mensal), 0) || 0;
+        const percent_cnl = (cnl / quant_leituras) * 100 || 0;
+        const quant_c12 = result.filter(r => r.ntlei === 'C12').length || 0;
+        const quant_c12_out_hour = result.filter(r => r.ntlei === 'C12' && parseInt(r.hora_conclusao.split(':')[0]) < 8).length || 0;
+        const licacao_nova_c12 = (await licacaoNovaC12ForAgent({ state, id, date: today_date })).length;
 
         res.json([
             { title: "Leituras Realizadas", value: quant_leituras || 0, color: "#00c742ff", unity: '' },
             { title: "Perdas Geradas", value: perdas || 0, color: perdas > 0 ? "#EF4444" : "#00c742ff", unity: 'Kwh' },
-            { title: "CNL", value: `${cnl}/${meta_cnl.toFixed(0)}` || 0, color: meta_cnl < cnl ? "#EF4444" : "#00c742ff", unity: '' },
-            { title: "Percentual de CNL", value: percent_cnl.toFixed(1) || 0, color: percent_cnl > 6 ? "#EF4444" : "#00c742ff", unity: '%' },
-            { title: "Qtd. de C12", value: quant_c12 || 0, color: "#00c742ff", unity: '' },
-            { title: "C12 Fora de Horário", value: quant_c12_out_hour || 0, color: quant_c12_out_hour > 1 ? "#EF4444" : "#00c742ff", unity: '' }
+            { title: "Quantidade de CNL", value: `${cnl}/${meta_cnl.toFixed(0)}` || 0, color: meta_cnl < cnl ? "#EF4444" : "#00c742ff", unity: '' },
+            { title: "Percentual de CNL", value: percent_cnl.toFixed(1) + '%' || 0 + '%', color: percent_cnl > 6 ? "#EF4444" : "#00c742ff", unity: '%' },
+            { title: "Quantidade de C12", value: quant_c12 || 0, color: "#00c742ff", unity: '' },
+            { title: "C12 Fora de Horário", value: quant_c12_out_hour || 0, color: quant_c12_out_hour > 1 ? "#EF4444" : "#00c742ff", unity: '' },
+            { title: "C12 em Ligação Nova", value: licacao_nova_c12 || 0, color: licacao_nova_c12 > 0 ? "#EF4444" : "#00c742ff", unity: '' },
         ]);
     } catch (err) {
         console.log(err);
@@ -44,12 +45,11 @@ router.get('/agent_statistics_more', async (req, res) => {
         const today_date = req.query.date || today();
 
         const fast_c12 = (await fastC12ForAgent({ state, id, date: today_date })).length;
-        const licacao_nova_c12 = (await licacaoNovaC12ForAgent({ state, id, date: today_date })).length;
+        
         const first_c12 = (await firstC12ForAgent({ state, id, date: today_date })).length;
 
         res.json([
             { title: "C12 Rápidos", value: fast_c12 || 0, color: fast_c12 > 1 ? "#EF4444" : "#00c742ff", unity: '' },
-            { title: "C12 em Ligação Nova", value: licacao_nova_c12 || 0, color: licacao_nova_c12 > 1 ? "#EF4444" : "#00c742ff", unity: '' },
             { title: "C12 Entrante", value: first_c12 || 0, color: first_c12 > 1 ? "#EF4444" : "#00c742ff", unity: '' },
         ]);
     } catch (err) {
