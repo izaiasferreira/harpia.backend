@@ -15,7 +15,6 @@ router.get('/agent_statistics', async (req, res) => {
         const result = await getLeiturasForAgent({ state, id, date: today_date, limit: 99999 });
         const quant_leituras = result.length || 0;
         const cnl = result.filter(r => !r.ntlei.startsWith('A') && !['B09', 'B10', 'B15'].includes(r.ntlei)).length || 0;
-        const meta_cnl = quant_leituras * 0.06;
         const perdas = result.filter(r => r.tem_perda === "PERDA" && parseInt(r.perda_prevista_mensal) > 0).reduce((acc, r) => acc + parseInt(r.perda_prevista_mensal), 0) || 0;
         const percent_cnl = (cnl / quant_leituras) * 100 || 0;
         const quant_c12 = result.filter(r => r.ntlei === 'C12').length || 0;
@@ -23,13 +22,13 @@ router.get('/agent_statistics', async (req, res) => {
         const licacao_nova_c12 = (await licacaoNovaC12ForAgent({ state, id, date: today_date })).length;
 
         res.json([
-            { title: "Leituras Realizadas", value: quant_leituras || 0, color: "#00c742ff", unity: '' },
-            { title: "Perdas Geradas", value: perdas || 0, color: perdas > 0 ? "#EF4444" : "#00c742ff", unity: 'Kwh' },
-            { title: "Quantidade de CNL", value: `${cnl}/${meta_cnl.toFixed(0)}` || 0, color: meta_cnl < cnl ? "#EF4444" : "#00c742ff", unity: '' },
-            { title: "Percentual de CNL", value: percent_cnl.toFixed(1) + '%' || 0 + '%', color: percent_cnl > 6 ? "#EF4444" : "#00c742ff", unity: '%' },
-            { title: "Quantidade de C12", value: quant_c12 || 0, color: "#00c742ff", unity: '' },
-            { title: "C12 Fora de Horário", value: quant_c12_out_hour || 0, color: quant_c12_out_hour > 1 ? "#EF4444" : "#00c742ff", unity: '' },
-            { title: "C12 em Ligação Nova", value: licacao_nova_c12 || 0, color: licacao_nova_c12 > 0 ? "#EF4444" : "#00c742ff", unity: '' },
+            { title: "Leituras Realizadas", value: quant_leituras || 0, color: "#00c742ff", unity: '', filter: 'all' },
+            { title: "Perdas Geradas", value: perdas || 0, color: perdas > 0 ? "#EF4444" : "#00c742ff", unity: 'Kwh', filter: 'perdas' },
+            { title: "Quantidade de CNL", value: `${cnl}` || 0, color: "#EF4444" , unity: '', filter: 'cnl' },
+            { title: "Percentual de CNL", value: percent_cnl.toFixed(1)|| 0 , color: percent_cnl > 6 ? "#EF4444" : "#00c742ff", unity: '%', filter: 'cnl' },
+            { title: "Quantidade de C12", value: quant_c12 || 0, color: "#00c742ff", unity: '', filter: 'c12' },
+            { title: "C12 Fora de Horário", value: quant_c12_out_hour || 0, color: quant_c12_out_hour > 1 ? "#EF4444" : "#00c742ff", unity: '', filter: 'c12_out_time' },
+            { title: "C12 em Ligação Nova", value: licacao_nova_c12 || 0, color: licacao_nova_c12 > 0 ? "#EF4444" : "#00c742ff", unity: '', filter: 'c12_ligacao_nova' },
         ]);
     } catch (err) {
         console.log(err);
@@ -49,8 +48,8 @@ router.get('/agent_statistics_more', async (req, res) => {
         const first_c12 = (await firstC12ForAgent({ state, id, date: today_date })).length;
 
         res.json([
-            { title: "C12 Rápidos", value: fast_c12 || 0, color: fast_c12 > 1 ? "#EF4444" : "#00c742ff", unity: '' },
-            { title: "C12 Entrante", value: first_c12 || 0, color: first_c12 > 1 ? "#EF4444" : "#00c742ff", unity: '' },
+            { title: "C12 Rápidos", value: fast_c12 || 0, color: fast_c12 > 1 ? "#EF4444" : "#00c742ff", unity: '', filter: 'fast_c12' },
+            { title: "C12 Entrante", value: first_c12 || 0, color: first_c12 > 1 ? "#EF4444" : "#00c742ff", unity: '', filter: 'first_c12' },
         ]);
     } catch (err) {
         console.log(err);
@@ -58,15 +57,13 @@ router.get('/agent_statistics_more', async (req, res) => {
     }
 });
 
-router.post('/agent_services', async (req, res) => {
+router.get('/agent_services', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
-        const { page, date } = req.body;
-        const state = req.query.state || 'pi';
-        const id = req.query.id;
+        const { page, date, filter, id, state } = req.query;
+        const atual_filter = filter || 'all';
         const today_date = date ? parse_date(date) : today();
-        console.log(today_date, date);
-        const result = await getLeiturasForAgent({ state, id, date: today_date, page: page || 1 });
+        const result = await getLeiturasForAgent({ state: state || 'pi', id, date: today_date, page: page || 1, filter: atual_filter });
         res.json(result);
     } catch (err) {
         console.log(err);

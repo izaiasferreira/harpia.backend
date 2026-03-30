@@ -17,11 +17,12 @@ async function lastUpdate(state = 'pi') {
   `;
     const { rows: rows_last_register } = state === 'pi' ? await pi_pool.query(query_last_register) : await ma_pool.query(query_last_register);
     const val = rows_last_register[0]?.value;
-    
+
     rows.push({ title: 'last_register', value: val ? new Date(val).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }).replace(',', ' às ') : val });
-    
+
     return rows;
 }
+
 // ─── pendencias ────────────────────────────────────────────────────────────────
 async function pendencias(state = 'pi', region = 'all') {
     let query = `
@@ -785,41 +786,21 @@ async function getCalendarForAgent({ state = 'pi' }) {
     const { rows } = state === 'pi' ? await pi_pool.query(query) : await ma_pool.query(query);
     return rows;
 }
-async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1, limit = 20 }) {
-    const query = `
-    WITH historico_completo AS (
-        SELECT 
-            instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, nome_agente, latitude, longitude
-        FROM matriz
-        WHERE agente = '${id}'
-        AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
-    )
-    SELECT *
-    FROM historico_completo
-    LIMIT ${limit} OFFSET ${(page - 1) * limit}
-    `;
 
-    const { rows } = state === 'pi' ? await pi_pool.query(query) : await ma_pool.query(query);
-    if (rows.length === 0) return [];
-
-    // 1. Primeiro ordena os registros usando o data_conclusao ORIGINAL (antes de virar string "dd/mm/yyyy")
+function orderLeituras(rows) {
     const ordenados = rows.sort((a, b) => new Date(a.data_conclusao) - new Date(b.data_conclusao));
-
     let prevDt = null;
-
-    // 2. Calcula as diferenças entre datas originais e formata os dados
     return ordenados.reduce((acc, r) => {
         const dt = new Date(r.data_conclusao);
-        let diff = 60; // 60 segundos por padrão para a primeira leitura do dia
+        let diff = 60;
 
         if (prevDt) {
             diff = Math.floor((dt - prevDt) / 1000);
 
-            // Tratamento caso a leitura anterior não seja do mesmo dia (improvável pelo filtro SQL, mas seguro)
             if (diff < 0) diff = 60;
         }
 
-        prevDt = dt; // Salva o Date real para a PRÓXIMA iteração ANTES de sobrescrever r.data_conclusao
+        prevDt = dt;
 
         const h = Math.floor(diff / 3600);
         const m = Math.floor((diff % 3600) / 60);
@@ -833,6 +814,159 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
         acc.push(r);
         return acc;
     }, []);
+}
+async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1, limit = 20, filter = 'all' }) {
+    const result = [];
+
+    if (filter === 'all') {
+        const query_all = `
+            WITH historico_completo AS (
+                SELECT 
+                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
+                FROM matriz
+                WHERE agente = '${id}'
+                AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+            )
+            SELECT *
+            FROM historico_completo
+            LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
+
+        const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        if (rows.length === 0) return [];
+        result.push(...orderLeituras(rows));
+
+    }
+
+    if (filter === 'cnl') {
+        const query_all = `
+            WITH historico_completo AS (
+                SELECT 
+                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev,concluido, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
+                FROM matriz
+                WHERE agente = '${id}'
+                AND ntlei NOT LIKE 'A%'
+                AND ntlei NOT IN ('B09', 'B10', 'B15')
+                AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+            )
+            SELECT *
+            FROM historico_completo
+            LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
+
+        const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        if (rows.length === 0) return [];
+        result.push(...orderLeituras(rows));
+    }
+
+    if (filter === 'c12') {
+        const query_all = `
+            WITH historico_completo AS (
+                SELECT 
+                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
+                FROM matriz
+                WHERE agente = '${id}'
+                AND ntlei = 'C12'
+                AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+            )
+            SELECT *
+            FROM historico_completo
+            LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
+
+        const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        if (rows.length === 0) return [];
+        result.push(...orderLeituras(rows));
+
+    }
+
+    if (filter === 'c12_out_time') {
+        const query_all = `
+            WITH historico_completo AS (
+                SELECT 
+                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
+                FROM matriz
+                WHERE agente = '${id}'
+                AND ntlei = 'C12'
+                AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 08:00:00', 'DD.MM.YYYY HH24:MI:SS')
+            )
+            SELECT *
+            FROM historico_completo
+            LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
+
+        const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        if (rows.length === 0) return [];
+        result.push(...rows);
+
+    }
+
+    if (filter === 'c12_ligacao_nova') {
+        const query_all = `
+            WITH historico_completo AS (
+                SELECT 
+                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
+                FROM matriz
+                WHERE agente = '${id}'
+                AND ntlei = 'C12'
+                AND instalacao LIKE '200%'
+                AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+            )
+            SELECT *
+            FROM historico_completo
+            LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
+
+        const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        if (rows.length === 0) return [];
+        result.push(...orderLeituras(rows));
+
+    }
+
+    if (filter === 'fast_c12') {
+        const query_all = `
+            WITH historico_completo AS (
+                SELECT 
+                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
+                FROM matriz
+                WHERE agente = '${id}'
+                AND ntlei = 'C12'
+                AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+            )
+            SELECT *
+            FROM historico_completo
+            LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
+        const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        if (rows.length === 0) return [];
+        const ordered = orderLeituras(rows);
+        result.push(...ordered.filter(r => {
+            const parts = r.tempo_execucao.split(':');
+            const totalSeconds = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
+            return totalSeconds < 60;
+        }));
+
+    }
+
+    if (filter === 'first_c12') {
+        const query_all = `
+            WITH historico_agentes AS (
+                SELECT 
+                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente, tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude,
+                    status_ds,
+                    LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant,
+                    LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant2
+                FROM matriz
+            )
+            SELECT instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente, tem_perda, nome_agente, latitude, longitude
+            FROM historico_agentes
+            WHERE agente = '${id}'
+            AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+            AND ntlei = 'C12'
+            AND status_ds = 'LG'
+            AND (ntlei_ant LIKE 'A%' OR ntlei_ant IN ('B09', 'B10', 'B15'))
+            AND (ntlei_ant2 LIKE 'A%' OR ntlei_ant2 IN ('B09', 'B10', 'B15'))
+            LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
+        const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        if (rows.length === 0) return [];
+        result.push(...orderLeituras(rows));
+    }
+
+    return result;
 
 }
 
