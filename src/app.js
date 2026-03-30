@@ -21,7 +21,7 @@ const { router: filesRouter } = require('./routes/files');
 
 // Health check
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', timestamp: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }), atual_time: new Date().toString() });
 });
 
 // Consultas
