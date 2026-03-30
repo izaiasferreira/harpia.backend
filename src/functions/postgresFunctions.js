@@ -20,6 +20,15 @@ async function pendencias(state = 'pi', region = 'all') {
     const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     if (rows.length === 0) return { type: 'text', text: 'Nenhuma instalação encontrada.' };
 
+    let query_last_update = `
+    SELECT data
+    FROM vars
+    WHERE nome='abap_hora'
+  `;
+
+    const { rows: rows_last_update } = state === 'pi' ? await pi_pool.query(query_last_update) : await ma_pool.query(query_last_update);
+    const last_update = rows_last_update[0].data;
+
     const unified = {};
     for (const row of rows) {
         if (!unified[row.regional]) unified[row.regional] = {};
@@ -27,10 +36,10 @@ async function pendencias(state = 'pi', region = 'all') {
         unified[row.regional][row.seccional].push(row);
     }
 
-    let text = '';
+    let text = `Última atualização: ${last_update}\n\n`;
     for (const reg of Object.keys(unified)) {
         let total = 0;
-        text += `REGIONAL ${reg}\n`;
+        text += `REGIONAL ${reg}\n\n`;
         for (const sec of Object.keys(unified[reg])) {
             text += ` - ${sec.trim()} : \n`;
             const etapas = [...new Set(unified[reg][sec].map(r => r.etapa))].sort();
@@ -84,6 +93,15 @@ async function cnl(state = 'pi', region = 'all', dateinit = today(), dateend = t
 
     if (rows.length === 0) return { type: 'text', text: 'Nenhuma instalação encontrada.' };
 
+    let query_last_update = `
+    SELECT data
+    FROM vars
+    WHERE nome='abap2_hora'
+  `;
+
+    const { rows: rows_last_update } = state === 'pi' ? await pi_pool.query(query_last_update) : await ma_pool.query(query_last_update);
+    const last_update = rows_last_update[0].data;
+
     const unified = {};
     for (const row of rows) {
         if (!unified[row.regional]) unified[row.regional] = {};
@@ -91,9 +109,9 @@ async function cnl(state = 'pi', region = 'all', dateinit = today(), dateend = t
         unified[row.regional][row.seccional].push(row);
     }
 
-    let text = '';
+    let text = `Última atualização: ${last_update}\n\n`;
     for (const reg of Object.keys(unified)) {
-        text += `REGIONAL ${reg}\n`;
+        text += `REGIONAL ${reg}\n\n`;
         let total = 0;
         for (const sec of Object.keys(unified[reg])) {
             text += ` - ${sec.trim()} : ${unified[reg][sec].length}\n`;
@@ -565,6 +583,14 @@ async function perdas(state = 'pi', region = 'all', dateinit = today(), dateend 
     const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     if (rows.length === 0) return { type: 'text', text: 'Nenhuma instalação encontrada.' };
 
+    let query_last_update = `
+    SELECT data
+    FROM vars
+    WHERE nome='abap2_hora'
+  `;
+    const { rows: rows_last_update } = state === 'pi' ? await pi_pool.query(query_last_update) : await ma_pool.query(query_last_update);
+    const last_update = rows_last_update[0].data;
+
     const unified = {};
     for (const row of rows) {
         if (!unified[row.regional]) unified[row.regional] = {};
@@ -572,7 +598,7 @@ async function perdas(state = 'pi', region = 'all', dateinit = today(), dateend 
         unified[row.regional][row.seccional].push(row);
     }
 
-    let text = '';
+    let text = `Última atualização: ${last_update}\n\n`;
     for (const reg of Object.keys(unified)) {
         text += `REGIONAL ${reg}\n`;
         let perdaRegional = 0;
