@@ -17,7 +17,8 @@ const {
     C12ToLidoJson,
     incompletedServices,
     fastC12Json,
-    licacaoNovaC12Json
+    licacaoNovaC12Json,
+    lastUpdate
 } = require('../functions/postgresFunctions');
 
 function today() {
@@ -32,6 +33,17 @@ function checkToken(req, res) {
     }
     return true;
 }
+
+router.get('/last_update', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const state = req.query.state || 'pi';
+        const result = await lastUpdate(state);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 router.get('/pendencias', async (req, res) => {
     if (!checkToken(req, res)) return;
