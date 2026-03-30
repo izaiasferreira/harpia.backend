@@ -1,0 +1,5 @@
+[variables]
+TZ = "America/Sao_Paulo"
+
+[start]
+cmd = "node src/index.js"
