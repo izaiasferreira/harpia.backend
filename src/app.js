@@ -32,9 +32,12 @@ app.use(cors({
 
 app.use(express.json());
 
+// Trust proxy é necessário no Dokploy para o express pegar o IP real do cliente ao invés do IP do proxy
+app.set('trust proxy', true);
+
 // Only use morgan logger if not in test environment
 if (process.env.NODE_ENV !== 'test') {
-    app.use(morgan('[:date[clf]] :method :url :status :res[content-length] - :response-time ms'));
+    app.use(morgan('[:date[clf]] IP: :remote-addr | HOST: :req[host] | :method :url :status :res[content-length] - :response-time ms'));
 }
 
 // Routes
