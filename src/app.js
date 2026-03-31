@@ -5,6 +5,14 @@ const morgan = require('morgan');
 const cors = require('cors');
 const app = express();
 
+// Trust proxy é necessário no Dokploy para o express pegar o IP real do cliente ao invés do IP do proxy
+app.set('trust proxy', true);
+
+// Only use morgan logger if not in test environment - deve vir ANTES do CORS para registrar as requisições
+if (process.env.NODE_ENV !== 'test') {
+    app.use(morgan('[:date[clf]] IP: :remote-addr | HOST: :req[host] | :method :url :status :res[content-length] - :response-time ms'));
+}
+
 // CORS — origens permitidas via variável de ambiente (separadas por vírgula)
 // Aceita URLs completas (http://192.168.1.100:8080) ou só IPs/domínios (192.168.1.100)
 // Exemplo no .env: CORS_ORIGINS=192.168.50.68,https://meusite.com,localhost
@@ -31,14 +39,6 @@ app.use(cors({
 }));
 
 app.use(express.json());
-
-// Trust proxy é necessário no Dokploy para o express pegar o IP real do cliente ao invés do IP do proxy
-app.set('trust proxy', true);
-
-// Only use morgan logger if not in test environment
-if (process.env.NODE_ENV !== 'test') {
-    app.use(morgan('[:date[clf]] IP: :remote-addr | HOST: :req[host] | :method :url :status :res[content-length] - :response-time ms'));
-}
 
 // Routes
 const consultasRouter = require('./routes/consultas');
@@ -67,6 +67,13 @@ app.use('/', agenteRouter)
 // Arquivos estáticos (deve ser o último para não interceptar as outras rotas)
 app.use('/', filesRouter);
 
-
+// Tratamento de erros limpo para o CORS (evita sujar o log com stack trace inteiro)
+app.use((err, req, res, next) => {
+    if (err.message === 'Bloqueado pelo CORS') {
+        console.warn(`[CORS BLOQUEADO] IP: ${req.ip} | HOST: ${req.hostname || req.headers.host} | ORIGIN: ${req.headers.origin}`);
+        return res.status(403).json({ error: 'Origem não permitida (CORS)' });
+    }
+    next(err);
+});
 
 module.exports = app;
