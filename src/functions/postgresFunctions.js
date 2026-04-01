@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { pi_pool, ma_pool } = require('../db');
+const { pi_pool, ma_pool, localizacoes_pi_pool } = require('../db');
 const { today } = require('../utils/dates');
 
 
@@ -1086,6 +1086,28 @@ async function getAgentTelegramId({ state = 'pi', id }) {
     return rows;
 }
 
+async function get_instalations({ state, query = [], type }) {
+    if (!query || query.length === 0) return [];
+
+    let column = 'instalacao';
+    if (type === 'medidor') column = 'medidor';
+    if (type === 'contacontrato') column = 'conta_contrato';
+
+    const placeholders = query.map((_, i) => `$${i + 1}`).join(',');
+    const sql = `
+        SELECT * 
+        FROM dados_instalacoes 
+        WHERE ${column} IN (${placeholders})
+    `;
+    try {
+        const { rows } = await localizacoes_pi_pool.query(sql, query);
+        return rows;
+    } catch (err) {
+        console.error('Erro em get_instalations:', err);
+        throw err;
+    }
+}
+
 module.exports = {
     pendencias,
     pendenciasJson,
@@ -1115,5 +1137,6 @@ module.exports = {
     licacaoNovaC12ForAgent,
     getCalendarForAgent,
     getAgentTelegramId,
-    lastUpdate
+    lastUpdate,
+    get_instalations
 };

@@ -2,19 +2,15 @@ require('dotenv').config();
 const { Pool } = require('pg');
 
 const pi_pool = new Pool({
-    host: process.env.PG_HOST,
-    port: parseInt(process.env.PG_PORT) || 5432,
-    database: process.env.PG_DATABASE_PI,
-    user: process.env.PG_USER,
-    password: process.env.PG_PASSWORD,
+    connectionString: process.env.PG_CONNECTION_PI,
 });
 
 const ma_pool = new Pool({
-    host: process.env.PG_HOST,
-    port: parseInt(process.env.PG_PORT) || 5432,
-    database: process.env.PG_DATABASE_MA,
-    user: process.env.PG_USER,
-    password: process.env.PG_PASSWORD,
+    connectionString: process.env.PG_CONNECTION_MA,
 });
 
-module.exports = { pi_pool, ma_pool };
+const localizacoes_pi_pool = new Pool({
+    connectionString: process.env.PG_CONNECTION_LOCALIZACOES_PI,
+});
+
+module.exports = { pi_pool, ma_pool, localizacoes_pi_pool };

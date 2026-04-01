@@ -1,6 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { getLeiturasForAgent, getCalendarForAgent, firstC12ForAgent, licacaoNovaC12ForAgent, fastC12ForAgent, getAgentTelegramId } = require('../functions/postgresFunctions');
+const { 
+    getLeiturasForAgent, 
+    getCalendarForAgent, 
+    firstC12ForAgent, 
+    licacaoNovaC12ForAgent, 
+    fastC12ForAgent, 
+    getAgentTelegramId,
+    get_instalations 
+} = require('../functions/postgresFunctions');
 const { checkToken } = require('../functions/middlewares');
 const { today, parse_date } = require('../utils/dates');
 
@@ -24,8 +32,8 @@ router.get('/agent_statistics', async (req, res) => {
         res.json([
             { title: "Leituras Realizadas", value: quant_leituras || 0, color: "#00c742ff", unity: '', filter: 'all' },
             { title: "Perdas Geradas", value: perdas || 0, color: perdas > 0 ? "#EF4444" : "#00c742ff", unity: 'Kwh', filter: 'perdas' },
-            { title: "Quantidade de CNL", value: `${cnl}` || 0, color: "#EF4444" , unity: '', filter: 'cnl' },
-            { title: "Percentual de CNL", value: percent_cnl.toFixed(1)|| 0 , color: percent_cnl > 6 ? "#EF4444" : "#00c742ff", unity: '%', filter: 'cnl' },
+            { title: "Quantidade de CNL", value: `${cnl}` || 0, color: "#EF4444", unity: '', filter: 'cnl' },
+            { title: "Percentual de CNL", value: percent_cnl.toFixed(1) || 0, color: percent_cnl > 6 ? "#EF4444" : "#00c742ff", unity: '%', filter: 'cnl' },
             { title: "Quantidade de C12", value: quant_c12 || 0, color: "#00c742ff", unity: '', filter: 'c12' },
             { title: "C12 Fora de Horário", value: quant_c12_out_hour || 0, color: quant_c12_out_hour > 1 ? "#EF4444" : "#00c742ff", unity: '', filter: 'c12_out_time' },
             { title: "C12 em Ligação Nova", value: licacao_nova_c12 || 0, color: licacao_nova_c12 > 0 ? "#EF4444" : "#00c742ff", unity: '', filter: 'c12_ligacao_nova' },
@@ -44,7 +52,7 @@ router.get('/agent_statistics_more', async (req, res) => {
         const today_date = req.query.date || today();
 
         const fast_c12 = (await fastC12ForAgent({ state, id, date: today_date })).length;
-        
+
         const first_c12 = (await firstC12ForAgent({ state, id, date: today_date })).length;
 
         res.json([
@@ -98,5 +106,28 @@ router.get('/agent_telegram_id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+
+router.post('/search_in', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const { type, queries } = req.body;
+        const state = req.query.state || 'pi';
+
+        const cleanQueries = queries.map(q => q.trim()).filter(Boolean);
+
+        if (!cleanQueries.length) {
+            res.status(400).json({ error: 'Nenhuma query fornecida' });
+            return;
+        }
+        const results = await get_instalations({ state, query: cleanQueries, type });
+        res.json(results);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
 
 module.exports = router;
