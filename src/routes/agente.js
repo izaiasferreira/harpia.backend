@@ -7,7 +7,8 @@ const {
     licacaoNovaC12ForAgent, 
     fastC12ForAgent, 
     getAgentTelegramId,
-    get_instalations 
+    get_instalations, 
+    get_predicted
 } = require('../functions/postgresFunctions');
 const { checkToken } = require('../functions/middlewares');
 const { today, parse_date } = require('../utils/dates');
@@ -128,6 +129,41 @@ router.post('/search_in', async (req, res) => {
     }
 });
 
+router.get('/predicted', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const { id, state, status, page, limit } = req.query;
+
+        if (!id) {
+            res.status(400).json({ error: 'ID é obrigatório' });
+            return;
+        }
+        const results = await get_predicted({ state, id, status, page, limit });
+        res.json(results);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/feriados', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const { state } = req.query;
+        if (!state || state === 'pi') {
+            return res.json(['03/04/2026', '21/04/2026']);
+        }
+
+        if (state === 'ma') {
+            return res.json(['03/04/2026', '21/04/2026']);
+        }
+
+        res.json([]);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 
 module.exports = router;

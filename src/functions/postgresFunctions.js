@@ -1108,6 +1108,67 @@ async function get_instalations({ state, query = [], type }) {
     }
 }
 
+async function get_predicted({ state = 'pi', id, status = 'PENDENTE', page = 1, limit = 100 }) {
+    const offset = (page - 1) * limit;
+    const query = `
+        SELECT 
+            instalacao, 
+            etapa, 
+            seccional, 
+            regional, 
+            agente, 
+            nome_agente, 
+            ntlei, 
+            apontamento, 
+            perda_prevista_mensal, 
+            tipo_perda, 
+            status_perda, 
+            tem_perda, 
+            concluido,
+            TO_CHAR(data_leit_prev, 'DD/MM/YYYY') as data_leit_prev,
+            TO_CHAR(data_conclusao, 'DD/MM/YYYY') as data_conclusao,
+            TO_CHAR(data_conclusao, 'HH24:MI') as hora_conclusao,
+            CASE 
+                WHEN tipo_perda LIKE '%87%' THEN 'LER OU APONTAR ' || COALESCE(apontamento, '')
+                WHEN tipo_perda LIKE '%113%' AND status_perda = 'SEM PERDA' THEN 'LER OU APONTAR ' || COALESCE(apontamento, '')
+                ELSE 'LER OU ENTRAR EM CONTATO COM A MONITORIA'
+            END as action,
+            motivo_perda
+        FROM matriz 
+        WHERE agente IN ($1, $2)
+        AND status_perda <> 'SEM PERDA'
+        AND concluido = $3
+        AND data_leit_prev >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month') 
+        AND data_leit_prev < DATE_TRUNC('month', CURRENT_DATE)
+        AND (CASE WHEN perda_prevista_mensal::TEXT ~ '^[0-9]' THEN REPLACE(perda_prevista_mensal::TEXT, ',', '.')::NUMERIC ELSE 0 END) > 0
+        ORDER BY (CASE WHEN etapa::TEXT ~ '^[0-9]' THEN etapa::TEXT::NUMERIC ELSE 9999 END) ASC, data_leit_prev ASC
+        LIMIT $4 OFFSET $5
+    `;
+
+    const values = [id.toUpperCase(), id.toLowerCase(), status, limit, offset];
+    const { rows } = state === 'pi' ? await pi_pool.query(query, values) : await ma_pool.query(query, values);
+
+    if (rows.length === 0) return [];
+
+    const rows_ids = rows.map(r => r.instalacao);
+    const rows_instalations = await get_instalations({ state, query: rows_ids, type: 'instalacao' });
+
+    const result = rows.map((r,i) => {
+        const instalation = rows_instalations.find(i => i.instalacao === r.instalacao);
+        if (instalation) {
+            r['lat_cad'] = instalation.lat_cad;
+            r['long_cad'] = instalation.long_cad;
+            r['lat_leitura'] = instalation.lat_leitura;
+            r['long_leitura'] = instalation.long_leitura;
+            r['lat_lig'] = instalation.lat_lig;
+            r['long_lig'] = instalation.long_lig;
+        }
+        return r;
+    });
+
+    return result;
+}
+
 module.exports = {
     pendencias,
     pendenciasJson,
@@ -1138,5 +1199,6 @@ module.exports = {
     getCalendarForAgent,
     getAgentTelegramId,
     lastUpdate,
-    get_instalations
+    get_instalations,
+    get_predicted
 };
