@@ -833,7 +833,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
             latitude, 
             longitude
         FROM matriz
-        WHERE UPPER(agente) = '${id}'
+        WHERE agente IN ('${id.toUpperCase()}', '${id.toLowerCase()}')
         AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
         ORDER BY data_conclusao ASC
         LIMIT ${limit} OFFSET ${(page - 1) * limit};`;

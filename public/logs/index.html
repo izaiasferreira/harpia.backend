@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Logs - API Banco</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="login-container" class="login-wrapper">
+        <div class="login-card">
+            <h1>Acesso Restrito</h1>
+            <p>Digite a senha para acessar os logs do servidor.</p>
+            <input type="password" id="password-input" placeholder="Senha" autofocus>
+            <button id="login-btn">Entrar</button>
+            <p id="login-error" class="error-msg hidden">Senha incorreta. Tente novamente.</p>
+        </div>
+    </div>
+
+    <div id="dashboard-container" class="dashboard-wrapper hidden">
+        <!-- ... existing header and main ... -->
+        <header>
+            <div class="logo-area">
+                <span class="status-dot"></span>
+                <h2>Dashboard de Logs</h2>
+            </div>
+            <div class="user-actions">
+                <button id="clear-btn" class="danger-btn">Limpar Filtrados</button>
+                <button id="export-btn" class="secondary-btn">Exportar Planilha</button>
+                <button id="logout-btn" class="danger-btn">Sair</button>
+            </div>
+        </header>
+
+        <main>
+            <section class="filters-panel">
+                <div class="filter-group">
+                    <label>Filtrar por Rota</label>
+                    <input type="text" id="route-filter" placeholder="Ex: /health">
+                </div>
+                <div class="filter-group" style="flex: 0 1 100px; min-width: 80px;">
+                    <label>Status</label>
+                    <input type="number" id="status-filter" placeholder="200" min="100" max="599">
+                </div>
+                <div class="filter-group">
+                    <label>De (Início)</label>
+                    <input type="datetime-local" id="date-start-filter">
+                </div>
+                <div class="filter-group">
+                    <label>Até (Fim)</label>
+                    <input type="datetime-local" id="date-end-filter">
+                </div>
+                <div class="filter-actions">
+                    <button id="apply-filters-btn" class="primary-btn">Filtrar</button>
+                    <button id="refresh-btn" class="secondary-btn" title="Atualizar Logs">↻</button>
+                </div>
+            </section>
+
+            <section class="table-card">
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Horário</th>
+                                <th>Método</th>
+                                <th>Rota</th>
+                                <th>IP</th>
+                                <th>Status</th>
+                                <th>Duração</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-tbody">
+                            <!-- Logs renderizados via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="pagination-footer">
+                    <span id="pagination-info">Página 1 de 1 (Total: 0)</span>
+                    <div class="pagination-btns">
+                        <button id="prev-btn" class="pagination-btn">Anterior</button>
+                        <button id="next-btn" class="pagination-btn">Próximo</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal de Detalhes do Log -->
+    <div id="log-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <header class="modal-header">
+                <h3>Detalhes da Requisição</h3>
+                <button id="close-modal-btn" class="close-btn">&times;</button>
+            </header>
+            <div id="modal-content" class="modal-body">
+                <!-- Conteúdo dinâmico -->
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

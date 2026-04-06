@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
+const logMiddleware = require('./middlewares/logMiddleware');
 const app = express();
 
 // Trust proxy é necessário no Dokploy para o express pegar o IP real do cliente ao invés do IP do proxy
@@ -39,12 +40,15 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(logMiddleware);
+app.use(express.static('public'));
 
 // Routes
 const consultasRouter = require('./routes/consultas');
 const webhooksRouter = require('./routes/webhooks');
 const revalidateRouter = require('./routes/revalidate');
 const agenteRouter = require('./routes/agente')
+const logsRouter = require('./routes/logs')
 
 // Health check
 app.get('/health', (req, res) => {
@@ -61,6 +65,8 @@ app.use('/', webhooksRouter);
 app.use('/', revalidateRouter);
 
 app.use('/', agenteRouter)
+
+app.use('/api', logsRouter)
 
 
 // Tratamento de erros limpo para o CORS (evita sujar o log com stack trace inteiro)
