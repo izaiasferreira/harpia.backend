@@ -46,8 +46,6 @@ const webhooksRouter = require('./routes/webhooks');
 const revalidateRouter = require('./routes/revalidate');
 const agenteRouter = require('./routes/agente')
 
-const { router: filesRouter } = require('./routes/files');
-
 // Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }), atual_time: new Date().toString() });
@@ -64,8 +62,6 @@ app.use('/', revalidateRouter);
 
 app.use('/', agenteRouter)
 
-// Arquivos estáticos (deve ser o último para não interceptar as outras rotas)
-app.use('/', filesRouter);
 
 // Tratamento de erros limpo para o CORS (evita sujar o log com stack trace inteiro)
 app.use((err, req, res, next) => {

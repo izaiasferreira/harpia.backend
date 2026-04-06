@@ -820,18 +820,26 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
 
     if (filter === 'all') {
         const query_all = `
-            WITH historico_completo AS (
-                SELECT 
-                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
-                FROM matriz
-                WHERE agente = '${id}'
-                AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
-            )
-            SELECT *
-            FROM historico_completo
-            LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
+            SELECT 
+            instalacao, 
+            etapa, 
+            ntlei, 
+            data_conclusao, 
+            data_leit_prev, 
+            agente,
+            tem_perda, 
+            perda_prevista_mensal, 
+            nome_agente, 
+            latitude, 
+            longitude
+        FROM matriz
+        WHERE UPPER(agente) = '${id}'
+        AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
+        ORDER BY data_conclusao ASC
+        LIMIT ${limit} OFFSET ${(page - 1) * limit};`;
 
         const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        console.log(rows, query_all);
         if (rows.length === 0) return [];
         result.push(...orderLeituras(rows));
 
@@ -843,10 +851,10 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
                 SELECT 
                     instalacao, etapa, ntlei, data_conclusao, data_leit_prev,concluido, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
                 FROM matriz
-                WHERE agente = '${id}'
+                WHERE UPPER(agente) = '${id}'
                 AND ntlei NOT LIKE 'A%'
                 AND ntlei NOT IN ('B09', 'B10', 'B15')
-                AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+                AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
             )
             SELECT *
             FROM historico_completo
@@ -863,9 +871,9 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
                 SELECT 
                     instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
                 FROM matriz
-                WHERE agente = '${id}'
+                WHERE UPPER(agente) = '${id}'
                 AND ntlei = 'C12'
-                AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+                AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
             )
             SELECT *
             FROM historico_completo
@@ -883,9 +891,9 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
                 SELECT 
                     instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
                 FROM matriz
-                WHERE agente = '${id}'
+                WHERE UPPER(agente) = '${id}'
                 AND ntlei = 'C12'
-                AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 08:00:00', 'DD.MM.YYYY HH24:MI:SS')
+                AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
             )
             SELECT *
             FROM historico_completo
@@ -903,10 +911,10 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
                 SELECT 
                     instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
                 FROM matriz
-                WHERE agente = '${id}'
+                WHERE UPPER(agente) = '${id}'
                 AND ntlei = 'C12'
                 AND instalacao LIKE '200%'
-                AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+                AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
             )
             SELECT *
             FROM historico_completo
@@ -924,9 +932,9 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
                 SELECT 
                     instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
                 FROM matriz
-                WHERE agente = '${id}'
+                WHERE UPPER(agente) = '${id}'
                 AND ntlei = 'C12'
-                AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+                AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
             )
             SELECT *
             FROM historico_completo
@@ -954,8 +962,8 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
             )
             SELECT instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente, tem_perda, nome_agente, latitude, longitude
             FROM historico_agentes
-            WHERE agente = '${id}'
-            AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+            WHERE UPPER(agente) = '${id}'
+            AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
             AND ntlei = 'C12'
             AND status_ds = 'LG'
             AND (ntlei_ant LIKE 'A%' OR ntlei_ant IN ('B09', 'B10', 'B15'))
@@ -1013,7 +1021,7 @@ async function licacaoNovaC12ForAgent({ state = 'pi', id, date = today() }) {
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente,
         status_ds, data_conclusao, latitude, longitude
     FROM historico_agentes
-    WHERE agente = '${id}'
+    WHERE UPPER(agente) = '${id}'
     AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
     AND ntlei = 'C12'
     AND instalacao LIKE '200%'
@@ -1057,7 +1065,7 @@ async function fastC12ForAgent({ state = 'pi', id, date = today() }) {
             tempo_execucao_segundos,
             to_char((tempo_execucao_segundos || ' seconds')::interval, 'HH24:MI:SS') as tempo_formatado
         FROM calculo_tempo
-        WHERE agente = '${id}'
+        WHERE UPPER(agente) = '${id}'
         AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
         AND ntlei = 'C12'
         -- FILTRO: Apenas execuções menores que 1 minuto e meio (90 segundos)
@@ -1136,10 +1144,7 @@ async function get_predicted({ state = 'pi', id, status = 'PENDENTE', page = 1, 
             motivo_perda
         FROM matriz 
         WHERE agente IN ($1, $2)
-        AND status_perda <> 'SEM PERDA'
         AND concluido = $3
-        AND data_leit_prev >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month') 
-        AND data_leit_prev < DATE_TRUNC('month', CURRENT_DATE)
         AND (CASE WHEN perda_prevista_mensal::TEXT ~ '^[0-9]' THEN REPLACE(perda_prevista_mensal::TEXT, ',', '.')::NUMERIC ELSE 0 END) > 0
         ORDER BY (CASE WHEN etapa::TEXT ~ '^[0-9]' THEN etapa::TEXT::NUMERIC ELSE 9999 END) ASC, data_leit_prev ASC
         LIMIT $4 OFFSET $5
