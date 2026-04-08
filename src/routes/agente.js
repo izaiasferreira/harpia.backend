@@ -9,7 +9,8 @@ const {
     licacaoNovaC12ForAgent, 
     fastC12ForAgent, 
     get_instalations, 
-    get_predicted
+    get_predicted,
+    lastUpdate
 } = require('../functions/postgresFunctions');
 const { telegramAuth } = require('../middlewares/telegramAuth');
 const { today, parse_date } = require('../utils/dates');
@@ -141,6 +142,27 @@ router.get('/feriados', async (req, res) => {
         res.json([]);
     } catch (err) {
         console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/last_update_agent', async (req, res) => {
+    try {
+        const state = req.colaborador.estado || 'pi';
+        const result = await lastUpdate(state);
+        res.json(result.find(r => r.title === 'abap2_hora'));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/agent_data', async (req, res) => {
+    try {
+        res.json({
+            id: req.colaborador.id,
+            estado: req.colaborador.estado
+        });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });

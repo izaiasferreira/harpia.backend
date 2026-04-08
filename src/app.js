@@ -65,7 +65,7 @@ app.use('/', webhooksRouter);
 // Revalidacao
 app.use('/', revalidateRouter);
 
-app.use('/agente', agenteRouter)
+app.use('/', agenteRouter)
 
 app.use('/', redirectRouter)
 

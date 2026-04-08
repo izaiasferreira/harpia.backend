@@ -1,125 +1,410 @@
 # Documentação da API Banco
 
-Esta é a documentação atualizada dos endpoints disponíveis na **API Banco**, desenvolvida em **Node.js** com **Express**.
+API para gestão de leituras, agentes e monitoria de serviços.
 
-## Visão Geral e Autenticação
+---
 
-A maioria dos endpoints da API requer autenticação através de um parâmetro de query chamado `token`. O valor deve corresponder à variável de ambiente `API_TOKEN`.
+## Autenticação
 
-Caso o token enviado não seja válido, a API retornará:
+A API possui 3 tipos de autenticação:
+
+### 1. Token Simples (Query Param)
+Usado em rotas de consultas gerais, revalidação e webhooks.
+
+```bash
+curl "http://localhost:3040/endpoint?token=SEU_TOKEN"
+```
+
+**Headers:** `token` como query param.
+
+---
+
+### 2. Autenticação Telegram (TMA)
+Usado nas rotas do agente (Telegram Mini Apps).
+
+```bash
+curl "http://localhost:3040/agente/endpoint" -H "X-Telegram-Init-Data: TOKEN"
+```
+
+O token pode ser:
+- **Token manual:** Criado via `test_token.js` para testes
+- **initData real:** Enviado automaticamente pelo Telegram em Mini Apps
+
+O middleware autentica usando o `telegram_id` do usuário e busca na tabela `login` para obter:
+- `id` (matrícula)
+- `estado` (pi/ma)
+
+---
+
+### 3. Auth Logs
+Usado nas rotas de logs via header Authorization.
+
+```bash
+curl "http://localhost:3040/api/logs/data" -H "Authorization: SENHA"
+```
+
+---
+
+## Endpoints
+
+### Health Check
+
+#### `GET /health`
+Verifica se a API está online.
+
+- **Autenticação:** Nenhuma
+- **Retorno:**
 ```json
 {
-  "error": "Token inválido"
+    "status": "ok",
+    "timestamp": "08/04/2026, 15:18:21",
+    "atual_time": "Wed Apr 08 2026 15:18:21 GMT-0300"
 }
 ```
 
-### Configurações de CORS
-A API utiliza uma lista de permissão (whitelist) para o controle de CORS. A variável de ambiente `CORS_ORIGINS` define quais origens podem acessar os recursos.
-- Exemplo: `CORS_ORIGINS=localhost,generic2.cattalk.com.br,177.136.248.84`
-- O caractere `*` pode ser usado para liberar acesso global (não recomendado para produção).
-
 ---
 
-## 1. Endpoints de Saúde (Health Check)
+### Rotas do Agente (`/agente/*`)
 
-### `GET /health`
-Verifica se a API está online e retorna o horário configurado no servidor.
-- **Autenticação Requerida:** Não
-- **Retorno:** 
-  ```json
-  {
-      "status": "ok",
-      "timestamp": "01/04/2026, 11:53:00",
-      "atual_time": "Wed Apr 01 2026 11:53:00 GMT-0300 (Brasilia Standard Time)"
-  }
-  ```
+**Autenticação:** Telegram (Header `X-Telegram-Init-Data`)
 
----
+#### `GET /agente/agent_statistics`
+Retorna estatísticas do agente para o dia atual.
 
-## 2. Endpoints de Consultas Gerais (Matriz)
+- **Query Params:** `date` (opcional, formato DD.MM.YYYY)
+- **Retorno:**
+```json
+[
+    { "title": "Leituras Realizadas", "value": 150, "color": "#00c742ff", "unity": "", "filter": "all" },
+    { "title": "Perdas Geradas", "value": 250, "color": "#EF4444", "unity": "Kwh", "filter": "perdas" },
+    { "title": "Quantidade de CNL", "value": "10", "color": "#EF4444", "unity": "", "filter": "cnl" },
+    { "title": "Percentual de CNL", "value": "6.7", "color": "#EF4444", "unity": "%", "filter": "cnl" },
+    { "title": "Quantidade de C12", "value": 50, "color": "#00c742ff", "unity": "", "filter": "c12" },
+    { "title": "C12 Fora de Horário", "value": 2, "color": "#EF4444", "unity": "", "filter": "c12_out_time" },
+    { "title": "C12 em Ligação Nova", "value": 5, "color": "#EF4444", "unity": "", "filter": "c12_ligacao_nova" }
+]
+```
 
-Estes endpoints consultam a tabela `matriz` do PostgreSQL principal (PI/MA). Parâmetros de data (`dateinit`, `dateend`) utilizam o formato `DD.MM.YYYY`.
+#### `GET /agente/agent_statistics_more`
+Estatísticas complementares (C12 rápidos e entrantes).
 
-### `GET /pendencias` / `GET /pendencias_json`
-Retorna resumo formatado ou lista bruta de pendências por regional.
-- **Parâmetros:** `token`, `regional` (default: 'all').
+- **Retorno:**
+```json
+[
+    { "title": "C12 Rápidos", "value": 3, "color": "#EF4444", "unity": "", "filter": "fast_c12" },
+    { "title": "C12 Entrante", "value": 2, "color": "#EF4444", "unity": "", "filter": "first_c12" }
+]
+```
 
-### `GET /c12_json`, `GET /e02_json`, `GET /c16_json`
-Retorna registros de códigos específicos (NTLEI) entre as datas informadas.
-- **Parâmetros:** `token`, `regional`, `dateinit`, `dateend`.
+#### `GET /agente/agent_services`
+Lista de leituras do agente.
 
-### `GET /perdas` e `GET /perdas_json`
-Consultam registros onde `tem_perda = 'PERDA'`.
-- **Parâmetros:** `token`, `regional`, `dateinit`, `dateend`.
+- **Query Params:**
+  - `page` (padrão: 1)
+  - `date` (formato DD.MM.YYYY)
+  - `filter`: `all`, `cnl`, `c12`, `c12_out_time`, `c12_ligacao_nova`, `fast_c12`, `first_c12`
 
----
+- **Retorno:** Array de leituras com campos: instalacao, etapa, ntlei, data_conclusao, hora_conclusao, etc.
 
-## 3. Dashboard e Monitoramento Agentes
+#### `POST /agente/search_in`
+Busca instalações no cadastro.
 
-### `GET /agent_statistics`
-Painel principal de indicadores do agente para o dia.
-- **Query Params:** `token`, `id`, `state` (default: 'pi'), `date` (opcional).
-- **Indicadores:** Leituras Realizadas, Perdas, Quantidade/Percentual de CNL, C12 (Total, Fora de Horário, Ligação Nova).
+- **Body:**
+```json
+{
+    "type": "instalacao" | "medidor" | "contacontrato",
+    "queries": ["10000001", "10000002"]
+}
+```
 
-### `GET /agent_statistics_more`
-Indicadores complementares (C12 Rápidos e C12 Entrantes).
-- **Query Params:** `token`, `id`, `state` (default: 'pi'), `date` (opcional).
-
-### `GET /agent_services`
-Lista detalhada de leituras sincronizadas pelo agente.
-- **Query Params:** `token`, `id`, `state`, `date`, `filter`, `page`.
-- **Filtros Disponíveis:** `all`, `cnl`, `c12`, `c12_out_time`, `c12_ligacao_nova`, `fast_c12`, `first_c12`.
-
-### `GET /predicted`
-Busca serviços com perdas previstas que ainda estão pendentes.
-- **Query Params:** `token`, `id`, `state`, `status` (padrão: 'PENDENTE'), `page`, `limit`.
-- **Ordenação:** Do mais antigo para o mais novo (por data de leitura prevista).
-
----
-
-## 4. Busca em Localizações (Cadastro de Instalações)
-
-Estes endpoints consultam a base de dados de **Localizações** (`localizacoes_pi_pool`).
-
-### `POST /search_in`
-Pesquisa instalações no cadastro técnico.
-- **Query Params:** `token`, `state` (default: 'pi').
-- **Body:** 
-  ```json
-  {
-      "type": "instalacao" | "medidor" | "contacontrato",
-      "queries": ["10000001", "10000002"]
-  }
-  ```
 - **Retorno:** Dados completos de cadastro (coordenadas, endereço, cliente, etc).
 
+#### `GET /agente/predicted`
+Busca serviços com perdas previstas.
+
+- **Query Params:** `status` (padrão: PENDENTE), `page`, `limit`
+
+- **Retorno:** Lista de serviços com perdas previstas.
+
+#### `GET /agente/calendar`
+Retorna calendário de etapas.
+
+- **Retorno:** Array de etapas do roteiro.
+
+#### `GET /agente/feriados`
+Retorna feriados conforme o estado do colaborador.
+
+- **Retorno:** Array de datas de feriados.
+
 ---
 
-## 5. Outros Endpoints de Suporte
+### Consultas Gerais (`/*`)
 
-### `GET /calendar`
-Busca o calendário de etapas de roteiro por filial.
-- **Query Params:** `token`, `state`.
+**Autenticação:** Token simples via query param `token`
 
-### `GET /agent_telegram_id`
-Recupera o ID do Telegram vinculado à matrícula para alertas.
-- **Query Params:** `token`, `id`, `state`.
+#### `GET /last_update`
+Retorna horário da última atualização.
 
-### `POST /webhook_perdas`
-Webhook para recebimento de notificações e disparo automático de fotos via WhatsApp.
+- **Query Params:** `state` (pi/ma, padrão: pi)
+- **Retorno:**
+```json
+[
+    { "title": "abap2_hora", "value": "16:30:00" },
+    { "title": "abap_hora", "value": "16:30:00" },
+    { "title": "last_register", "value": "08/04/2026 às 16:35:00" }
+]
+```
+
+#### `GET /pendencias` / `GET /pendencias_json`
+Retorna pendências do mês atual.
+
+- **Query Params:** `token`, `state`, `regional`
+- **Retorno (pendencias):** Texto formatado com resumo
+- **Retorno (pendencias_json):** Array de objetos com pendências
+
+#### `GET /cnl`
+Retorna informações de CNL.
+
+- **Query Params:** `token`, `state`, `regional`, `dateinit`, `dateend`
+- **Retorno:** Texto formatado com resumo de CNL por regional/seccional
+
+#### `GET /cnl_to_lido_json`
+Retorna CNL que foram para lido.
+
+#### `GET /first_cnl_json`
+Retorna primeiros CNL do dia.
+
+#### `GET /c12_json`
+Retorna registros C12 (fora de horário).
+
+- **Query Params:** `token`, `state`, `regional`, `dateinit`, `dateend`
+
+#### `GET /c12_to_lido_json`
+Retorna C12 que foram para lido.
+
+#### `GET /first_c12_json`
+Retorna primeiros C12 do dia.
+
+#### `GET /fast_c12_json`
+Retorna C12 executados em menos de 60 segundos.
+
+#### `GET /licacao_nova_c12_json`
+Retorna C12 de ligação nova (instalação inicia com 200).
+
+#### `GET /e02_json`
+Retorna registros E02.
+
+#### `GET /c16_json`
+Retorna registros C16.
+
+#### `GET /perdas` / `GET /perdas_json`
+Retorna informações de perdas.
+
+- **Query Params:** `token`, `state`, `regional`, `dateinit`, `dateend`
+
+#### `GET /not_start_services`
+Serviços que não iniciaram hoje.
+
+- **Query Params:** `token`, `state`
+
+#### `GET /completed_services`
+Serviços concluídos hoje com mais de 10 serviços pendentes.
+
+- **Query Params:** `token`, `state`
+
+#### `GET /incompleted_services`
+Serviços com conclusão parcial.
+
+- **Query Params:** `token`, `state`
+
+#### `GET /agent_telegram_id`
+Retorna o telegram_id vinculado à matrícula.
+
+- **Query Params:** `token`, `state`, `id` (matrícula)
+- **Retorno:**
+```json
+{ "telegram_id": 8469360771 }
+```
 
 ---
 
-## 6. Auditoria de Fotos
+### Revalidação (`/*`)
 
-Fluxo utilizado pela equipe de Viewer para validar fotos de campo.
+**Autenticação:** Token simples via query param `token`
 
-### `GET /files_for_revalidate`
-Fotos marcadas como suspeitas que aguardam revalidação manual.
+#### `GET /files_for_revalidate`
+Fotos marcadas como suspeitas.
 
-### `POST /revalidate_file`
-Confirmar revalidação (`VERDADEIRO`/`FALSO`).
-- **Body:** `{ "instalacao", "data", "validation" }`
+- **Query Params:** `token`
 
-### `GET /files_for_view`
-Filtro de visualização para fotos já auditadas.
+#### `POST /revalidate_file`
+Revalida arquivo.
+
+- **Query Params:** `token`
+- **Body:**
+```json
+{
+    "instalacao": "12345",
+    "data": "08.04.2026",
+    "validation": "VERDADEIRO" | "FALSO"
+}
+```
+
+#### `GET /filter_options`
+Opções de filtro disponíveis.
+
+- **Query Params:** `token`
+
+#### `GET /files_for_view`
+Visualiza arquivos filtrados.
+
+- **Query Params:** `token`, `date`, `regional`, `seccional`, `agent`, `validation`
+
+---
+
+### Webhooks (`/*`)
+
+**Autenticação:** Token simples via query param `token`
+
+#### `POST /webhook_perdas`
+Recebe notificações de perdas.
+
+- **Query Params:** `token`
+- **Body (exemplo):**
+```json
+{
+    "event": "service.completed",
+    "data": {
+        "title": "IN:12345",
+        "description": "Descrição da perda",
+        "completionData": { "foto": "url da imagem" }
+    }
+}
+```
+
+---
+
+### Redirects (`/*`)
+
+**Autenticação:** Nenhuma
+
+#### `GET /metabase_geral`
+Redirect para dashboard Metabase embedado.
+
+- **Sem autenticação**
+- **Retorno:** Redirect (302) para URL do Metabase
+
+---
+
+### Logs (`/api/*`)
+
+**Autenticação:** Header `Authorization` com senha
+
+#### `POST /api/logs/login`
+Login nos logs.
+
+- **Body:**
+```json
+{ "password": "senha" }
+```
+
+- **Retorno:**
+```json
+{ "success": true, "token": "senha" }
+```
+
+#### `GET /api/logs/data`
+Busca logs com paginação.
+
+- **Headers:** `Authorization: SENHA`
+- **Query Params:** `page`, `limit`, `route`, `status`, `dateStart`, `dateEnd`
+- **Retorno:**
+```json
+{
+    "total": 100,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 5,
+    "data": [...]
+}
+```
+
+#### `GET /api/logs/export`
+Exporta logs filtrados em CSV.
+
+- **Headers:** `Authorization: SENHA`
+- **Query Params:** `route`, `status`, `dateStart`, `dateEnd`
+- **Retorno:** Arquivo CSV
+
+#### `DELETE /api/logs/clear`
+Limpa logs baseados em filtros.
+
+- **Headers:** `Authorization: SENHA`
+- **Query Params:** `route`, `status`, `dateStart`, `dateEnd`
+- **Retorno:**
+```json
+{ "success": true, "removedCount": 50 }
+```
+
+---
+
+## Variáveis de Ambiente
+
+```env
+# Token para rotas simples
+API_TOKEN=
+
+# Telegram
+TELEGRAM_BOT_TOKEN=
+
+# Logs
+LOGS_PASSWORD=
+
+# Database
+PG_CONNECTION_PI=
+PG_CONNECTION_MA=
+PG_CONNECTION_LOCALIZACOES_PI=
+
+# Metabase
+METABASE_SITE_URL=
+METABASE_SECRET_KEY_GERAL=
+
+# WhatsApp
+WHATSAPP_LINK_SEND_FILES=
+WHATSAPP_LINK_SEND_TEXT=
+
+# CORS
+CORS_ORIGINS=
+
+# Redis
+REDIS_URL=
+
+# Server
+PORT=
+```
+
+---
+
+## Tabelas Relacionadas
+
+- `login` - Colaboradores com telegram_id
+- `matriz` - Leituras e serviços
+- `auditoria` - Fotos e validações
+- `telegram_tokens` - Tokens de autenticação (criado automaticamente)
+- `cadastro` - Dados de instalações
+- `dados_instalacoes` - Informações adicionais de localização
+
+---
+
+## Fluxo de Autenticação Telegram
+
+1. **Desenvolvimento/Teste:**
+   - Execute `node test_token.js [telegram_id]`
+   - Use o token retornado no header `X-Telegram-Init-Data`
+
+2. **Produção (Telegram Mini App):**
+   - No frontend: `WebApp.initData`
+   - Envie no header: `X-Telegram-Init-Data: WebApp.initData`
+   - A API valida o hash usando `TELEGRAM_BOT_TOKEN`
+   - Busca o usuário na tabela `login` pelo `telegram_id`
+   - Extrai `id` (matrícula) e `estado` automaticamente
