@@ -839,10 +839,8 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
         LIMIT ${limit} OFFSET ${(page - 1) * limit};`;
 
         const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
-        console.log(rows, query_all);
         if (rows.length === 0) return [];
         result.push(...orderLeituras(rows));
-
     }
 
     if (filter === 'cnl') {

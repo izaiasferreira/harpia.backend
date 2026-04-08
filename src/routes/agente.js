@@ -14,15 +14,16 @@ const {
     get_predicted
 } = require('../functions/postgresFunctions');
 const { checkToken } = require('../functions/middlewares');
+const { telegramAuth } = require('../middlewares/telegramAuth');
 const { today, parse_date } = require('../utils/dates');
 
-
+router.use(telegramAuth);
 
 router.get('/agent_statistics', async (req, res) => {
-    if (!checkToken(req, res)) return;
     try {
-        const state = req.query.state || 'pi';
-        const id = req.query.id;
+        console.log(req.colaborador);
+        const state = req.colaborador.estado || 'pi';
+        const id = req.colaborador.id;
         const today_date = req.query.date || today();
         const result = await getLeiturasForAgent({ state, id, date: today_date, limit: 99999 });
         const quant_leituras = result.length || 0;
@@ -49,14 +50,12 @@ router.get('/agent_statistics', async (req, res) => {
 });
 
 router.get('/agent_statistics_more', async (req, res) => {
-    if (!checkToken(req, res)) return;
     try {
-        const state = req.query.state || 'pi';
-        const id = req.query.id;
+        const state = req.colaborador.estado || 'pi';
+        const id = req.colaborador.id;
         const today_date = req.query.date || today();
 
         const fast_c12 = (await fastC12ForAgent({ state, id, date: today_date })).length;
-
         const first_c12 = (await firstC12ForAgent({ state, id, date: today_date })).length;
 
         res.json([
@@ -70,12 +69,13 @@ router.get('/agent_statistics_more', async (req, res) => {
 });
 
 router.get('/agent_services', async (req, res) => {
-    if (!checkToken(req, res)) return;
     try {
-        const { page, date, filter, id, state } = req.query;
+        const { page, date, filter } = req.query;
         const atual_filter = filter || 'all';
         const today_date = date ? parse_date(date) : today();
-        const result = await getLeiturasForAgent({ state: state || 'pi', id, date: today_date, page: page || 1, filter: atual_filter });
+        const state = req.colaborador.estado || 'pi';
+        const id = req.colaborador.id;
+        const result = await getLeiturasForAgent({ state, id, date: today_date, page: page || 1, filter: atual_filter });
         res.json(result);
     } catch (err) {
         console.log(err);
@@ -101,10 +101,9 @@ router.get('/agent_telegram_id', async (req, res) => {
 });
 
 router.post('/search_in', async (req, res) => {
-    if (!checkToken(req, res)) return;
     try {
         const { type, queries } = req.body;
-        const state = req.query.state || 'pi';
+        const state = req.colaborador.estado || 'pi';
 
         const cleanQueries = queries.map(q => q.trim()).filter(Boolean);
 
@@ -125,14 +124,11 @@ router.post('/search_in', async (req, res) => {
 });
 
 router.get('/predicted', async (req, res) => {
-    if (!checkToken(req, res)) return;
     try {
-        const { id, state, status, page, limit } = req.query;
+        const { status, page, limit } = req.query;
+        const state = req.colaborador.estado || 'pi';
+        const id = req.colaborador.id;
 
-        if (!id) {
-            res.status(400).json({ error: 'ID é obrigatório' });
-            return;
-        }
         const results = await get_predicted({ state, id, status, page, limit });
         res.json(results);
     } catch (err) {
@@ -142,9 +138,8 @@ router.get('/predicted', async (req, res) => {
 });
 
 router.get('/calendar', async (req, res) => {
-    if (!checkToken(req, res)) return;
     try {
-        const state = req.query.state || 'pi';
+        const state = req.colaborador.estado || 'pi';
         const result = await getCalendarForAgent({ state });
         res.json(result);
     } catch (err) {
@@ -153,9 +148,8 @@ router.get('/calendar', async (req, res) => {
 });
 
 router.get('/feriados', async (req, res) => {
-    if (!checkToken(req, res)) return;
     try {
-        const { state } = req.query;
+        const state = req.colaborador.estado;
         if (!state || state === 'pi') {
             return res.json(['03/04/2026', '21/04/2026']);
         }
@@ -170,8 +164,6 @@ router.get('/feriados', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-
 
 router.get('/metabase_geral', async (req, res) => {
     try {
