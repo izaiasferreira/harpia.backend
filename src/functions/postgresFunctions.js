@@ -833,7 +833,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
             latitude, 
             longitude
         FROM matriz
-        WHERE agente IN ('${id.toUpperCase()}', '${id.toLowerCase()}')
+        WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
         AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
         ORDER BY data_conclusao ASC
         LIMIT ${limit} OFFSET ${(page - 1) * limit};`;
@@ -851,7 +851,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
                 SELECT 
                     instalacao, etapa, ntlei, data_conclusao, data_leit_prev,concluido, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
                 FROM matriz
-                WHERE UPPER(agente) = '${id}'
+                WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
                 AND ntlei NOT LIKE 'A%'
                 AND ntlei NOT IN ('B09', 'B10', 'B15')
                 AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
@@ -871,7 +871,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
                 SELECT 
                     instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
                 FROM matriz
-                WHERE UPPER(agente) = '${id}'
+                WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
                 AND ntlei = 'C12'
                 AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
             )
@@ -891,7 +891,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
                 SELECT 
                     instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
                 FROM matriz
-                WHERE UPPER(agente) = '${id}'
+                WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
                 AND ntlei = 'C12'
                 AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
             )
@@ -911,7 +911,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
                 SELECT 
                     instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
                 FROM matriz
-                WHERE UPPER(agente) = '${id}'
+                WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
                 AND ntlei = 'C12'
                 AND instalacao LIKE '200%'
                 AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
@@ -932,7 +932,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
                 SELECT 
                     instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
                 FROM matriz
-                WHERE UPPER(agente) = '${id}'
+                WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
                 AND ntlei = 'C12'
                 AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
             )
@@ -962,7 +962,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
             )
             SELECT instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente, tem_perda, nome_agente, latitude, longitude
             FROM historico_agentes
-            WHERE UPPER(agente) = '${id}'
+            WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
             AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
             AND ntlei = 'C12'
             AND status_ds = 'LG'
@@ -1022,7 +1022,7 @@ async function licacaoNovaC12ForAgent({ state = 'pi', id, date = today() }) {
         status_ds, data_conclusao, latitude, longitude
     FROM historico_agentes
     WHERE UPPER(agente) = '${id}'
-    AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+    AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
     AND ntlei = 'C12'
     AND instalacao LIKE '200%'
     AND status_ds = 'LG'
@@ -1052,7 +1052,6 @@ async function fastC12ForAgent({ state = 'pi', id, date = today() }) {
         calculo_tempo AS (
             SELECT 
                 *,
-                -- Diferença em segundos. Se for o primeiro do dia, assume 60s
                 COALESCE(
                     EXTRACT(EPOCH FROM (data_conclusao - conclusao_anterior)), 
                     60
@@ -1066,10 +1065,9 @@ async function fastC12ForAgent({ state = 'pi', id, date = today() }) {
             to_char((tempo_execucao_segundos || ' seconds')::interval, 'HH24:MI:SS') as tempo_formatado
         FROM calculo_tempo
         WHERE UPPER(agente) = '${id}'
-        AND data_conclusao BETWEEN TO_TIMESTAMP('${date} 00:00:00', 'DD.MM.YYYY HH24:MI:SS') AND TO_TIMESTAMP('${date} 23:59:59', 'DD.MM.YYYY HH24:MI:SS')
+        AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
         AND ntlei = 'C12'
-        -- FILTRO: Apenas execuções menores que 1 minuto e meio (90 segundos)
-        AND tempo_execucao_segundos < 90
+        AND tempo_execucao_segundos < 60
         ORDER BY agente, data_conclusao;
   `;
 

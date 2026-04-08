@@ -112,6 +112,10 @@ router.post('/search_in', async (req, res) => {
             res.status(400).json({ error: 'Nenhuma query fornecida' });
             return;
         }
+        if(cleanQueries.length > 10) {
+            res.status(400).json({ error: 'Limite de consulta excedido (máximo 10)' });
+            return;
+        }
         const results = await get_instalations({ state, query: cleanQueries, type });
         res.json(results);
     } catch (err) {
