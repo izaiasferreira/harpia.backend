@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const { 
@@ -9,11 +8,9 @@ const {
     firstC12ForAgent, 
     licacaoNovaC12ForAgent, 
     fastC12ForAgent, 
-    getAgentTelegramId,
     get_instalations, 
     get_predicted
 } = require('../functions/postgresFunctions');
-const { checkToken } = require('../functions/middlewares');
 const { telegramAuth } = require('../middlewares/telegramAuth');
 const { today, parse_date } = require('../utils/dates');
 
@@ -83,23 +80,6 @@ router.get('/agent_services', async (req, res) => {
     }
 });
 
-router.get('/agent_telegram_id', async (req, res) => {
-    if (!checkToken(req, res)) return;
-    try {
-        const state = req.query.state || 'pi';
-        const id = req.query.id;
-        const result = await getAgentTelegramId({ state, id });
-        if (result.length === 0) {
-            res.json({ telegram_id: null });
-            return;
-        }
-        res.json({ telegram_id: result[0].telegram_id });
-    } catch (err) {
-        console.log(err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
 router.post('/search_in', async (req, res) => {
     try {
         const { type, queries } = req.body;
@@ -159,27 +139,6 @@ router.get('/feriados', async (req, res) => {
         }
 
         res.json([]);
-    } catch (err) {
-        console.log(err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-router.get('/metabase_geral', async (req, res) => {
-    try {
-        const METABASE_SITE_URL = process.env.METABASE_SITE_URL;
-        const METABASE_SECRET_KEY = process.env.METABASE_SECRET_KEY_GERAL;
-
-        const payload = {
-            resource: { dashboard: 4 },
-            params: {},
-            exp: Math.round(Date.now() / 1000) + (60 * 60) 
-        };
-        
-        const token = jwt.sign(payload, METABASE_SECRET_KEY);
-        const metabaseUrl = METABASE_SITE_URL + "/embed/dashboard/" + token + "#bordered=true&titled=true";
-        
-        res.redirect(metabaseUrl);
     } catch (err) {
         console.log(err);
         res.status(500).json({ error: err.message });

@@ -18,7 +18,8 @@ const {
     incompletedServices,
     fastC12Json,
     licacaoNovaC12Json,
-    lastUpdate
+    lastUpdate,
+    getAgentTelegramId
 } = require('../functions/postgresFunctions');
 
 function today() {
@@ -264,6 +265,23 @@ router.get('/incompleted_services', async (req, res) => {
         const result = await incompletedServices(state);
         res.json(result);
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/agent_telegram_id', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const state = req.query.state || 'pi';
+        const id = req.query.id;
+        const result = await getAgentTelegramId({ state, id });
+        if (result.length === 0) {
+            res.json({ telegram_id: null });
+            return;
+        }
+        res.json({ telegram_id: result[0].telegram_id });
+    } catch (err) {
+        console.log(err);
         res.status(500).json({ error: err.message });
     }
 });

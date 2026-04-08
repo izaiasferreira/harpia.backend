@@ -49,6 +49,7 @@ const webhooksRouter = require('./routes/webhooks');
 const revalidateRouter = require('./routes/revalidate');
 const agenteRouter = require('./routes/agente')
 const logsRouter = require('./routes/logs')
+const redirectRouter = require('./routes/redirect')
 
 // Health check
 app.get('/health', (req, res) => {
@@ -64,7 +65,9 @@ app.use('/', webhooksRouter);
 // Revalidacao
 app.use('/', revalidateRouter);
 
-app.use('/', agenteRouter)
+app.use('/agente', agenteRouter)
+
+app.use('/', redirectRouter)
 
 app.use('/api', logsRouter)
 
