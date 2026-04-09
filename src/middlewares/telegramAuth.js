@@ -52,25 +52,44 @@ async function telegramAuth(req, res, next) {
             }
             
             const params = new URLSearchParams(initData);
-            const data = Object.fromEntries(params);
+            const data = Object.fromEntries(params.entries());
             
             if (!data.hash) {
                 return res.status(403).json({ error: 'Hash não encontrado' });
             }
             
+            if (data.user) {
+                try {
+                    const userObj = JSON.parse(decodeURIComponent(data.user));
+                    telegramId = userObj.id;
+                } catch (e) {
+                    return res.status(403).json({ error: 'Dados do usuário inválidos' });
+                }
+            } else if (data.id) {
+                telegramId = parseInt(data.id);
+            } else {
+                return res.status(403).json({ error: 'ID do usuário não encontrado' });
+            }
+            
             const hash = data.hash;
+            
+            // Guardar user para cálculo do hash
+            const userData = data.user;
+            
+            // Remover hash e user para calcular
             delete data.hash;
+            delete data.user;
             
             const secretKey = crypto.createHmac('sha256', 'WebAppData').update(TELEGRAM_BOT_TOKEN).digest();
             const dataCheckString = Object.keys(data).sort().map(k => `${k}=${data[k]}`).join('\n');
             
-            const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+            const dataCheckWithUser = dataCheckString + (userData ? '\nuser=' + userData : '');
+            
+            const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckWithUser).digest('hex');
 
             if (calculatedHash !== hash) {
                 return res.status(403).json({ error: 'Hash inválido' });
             }
-            
-            telegramId = parseInt(data.id);
         } else {
             await ensureTelegramTokensTable();
             
