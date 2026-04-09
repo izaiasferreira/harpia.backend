@@ -141,7 +141,7 @@ async function pontualidade(state = 'pi', region = 'all') {
                 const is_parcial = quant_pendente > 0 && quant_pendente < quant_total && aindaNaJanela;
                 
                 text += `> Etapa ${etapa}: ${((quant_concluido / quant_total) * 100).toFixed(2)}% ${is_parcial ? `(Parcial)` : ''}\n`;
-                text += `> No Prazo: ${quant_concluido} | Fora Prazo: ${quant_total - quant_concluido - quant_pendente} | Pend.: ${quant_pendente}\n\n`;
+                text += `> NP: ${quant_concluido} | FP: ${quant_total - quant_concluido - quant_pendente} | PEND: ${quant_pendente}\n\n`;
                 total_concluido += quant_concluido;
                 total_geral += quant_total;
             }
