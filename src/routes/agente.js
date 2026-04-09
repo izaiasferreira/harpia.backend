@@ -118,34 +118,6 @@ router.get('/predicted', async (req, res) => {
     }
 });
 
-router.get('/calendar', async (req, res) => {
-    try {
-        const state = req.colaborador.estado || 'pi';
-        const result = await getCalendarForAgent({ state });
-        res.json(result);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-router.get('/feriados', async (req, res) => {
-    try {
-        const state = req.colaborador.estado;
-        if (!state || state === 'pi') {
-            return res.json(['03/04/2026', '21/04/2026']);
-        }
-
-        if (state === 'ma') {
-            return res.json(['03/04/2026', '21/04/2026']);
-        }
-
-        res.json([]);
-    } catch (err) {
-        console.log(err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
 router.get('/last_update_agent', async (req, res) => {
     try {
         const state = req.colaborador.estado || 'pi';

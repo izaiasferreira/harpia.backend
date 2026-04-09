@@ -50,11 +50,11 @@ const revalidateRouter = require('./routes/revalidate');
 const agenteRouter = require('./routes/agente')
 const logsRouter = require('./routes/logs')
 const redirectRouter = require('./routes/redirect')
+const publicRouter = require('./routes/public')
 
-// Health check
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }), atual_time: new Date().toString() });
-});
+// Health check agora em public.js
+// Rotas públicas (calendar, feriados)
+app.use('/', publicRouter);
 
 // Consultas
 app.use('/', consultasRouter);
@@ -68,6 +68,8 @@ app.use('/', revalidateRouter);
 app.use('/', agenteRouter)
 
 app.use('/', redirectRouter)
+
+app.use('/', publicRouter)
 
 app.use('/api', logsRouter)
 
