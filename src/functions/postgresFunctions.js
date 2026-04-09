@@ -151,6 +151,85 @@ async function pontualidade(state = 'pi', region = 'all') {
     return { type: 'text', text };
 }
 
+async function pontualidadeJson(state = 'pi', region = 'all') {
+    let query = `
+    SELECT *
+    FROM matriz
+    WHERE TO_CHAR(data_leit_prev, 'MM.YYYY') = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
+  `;
+    const params = [];
+    if (region !== 'all') {
+        query += ` AND regional = $1`;
+        params.push(region.toUpperCase());
+    }
+
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
+    if (rows.length === 0) return { type: 'text', text: 'Nenhuma instalação encontrada.' };
+  
+
+    const unified = {};
+    for (const row of rows) {
+        if (!unified[row.regional]) unified[row.regional] = {};
+        if (!unified[row.regional][row.seccional]) unified[row.regional][row.seccional] = [];
+        unified[row.regional][row.seccional].push(row);
+    }
+
+    let result = []
+    for (const reg of Object.keys(unified)) {
+        let total_concluido = 0;
+        let total_geral = 0;
+        for (const sec of Object.keys(unified[reg])) {
+            let etapa_result = []
+            const etapas = [...new Set(unified[reg][sec].map(r => r.etapa))].sort();
+            for (const etapa of etapas) {
+                const data_prev = unified[reg][sec].filter(r => r.etapa === etapa)[0].data_leit_prev;
+                const now = new Date();
+
+                const dataPrevDate = new Date(data_prev);
+                const limitePontualidade = new Date(dataPrevDate);
+                limitePontualidade.setDate(limitePontualidade.getDate() + 1);
+                limitePontualidade.setHours(10, 0, 0, 0);
+                
+                const aindaNaJanela = now <= limitePontualidade;
+                
+                const quant_total = unified[reg][sec].filter(r => r.etapa === etapa).length;
+                const quant_concluido = unified[reg][sec].filter(r => {
+                    if (r.etapa !== etapa || r.concluido !== 'CONCLUIDO') return false;
+                    const dataPrev = new Date(r.data_leit_prev);
+                    const dataConclusao = new Date(r.data_conclusao);
+                    const limite = new Date(dataPrev);
+                    limite.setDate(limite.getDate() + 1);
+                    limite.setHours(10, 0, 0, 0);
+                    return dataConclusao <= limite;
+                }).length;
+
+                const quant_pendente = unified[reg][sec].filter(r => r.etapa === etapa && r.concluido === 'PENDENTE').length;
+
+                const is_parcial = quant_pendente > 0 && quant_pendente < quant_total && aindaNaJanela;
+                
+                etapa_result.push({
+                    etapa: etapa,
+                    percentual: ((quant_concluido / quant_total) * 100).toFixed(2),
+                    status: is_parcial ? 'PARCIAL' : '',
+                    np: quant_concluido,
+                    fp: quant_total - quant_concluido - quant_pendente,
+                    pend: quant_pendente
+                })
+                total_concluido += quant_concluido;
+                total_geral += quant_total;
+            }
+            result.push({
+                regional: reg,
+                seccional: sec,
+                supervisor: null,
+                etapas: etapa_result,
+            })
+        }
+       
+    }
+    return result;
+}
+
 // ─── pendencias_json ────────────────────────────────────────────────────────────
 async function pendenciasJson(state = 'pi', region = 'all') {
     let query = `
@@ -714,7 +793,7 @@ async function perdasJson(state = 'pi', region = 'all', dateinit = today(), date
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, motivo_perda,
-           perda_prevista_mensal, agente, nome_agente, latitude, longitude, data_conclusao, supervisor, tipo_perda, ntlei as apontamento_atual, apontamento as apontamento_anterior, grupo_cnl
+           perda_prevista_mensal, agente, nome_agente, latitude, longitude, data_conclusao, supervisor, tipo_perda,status_perda, ntlei as apontamento_atual, apontamento as apontamento_anterior, grupo_cnl
     FROM matriz
     WHERE data_conclusao::date
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
@@ -1249,6 +1328,7 @@ async function get_predicted({ state = 'pi', id, status = 'PENDENTE', page = 1, 
 
 module.exports = {
     pontualidade,
+    pontualidadeJson,
     pendencias,
     pendenciasJson,
     cnl,
