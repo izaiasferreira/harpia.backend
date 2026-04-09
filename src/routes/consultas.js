@@ -19,7 +19,8 @@ const {
     fastC12Json,
     licacaoNovaC12Json,
     lastUpdate,
-    getAgentTelegramId
+    getAgentTelegramId,
+    pontualidade
 } = require('../functions/postgresFunctions');
 
 function today() {
@@ -52,6 +53,18 @@ router.get('/pendencias', async (req, res) => {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
         const result = await pendencias(state, regional);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/pontualidade', async (req, res) => {
+    if (!checkToken(req, res)) return;
+    try {
+        const state = req.query.state || 'pi';
+        const regional = req.query.regional || 'all';
+        const result = await pontualidade(state, regional);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });

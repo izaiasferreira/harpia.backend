@@ -52,7 +52,6 @@ const webhooksRouter = require('./routes/webhooks');
 const revalidateRouter = require('./routes/revalidate');
 const agenteRouter = require('./routes/agente')
 const logsRouter = require('./routes/logs')
-const redirectRouter = require('./routes/redirect')
 const publicRouter = require('./routes/public')
 
 // Health check agora em public.js
@@ -69,8 +68,6 @@ app.use('/', webhooksRouter);
 app.use('/', revalidateRouter);
 
 app.use('/', agenteRouter)
-
-app.use('/', redirectRouter)
 
 app.use('/', publicRouter)
 

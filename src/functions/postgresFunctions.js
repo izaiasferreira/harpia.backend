@@ -74,6 +74,70 @@ async function pendencias(state = 'pi', region = 'all') {
     return { type: 'text', text };
 }
 
+async function pontualidade(state = 'pi', region = 'all') {
+    let query = `
+    SELECT *
+    FROM matriz
+    WHERE TO_CHAR(data_leit_prev, 'MM.YYYY') = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
+  `;
+    const params = [];
+    if (region !== 'all') {
+        query += ` AND regional = $1`;
+        params.push(region.toUpperCase());
+    }
+
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
+    if (rows.length === 0) return { type: 'text', text: 'Nenhuma instalação encontrada.' };
+
+    let query_last_update = `
+    SELECT data
+    FROM vars
+    WHERE nome='abap_hora'
+  `;
+
+    const { rows: rows_last_update } = state === 'pi' ? await pi_pool.query(query_last_update) : await ma_pool.query(query_last_update);
+    const last_update = rows_last_update[0].data;
+
+    const unified = {};
+    for (const row of rows) {
+        if (!unified[row.regional]) unified[row.regional] = {};
+        if (!unified[row.regional][row.seccional]) unified[row.regional][row.seccional] = [];
+        unified[row.regional][row.seccional].push(row);
+    }
+
+    let text = `Última atualização: ${last_update}\n\n`;
+    for (const reg of Object.keys(unified)) {
+        let total_concluido = 0;
+        let total_geral = 0;
+        text += `REGIONAL ${reg}\n\n`;
+        for (const sec of Object.keys(unified[reg])) {
+            text += ` - ${sec.trim()} : \n`;
+            const etapas = [...new Set(unified[reg][sec].map(r => r.etapa))].sort();
+            for (const etapa of etapas) {
+                const quant_total = unified[reg][sec].filter(r => r.etapa === etapa).length;
+                const quant_concluido = unified[reg][sec].filter(r => {
+                    if (r.etapa !== etapa || r.concluido !== 'CONCLUIDO') return false;
+                    console.log(r.data_conclusao, r.data_leit_prev);
+                    const dataPrev = new Date(r.data_leit_prev);
+                    const dataConclusao = new Date(r.data_conclusao);
+                    const limite = new Date(dataPrev);
+                    limite.setDate(limite.getDate() + 1);
+                    limite.setHours(10, 0, 0, 0);
+                    return dataConclusao <= limite;
+                }).length;
+
+                const quant_pendente = unified[reg][sec].filter(r => r.etapa === etapa && r.concluido === 'PENDENTE').length;
+
+                text += `  - Etapa ${etapa}: ${((quant_concluido / quant_total) * 100).toFixed(2)}% ${quant_pendente > 5 ? `(${quant_pendente} pendentes)` : ''}\n`;
+                total_concluido += quant_concluido;
+                total_geral += quant_total;
+            }
+        }
+        text += `\nTOTAL: ${((total_concluido / total_geral) * 100).toFixed(2)}%\n`;
+    }
+    return { type: 'text', text };
+}
+
 // ─── pendencias_json ────────────────────────────────────────────────────────────
 async function pendenciasJson(state = 'pi', region = 'all') {
     let query = `
@@ -1171,6 +1235,7 @@ async function get_predicted({ state = 'pi', id, status = 'PENDENTE', page = 1, 
 }
 
 module.exports = {
+    pontualidade,
     pendencias,
     pendenciasJson,
     cnl,
