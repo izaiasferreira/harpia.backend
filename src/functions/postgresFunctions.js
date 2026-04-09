@@ -74,6 +74,28 @@ async function pendencias(state = 'pi', region = 'all') {
     return { type: 'text', text };
 }
 
+
+function isDiaUtil(data, feriados) {
+    const d = new Date(data);
+    const diaSemana = d.getDay();
+    if (diaSemana === 0) return false;
+    const dataStr = `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+    if (feriados.has(dataStr)) return false;
+    return true;
+}
+
+function adicionarDiasUteis(data, dias, feriados) {
+    const result = new Date(data);
+    let adicionados = 0;
+    while (adicionados < dias) {
+        result.setDate(result.getDate() + 1);
+        if (isDiaUtil(result, feriados)) {
+            adicionados++;
+        }
+    }
+    return result;
+}
+
 async function pontualidade(state = 'pi', region = 'all') {
     let query = `
     SELECT *
@@ -105,6 +127,14 @@ async function pontualidade(state = 'pi', region = 'all') {
         unified[row.regional][row.seccional].push(row);
     }
 
+    const { rows: rows_feriados } = state === 'pi' ? await pi_pool.query("SELECT date FROM feriados") : await ma_pool.query("SELECT date FROM feriados");
+    const feriados = new Set(rows_feriados.map(f => {
+        const d = new Date(f.date);
+        return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+    }));
+
+
+
     let text = `Última atualização: ${last_update}\n\n`;
     for (const reg of Object.keys(unified)) {
         let total_concluido = 0;
@@ -115,23 +145,21 @@ async function pontualidade(state = 'pi', region = 'all') {
             const etapas = [...new Set(unified[reg][sec].map(r => r.etapa))].sort();
             for (const etapa of etapas) {
                 const data_prev = unified[reg][sec].filter(r => r.etapa === etapa)[0].data_leit_prev;
-                console.log(data_prev, etapa);
                 const now = new Date();
 
+                const diasAdicionais = (parseInt(etapa) >= 25 && parseInt(etapa) <= 30) ? 3 : 1;
                 const dataPrevDate = new Date(data_prev);
-                const limitePontualidade = new Date(dataPrevDate);
-                limitePontualidade.setDate(limitePontualidade.getDate() + 1);
+                const limitePontualidade = adicionarDiasUteis(dataPrevDate, diasAdicionais, feriados);
                 limitePontualidade.setHours(10, 0, 0, 0);
-                
+
                 const aindaNaJanela = now <= limitePontualidade;
-                
+
                 const quant_total = unified[reg][sec].filter(r => r.etapa === etapa).length;
                 const quant_concluido = unified[reg][sec].filter(r => {
                     if (r.etapa !== etapa || r.concluido !== 'CONCLUIDO') return false;
                     const dataPrev = new Date(r.data_leit_prev);
                     const dataConclusao = new Date(r.data_conclusao);
-                    const limite = new Date(dataPrev);
-                    limite.setDate(limite.getDate() + 1);
+                    const limite = adicionarDiasUteis(dataPrev, diasAdicionais, feriados);
                     limite.setHours(10, 0, 0, 0);
                     return dataConclusao <= limite;
                 }).length;
@@ -139,7 +167,7 @@ async function pontualidade(state = 'pi', region = 'all') {
                 const quant_pendente = unified[reg][sec].filter(r => r.etapa === etapa && r.concluido === 'PENDENTE').length;
 
                 const is_parcial = quant_pendente > 0 && quant_pendente < quant_total && aindaNaJanela;
-                
+
                 text += `> Etapa ${etapa}: ${((quant_concluido / quant_total) * 100).toFixed(2)}% ${is_parcial ? `(Parcial)` : ''}\n`;
                 text += `> NP: ${quant_concluido} | FP: ${quant_total - quant_concluido - quant_pendente} | PEND: ${quant_pendente}\n\n`;
                 total_concluido += quant_concluido;
@@ -165,7 +193,6 @@ async function pontualidadeJson(state = 'pi', region = 'all') {
 
     const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     if (rows.length === 0) return { type: 'text', text: 'Nenhuma instalação encontrada.' };
-  
 
     const unified = {};
     for (const row of rows) {
@@ -173,6 +200,14 @@ async function pontualidadeJson(state = 'pi', region = 'all') {
         if (!unified[row.regional][row.seccional]) unified[row.regional][row.seccional] = [];
         unified[row.regional][row.seccional].push(row);
     }
+
+    const { rows: rows_feriados } = state === 'pi' ? await pi_pool.query("SELECT date FROM feriados") : await ma_pool.query("SELECT date FROM feriados");
+    const feriados = new Set(rows_feriados.map(f => {
+        const d = new Date(f.date);
+        return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+    }));
+
+
 
     let result = []
     for (const reg of Object.keys(unified)) {
@@ -185,20 +220,19 @@ async function pontualidadeJson(state = 'pi', region = 'all') {
                 const data_prev = unified[reg][sec].filter(r => r.etapa === etapa)[0].data_leit_prev;
                 const now = new Date();
 
+                const diasAdicionais = (parseInt(etapa) >= 25 && parseInt(etapa) <= 30) ? 3 : 1;
                 const dataPrevDate = new Date(data_prev);
-                const limitePontualidade = new Date(dataPrevDate);
-                limitePontualidade.setDate(limitePontualidade.getDate() + 1);
+                const limitePontualidade = adicionarDiasUteis(dataPrevDate, diasAdicionais, feriados);
                 limitePontualidade.setHours(10, 0, 0, 0);
-                
+
                 const aindaNaJanela = now <= limitePontualidade;
-                
+
                 const quant_total = unified[reg][sec].filter(r => r.etapa === etapa).length;
                 const quant_concluido = unified[reg][sec].filter(r => {
                     if (r.etapa !== etapa || r.concluido !== 'CONCLUIDO') return false;
                     const dataPrev = new Date(r.data_leit_prev);
                     const dataConclusao = new Date(r.data_conclusao);
-                    const limite = new Date(dataPrev);
-                    limite.setDate(limite.getDate() + 1);
+                    const limite = adicionarDiasUteis(dataPrev, diasAdicionais, feriados);
                     limite.setHours(10, 0, 0, 0);
                     return dataConclusao <= limite;
                 }).length;
@@ -206,11 +240,14 @@ async function pontualidadeJson(state = 'pi', region = 'all') {
                 const quant_pendente = unified[reg][sec].filter(r => r.etapa === etapa && r.concluido === 'PENDENTE').length;
 
                 const is_parcial = quant_pendente > 0 && quant_pendente < quant_total && aindaNaJanela;
-                
+
                 etapa_result.push({
                     etapa: etapa,
                     percentual: ((quant_concluido / quant_total) * 100).toFixed(2),
                     status: is_parcial ? 'PARCIAL' : '',
+                    quant_dias_adicionais: diasAdicionais,
+                    data_prev: new Date(data_prev).toLocaleDateString('pt-BR') + ' ' + new Date(data_prev).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                    limite: limitePontualidade.toLocaleDateString('pt-BR') + ' ' + limitePontualidade.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
                     np: quant_concluido,
                     fp: quant_total - quant_concluido - quant_pendente,
                     pend: quant_pendente
@@ -225,10 +262,11 @@ async function pontualidadeJson(state = 'pi', region = 'all') {
                 etapas: etapa_result,
             })
         }
-       
+
     }
     return result;
 }
+
 
 // ─── pendencias_json ────────────────────────────────────────────────────────────
 async function pendenciasJson(state = 'pi', region = 'all') {
@@ -1310,7 +1348,7 @@ async function get_predicted({ state = 'pi', id, status = 'PENDENTE', page = 1, 
     const rows_ids = rows.map(r => r.instalacao);
     const rows_instalations = await get_instalations({ state, query: rows_ids, type: 'instalacao' });
 
-    const result = rows.map((r,i) => {
+    const result = rows.map((r, i) => {
         const instalation = rows_instalations.find(i => i.instalacao === r.instalacao);
         if (instalation) {
             r['lat_cad'] = instalation.lat_cad;
