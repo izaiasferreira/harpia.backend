@@ -3,8 +3,41 @@ const { pi_pool } = require('../db');
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
+let tableChecked = false;
+
+async function ensureTelegramTokensTable() {
+    if (tableChecked) return;
+    
+    try {
+        await pi_pool.query(`
+            CREATE TABLE IF NOT EXISTS telegram_tokens (
+                id SERIAL PRIMARY KEY,
+                token VARCHAR(255) NOT NULL UNIQUE,
+                telegram_user_id BIGINT NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_used_at TIMESTAMP
+            )
+        `);
+        
+        await pi_pool.query(`
+            CREATE INDEX IF NOT EXISTS idx_telegram_tokens_token ON telegram_tokens(token)
+        `);
+        
+        await pi_pool.query(`
+            CREATE INDEX IF NOT EXISTS idx_telegram_tokens_user_id ON telegram_tokens(telegram_user_id)
+        `);
+        
+        console.log('[TELEGRAM] Tabela telegram_tokens verificada/criada');
+        tableChecked = true;
+    } catch (err) {
+        console.error('[TELEGRAM] Erro ao criar tabela:', err);
+    }
+}
+
 async function telegramAuth(req, res, next) {
     const initData = req.headers['x-telegram-init-data'] || req.query.telegram_init_data;
+    console.log('Init Data:', initData);
     
     if (!initData) {
         return res.status(401).json({ error: 'Dados de autenticação do Telegram não fornecidos' });
@@ -32,13 +65,15 @@ async function telegramAuth(req, res, next) {
             const dataCheckString = Object.keys(data).sort().map(k => `${k}=${data[k]}`).join('\n');
             
             const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-            
+
             if (calculatedHash !== hash) {
                 return res.status(403).json({ error: 'Hash inválido' });
             }
             
             telegramId = parseInt(data.id);
         } else {
+            await ensureTelegramTokensTable();
+            
             const { rows } = await pi_pool.query(
                 'SELECT telegram_user_id FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
                 [initData]
