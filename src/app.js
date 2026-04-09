@@ -25,13 +25,16 @@ app.use(cors({
         if (!origin) return callback(null, true);
         // Se não configurou nenhuma origem ou tem '*', aceita tudo
         if (allowedOrigins.length === 0 || allowedOrigins.includes('*')) return callback(null, true);
-        // Verifica match exato OU se o origin contém o IP/domínio configurado
+        // Verifica match exato OU se o origin termina com o domínio configurado
         const allowed = allowedOrigins.some(o => {
             if (origin === o) return true;
-            // Extrai hostname do origin (ex: "http://192.168.1.100:3000" → "192.168.1.100")
             try {
                 const hostname = new URL(origin).hostname;
-                return hostname === o;
+                // Match exato ou subdomínio (ex: app.izi.tec.br aceita api.izi.tec.br)
+                if (hostname === o) return true;
+                if (hostname.endsWith('.' + o)) return true;
+                // Paraizi.tec.br aceitar app.izi.tec.br e api.izi.tec.br
+                if (hostname.endsWith(o)) return true;
             } catch { return false; }
         });
         if (allowed) return callback(null, true);

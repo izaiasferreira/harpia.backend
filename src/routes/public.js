@@ -10,9 +10,7 @@ const publicLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Muitas requisições. Tente novamente em 1 minuto.' },
-    keyGenerator: (req) => {
-        return req.ip;
-    }
+    validate: { xForwardedForHeader: false }
 });
 
 router.get('/health', publicLimiter, (req, res) => {
