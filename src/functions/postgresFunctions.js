@@ -111,7 +111,7 @@ async function pontualidade(state = 'pi', region = 'all') {
         let total_geral = 0;
         text += `REGIONAL ${reg}\n\n`;
         for (const sec of Object.keys(unified[reg])) {
-            text += ` - ${sec.trim()} : \n`;
+            text += ` - *${sec.trim()} :* \n`;
             const etapas = [...new Set(unified[reg][sec].map(r => r.etapa))].sort();
             for (const etapa of etapas) {
                 const data_prev = unified[reg][sec][0].data_leit_prev;
@@ -139,8 +139,8 @@ async function pontualidade(state = 'pi', region = 'all') {
 
                 const is_parcial = quant_pendente > 0 && quant_pendente < quant_total && aindaNaJanela;
                 
-                text += `  - Etapa ${etapa}: ${((quant_concluido / quant_total) * 100).toFixed(2)}% ${is_parcial ? `Parcial` : 'Consolidado'}\n`;
-                text += `     NP: ${quant_concluido} | FP: ${quant_total - quant_concluido - quant_pendente} | PEND: ${quant_pendente}\n`;
+                text += `> Etapa ${etapa}: ${((quant_concluido / quant_total) * 100).toFixed(2)}% ${is_parcial ? `Parcial` : 'Fechada'}\n`;
+                text += `>  NP: ${quant_concluido} | FP: ${quant_total - quant_concluido - quant_pendente} | PEND: ${quant_pendente}\n\n`;
                 total_concluido += quant_concluido;
                 total_geral += quant_total;
             }
