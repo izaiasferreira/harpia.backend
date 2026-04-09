@@ -37,7 +37,6 @@ async function ensureTelegramTokensTable() {
 
 async function telegramAuth(req, res, next) {
     const initData = req.headers['x-telegram-init-data'] || req.query.telegram_init_data;
-    console.log('Init Data:', initData);
     
     if (!initData) {
         return res.status(401).json({ error: 'Dados de autenticação do Telegram não fornecidos' });
