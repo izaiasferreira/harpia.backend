@@ -114,10 +114,19 @@ async function pontualidade(state = 'pi', region = 'all') {
             text += ` - ${sec.trim()} : \n`;
             const etapas = [...new Set(unified[reg][sec].map(r => r.etapa))].sort();
             for (const etapa of etapas) {
+                const data_prev = unified[reg][sec][0].data_leit_prev;
+                const now = new Date();
+
+                const dataPrevDate = new Date(data_prev);
+                const limitePontualidade = new Date(dataPrevDate);
+                limitePontualidade.setDate(limitePontualidade.getDate() + 1);
+                limitePontualidade.setHours(10, 0, 0, 0);
+                
+                const aindaNaJanela = now <= limitePontualidade;
+                
                 const quant_total = unified[reg][sec].filter(r => r.etapa === etapa).length;
                 const quant_concluido = unified[reg][sec].filter(r => {
                     if (r.etapa !== etapa || r.concluido !== 'CONCLUIDO') return false;
-                    console.log(r.data_conclusao, r.data_leit_prev);
                     const dataPrev = new Date(r.data_leit_prev);
                     const dataConclusao = new Date(r.data_conclusao);
                     const limite = new Date(dataPrev);
@@ -128,7 +137,10 @@ async function pontualidade(state = 'pi', region = 'all') {
 
                 const quant_pendente = unified[reg][sec].filter(r => r.etapa === etapa && r.concluido === 'PENDENTE').length;
 
-                text += `  - Etapa ${etapa}: ${((quant_concluido / quant_total) * 100).toFixed(2)}% ${quant_pendente > 5 ? `(${quant_pendente} pendentes)` : ''}\n`;
+                const is_parcial = quant_pendente > 0 && quant_pendente < quant_total && aindaNaJanela;
+                
+                text += `  - Etapa ${etapa}: ${((quant_concluido / quant_total) * 100).toFixed(2)}% ${is_parcial ? `Parcial` : 'Consolidado'}\n`;
+                text += `     NP: ${quant_concluido} | FP: ${quant_total - quant_concluido - quant_pendente} | PEND: ${quant_pendente}\n`;
                 total_concluido += quant_concluido;
                 total_geral += quant_total;
             }
