@@ -2,15 +2,16 @@ const express = require('express');
 const router = express.Router();
 require('dotenv').config();
 
-const { 
-    getLeiturasForAgent, 
-    getCalendarForAgent, 
-    firstC12ForAgent, 
-    licacaoNovaC12ForAgent, 
-    fastC12ForAgent, 
-    get_instalations, 
+const {
+    getLeiturasForAgent,
+    getCalendarForAgent,
+    firstC12ForAgent,
+    licacaoNovaC12ForAgent,
+    fastC12ForAgent,
+    get_instalations,
     get_predicted,
-    lastUpdate
+    lastUpdate,
+    getLeiturasPendingForAgent
 } = require('../functions/postgresFunctions');
 const { telegramAuth } = require('../middlewares/telegramAuth');
 const { today, parse_date } = require('../utils/dates');
@@ -19,11 +20,11 @@ router.use(telegramAuth);
 
 router.get('/agent_statistics', async (req, res) => {
     try {
-        console.log(req.colaborador);
         const state = req.colaborador.estado || 'pi';
         const id = req.colaborador.id;
         const today_date = req.query.date || today();
         const result = await getLeiturasForAgent({ state, id, date: today_date, limit: 99999 });
+        const pending = await getLeiturasPendingForAgent({ state, id, date: today_date, limit: 99999 });
         const quant_leituras = result.length || 0;
         const cnl = result.filter(r => !r.ntlei.startsWith('A') && !['B09', 'B10', 'B15'].includes(r.ntlei)).length || 0;
         const perdas = result.filter(r => r.tem_perda === "PERDA" && parseInt(r.perda_prevista_mensal) > 0).reduce((acc, r) => acc + parseInt(r.perda_prevista_mensal), 0) || 0;
@@ -32,8 +33,10 @@ router.get('/agent_statistics', async (req, res) => {
         const quant_c12_out_hour = result.filter(r => r.ntlei === 'C12' && parseInt(r.hora_conclusao.split(':')[0]) < 8).length || 0;
         const licacao_nova_c12 = (await licacaoNovaC12ForAgent({ state, id, date: today_date })).length;
 
+
         res.json([
             { title: "Leituras Realizadas", value: quant_leituras || 0, color: "#00c742ff", unity: '', filter: 'all' },
+            { title: "Leituras Pendentes", value: pending.length || 0, color: pending.length > 0 ? "#ef9744ff" : "#00c742ff", unity: '', filter: 'pending' },
             { title: "Perdas Geradas", value: perdas || 0, color: perdas > 0 ? "#EF4444" : "#00c742ff", unity: 'Kwh', filter: 'perdas' },
             { title: "Quantidade de CNL", value: `${cnl}` || 0, color: "#EF4444", unity: '', filter: 'cnl' },
             { title: "Percentual de CNL", value: percent_cnl.toFixed(1) || 0, color: percent_cnl > 6 ? "#EF4444" : "#00c742ff", unity: '%', filter: 'cnl' },
@@ -92,7 +95,7 @@ router.post('/search_in', async (req, res) => {
             res.status(400).json({ error: 'Nenhuma query fornecida' });
             return;
         }
-        if(cleanQueries.length > 10) {
+        if (cleanQueries.length > 10) {
             res.status(400).json({ error: 'Limite de consulta excedido (máximo 10)' });
             return;
         }
@@ -134,6 +137,38 @@ router.get('/agent_data', async (req, res) => {
             id: req.colaborador.id,
             estado: req.colaborador.estado
         });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/custom_links', async (req, res) => {
+    try {
+        const state = req.colaborador.estado || 'pi';
+        const id = req.colaborador.id;
+        if (state === 'pi') {
+            return res.json([
+                {
+                    "id": "servicos-app",
+                    "label": "Serviços",
+                    "url": `https://service.izisolucoes.com.br/servicos/default/699e3e5914265fccd12f57ad?matricula=${id}`,
+                    "emoji": "🛠️",
+                    "color": "bg-blue-600"
+                },
+                {
+                    "id": "busca-app",
+                    "label": "Pesquisar Instalação",
+                    "url": `/search`,
+                    "emoji": "🔍",
+                    "color": "bg-green-500"
+                },
+            ]);
+        }
+        if (state === 'ma') {
+            return res.json([]);
+        }
+
+        return res.json([]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

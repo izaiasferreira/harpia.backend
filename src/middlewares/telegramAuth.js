@@ -104,9 +104,12 @@ async function telegramAuth(req, res, next) {
             telegramId = rows[0].telegram_user_id;
         }
         
+        // Garantir que o ID seja string para bater com o tipo TEXT na tabela login
+        const telegramIdStr = String(telegramId).trim();
+
         const { rows: collaboratorRows } = await pi_pool.query(
             'SELECT id, estado FROM login WHERE telegram_id = $1',
-            [telegramId]
+            [telegramIdStr]
         );
         
         if (collaboratorRows.length === 0) {
@@ -117,7 +120,7 @@ async function telegramAuth(req, res, next) {
         req.colaborador = {
             id: collaborator.id,
             estado: collaborator.estado,
-            telegramId: telegramId
+            telegramId: telegramIdStr
         };
         
         next();

@@ -1046,6 +1046,10 @@ function orderLeituras(rows) {
 async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1, limit = 20, filter = 'all' }) {
     const result = [];
 
+    if (filter === 'pending') {
+        return getLeiturasPendingForAgent({ state, id, date, page, limit });
+    }
+
     if (filter === 'all') {
         const query_all = `
             SELECT 
@@ -1204,6 +1208,29 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
 
 }
 
+async function getLeiturasPendingForAgent({ state = 'pi', id, date = today(), page = 1, limit = 20 }) {
+    const query_all = `
+            SELECT 
+            instalacao, 
+            etapa, 
+            ntlei, 
+            data_conclusao, 
+            data_leit_prev, 
+            agente,
+            tem_perda, 
+            perda_prevista_mensal, 
+            nome_agente, 
+            latitude, 
+            longitude
+        FROM matriz
+        WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
+        AND data_leit_prev::date = TO_DATE('${date.slice(3, 10)}', 'MM.YYYY')
+        LIMIT ${limit} OFFSET ${(page - 1) * limit};`;
+
+    const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+    if (rows.length === 0) return [];
+    return rows;
+}
 async function firstC12ForAgent({ state = 'pi', id, date = today() }) {
     let query = `
    WITH historico_agentes AS (
@@ -1424,6 +1451,7 @@ module.exports = {
     firstCNLJson,
     incompletedServices,
     getLeiturasForAgent,
+    getLeiturasPendingForAgent,
     firstC12ForAgent,
     fastC12ForAgent,
     licacaoNovaC12ForAgent,
