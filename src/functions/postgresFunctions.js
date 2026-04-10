@@ -337,29 +337,62 @@ async function cnl(state = 'pi', region = 'all', dateinit = today(), dateend = t
 }
 
 // ─── c12Json ────────────────────────────────────────────────────────────────────
-async function c12_out_hour_Json(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
-    const params = [dateinit, dateend];
-    let query = `
-    SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
-           status_ds, data_conclusao, latitude, longitude
-    FROM matriz
-    WHERE data_conclusao::date
-      BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
-      AND ntlei = 'C12'
-      AND status_ds = 'LG'
-      AND tipo_perda NOT LIKE 'CLIENTE CR SEM EVOLUCAO%'
-  `;
-    if (region !== 'all') {
-        params.push(region.toUpperCase());
-        query += ` AND regional = $${params.length}`;
+async function c12_Json(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
+    try {
+        const params = [dateinit, dateend];
+        let query = `
+            WITH base_calculos AS (
+                SELECT 
+                    instalacao, etapa, TRIM(seccional) as seccional, TRIM(regional) as regional, TRIM(ntlei) as ntlei, agente, nome_agente, supervisor,
+                    status_ds, data_conclusao, latitude, longitude, tipo_perda,
+                    -- Histórico por Instalação
+                    LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant,
+                    LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant2,
+                    -- Timeline por Agente (mesmo dia)
+                    LAG(data_conclusao) OVER (
+                        PARTITION BY agente, data_conclusao::date 
+                        ORDER BY data_conclusao
+                    ) as conclusao_anterior
+                FROM matriz
+            ),
+            calculo_tempo AS (
+                SELECT 
+                    *,
+                    -- Adicionado ROUND e conversão para INTEGER para remover os .000000
+                    COALESCE(
+                        ROUND(EXTRACT(EPOCH FROM (data_conclusao - conclusao_anterior)))::INTEGER, 
+                        60
+                    ) as tempo_execucao_segundos
+                FROM base_calculos
+            )
+            SELECT 
+                instalacao, etapa, seccional, regional, ntlei, ntlei_ant, ntlei_ant2, 
+                agente, nome_agente, supervisor, status_ds, data_conclusao, latitude, longitude,
+                tempo_execucao_segundos,
+                -- Formatação HH:MM:SS
+                to_char(tempo_execucao_segundos * interval '1 second', 'HH24:MI:SS') as tempo_formatado
+            FROM calculo_tempo
+            WHERE (data_conclusao::date BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY'))
+            AND ntlei = 'C12'
+            AND status_ds = 'LG'
+            AND tipo_perda NOT LIKE 'CLIENTE CR SEM EVOLUCAO%'
+            ORDER BY agente, data_conclusao;
+        `;
+        if (region !== 'all') {
+            params.push(region.toUpperCase());
+            query += ` AND regional = $${params.length}`;
+        }
+        const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
+        return rows?.map(r => {
+            const dt = new Date(r.data_conclusao);
+            r.data_conclusao = dt.toLocaleDateString('pt-BR');
+            r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+            return r;
+        });
+    } catch (error) {
+        console.error('Erro ao buscar c12_out_hour_Json:', error);
+        return [];
     }
-    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
-    return rows?.map(r => {
-        const dt = new Date(r.data_conclusao);
-        r.data_conclusao = dt.toLocaleDateString('pt-BR');
-        r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
-        return r;
-    });
 }
 
 async function firstC12Json(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
@@ -576,6 +609,7 @@ async function CNLToLidoJson(state = 'pi', region = 'all', dateinit = today()) {
     const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     return rows;
 }
+
 // ─── e02Json ────────────────────────────────────────────────────────────────────
 async function e02Json(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
     const params = [dateinit, dateend];
@@ -1370,7 +1404,7 @@ module.exports = {
     pendencias,
     pendenciasJson,
     cnl,
-    c12Json: c12_out_hour_Json,
+    c12Json: c12_Json,
     e02Json,
     c16Json,
     notStartServices,
