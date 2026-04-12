@@ -1,11 +1,48 @@
 require('dotenv').config();
-const { perdas, perdasJson } = require('./database/perdas');
-const { pontualidade, pontualidadeJson } = require('./database/pontualidade');
-const { e02Json, c16Json } = require('./database/cnlSemReceita');
-const { cnl, firstCNLJson, CNLToLidoJson } = require('./database/cnl');
-const { c12_Json, C12ToLidoJson, firstC12ForAgent, licacaoNovaC12ForAgent, fastC12ForAgent } = require('./database/c12');
-const { pendencias, pendenciasJson, notStartServices, completedServices, incompletedServices } = require('./database/pendencias');
-const { getLeiturasForAgent, getLeiturasPendingForAgent, getCalendarForAgent, getAgentTelegramId, get_instalations, get_predicted } = require('./database/agentes');
+const {
+    perdas,
+    perdasJson
+} = require('./database/perdas');
+const {
+    pontualidade,
+    pontualidadeJson
+} = require('./database/pontualidade');
+const {
+    e02Json,
+    c16Json
+} = require('./database/cnlSemReceita');
+const {
+    cnl,
+    firstCNLJson,
+    CNLToLidoJson
+} = require('./database/cnl');
+const {
+    c12_Json,
+    C12ToLidoJson,
+    firstC12ForAgent,
+    licacaoNovaC12ForAgent,
+    fastC12ForAgent
+} = require('./database/c12');
+const {
+    pendencias,
+    pendenciasJson,
+    notStartServices,
+    completedServices,
+    incompletedServices
+} = require('./database/pendencias');
+const {
+    getLeiturasForAgent,
+    getLeiturasPendingForAgent,
+    getCalendarForAgent,
+    getAgentTelegramId,
+    get_instalations,
+    get_predicted,
+    save_justify,
+    get_justify,
+    update_justify,
+    delete_justify,
+    get_instalations_matriz
+} = require('./database/agentes');
 const { lastUpdate } = require('./database/status');
 
 
@@ -35,5 +72,10 @@ module.exports = {
     getAgentTelegramId,
     lastUpdate,
     get_instalations,
-    get_predicted
+    get_instalations_matriz,
+    get_predicted,
+    save_justify,
+    get_justify,
+    update_justify,
+    delete_justify
 };

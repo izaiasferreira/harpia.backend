@@ -11,7 +11,8 @@ async function lastUpdate(state = 'pi') {
     let query_last_register = `
     SELECT MAX(data_conclusao) as value
     FROM matriz 
-    WHERE TO_CHAR(data_conclusao, 'MM.YYYY') = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
+    WHERE data_conclusao >= date_trunc('month', CURRENT_DATE)
+    AND data_conclusao < date_trunc('month', CURRENT_DATE) + interval '1 month'
   `;
     const { rows: rows_last_register } = state === 'pi' ? await pi_pool.query(query_last_register) : await ma_pool.query(query_last_register);
     const val = rows_last_register[0]?.value;

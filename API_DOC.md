@@ -460,6 +460,133 @@ Retorna os dados do colaborador autenticado (matrícula e estado).
 
 ---
 
+#### `GET /get_justify`
+Consulta justificativas de erros do agente com dados da matriz.
+
+**Query Params:**
+
+| Param | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `instalacao` | string | Não | Filtro por instalação |
+| `tipo` | string | Não | Filtro por tipo (ex: `cnl`, `c12`) |
+| `data_leit_prev` | string | Não | Filtro por data de leitura prevista (DD/MM/YYYY) |
+
+> O `estado` e `author` são extraídos automaticamente do token de autenticação.
+
+**Retorno (com resultado):**
+```json
+{
+    "id": 1,
+    "instalacao": "18518168",
+    "tipo": "cnl",
+    "motivo": "Medidor com defeito",
+    "justificativa": "Realmente estava com defeito",
+    "foto": "base64_string",
+    "data_leit_prev": "10/04/2026",
+    "author": "t19596",
+    "estado": "pi",
+    "has_justified": true,
+    "created_at": "2026-04-12T01:50:22.000Z",
+    "updated_at": "2026-04-12T01:50:22.000Z"
+}
+```
+
+**Retorno (sem resultado):**
+```json
+{ "has_justified": false }
+```
+
+---
+
+#### `POST /create_justify`
+Cria uma nova justificativa. Bloqueia duplicatas (mesma instalação + data).
+
+**Body:**
+```json
+{
+    "instalacao": "18518168",
+    "data_leit_prev": "10/04/2026",
+    "tipo": "cnl",
+    "motivo": "Medidor com defeito",
+    "justificativa": "Realmente estava com defeito",
+    "foto": "base64_string_aqui"
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `instalacao` | string | Número da instalação |
+| `data_leit_prev` | string | Data da leitura prevista (DD/MM/YYYY) |
+| `tipo` | string | Tipo de erro (`cnl`, `c12`, etc.) |
+| `motivo` | string | Motivo do erro |
+| `justificativa` | string | Texto da justificativa |
+| `foto` | string | Foto em base64 (opcional) |
+| `quantidade` | number | Quantidade de instalações (opcional) |
+
+> O `author` e `estado` são extraídos automaticamente do token.
+
+**Retorno (sucesso):** Objeto da justificativa criada com `id`.
+
+**Erros:**
+- `400` — Justificativa já criada para esta instalação e data
+
+---
+
+#### `PUT /update_justify`
+Atualiza uma justificativa existente pelo ID.
+
+**Body:**
+```json
+{
+    "id": 1,
+    "motivo": "Motivo atualizado",
+    "justificativa": "Nova justificativa"
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `id` | number | **Sim** | ID da justificativa |
+| `instalacao` | string | Não | Nova instalação |
+| `tipo` | string | Não | Novo tipo |
+| `motivo` | string | Não | Novo motivo |
+| `justificativa` | string | Não | Nova justificativa |
+| `foto` | string | Não | Nova foto (base64) |
+| `data_leit_prev` | string | Não | Nova data |
+| `quantidade` | number | Não | Nova quantidade |
+
+> O campo `updated_at` é atualizado automaticamente.
+
+**Retorno (sucesso):** Objeto da justificativa atualizada.
+
+**Erros:**
+- `400` — ID da justificativa é obrigatório
+- `404` — Justificativa não encontrada
+
+---
+
+#### `DELETE /delete_justify/:id`
+Deleta uma justificativa pelo ID.
+
+**URL Params:**
+
+| Param | Tipo | Descrição |
+|---|---|---|
+| `id` | number | ID da justificativa a deletar |
+
+**Retorno (sucesso):**
+```json
+{
+    "success": true,
+    "deleted": { "id": 1, "instalacao": "18518168", "..." : "..." }
+}
+```
+
+**Erros:**
+- `404` — Justificativa não encontrada
+
+---
+
 ### Revalidação
 
 **Autenticação:** Token simples (`?token=API_TOKEN`)
@@ -669,6 +796,9 @@ CORS_ORIGINS=*
 
 # Token admin (uso interno)
 ADMIN_TOKEN=
+
+# ID do Telegram para testes E2E
+TEST_TELEGRAM_ID=
 ```
 
 ---
@@ -683,6 +813,7 @@ ADMIN_TOKEN=
 | `cadastro` | PI / MA | Dados cadastrais das instalações |
 | `dados_instalacoes` | Localizações PI | Coordenadas e endereços |
 | `telegram_tokens` | PI | Tokens manuais de autenticação (criado automaticamente pelo middleware) |
+| `justificativas` | PI / MA | Justificativas de erros dos agentes (criada automaticamente) |
 
 ---
 

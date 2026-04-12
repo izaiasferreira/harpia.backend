@@ -42,24 +42,18 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
     if (filter === 'all') {
         const query_all = `
             SELECT 
-            instalacao, 
-            etapa, 
-            ntlei, 
-            data_conclusao, 
-            data_leit_prev, 
-            agente,
-            tem_perda, 
-            perda_prevista_mensal, 
-            nome_agente, 
-            latitude, 
-            longitude
-        FROM matriz
-        WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
-        AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
-        ORDER BY data_conclusao ASC
-        LIMIT ${limit} OFFSET ${(page - 1) * limit};`;
+                instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,
+                tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
+            FROM matriz
+            WHERE agente IN ($1, $2)
+            AND data_conclusao >= TO_DATE($3, 'DD/MM/YYYY')
+            AND data_conclusao < TO_DATE($3, 'DD/MM/YYYY') + interval '1 day'
+            ORDER BY data_conclusao ASC
+            LIMIT $4 OFFSET $5;`;
 
-        const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        const { rows } = state === 'pi' 
+            ? await pi_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), date, limit, (page - 1) * limit]) 
+            : await ma_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), date, limit, (page - 1) * limit]);
         if (rows.length === 0) return [];
         result.push(...orderLeituras(rows));
     }
@@ -68,18 +62,21 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
         const query_all = `
             WITH historico_completo AS (
                 SELECT 
-                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev,concluido, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
+                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, concluido, agente, tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
                 FROM matriz
-                WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
+                WHERE agente IN ($1, $2)
                 AND ntlei NOT LIKE 'A%'
                 AND ntlei NOT IN ('B09', 'B10', 'B15')
-                AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
+                AND data_conclusao >= TO_DATE($3, 'DD/MM/YYYY')
+                AND data_conclusao < TO_DATE($3, 'DD/MM/YYYY') + interval '1 day'
             )
             SELECT *
             FROM historico_completo
-            LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
+            LIMIT $4 OFFSET $5`;
 
-        const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        const { rows } = state === 'pi' 
+            ? await pi_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), date, limit, (page - 1) * limit]) 
+            : await ma_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), date, limit, (page - 1) * limit]);
         if (rows.length === 0) return [];
         result.push(...orderLeituras(rows));
     }
@@ -201,23 +198,17 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
 async function getLeiturasPendingForAgent({ state = 'pi', id, date = today(), page = 1, limit = 20 }) {
     const query_all = `
             SELECT 
-            instalacao, 
-            etapa, 
-            ntlei, 
-            data_conclusao, 
-            data_leit_prev, 
-            agente,
-            tem_perda, 
-            perda_prevista_mensal, 
-            nome_agente, 
-            latitude, 
-            longitude
-        FROM matriz
-        WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
-        AND data_leit_prev::date = TO_DATE('${date.slice(3, 10)}', 'MM.YYYY')
-        LIMIT ${limit} OFFSET ${(page - 1) * limit};`;
+                instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,
+                tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
+            FROM matriz
+            WHERE agente IN ($1, $2)
+            AND data_leit_prev >= TO_DATE($3, 'MM.YYYY')
+            AND data_leit_prev < TO_DATE($3, 'MM.YYYY') + interval '1 month'
+            LIMIT $4 OFFSET $5;`;
 
-    const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+    const { rows } = state === 'pi' 
+        ? await pi_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), date.slice(3, 10), limit, (page - 1) * limit]) 
+        : await ma_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), date.slice(3, 10), limit, (page - 1) * limit]);
     if (rows.length === 0) return [];
     return rows;
 }
@@ -264,6 +255,33 @@ async function get_instalations({ state, query = [], type }) {
         return rows;
     } catch (err) {
         console.error('Erro em get_instalations:', err);
+        throw err;
+    }
+}
+async function get_instalation_matriz({ estado, instalacao, data_leit_prev }) {
+    if (!instalacao || !data_leit_prev) return {};
+
+    const activeState = (estado || 'pi').toLowerCase();
+    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+
+    console.log(`[DEBUG] get_instalation_matriz - Pool: ${activeState}, Instalacao: ${instalacao}`);
+
+    const sql = `
+        SELECT * FROM matriz
+        WHERE TRIM(instalacao) = TRIM($1)
+        AND data_leit_prev::date = TO_DATE($2, 'DD/MM/YYYY')
+    `;
+
+    const values = [instalacao, data_leit_prev];
+
+    try {
+        const { rows } = await pool.query(sql, values);
+        if (rows.length === 0) {
+            return {};
+        }
+        return rows[0];
+    } catch (err) {
+        console.error('Erro em get_instalations_matriz:', err);
         throw err;
     }
 }
@@ -327,11 +345,188 @@ async function get_predicted({ state = 'pi', id, status = 'PENDENTE', page = 1, 
     return result;
 }
 
+// ─── save_justify ─────────────────────────────────────────────────────────────
+// ─── save_justify ─────────────────────────────────────────────────────────────
+async function save_justify({
+    state = 'pi',
+    instalacao,
+    tipo,
+    motivo,
+    justificativa,
+    foto,
+    data_leit_prev,
+    author,
+    quantidade,
+    created_at = new Date(),
+    updated_at = new Date()
+}) {
+    // 1. Garantir que a tabela existe com a estrutura completa
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS justificativas (
+            id SERIAL PRIMARY KEY,
+            instalacao TEXT,
+            tipo TEXT,
+            motivo TEXT,
+            justificativa TEXT,
+            foto TEXT,
+            data_leit_prev TEXT,
+            author TEXT,
+            estado TEXT,
+            quantidade INTEGER,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP
+        );
+    `;
+
+    const pool = state === 'pi' ? pi_pool : ma_pool;
+    await pool.query(createTableQuery);
+
+    const insertQuery = `
+        INSERT INTO justificativas (
+            instalacao, tipo, motivo, justificativa, foto, data_leit_prev, author, estado, quantidade, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING *;
+    `;
+    const values = [
+        instalacao,
+        tipo,
+        motivo,
+        justificativa,
+        foto,
+        data_leit_prev,
+        author,
+        state,
+        quantidade,
+        created_at,
+        updated_at
+    ];
+
+    const { rows } = await pool.query(insertQuery, values);
+    return rows[0];
+}
+
+// ─── get_justify ─────────────────────────────────────────────────────────────
+async function get_justify({ instalacao, data_leit_prev, estado = 'pi', author, tipo, quantidade }) {
+    // Garantir que o estado seja minúsculo para a seleção do pool e filtro
+    const activeState = (estado || 'pi').toLowerCase();
+
+    // Garantir que a tabela existe antes de consultar
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS justificativas (
+            id SERIAL PRIMARY KEY,
+            instalacao TEXT,
+            tipo TEXT,
+            motivo TEXT,
+            justificativa TEXT,
+            foto TEXT,
+            data_leit_prev TEXT,
+            author TEXT,
+            estado TEXT,
+            quantidade INTEGER,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP
+        );
+    `;
+    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+    await pool.query(createTableQuery);
+
+    let querySql = `SELECT * FROM justificativas WHERE 1=1`;
+    const params = [];
+
+    if (instalacao) {
+        params.push(instalacao.trim());
+        querySql += ` AND TRIM(instalacao) = $${params.length}`;
+    }
+    if (data_leit_prev) {
+        params.push(data_leit_prev.trim());
+        querySql += ` AND TRIM(data_leit_prev) = $${params.length}`;
+    }
+    if (activeState) {
+        params.push(activeState);
+        querySql += ` AND LOWER(estado) = $${params.length}`;
+    }
+    if (author) {
+        params.push(author.trim());
+        querySql += ` AND author = $${params.length}`;
+    }
+    if (tipo) {
+        params.push(tipo.trim().toLowerCase());
+        querySql += ` AND LOWER(tipo) = $${params.length}`;
+    }
+
+    querySql += ` ORDER BY created_at DESC`;
+
+    const { rows } = await pool.query(querySql, params);
+    if (rows.length === 0) {
+        return {};
+    }
+    return rows[0];
+}
+
+// ─── update_justify ───────────────────────────────────────────────────────────
+async function update_justify({ id, estado = 'pi', ...fields }) {
+    const activeState = (estado || 'pi').toLowerCase();
+    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+
+    // Campos permitidos para atualização
+    const allowedFields = ['instalacao', 'tipo', 'motivo', 'justificativa', 'foto', 'data_leit_prev', 'quantidade'];
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    for (const field of allowedFields) {
+        if (fields[field] !== undefined) {
+            updates.push(`${field} = $${paramIndex}`);
+            values.push(fields[field]);
+            paramIndex++;
+        }
+    }
+
+    if (updates.length === 0) {
+        throw new Error('Nenhum campo para atualizar');
+    }
+
+    // Sempre atualiza o updated_at
+    updates.push(`updated_at = $${paramIndex}`);
+    values.push(new Date());
+    paramIndex++;
+
+    // ID é o último parâmetro
+    values.push(id);
+
+    const sql = `
+        UPDATE justificativas
+        SET ${updates.join(', ')}
+        WHERE id = $${paramIndex}
+        RETURNING *;
+    `;
+
+    const { rows } = await pool.query(sql, values);
+    if (rows.length === 0) return null;
+    return rows[0];
+}
+
+// ─── delete_justify ───────────────────────────────────────────────────────────
+async function delete_justify({ id, estado = 'pi' }) {
+    const activeState = (estado || 'pi').toLowerCase();
+    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+
+    const sql = `DELETE FROM justificativas WHERE id = $1 RETURNING *;`;
+    const { rows } = await pool.query(sql, [id]);
+    if (rows.length === 0) return null;
+    return rows[0];
+}
+
 module.exports = {
     getLeiturasForAgent,
     getLeiturasPendingForAgent,
     getCalendarForAgent,
     getAgentTelegramId,
+    get_instalations_matriz: get_instalation_matriz,    
     get_instalations,
-    get_predicted
+    get_predicted,
+    save_justify,
+    get_justify,
+    update_justify,
+    delete_justify
 };
