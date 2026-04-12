@@ -13,7 +13,7 @@ async function createTestToken() {
 
     try {
         const token = crypto.randomBytes(32).toString('hex');
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000 * 30);
 
         await pi_pool.query(`
             CREATE TABLE IF NOT EXISTS telegram_tokens (
