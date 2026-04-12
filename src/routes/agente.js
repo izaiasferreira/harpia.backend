@@ -339,15 +339,15 @@ router.get('/custom_links', async (req, res) => {
                     "id": "servicos-app",
                     "label": "Serviços",
                     "url": `https://service.izisolucoes.com.br/servicos/default/699e3e5914265fccd12f57ad?matricula=${id}`,
-                    "emoji": "🛠️",
-                    "color": "bg-blue-600"
+                    "emoji": "Smartphone",
+                    "color": "text-blue-600"
                 },
                 {
                     "id": "busca-app",
                     "label": "Pesquisar Instalação",
                     "url": `/search`,
-                    "emoji": "🔍",
-                    "color": "bg-green-500"
+                    "emoji": "MapPinned",
+                    "color": "text-green-600"
                 },
             ]);
         }
