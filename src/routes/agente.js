@@ -84,12 +84,16 @@ router.get('/agent_dashboard', async (req, res) => {
                     autoSlideInterval: 5000,
                     banners: [
                         {
-                            imageUrl: 'https://litter.catbox.moe/9yx97w.png',
+                            imageUrl: 'https://litter.catbox.moe/22q59u.png',
+                            action: { type: 'link', url: `https://forms.cattalk.com.br/form/satisfacao-ceneged-bot?id=${id}` }
+                        },
+                        {
+                            imageUrl: 'https://litter.catbox.moe/z9zjpw.png',
                             action: { type: 'link', url: '' }
                         },
                         {
-                            imageUrl: 'https://litter.catbox.moe/bcf1xn.png',
-                            action: { type: 'link', url: '' }
+                            imageUrl: 'https://litter.catbox.moe/y62ct7.png',
+                            action: { type: 'link', url: '/search' }
                         }
                     ]
                 },
@@ -159,7 +163,7 @@ router.get('/agent_dashboard', async (req, res) => {
                 data: {
                     title: 'Tempo em Pausa',
                     value: pause_time_fmt,
-                    icon: 'Coffee',
+                    icon: 'CirclePause',
                     color: 'text-orange-500 bg-orange-50/10'
                 }
             },
@@ -170,7 +174,7 @@ router.get('/agent_dashboard', async (req, res) => {
                 data: {
                     title: 'Tempo Efetivo',
                     value: work_time_fmt,
-                    icon: 'Zap',
+                    icon: 'ClockCheck',
                     color: 'bg-emerald-50/10'
                 }
             },
