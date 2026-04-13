@@ -75,7 +75,7 @@ router.get('/agent_dashboard', async (req, res) => {
         const quant_c12 = result.filter(r => r.ntlei === 'C12').length || 0;
         const quant_c12_out_hour = result.filter(r => r.ntlei === 'C12' && parseInt(r.hora_conclusao.split(':')[0]) < 8).length || 0;
 
-        const widgets = [
+        let widgets = [
             {
                 id: 'banner_promo',
                 type: 'bannerCarousel',
@@ -139,7 +139,7 @@ router.get('/agent_dashboard', async (req, res) => {
                 type: 'chartCard',
                 size: { colSpan: 3, rowSpan: 1 },
                 data: {
-                    chartType: 'line',
+                    chartType: 'bar',
                     title: 'Leituras por Hora',
                     dataset: hourly_dataset
                 },
@@ -152,7 +152,7 @@ router.get('/agent_dashboard', async (req, res) => {
                     title: 'Tempo Total de Trabalho',
                     value: total_time_fmt,
                     icon: 'Clock',
-                    color: ' bg-emerald-50/10'
+                    color: 'text-blue-500 bg-blue-50/10'
                 },
                 action: { type: 'link', url: '/services?filter=all' }
             },
@@ -164,7 +164,7 @@ router.get('/agent_dashboard', async (req, res) => {
                     title: 'Tempo em Pausa',
                     value: pause_time_fmt,
                     icon: 'CirclePause',
-                    color: 'text-orange-500 bg-orange-50/10'
+                    color: 'text-blue-500 bg-blue-50/10'
                 }
             },
             {
@@ -175,7 +175,7 @@ router.get('/agent_dashboard', async (req, res) => {
                     title: 'Tempo Efetivo',
                     value: work_time_fmt,
                     icon: 'ClockCheck',
-                    color: 'bg-emerald-50/10'
+                    color: 'text-blue-500 bg-blue-50/10'
                 }
             },
             {
@@ -207,7 +207,7 @@ router.get('/agent_dashboard', async (req, res) => {
                 type: 'chartCard',
                 size: { colSpan: 3, rowSpan: 1 },
                 data: {
-                    chartType: 'line',
+                    chartType: 'bar',
                     title: 'CNL da semana',
                     dataset:
                         weekly_cnl_stats['labels'].map((label, i) => {
@@ -227,7 +227,7 @@ router.get('/agent_dashboard', async (req, res) => {
                     value: String(quant_c12_out_hour),
                     subtitle: 'Antes das 08:00',
                     icon: 'Moon',
-                    color: quant_c12_out_hour > 1 ? 'text-red-500 bg-red-50/10' : 'text-emerald-500 bg-emerald-50/10'
+                    color: 'text-red-500 bg-red-50/10'
                 },
                 action: { type: 'link', url: '/services?filter=c12_out_time' }
             },
@@ -251,7 +251,7 @@ router.get('/agent_dashboard', async (req, res) => {
                     title: 'C12 em Ligação Nova',
                     value: String(licacao_nova_c12),
                     icon: 'HousePlus',
-                    color: licacao_nova_c12 > 0 ? 'text-red-500 bg-red-50/10' : 'text-emerald-500 bg-emerald-50/10'
+                    color: 'text-red-500 bg-red-50/10'
                 },
                 action: { type: 'link', url: '/services?filter=c12_ligacao_nova' }
             },
@@ -263,7 +263,7 @@ router.get('/agent_dashboard', async (req, res) => {
                     title: 'C12 Rápido',
                     value: String(fast_c12),
                     icon: 'UserPlus',
-                    color: fast_c12 > 0 ? 'text-red-500 bg-red-50/10' : 'text-emerald-500 bg-emerald-50/10'
+                    color: 'text-red-500 bg-red-50/10'
                 },
                 action: { type: 'link', url: '/services?filter=fast_c12' }
             },
@@ -275,11 +275,38 @@ router.get('/agent_dashboard', async (req, res) => {
                     title: 'C12 Entrante',
                     value: String(first_c12),
                     icon: 'SearchAlert',
-                    color: first_c12 > 0 ? 'text-red-500 bg-red-50/10' : 'text-emerald-500 bg-emerald-50/10'
+                    color: 'text-red-500 bg-red-50/10'
                 },
                 action: { type: 'link', url: '/services?filter=first_c12' }
             },
         ];
+
+        //caso o id não comece com letra, adicionar um alerta
+        if (!id.match(/^[a-zA-Z]/)) {
+            widgets.unshift({
+                id: 'alert_1',
+                type: 'alertCard',
+                size: { colSpan: 3, rowSpan: 1 },
+                data: {
+                    title: "Atenção",
+                    message: "Identificamos que seu cadastro está incorreto. Feche essa página e digite /cadastro para se cadastrar novamente.",
+                    severity: "warning"
+                },
+            });
+        }
+
+        if (['F26469341', 'T30088', 'T54295'].includes(id)) {
+            widgets.unshift({
+                id: 'alert_2',
+                type: 'alertCard',
+                size: { colSpan: 3, rowSpan: 1 },
+                data: {
+                    title: "OBRIGADO!",
+                    message: "Seu comentário de melhoria na pesquisa de satisfação foi ouvido e aprovado! Já estamos trabalhando nisso. Agradecemos a sua sugestão!",
+                    severity: "success"
+                },
+            });
+        }
 
         res.json({
             layout: {
@@ -289,56 +316,6 @@ router.get('/agent_dashboard', async (req, res) => {
             },
             widgets
         });
-    } catch (err) {
-        console.log(err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-router.get('/agent_statistics', async (req, res) => {
-    try {
-        const state = req.colaborador.estado || 'pi';
-        const id = req.colaborador.id;
-        const today_date = req.query.date || today();
-
-        const [result, pending_count] = await Promise.all([
-            getLeiturasForAgent({ state, id, date: today_date, limit: 99999 }),
-            getLeiturasPendingForAgent({ state, id, date: today_date, limit: 99999, isCountOnly: true })
-        ]);
-
-        const quant_leituras = result.length || 0;
-        const cnl = result.filter(r => !r.ntlei.startsWith('A') && !['B09', 'B10', 'B15'].includes(r.ntlei)).length || 0;
-        const perdas = result.filter(r => r.tem_perda === "PERDA" && parseInt(r.perda_prevista_mensal) > 0).reduce((acc, r) => acc + parseInt(r.perda_prevista_mensal), 0) || 0;
-        const percent_cnl = quant_leituras > 0 ? (cnl / quant_leituras) * 100 : 0;
-        const quant_c12 = result.filter(r => r.ntlei === 'C12').length || 0;
-
-        res.json([
-            { title: "Leituras Realizadas", value: quant_leituras || 0, color: "#00c742ff", unity: '', filter: 'all' },
-            { title: "Leituras Pendentes", value: pending_count || 0, color: pending_count > 0 ? "#ef9744ff" : "#00c742ff", unity: '', filter: 'pending' },
-            { title: "Perdas Geradas", value: perdas || 0, color: perdas > 0 ? "#EF4444" : "#00c742ff", unity: 'Kwh', filter: 'perdas' },
-            { title: "Quantidade de CNL", value: `${cnl}` || 0, color: "#EF4444", unity: '', filter: 'cnl' },
-            { title: "Percentual de CNL", value: percent_cnl.toFixed(1) || 0, color: percent_cnl > 6 ? "#EF4444" : "#00c742ff", unity: '%', filter: 'cnl' },
-            { title: "Quantidade de C12", value: quant_c12 || 0, color: "#00c742ff", unity: '', filter: 'c12' },
-        ]);
-    } catch (err) {
-        console.log(err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-router.get('/agent_statistics_more', async (req, res) => {
-    try {
-        const state = req.colaborador.estado || 'pi';
-        const id = req.colaborador.id;
-        const today_date = req.query.date || today();
-
-        const fast_c12 = (await fastC12ForAgent({ state, id, date: today_date })).length;
-        const first_c12 = (await firstC12ForAgent({ state, id, date: today_date })).length;
-
-        res.json([
-            { title: "C12 Rápidos", value: fast_c12 || 0, color: fast_c12 > 1 ? "#EF4444" : "#00c742ff", unity: '', filter: 'fast_c12' },
-            { title: "C12 Entrante", value: first_c12 || 0, color: first_c12 > 1 ? "#EF4444" : "#00c742ff", unity: '', filter: 'first_c12' },
-        ]);
     } catch (err) {
         console.log(err);
         res.status(500).json({ error: err.message });
