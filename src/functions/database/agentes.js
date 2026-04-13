@@ -196,19 +196,22 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
 
 // ─── getLeiturasPendingForAgent ───────────────────────────────────────────────
 async function getLeiturasPendingForAgent({ state = 'pi', id, date = today(), page = 1, limit = 20 }) {
+    const first_month_day = `01.${date.slice(3, 10)}`;
+
     const query_all = `
             SELECT 
                 instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,
                 tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
             FROM matriz
             WHERE agente IN ($1, $2)
-            AND data_leit_prev >= TO_DATE($3, 'MM.YYYY')
-            AND data_leit_prev < TO_DATE($3, 'MM.YYYY') + interval '1 month'
+            and concluido = 'CONCLUIDO'
+            AND data_leit_prev >= TO_DATE($3, 'DD.MM.YYYY')
+            AND data_leit_prev < TO_DATE($3, 'DD.MM.YYYY') + interval '1 day'
             LIMIT $4 OFFSET $5;`;
 
     const { rows } = state === 'pi' 
-        ? await pi_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), date.slice(3, 10), limit, (page - 1) * limit]) 
-        : await ma_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), date.slice(3, 10), limit, (page - 1) * limit]);
+        ? await pi_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), first_month_day, limit, (page - 1) * limit]) 
+        : await ma_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), first_month_day, limit, (page - 1) * limit]);
     if (rows.length === 0) return [];
     return rows;
 }
@@ -289,33 +292,20 @@ async function get_instalation_matriz({ estado, instalacao, data_leit_prev }) {
 // ─── get_predicted ─────────────────────────────────────────────────────────────
 async function get_predicted({ state = 'pi', id, status = 'PENDENTE', page = 1, limit = 100 }) {
     const offset = (page - 1) * limit;
+    const status_filter = status === 'PENDENTE' ? '' : "AND tem_perda = 'PERDA'";
     const query = `
-        SELECT 
-            instalacao, 
-            etapa, 
-            seccional, 
-            regional, 
-            agente, 
-            nome_agente, 
-            ntlei, 
-            apontamento, 
-            perda_prevista_mensal, 
-            tipo_perda, 
-            status_perda, 
-            tem_perda, 
-            concluido,
-            TO_CHAR(data_leit_prev, 'DD/MM/YYYY') as data_leit_prev,
-            TO_CHAR(data_conclusao, 'DD/MM/YYYY') as data_conclusao,
-            TO_CHAR(data_conclusao, 'HH24:MI') as hora_conclusao,
-            CASE 
-                WHEN tipo_perda LIKE '%87%' THEN 'LER OU APONTAR ' || COALESCE(apontamento, '')
-                WHEN tipo_perda LIKE '%113%' AND status_perda = 'SEM PERDA' THEN 'LER OU APONTAR ' || COALESCE(apontamento, '')
-                ELSE 'LER OU ENTRAR EM CONTATO COM A MONITORIA'
-            END as action,
-            motivo_perda
+        SELECT instalacao, etapa, seccional, regional, agente, nome_agente, ntlei, apontamento, 
+               perda_prevista_mensal, tipo_perda, status_perda, tem_perda, concluido, motivo_perda,
+               TO_CHAR(data_leit_prev, 'DD/MM/YYYY') as data_leit_prev,
+               TO_CHAR(data_conclusao, 'DD/MM/YYYY') as data_conclusao,
+               TO_CHAR(data_conclusao, 'HH24:MI') as hora_conclusao,
+               CASE 
+                   WHEN tipo_perda LIKE '%87%' THEN 'LER OU APONTAR ' || COALESCE(apontamento, '')
+                   WHEN tipo_perda LIKE '%113%' AND status_perda = 'SEM PERDA' THEN 'LER OU APONTAR ' || COALESCE(apontamento, '')
+                   ELSE 'LER OU ENTRAR EM CONTATO COM A MONITORIA'
+               END as action
         FROM matriz 
-        WHERE agente IN ($1, $2)
-        AND concluido = $3
+        WHERE agente IN ($1, $2) AND concluido = $3 ${status_filter}
         AND (CASE WHEN perda_prevista_mensal::TEXT ~ '^[0-9]' THEN REPLACE(perda_prevista_mensal::TEXT, ',', '.')::NUMERIC ELSE 0 END) > 0
         ORDER BY (CASE WHEN etapa::TEXT ~ '^[0-9]' THEN etapa::TEXT::NUMERIC ELSE 9999 END) ASC, data_leit_prev ASC
         LIMIT $4 OFFSET $5
@@ -330,6 +320,7 @@ async function get_predicted({ state = 'pi', id, status = 'PENDENTE', page = 1, 
     const rows_instalations = await get_instalations({ state, query: rows_ids, type: 'instalacao' });
 
     const result = rows.map((r, i) => {
+        console.log(r);
         const instalation = rows_instalations.find(i => i.instalacao === r.instalacao);
         if (instalation) {
             r['lat_cad'] = instalation.lat_cad;
@@ -345,8 +336,6 @@ async function get_predicted({ state = 'pi', id, status = 'PENDENTE', page = 1, 
     return result;
 }
 
-// ─── save_justify ─────────────────────────────────────────────────────────────
-// ─── save_justify ─────────────────────────────────────────────────────────────
 async function save_justify({
     state = 'pi',
     instalacao,

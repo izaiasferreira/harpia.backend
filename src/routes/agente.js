@@ -4,7 +4,6 @@ require('dotenv').config();
 
 const {
     getLeiturasForAgent,
-    getCalendarForAgent,
     firstC12ForAgent,
     licacaoNovaC12ForAgent,
     fastC12ForAgent,
@@ -28,7 +27,7 @@ router.get('/agent_dashboard', async (req, res) => {
         const state = req.colaborador.estado || 'pi';
         const id = req.colaborador.id;
         const today_date = req.query.date || today();
-        
+
         // Buscar dados reais em paralelo
         const [result, pending, licacao_nova_c12_rows, fast_c12_rows, first_c12_rows] = await Promise.all([
             getLeiturasForAgent({ state, id, date: today_date, limit: 99999 }),
@@ -37,7 +36,7 @@ router.get('/agent_dashboard', async (req, res) => {
             fastC12ForAgent({ state, id, date: today_date }),
             firstC12ForAgent({ state, id, date: today_date })
         ]);
-        
+
         const licacao_nova_c12 = licacao_nova_c12_rows.length || 0;
         const fast_c12 = fast_c12_rows.length || 0;
         const first_c12 = first_c12_rows.length || 0;
@@ -59,11 +58,11 @@ router.get('/agent_dashboard', async (req, res) => {
                     banners: [
                         {
                             imageUrl: 'https://litter.catbox.moe/9yx97w.png',
-                            action: { type: 'link', url: 'https://google.com' }
+                            action: { type: 'link', url: '' }
                         },
                         {
                             imageUrl: 'https://litter.catbox.moe/bcf1xn.png',
-                            action: { type: 'link', url: 'https://google.com' }
+                            action: { type: 'link', url: '' }
                         }
                     ]
                 },
@@ -75,7 +74,7 @@ router.get('/agent_dashboard', async (req, res) => {
                 data: {
                     title: 'Leituras Realizadas',
                     value: String(quant_leituras),
-                    subtitle: 'Total hoje',
+                    // subtitle: 'Total hoje',
                     icon: 'BookCheck',
                     color: 'text-emerald-500 bg-emerald-50/10'
                 },
@@ -89,7 +88,7 @@ router.get('/agent_dashboard', async (req, res) => {
                     title: 'Leituras Pendentes',
                     value: String(pending.length),
                     icon: 'ClipboardList',
-                    color: pending.length > 0 ? 'text-orange-500 bg-orange-50/10' : 'text-emerald-500 bg-emerald-50/10'
+                    color: pending.length > 0 ? 'text-orange-600 bg-orange-50/10' : 'text-emerald-500 bg-emerald-50/10'
                 },
                 action: { type: 'link', url: '/services?filter=pending' }
             },
@@ -125,21 +124,9 @@ router.get('/agent_dashboard', async (req, res) => {
                     title: 'Percentual de CNL',
                     value: `${percent_cnl.toFixed(1)}%`,
                     icon: 'TrendingUp',
-                    color: percent_cnl > 6 ? 'text-red-500 bg-red-50/10' : 'text-emerald-500 bg-emerald-50/10'
+                    color: 'text-red-500 bg-red-50/10'
                 },
                 action: { type: 'link', url: '/services?filter=cnl' }
-            },
-            {
-                id: 'stat_c12',
-                type: 'statCard',
-                size: { colSpan: 1, rowSpan: 1 },
-                data: {
-                    title: 'Quantidade de C12',
-                    value: String(quant_c12),
-                    icon: 'LayoutList',
-                    color: 'text-emerald-500 bg-emerald-50/10'
-                },
-                action: { type: 'link', url: '/services?filter=c12' }
             },
             {
                 id: 'stat_c12_hora',
@@ -155,25 +142,25 @@ router.get('/agent_dashboard', async (req, res) => {
                 action: { type: 'link', url: '/services?filter=c12_out_time' }
             },
             {
+                id: 'stat_c12',
+                type: 'statCard',
+                size: { colSpan: 2, rowSpan: 1 },
+                data: {
+                    title: 'Total de C12',
+                    value: String(quant_c12),
+                    icon: 'House',
+                    color: 'text-emerald-500 bg-emerald-50/10'
+                },
+                action: { type: 'link', url: '/services?filter=c12' }
+            },
+            {
                 id: 'stat_c12_nova',
                 type: 'statCard',
                 size: { colSpan: 1, rowSpan: 1 },
                 data: {
                     title: 'C12 em Ligação Nova',
                     value: String(licacao_nova_c12),
-                    icon: 'UserPlus',
-                    color: licacao_nova_c12 > 0 ? 'text-red-500 bg-red-50/10' : 'text-emerald-500 bg-emerald-50/10'
-                },
-                action: { type: 'link', url: '/services?filter=c12_ligacao_nova' }
-            },
-            {
-                id: 'stat_c12_ligacao_nova',
-                type: 'statCard',
-                size: { colSpan: 2, rowSpan: 1 },
-                data: {
-                    title: 'C12 em Ligação Nova',
-                    value: String(licacao_nova_c12),
-                    icon: 'UserPlus',
+                    icon: 'HousePlus',
                     color: licacao_nova_c12 > 0 ? 'text-red-500 bg-red-50/10' : 'text-emerald-500 bg-emerald-50/10'
                 },
                 action: { type: 'link', url: '/services?filter=c12_ligacao_nova' }
@@ -189,7 +176,19 @@ router.get('/agent_dashboard', async (req, res) => {
                     color: fast_c12 > 0 ? 'text-red-500 bg-red-50/10' : 'text-emerald-500 bg-emerald-50/10'
                 },
                 action: { type: 'link', url: '/services?filter=fast_c12' }
-            }
+            },
+            {
+                id: 'stat_first_c12',
+                type: 'statCard',
+                size: { colSpan: 1, rowSpan: 1 },
+                data: {
+                    title: 'C12 Entrante',
+                    value: String(first_c12),
+                    icon: 'SearchAlert',
+                    color: first_c12 > 0 ? 'text-red-500 bg-red-50/10' : 'text-emerald-500 bg-emerald-50/10'
+                },
+                action: { type: 'link', url: '/services?filter=first_c12' }
+            },
         ];
 
         res.json({
