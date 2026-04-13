@@ -16,7 +16,15 @@ const {
     update_justify,
     delete_justify,
     get_instalations_matriz,
-    getWeeklyCNLStats
+    getWeeklyCNLStats,
+    respond_pending_justify,
+    get_pending_justify_by_id,
+    get_pending_justifies,
+    delete_pending_justify,
+    save_daily_report,
+    get_daily_reports,
+    get_daily_report_today,
+    delete_daily_report
 } = require('../functions/postgresFunctions');
 const { telegramAuth } = require('../middlewares/telegramAuth');
 const { today, parse_date } = require('../utils/dates');
@@ -506,6 +514,139 @@ router.delete('/delete_justify/:id', async (req, res) => {
             return res.status(404).json({ error: 'Justificativa não encontrada' });
         }
         res.json({ success: true, deleted: result });
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// justify_pending - responder justificativa pré-criada
+router.put('/justify_pending/:id/respond', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const estado = req.colaborador.estado || 'pi';
+        const { motivo, observacao, foto } = req.body;
+
+        const existing = await get_pending_justify_by_id({ id, estado });
+        if (!existing) {
+            return res.status(404).json({ error: 'Justificativa não encontrada' });
+        }
+
+        if (existing.status === 'respondido') {
+            return res.status(409).json({ error: 'Justificativa já foi respondida' });
+        }
+
+        const result = await respond_pending_justify({
+            id,
+            estado,
+            motivo,
+            observacao,
+            foto
+        });
+
+        res.json(result);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// justify_pending - consultar por ID
+router.get('/justify_pending/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const estado = req.colaborador.estado || 'pi';
+
+        const result = await get_pending_justify_by_id({ id, estado });
+        if (!result) {
+            return res.status(404).json({ error: 'Justificativa não encontrada' });
+        }
+        res.json(result);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// justify_pending - listar justificativas (por autor e/ou status)
+router.get('/justify_pending', async (req, res) => {
+    try {
+        const estado = req.colaborador.estado || 'pi';
+        const autor = req.query.autor || req.colaborador.id;
+        const status = req.query.status;
+
+        const result = await get_pending_justifies({ state: estado, autor, status });
+        res.json(result);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// daily_report - criar reporte diário (1 por dia)
+router.post('/daily_report', async (req, res) => {
+    try {
+        const estado = req.colaborador.estado || 'pi';
+        const autor = req.colaborador.id;
+        const { nota, motivo, observacao, foto } = req.body;
+
+        if (!nota || nota < 1 || nota > 5) {
+            return res.status(400).json({ error: 'Nota deve ser entre 1 e 5 estrelas' });
+        }
+
+        const existingToday = await get_daily_report_today({ state: estado, autor });
+        if (existingToday) {
+            return res.status(409).json({ 
+                error: 'Já existe um report diário para hoje',
+                existing: existingToday
+            });
+        }
+
+        const result = await save_daily_report({
+            state: estado,
+            autor,
+            nota,
+            motivo,
+            observacao,
+            foto
+        });
+
+        res.status(201).json(result);
+    } catch (err) {
+        if (err.message.includes('Já existe')) {
+            return res.status(409).json({ error: err.message });
+        }
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// daily_report - listar reportes (por autor e/ou data)
+router.get('/daily_report', async (req, res) => {
+    try {
+        const estado = req.colaborador.estado || 'pi';
+        const autor = req.query.autor || req.colaborador.id;
+        const data = req.query.data;
+        const limit = parseInt(req.query.limit) || 10;
+
+        console.log({ state: estado, autor, data, limit })
+
+        const result = await get_daily_reports({ state: estado, autor, data, limit });
+        res.json(result);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// daily_report - verificar se já existe reporte hoje
+router.get('/daily_report/check_today', async (req, res) => {
+    try {
+        const estado = req.colaborador.estado || 'pi';
+        const autor = req.colaborador.id;
+
+        const result = await get_daily_report_today({ state: estado, autor });
+        res.json({ hasReportToday: !!result, data: result });
     } catch (err) {
         console.log(err);
         res.status(500).json({ error: err.message });

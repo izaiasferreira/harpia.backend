@@ -42,7 +42,16 @@ const {
     update_justify,
     delete_justify,
     get_instalations_matriz,
-    getWeeklyCNLStats
+    getWeeklyCNLStats,
+    pre_create_pending_justify,
+    respond_pending_justify,
+    get_pending_justify_by_id,
+    get_pending_justifies,
+    delete_pending_justify,
+    save_daily_report,
+    get_daily_reports,
+    get_daily_report_today,
+    delete_daily_report
 } = require('./database/agentes');
 const { lastUpdate } = require('./database/status');
 
@@ -79,5 +88,14 @@ module.exports = {
     get_justify,
     update_justify,
     delete_justify,
-    getWeeklyCNLStats
+    getWeeklyCNLStats,
+    pre_create_pending_justify,
+    respond_pending_justify,
+    get_pending_justify_by_id,
+    get_pending_justifies,
+    delete_pending_justify,
+    save_daily_report,
+    get_daily_reports,
+    get_daily_report_today,
+    delete_daily_report
 };

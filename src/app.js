@@ -53,6 +53,7 @@ const revalidateRouter = require('./routes/revalidate');
 const agenteRouter = require('./routes/agente')
 const logsRouter = require('./routes/logs')
 const publicRouter = require('./routes/public')
+const agentDefaultAuthRouter = require('./routes/agentDefaultAuth')
 
 // Health check agora em public.js
 // Rotas públicas (calendar, feriados)
@@ -66,6 +67,9 @@ app.use('/', webhooksRouter);
 
 // Revalidacao
 app.use('/', revalidateRouter);
+
+// Agent Default Auth (sem telegram auth)
+app.use('/', agentDefaultAuthRouter)
 
 app.use('/', agenteRouter)
 

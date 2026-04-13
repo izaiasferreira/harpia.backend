@@ -587,6 +587,222 @@ Deleta uma justificativa pelo ID.
 
 ---
 
+### Justify Pending (Pré-criação)
+
+**Autenticação:** Token simples (`?token=API_TOKEN`)
+
+---
+
+#### `POST /justify_pending`
+Pré-cria uma justificativa de pendências do dia.
+
+**Body:**
+```json
+{
+    "autor": "AG001",
+    "estado": "pi",
+    "quantidade": 5,
+    "foto": "https://exemplo.com/foto.jpg"
+}
+```
+
+**Retorno (sucesso):**
+```json
+{
+    "id": 1,
+    "autor": "AG001",
+    "quantidade": 5,
+    "motivo": null,
+    "observacao": null,
+    "foto": null,
+    "estado": "pi",
+    "status": "pendente",
+    "created_at": "2026-04-13T10:00:00.000Z",
+    "updated_at": "2026-04-13T10:00:00.000Z"
+}
+```
+
+**Erros:**
+- `400` — Autor, estado e quantidade são obrigatórios
+- `401` — Token inválido
+
+---
+
+### Justify Pending (Resposta)
+
+**Autenticação:** Telegram Auth (middleware `telegramAuth`)
+
+---
+
+#### `GET /justify_pending/:id`
+Consulta uma justificativa de pendências pelo ID.
+
+**URL Params:**
+
+| Param | Tipo | Descrição |
+|---|---|---|
+| `id` | number | ID da justificativa |
+
+**Retorno (sucesso):** Objeto da justificativa.
+
+**Erros:**
+- `404` — Justificativa não encontrada
+
+---
+
+#### `PUT /justify_pending/:id/respond`
+Responde uma justificativa de pendências pré-criada.
+
+**URL Params:**
+
+| Param | Tipo | Descrição |
+|---|---|---|
+| `id` | number | ID da justificativa |
+
+**Body:**
+```json
+{
+    "motivo": "Falta de veículo",
+    "observacao": "Veículo quebrou durante a rota",
+    "foto": "https://exemplo.com/foto.jpg"
+}
+```
+
+**Retorno (sucesso):** Objeto da justificativa atualizada com status "respondido".
+
+**Erros:**
+- `404` — Justificativa não encontrada
+- `409` — Justificativa já foi respondida
+
+---
+
+#### `GET /justify_pending`
+Lista justificativas de pendências por autor e/ou status.
+
+**Query Params:**
+
+| Param | Tipo | Descrição |
+|---|---|---|
+| `autor` | string | (opcional) Filtrar por autor |
+| `status` | string | (opcional) Filtrar por status: "pendente" ou "respondido" |
+
+**Retorno (sucesso):** Array de justificativas.
+
+---
+
+#### `DELETE /justify_pending/:id`
+Deleta uma justificativa de pendências pelo ID.
+
+**URL Params:**
+
+| Param | Tipo | Descrição |
+|---|---|---|
+| `id` | number | ID da justificativa a deletar |
+
+**Retorno (sucesso):**
+```json
+{
+    "success": true,
+    "deleted": { "id": 1, "autor": "AG001", ... }
+}
+```
+
+**Erros:**
+- `404` — Justificativa não encontrada
+
+---
+
+### Daily Report
+
+**Autenticação:** Telegram Auth (middleware `telegramAuth`)
+
+---
+
+#### `POST /daily_report`
+Cria um reporte diário de performance (1 por dia).
+
+**Body:**
+```json
+{
+    "nota": 4,
+    "motivo": "Boa performance",
+    "observacao": "Concluiu todas as tarefas",
+    "foto": "https://exemplo.com/foto.jpg"
+}
+```
+
+**Retorno (sucesso):**
+```json
+{
+    "id": 1,
+    "autor": "AG001",
+    "nota": 4,
+    "motivo": "Boa performance",
+    "observacao": "Concluiu todas as tarefas",
+    "foto": null,
+    "estado": "pi",
+    "data_report": "2026-04-13",
+    "created_at": "2026-04-13T10:00:00.000Z",
+    "updated_at": "2026-04-13T10:00:00.000Z"
+}
+```
+
+**Erros:**
+- `400` — Nota deve ser entre 1 e 5
+- `409` — Já existe um report diário para hoje
+
+---
+
+#### `GET /daily_report`
+Lista reportes diários por autor e/ou data.
+
+**Query Params:**
+
+| Param | Tipo | Descrição |
+|---|---|---|
+| `autor` | string | (opcional) Filtrar por autor |
+| `data` | string | (opcional) Filtrar por data (YYYY-MM-DD) |
+| `limit` | number | (opcional) Limite de resultados (padrão: 10) |
+
+**Retorno (sucesso):** Array de reportes.
+
+---
+
+#### `GET /daily_report/check_today`
+Verifica se já existe um reporte diário para hoje.
+
+**Retorno (sucesso):**
+```json
+{
+    "hasReportToday": true,
+    "data": { "id": 1, "nota": 4, ... }
+}
+```
+
+---
+
+#### `DELETE /daily_report/:id`
+Deleta um reporte diário pelo ID.
+
+**URL Params:**
+
+| Param | Tipo | Descrição |
+|---|---|---|
+| `id` | number | ID do reporte a deletar |
+
+**Retorno (sucesso):**
+```json
+{
+    "success": true,
+    "deleted": { "id": 1, "autor": "AG001", ... }
+}
+```
+
+**Erros:**
+- `404` — Report não encontrado
+
+---
+
 ### Revalidação
 
 **Autenticação:** Token simples (`?token=API_TOKEN`)

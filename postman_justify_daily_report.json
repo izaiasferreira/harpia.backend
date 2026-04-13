@@ -1,0 +1,234 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "API Banco - Justify Pending & Daily Report",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "justify_pending (Pré-criação - Token Simples)",
+			"item": [
+				{
+					"name": "Pré-criar justificativa",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"autor\": \"AG001\",\n    \"estado\": \"pi\",\n    \"quantidade\": 5,\n    \"foto\": \"https://exemplo.com/foto.jpg\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/justify_pending?token={{apiToken}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["justify_pending"],
+							"query": [
+								{
+									"key": "token",
+									"value": "{{apiToken}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "justify_pending (Telegram Auth)",
+			"item": [
+				{
+					"name": "Consultar por ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/justify_pending/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["justify_pending", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Responder justificativa",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"motivo\": \"Falta de veículo\",\n    \"observacao\": \"Veículo quebrou durante a rota\",\n    \"foto\": \"https://exemplo.com/foto2.jpg\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/justify_pending/:id/respond",
+							"host": ["{{baseUrl}}"],
+							"path": ["justify_pending", ":id", "respond"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Listar justificativas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/justify_pending?autor=AG001&status=pendente",
+							"host": ["{{baseUrl}}"],
+							"path": ["justify_pending"],
+							"query": [
+								{
+									"key": "autor",
+									"value": "AG001"
+								},
+								{
+									"key": "status",
+									"value": "pendente"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Deletar justificativa",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/justify_pending/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["justify_pending", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "daily_report (Telegram Auth)",
+			"item": [
+				{
+					"name": "Criar reporte diário",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nota\": 4,\n    \"motivo\": \"Boa performance\",\n    \"observacao\": \"Concluiu todas as tarefas\",\n    \"foto\": \"https://exemplo.com/foto.jpg\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/daily_report",
+							"host": ["{{baseUrl}}"],
+							"path": ["daily_report"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Listar reportes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/daily_report?autor=AG001&data=2026-04-13&limit=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["daily_report"],
+							"query": [
+								{
+									"key": "autor",
+									"value": "AG001"
+								},
+								{
+									"key": "data",
+									"value": "2026-04-13"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verificar reporte de hoje",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/daily_report/check_today",
+							"host": ["{{baseUrl}}"],
+							"path": ["daily_report", "check_today"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Deletar reporte",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/daily_report/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["daily_report", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000/api/agente",
+			"type": "string"
+		},
+		{
+			"key": "apiToken",
+			"value": "SEU_TOKEN_AQUI",
+			"type": "string"
+		}
+	]
+}

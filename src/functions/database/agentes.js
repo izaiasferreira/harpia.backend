@@ -552,6 +552,271 @@ async function getWeeklyCNLStats({ state = 'pi', id, date = today() }) {
     return { labels, series: values };
 }
 
+// ─── justify_pending ───────────────────────────────────────────────────────────
+async function pre_create_pending_justify({
+    state = 'pi',
+    autor,
+    quantidade,
+    foto,
+    created_at = new Date(),
+    updated_at = new Date()
+}) {
+    const pool = state === 'pi' ? pi_pool : ma_pool;
+
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS justify_pending (
+            id SERIAL PRIMARY KEY,
+            autor TEXT NOT NULL,
+            quantidade INTEGER NOT NULL,
+            motivo TEXT,
+            observacao TEXT,
+            foto TEXT,
+            estado TEXT DEFAULT 'pi',
+            status TEXT DEFAULT 'pendente' CHECK (status IN ('pendente', 'respondido')),
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+    await pool.query(createTableQuery);
+
+    const insertQuery = `
+        INSERT INTO justify_pending (autor, quantidade, foto, estado, status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, 'pendente', $5, $6)
+        RETURNING *;
+    `;
+    const { rows } = await pool.query(insertQuery, [autor.toLowerCase(), quantidade, foto, state.toLowerCase(), created_at, updated_at]);
+    return rows[0];
+}
+
+async function respond_pending_justify({
+    id,
+    estado = 'pi',
+    motivo,
+    observacao,
+    foto,
+    updated_at = new Date()
+}) {
+    const activeState = (estado || 'pi').toLowerCase();
+    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS justify_pending (
+            id SERIAL PRIMARY KEY,
+            autor TEXT NOT NULL,
+            quantidade INTEGER NOT NULL,
+            motivo TEXT,
+            observacao TEXT,
+            foto TEXT,
+            estado TEXT DEFAULT 'pi',
+            status TEXT DEFAULT 'pendente' CHECK (status IN ('pendente', 'respondido')),
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+    await pool.query(createTableQuery);
+
+    const updateQuery = `
+        UPDATE justify_pending 
+        SET motivo = $1, observacao = $2, foto = COALESCE($3, foto), status = 'respondido', updated_at = $4
+        WHERE id = $5
+        RETURNING *;
+    `;
+    const { rows } = await pool.query(updateQuery, [motivo, observacao, foto, updated_at, id]);
+    return rows[0] || null;
+}
+
+async function get_pending_justify_by_id({ id, estado = 'pi' }) {
+    const activeState = (estado || 'pi').toLowerCase();
+    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS justify_pending (
+            id SERIAL PRIMARY KEY,
+            autor TEXT NOT NULL,
+            quantidade INTEGER NOT NULL,
+            motivo TEXT,
+            observacao TEXT,
+            foto TEXT,
+            estado TEXT DEFAULT 'pi',
+            status TEXT DEFAULT 'pendente' CHECK (status IN ('pendente', 'respondido')),
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+    await pool.query(createTableQuery);
+
+    const query = `SELECT * FROM justify_pending WHERE id = $1;`;
+    const { rows } = await pool.query(query, [id]);
+    return rows[0] || null;
+}
+
+async function get_pending_justifies({ state = 'pi', autor, status }) {
+    const pool = state === 'pi' ? pi_pool : ma_pool;
+
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS justify_pending (
+            id SERIAL PRIMARY KEY,
+            autor TEXT NOT NULL,
+            quantidade INTEGER NOT NULL,
+            motivo TEXT,
+            observacao TEXT,
+            foto TEXT,
+            estado TEXT DEFAULT 'pi',
+            status TEXT DEFAULT 'pendente' CHECK (status IN ('pendente', 'respondido')),
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+    await pool.query(createTableQuery);
+
+    let query = `SELECT * FROM justify_pending WHERE 1=1`;
+    const params = [];
+
+    if (autor) {
+        params.push(autor.trim().toLowerCase());
+        query += ` AND LOWER(autor) = $${params.length}`;
+    }
+    if (status) {
+        params.push(status.trim().toLowerCase());
+        query += ` AND LOWER(status) = $${params.length}`;
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
+async function delete_pending_justify({ id, estado = 'pi' }) {
+    const activeState = (estado || 'pi').toLowerCase();
+    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+
+    const sql = `DELETE FROM justify_pending WHERE id = $1 RETURNING *;`;
+    const { rows } = await pool.query(sql, [id]);
+    if (rows.length === 0) return null;
+    return rows[0];
+}
+
+// ─── daily_report ───────────────────────────────────────────────────────────
+async function save_daily_report({
+    state = 'pi',
+    autor,
+    nota,
+    motivo,
+    observacao,
+    foto,
+    created_at = new Date(),
+    updated_at = new Date()
+}) {
+    const pool = state === 'pi' ? pi_pool : ma_pool;
+
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS daily_report (
+            id SERIAL PRIMARY KEY,
+            autor TEXT NOT NULL,
+            nota INTEGER NOT NULL CHECK (nota >= 1 AND nota <= 5),
+            motivo TEXT,
+            observacao TEXT,
+            foto TEXT,
+            estado TEXT DEFAULT 'pi',
+            data_report DATE DEFAULT CURRENT_DATE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+    await pool.query(createTableQuery);
+
+    const existingQuery = `
+        SELECT id FROM daily_report 
+        WHERE LOWER(autor) = LOWER($1) AND DATE(created_at) = CURRENT_DATE;
+    `;
+    const existing = await pool.query(existingQuery, [autor.toLowerCase()]);
+    if (existing.rows.length > 0) {
+        throw new Error('Já existe um report diário para hoje');
+    }
+
+    const insertQuery = `
+        INSERT INTO daily_report (autor, nota, motivo, observacao, foto, estado, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *;
+    `;
+    const { rows } = await pool.query(insertQuery, [autor.toLowerCase(), nota, motivo, observacao, foto, state.toLowerCase(), created_at, updated_at]);
+    return rows[0];
+}
+
+async function get_daily_reports({ state = 'pi', autor, data, limit = 10 }) {
+    const pool = state === 'pi' ? pi_pool : ma_pool;
+
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS daily_report (
+            id SERIAL PRIMARY KEY,
+            autor TEXT NOT NULL,
+            nota INTEGER NOT NULL CHECK (nota >= 1 AND nota <= 5),
+            motivo TEXT,
+            observacao TEXT,
+            foto TEXT,
+            estado TEXT DEFAULT 'pi',
+            data_report DATE DEFAULT CURRENT_DATE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+    await pool.query(createTableQuery);
+
+    let query = `SELECT * FROM daily_report WHERE 1=1`;
+    const params = [];
+
+    if (autor) {
+        params.push(autor.trim().toLowerCase());
+        query += ` AND LOWER(autor) = $${params.length}`;
+    }
+    if (data) {
+        params.push(data.trim());
+        query += ` AND DATE(created_at) = TO_DATE($${params.length}, 'YYYY-MM-DD')`;
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT ${parseInt(limit) || 10}`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
+async function get_daily_report_today({ state = 'pi', autor }) {
+    const pool = state === 'pi' ? pi_pool : ma_pool;
+
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS daily_report (
+            id SERIAL PRIMARY KEY,
+            autor TEXT NOT NULL,
+            nota INTEGER NOT NULL CHECK (nota >= 1 AND nota <= 5),
+            motivo TEXT,
+            observacao TEXT,
+            estado TEXT DEFAULT 'pi',
+            data_report DATE DEFAULT CURRENT_DATE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+    await pool.query(createTableQuery);
+
+    const query = `
+        SELECT * FROM daily_report 
+        WHERE LOWER(autor) = LOWER($1) AND DATE(created_at) = CURRENT_DATE;
+    `;
+    const { rows } = await pool.query(query, [autor.toLowerCase()]);
+    return rows[0] || null;
+}
+
+async function delete_daily_report({ id, estado = 'pi' }) {
+    const activeState = (estado || 'pi').toLowerCase();
+    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+
+    const sql = `DELETE FROM daily_report WHERE id = $1 RETURNING *;`;
+    const { rows } = await pool.query(sql, [id]);
+    if (rows.length === 0) return null;
+    return rows[0];
+}
+
 module.exports = {
     getLeiturasForAgent,
     getLeiturasPendingForAgent,
@@ -564,5 +829,14 @@ module.exports = {
     get_justify,
     update_justify,
     delete_justify,
-    getWeeklyCNLStats
+    getWeeklyCNLStats,
+    pre_create_pending_justify,
+    respond_pending_justify,
+    get_pending_justify_by_id,
+    get_pending_justifies,
+    delete_pending_justify,
+    save_daily_report,
+    get_daily_reports,
+    get_daily_report_today,
+    delete_daily_report
 };
