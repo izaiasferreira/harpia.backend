@@ -41,7 +41,8 @@ const {
     get_justify,
     update_justify,
     delete_justify,
-    get_instalations_matriz
+    get_instalations_matriz,
+    getWeeklyCNLStats
 } = require('./database/agentes');
 const { lastUpdate } = require('./database/status');
 
@@ -77,5 +78,6 @@ module.exports = {
     save_justify,
     get_justify,
     update_justify,
-    delete_justify
+    delete_justify,
+    getWeeklyCNLStats
 };

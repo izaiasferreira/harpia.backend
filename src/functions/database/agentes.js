@@ -22,6 +22,7 @@ function orderLeituras(rows) {
         const s = diff % 60;
 
         r.tempo_execucao = [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
+        r.tempo_segundos = diff;
         r.data_conclusao = dt.toLocaleDateString('pt-BR');
         r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
         r.time = dt.toLocaleTimeString('pt-BR', { hour12: false });
@@ -506,6 +507,51 @@ async function delete_justify({ id, estado = 'pi' }) {
     return rows[0];
 }
 
+async function getWeeklyCNLStats({ state = 'pi', id, date = today() }) {
+    // Converte a string date (DD.MM.YYYY) para objeto Date para saber o dia da semana no JS
+    const [d, m, y] = date.split('.');
+    const target_date = new Date(y, m - 1, d);
+    // ISODOW 1(Seg)-7(Dom). JS getDay 0(Dom)-6(Sab).
+    const currentDayIso = target_date.getDay() === 0 ? 7 : target_date.getDay();
+    
+    const query = `
+        SELECT 
+            EXTRACT(ISODOW FROM data_conclusao)::INTEGER as dow,
+            COUNT(*)::INTEGER as total
+        FROM matriz
+        WHERE agente IN ($1, $2)
+        AND data_conclusao >= date_trunc('week', TO_DATE($3, 'DD/MM/YYYY'))
+        AND data_conclusao < date_trunc('week', TO_DATE($3, 'DD/MM/YYYY')) + interval '6 days'
+        AND ntlei NOT LIKE 'A%'
+        AND ntlei NOT IN ('B09', 'B10', 'B15')
+        GROUP BY 1
+        ORDER BY 1;
+    `;
+
+    const { rows } = state === 'pi' 
+        ? await pi_pool.query(query, [id.toUpperCase(), id.toLowerCase(), date]) 
+        : await ma_pool.query(query, [id.toUpperCase(), id.toLowerCase(), date]);
+
+    const labels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+    const values = [0, 0, 0, 0, 0, 0];
+
+    rows.forEach(r => {
+        if (r.dow >= 1 && r.dow <= 6) {
+            values[r.dow - 1] = r.total;
+        }
+    });
+
+    // Zera dias futuros conforme regra: "se hoje é quinta, mostra de segunda a quinta... e o resto não"
+    for (let i = 0; i < 6; i++) {
+        const dayIso = i + 1;
+        if (dayIso > currentDayIso) {
+            values[i] = 0;
+        }
+    }
+
+    return { labels, series: values };
+}
+
 module.exports = {
     getLeiturasForAgent,
     getLeiturasPendingForAgent,
@@ -517,5 +563,6 @@ module.exports = {
     save_justify,
     get_justify,
     update_justify,
-    delete_justify
+    delete_justify,
+    getWeeklyCNLStats
 };

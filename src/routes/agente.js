@@ -15,7 +15,8 @@ const {
     get_justify,
     update_justify,
     delete_justify,
-    get_instalations_matriz
+    get_instalations_matriz,
+    getWeeklyCNLStats
 } = require('../functions/postgresFunctions');
 const { telegramAuth } = require('../middlewares/telegramAuth');
 const { today, parse_date } = require('../utils/dates');
@@ -29,17 +30,43 @@ router.get('/agent_dashboard', async (req, res) => {
         const today_date = req.query.date || today();
 
         // Buscar dados reais em paralelo
-        const [result, pending, licacao_nova_c12_rows, fast_c12_rows, first_c12_rows] = await Promise.all([
+        const [result, pending, licacao_nova_c12_rows, fast_c12_rows, first_c12_rows, weekly_cnl_stats] = await Promise.all([
             getLeiturasForAgent({ state, id, date: today_date, limit: 99999 }),
             getLeiturasPendingForAgent({ state, id, date: today_date, limit: 99999 }),
             licacaoNovaC12ForAgent({ state, id, date: today_date }),
             fastC12ForAgent({ state, id, date: today_date }),
-            firstC12ForAgent({ state, id, date: today_date })
+            firstC12ForAgent({ state, id, date: today_date }),
+            getWeeklyCNLStats({ state, id, date: today_date })
         ]);
-
         const licacao_nova_c12 = licacao_nova_c12_rows.length || 0;
         const fast_c12 = fast_c12_rows.length || 0;
         const first_c12 = first_c12_rows.length || 0;
+
+        const hourly_map = {};
+        result.forEach(r => {
+            if (r.hora_conclusao) {
+                const hour = r.hora_conclusao.split(':')[0] + 'h';
+                hourly_map[hour] = (hourly_map[hour] || 0) + 1;
+            }
+        });
+
+        const hourly_dataset = Object.keys(hourly_map)
+            .sort((a, b) => parseInt(a) - parseInt(b))
+            .map(hour => ({ label: hour, value: parseInt(hourly_map[hour]) }));
+
+        const total_segundos = result.reduce((acc, r) => acc + (r.tempo_segundos || 0), 0);
+        const pausa_segundos = result.filter(r => (r.tempo_segundos || 0) > 1200).reduce((acc, r) => acc + r.tempo_segundos, 0);
+        const efetivo_segundos = total_segundos - pausa_segundos;
+
+        const format_time = (s) => {
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        };
+
+        const total_time_fmt = format_time(total_segundos);
+        const pause_time_fmt = format_time(pausa_segundos);
+        const work_time_fmt = format_time(efetivo_segundos);
 
         const quant_leituras = result.length || 0;
         const cnl = result.filter(r => !r.ntlei.startsWith('A') && !['B09', 'B10', 'B15'].includes(r.ntlei)).length || 0;
@@ -72,25 +99,24 @@ router.get('/agent_dashboard', async (req, res) => {
                 type: 'statCard',
                 size: { colSpan: 1, rowSpan: 1 },
                 data: {
-                    title: 'Leituras Realizadas',
+                    title: 'Leituras',
                     value: String(quant_leituras),
-                    // subtitle: 'Total hoje',
                     icon: 'BookCheck',
                     color: 'text-emerald-500 bg-emerald-50/10'
                 },
                 action: { type: 'link', url: '/services?filter=all' }
             },
             {
-                id: 'stat_pendentes',
+                id: 'stat_pendencias',
                 type: 'statCard',
                 size: { colSpan: 1, rowSpan: 1 },
                 data: {
-                    title: 'Leituras Pendentes',
+                    title: 'Pendências',
                     value: String(pending.length),
-                    icon: 'ClipboardList',
-                    color: pending.length > 0 ? 'text-orange-600 bg-orange-50/10' : 'text-emerald-500 bg-emerald-50/10'
+                    icon: 'AlertTriangle',
+                    color: 'text-red-500 bg-red-50/10'
                 },
-                action: { type: 'link', url: '/services?filter=pending' }
+                action: { type: 'link', url: '/services?filter=all' }
             },
             {
                 id: 'stat_perdas',
@@ -100,9 +126,53 @@ router.get('/agent_dashboard', async (req, res) => {
                     title: 'Perdas Geradas',
                     value: `${perdas} Kwh`,
                     icon: 'Zap',
-                    color: perdas > 0 ? 'text-red-500 bg-red-50/10' : 'text-emerald-500 bg-emerald-50/10'
+                    color: 'text-yellow-500 bg-yellow-50/10'
                 },
                 action: { type: 'link', url: '/perdas' }
+            },
+            {
+                id: 'chart_producao_hora',
+                type: 'chartCard',
+                size: { colSpan: 3, rowSpan: 1 },
+                data: {
+                    chartType: 'line',
+                    title: 'Leituras por Hora',
+                    dataset: hourly_dataset
+                },
+            },
+            {
+                id: 'stat_total_time',
+                type: 'statCard',
+                size: { colSpan: 1, rowSpan: 1 },
+                data: {
+                    title: 'Tempo Total de Trabalho',
+                    value: total_time_fmt,
+                    icon: 'Clock',
+                    color: ' bg-emerald-50/10'
+                },
+                action: { type: 'link', url: '/services?filter=all' }
+            },
+            {
+                id: 'stat_pause_time',
+                type: 'statCard',
+                size: { colSpan: 1, rowSpan: 1 },
+                data: {
+                    title: 'Tempo em Pausa',
+                    value: pause_time_fmt,
+                    icon: 'Coffee',
+                    color: 'text-orange-500 bg-orange-50/10'
+                }
+            },
+            {
+                id: 'stat_work_time',
+                type: 'statCard',
+                size: { colSpan: 1, rowSpan: 1 },
+                data: {
+                    title: 'Tempo Efetivo',
+                    value: work_time_fmt,
+                    icon: 'Zap',
+                    color: 'bg-emerald-50/10'
+                }
             },
             {
                 id: 'stat_cnl',
@@ -129,6 +199,22 @@ router.get('/agent_dashboard', async (req, res) => {
                 action: { type: 'link', url: '/services?filter=cnl' }
             },
             {
+                id: 'chart_cnl_semana',
+                type: 'chartCard',
+                size: { colSpan: 3, rowSpan: 1 },
+                data: {
+                    chartType: 'line',
+                    title: 'CNL da semana',
+                    dataset:
+                        weekly_cnl_stats['labels'].map((label, i) => {
+                            return {
+                                label: label,
+                                value: parseInt(weekly_cnl_stats['series'][i])
+                            }
+                        })
+                },
+            },
+            {
                 id: 'stat_c12_hora',
                 type: 'statCard',
                 size: { colSpan: 1, rowSpan: 1 },
@@ -149,7 +235,7 @@ router.get('/agent_dashboard', async (req, res) => {
                     title: 'Total de C12',
                     value: String(quant_c12),
                     icon: 'House',
-                    color: 'text-emerald-500 bg-emerald-50/10'
+                    color: 'text-red-500 bg-red-50/10'
                 },
                 action: { type: 'link', url: '/services?filter=c12' }
             },
