@@ -43,6 +43,7 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(logMiddleware);
 app.use(express.static('public'));
 
@@ -54,6 +55,7 @@ const agenteRouter = require('./routes/agente')
 const logsRouter = require('./routes/logs')
 const publicRouter = require('./routes/public')
 const agentDefaultAuthRouter = require('./routes/agentDefaultAuth')
+const uploadRouter = require('./routes/upload')
 
 // Health check agora em public.js
 // Rotas públicas (calendar, feriados)
@@ -70,6 +72,9 @@ app.use('/', revalidateRouter);
 
 // Agent Default Auth (sem telegram auth)
 app.use('/', agentDefaultAuthRouter)
+
+// Upload de arquivos para MinIO/S3
+app.use('/', uploadRouter)
 
 app.use('/', agenteRouter)
 
