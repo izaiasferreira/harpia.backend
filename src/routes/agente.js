@@ -515,6 +515,25 @@ router.post('/inventory', async (req, res) => {
             return res.status(400).json({ error: 'Agente é obrigatório' });
         }
 
+        const required = [
+            { campo: 'pda_imei_1', valor: pda_imei_1, nome: 'IMEI 1 do PDA' },
+            { campo: 'pda_numero_serie', valor: pda_numero_serie, nome: 'Número de série do PDA' },
+            { campo: 'pda_marca', valor: pda_marca, nome: 'Marca do PDA' },
+            { campo: 'pda_modelo', valor: pda_modelo, nome: 'Modelo do PDA' },
+            { campo: 'impressora_numero_serie', valor: impressora_numero_serie, nome: 'Número de série da impressora' },
+            { campo: 'impressora_marca', valor: impressora_marca, nome: 'Marca da impressora' },
+            { campo: 'impressora_modelo', valor: impressora_modelo, nome: 'Modelo da impressora' },
+            { campo: 'pda_versao_android', valor: pda_versao_android, nome: 'Versão do Android' }
+        ];
+
+        const faltantes = required.filter(o => !o.valor || o.valor.trim() === '');
+        if (faltantes.length > 0) {
+            return res.status(400).json({ 
+                error: 'Campos obrigatórios não preenchidos',
+                campos: faltantes.map(f => f.nome)
+            });
+        }
+
         const result = await save_inventory({
             state: estado,
             agente,
