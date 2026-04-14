@@ -612,16 +612,29 @@ Pré-cria uma justificativa de pendências do dia.
     "autor": "AG001",
     "estado": "pi",
     "quantidade": 5,
+    "tipo": "cnl",
+    "unidade_leitura": "1234567",
     "foto": "https://exemplo.com/foto.jpg"
 }
 ```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `autor` | string | **Sim** | Matrícula do agente |
+| `estado` | string | **Sim** | Estado (`pi` ou `ma`) |
+| `quantidade` | number | **Sim** | Quantidade de pendências |
+| `tipo` | string | Não | Tipo de pendência (`cnl`, `c12`, etc.) |
+| `unidade_leitura` | string | Não | Código da unidade de leitura |
+| `foto` | string | Não | URL da foto |
 
 **Retorno (sucesso):**
 ```json
 {
     "id": 1,
-    "autor": "AG001",
+    "autor": "ag001",
     "quantidade": 5,
+    "tipo": "cnl",
+    "unidade_leitura": "1234567",
     "motivo": null,
     "observacao": null,
     "foto": null,

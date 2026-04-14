@@ -1,5 +1,6 @@
 const { pi_pool, ma_pool, localizacoes_pi_pool } = require('../../db');
 const { today } = require('../../utils/dates');
+const { fastC12ForAgent } = require('./c12');
 
 // ─── orderLeituras (Helper) ───────────────────────────────────────────────────
 function orderLeituras(rows) {
@@ -144,26 +145,9 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
     }
 
     if (filter === 'fast_c12') {
-        const query_all = `
-            WITH historico_completo AS (
-                SELECT 
-                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
-                FROM matriz
-                WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
-                AND ntlei = 'C12'
-                AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
-            )
-            SELECT *
-            FROM historico_completo
-            LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
-        const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        const rows = await fastC12ForAgent({state, id, date, limit, page})
         if (rows.length === 0) return [];
-        const ordered = orderLeituras(rows);
-        result.push(...ordered.filter(r => {
-            const parts = r.tempo_execucao.split(':');
-            const totalSeconds = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
-            return totalSeconds < 60;
-        }));
+        return rows;
 
     }
 
@@ -557,6 +541,8 @@ async function pre_create_pending_justify({
     state = 'pi',
     autor,
     quantidade,
+    tipo,
+    unidade_leitura,
     foto,
     created_at = new Date(),
     updated_at = new Date()
@@ -568,6 +554,8 @@ async function pre_create_pending_justify({
             id SERIAL PRIMARY KEY,
             autor TEXT NOT NULL,
             quantidade INTEGER NOT NULL,
+            tipo TEXT,
+            unidade_leitura TEXT,
             motivo TEXT,
             observacao TEXT,
             foto TEXT,
@@ -580,11 +568,11 @@ async function pre_create_pending_justify({
     await pool.query(createTableQuery);
 
     const insertQuery = `
-        INSERT INTO justify_pending (autor, quantidade, foto, estado, status, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, 'pendente', $5, $6)
+        INSERT INTO justify_pending (autor, quantidade, tipo, unidade_leitura, foto, estado, status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, 'pendente', $7, $8)
         RETURNING *;
     `;
-    const { rows } = await pool.query(insertQuery, [autor.toLowerCase(), quantidade, foto, state.toLowerCase(), created_at, updated_at]);
+    const { rows } = await pool.query(insertQuery, [autor.toLowerCase(), quantidade, tipo, unidade_leitura, foto, state.toLowerCase(), created_at, updated_at]);
     return rows[0];
 }
 

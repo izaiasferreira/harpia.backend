@@ -23,7 +23,6 @@ const {
     save_daily_report,
     get_daily_reports,
     get_daily_report_today,
-    delete_daily_report,
     get_inventory_by_agent,
     save_inventory
 } = require('../functions/postgresFunctions');
@@ -31,9 +30,10 @@ const { minioClient, BUCKET_NAME, ensureBucketExists, getPublicUrl } = require('
 const { telegramAuth } = require('../middlewares/telegramAuth');
 const { today, parse_date } = require('../utils/dates');
 const multer = require('multer');
+const { generateDashboard } = require('../functions/generateDashboard');
 
 const storage = multer.memoryStorage();
-const upload = multer({ 
+const upload = multer({
     storage,
     limits: { fileSize: 10 * 1024 * 1024 }
 });
@@ -92,251 +92,30 @@ router.get('/agent_dashboard', async (req, res) => {
         const quant_c12 = result.filter(r => r.ntlei === 'C12').length || 0;
         const quant_c12_out_hour = result.filter(r => r.ntlei === 'C12' && parseInt(r.hora_conclusao.split(':')[0]) < 8).length || 0;
 
-        let widgets = [
-            {
-                id: 'banner_promo',
-                type: 'bannerCarousel',
-                size: { colSpan: 3, rowSpan: 1 },
-                data: {
-                    autoSlideInterval: 5000,
-                    banners: [
-                        {
-                            imageUrl: 'https://litter.catbox.moe/7qafg3.png',
-                            action: { type: 'link', url: '/inventory' }
-                        },
-                        {
-                            imageUrl: 'https://litter.catbox.moe/22q59u.png',
-                            action: { type: 'link', url: `https://forms.cattalk.com.br/form/satisfacao-ceneged-bot?id=${id}` }
-                        },
-                        {
-                            imageUrl: 'https://litter.catbox.moe/z9zjpw.png',
-                            action: { type: 'link', url: '' }
-                        },
-                        state === 'pi' && {
-                            imageUrl: 'https://litter.catbox.moe/y62ct7.png',
-                            action: { type: 'link', url: '/search' }
-                        }
-                    ]
-                },
-            },
-            {
-                id: 'stat_leituras',
-                type: 'statCard',
-                size: { colSpan: 1, rowSpan: 1 },
-                data: {
-                    title: 'Leituras',
-                    value: String(quant_leituras),
-                    icon: 'BookCheck',
-                    color: 'text-emerald-500 bg-emerald-50/10'
-                },
-                action: { type: 'link', url: '/services?filter=all' }
-            },
-            {
-                id: 'stat_pendencias',
-                type: 'statCard',
-                size: { colSpan: 1, rowSpan: 1 },
-                data: {
-                    title: 'Pendências',
-                    value: String(pending.length),
-                    icon: 'AlertTriangle',
-                    color: 'text-red-500 bg-red-50/10'
-                },
-                action: { type: 'link', url: '/services?filter=all' }
-            },
-            {
-                id: 'stat_perdas',
-                type: 'statCard',
-                size: { colSpan: 1, rowSpan: 1 },
-                data: {
-                    title: 'Perdas Geradas',
-                    value: `${perdas} Kwh`,
-                    icon: 'Zap',
-                    color: 'text-yellow-500 bg-yellow-50/10'
-                },
-                action: { type: 'link', url: '/perdas' }
-            },
-            {
-                id: 'chart_producao_hora',
-                type: 'chartCard',
-                size: { colSpan: 3, rowSpan: 1 },
-                data: {
-                    chartType: 'bar',
-                    title: 'Leituras por Hora',
-                    dataset: hourly_dataset
-                },
-            },
-            {
-                id: 'stat_total_time',
-                type: 'statCard',
-                size: { colSpan: 1, rowSpan: 1 },
-                data: {
-                    title: 'Tempo Total de Trabalho',
-                    value: total_time_fmt,
-                    icon: 'Clock',
-                    color: 'text-blue-500 bg-blue-50/10'
-                },
-                action: { type: 'link', url: '/services?filter=all' }
-            },
-            {
-                id: 'stat_pause_time',
-                type: 'statCard',
-                size: { colSpan: 1, rowSpan: 1 },
-                data: {
-                    title: 'Tempo em Pausa',
-                    value: pause_time_fmt,
-                    icon: 'CirclePause',
-                    color: 'text-blue-500 bg-blue-50/10'
-                }
-            },
-            {
-                id: 'stat_work_time',
-                type: 'statCard',
-                size: { colSpan: 1, rowSpan: 1 },
-                data: {
-                    title: 'Tempo Efetivo',
-                    value: work_time_fmt,
-                    icon: 'ClockCheck',
-                    color: 'text-blue-500 bg-blue-50/10'
-                }
-            },
-            {
-                id: 'stat_cnl',
-                type: 'statCard',
-                size: { colSpan: 2, rowSpan: 1 },
-                data: {
-                    title: 'Quantidade de CNL',
-                    value: String(cnl),
-                    icon: 'UserX',
-                    color: 'text-red-500 bg-red-50/10'
-                },
-                action: { type: 'link', url: '/services?filter=cnl' }
-            },
-            {
-                id: 'stat_percent_cnl',
-                type: 'statCard',
-                size: { colSpan: 1, rowSpan: 1 },
-                data: {
-                    title: 'Percentual de CNL',
-                    value: `${percent_cnl.toFixed(1)}%`,
-                    icon: 'TrendingUp',
-                    color: 'text-red-500 bg-red-50/10'
-                },
-                action: { type: 'link', url: '/services?filter=cnl' }
-            },
-            {
-                id: 'chart_cnl_semana',
-                type: 'chartCard',
-                size: { colSpan: 3, rowSpan: 1 },
-                data: {
-                    chartType: 'bar',
-                    title: 'CNL da semana',
-                    dataset:
-                        weekly_cnl_stats['labels'].map((label, i) => {
-                            return {
-                                label: label,
-                                value: parseInt(weekly_cnl_stats['series'][i])
-                            }
-                        })
-                },
-            },
-            {
-                id: 'stat_c12_hora',
-                type: 'statCard',
-                size: { colSpan: 1, rowSpan: 1 },
-                data: {
-                    title: 'C12 Fora de Horário',
-                    value: String(quant_c12_out_hour),
-                    subtitle: 'Antes das 08:00',
-                    icon: 'Moon',
-                    color: 'text-red-500 bg-red-50/10'
-                },
-                action: { type: 'link', url: '/services?filter=c12_out_time' }
-            },
-            {
-                id: 'stat_c12',
-                type: 'statCard',
-                size: { colSpan: 2, rowSpan: 1 },
-                data: {
-                    title: 'Total de C12',
-                    value: String(quant_c12),
-                    icon: 'House',
-                    color: 'text-red-500 bg-red-50/10'
-                },
-                action: { type: 'link', url: '/services?filter=c12' }
-            },
-            {
-                id: 'stat_c12_nova',
-                type: 'statCard',
-                size: { colSpan: 1, rowSpan: 1 },
-                data: {
-                    title: 'C12 em Ligação Nova',
-                    value: String(licacao_nova_c12),
-                    icon: 'HousePlus',
-                    color: 'text-red-500 bg-red-50/10'
-                },
-                action: { type: 'link', url: '/services?filter=c12_ligacao_nova' }
-            },
-            {
-                id: 'stat_c12_fast',
-                type: 'statCard',
-                size: { colSpan: 1, rowSpan: 1 },
-                data: {
-                    title: 'C12 Rápido',
-                    value: String(fast_c12),
-                    icon: 'UserPlus',
-                    color: 'text-red-500 bg-red-50/10'
-                },
-                action: { type: 'link', url: '/services?filter=fast_c12' }
-            },
-            {
-                id: 'stat_first_c12',
-                type: 'statCard',
-                size: { colSpan: 1, rowSpan: 1 },
-                data: {
-                    title: 'C12 Entrante',
-                    value: String(first_c12),
-                    icon: 'SearchAlert',
-                    color: 'text-red-500 bg-red-50/10'
-                },
-                action: { type: 'link', url: '/services?filter=first_c12' }
-            },
-        ];
-
-        //caso o id não comece com letra, adicionar um alerta
-        if (!id.match(/^[a-zA-Z]/)) {
-            widgets.unshift({
-                id: 'alert_1',
-                type: 'alertCard',
-                size: { colSpan: 3, rowSpan: 1 },
-                data: {
-                    title: "Atenção",
-                    message: "Identificamos que seu cadastro está incorreto. Feche essa página e digite /cadastro para se cadastrar novamente.",
-                    severity: "warning"
-                },
-            });
-        }
-
-        if (['F26469341', 'T30088', 'T54295'].includes(id)) {
-            widgets.unshift({
-                id: 'alert_2',
-                type: 'alertCard',
-                size: { colSpan: 3, rowSpan: 1 },
-                data: {
-                    title: "OBRIGADO!",
-                    message: "Seu comentário de melhoria na pesquisa de satisfação foi ouvido e aprovado! Já estamos trabalhando nisso. Agradecemos a sua sugestão!",
-                    severity: "success"
-                },
-            });
-        }
-
-        res.json({
-            layout: {
-                columns: 3,
-                gap: 12,
-                baseRowHeight: 140
-            },
-            widgets
+        
+        const layout = generateDashboard({
+            state,
+            id,
+            today_date,
+            stats: {
+                quant_leituras,
+                pending,
+                licacao_nova_c12,
+                fast_c12,
+                first_c12,
+                weekly_cnl_stats,
+                hourly_dataset,
+                total_time_fmt,
+                pause_time_fmt,
+                work_time_fmt,
+                cnl,
+                perdas,
+                percent_cnl,
+                quant_c12,
+                quant_c12_out_hour
+            }
         });
+        res.json(layout);
     } catch (err) {
         console.log(err);
         res.status(500).json({ error: err.message });
@@ -444,15 +223,24 @@ const links = [
         "color": "text-yellow-600",
         "states": ['pi', 'ma']
     },
-    {
-        "id": "daily-report-app",
-        "label": "Diário de bordo",
-        "description": "Como foi seu dia?",
-        "url": `/daily-report`,
-        "emoji": "Newspaper",
-        "color": "text-blue-600",
-        "states": ['pi', 'ma']
-    },
+    // {
+    //     "id": "daily-report-app",
+    //     "label": "Diário de bordo",
+    //     "description": "Como foi seu dia?",
+    //     "url": `/daily-report`,
+    //     "emoji": "Newspaper",
+    //     "color": "text-blue-600",
+    //     "states": ['pi', 'ma']
+    // },
+    // {
+    //     "id": "justify-pending-app",
+    //     "label": "Justificar pendências",
+    //     "description": "Justifique suas pendências",
+    //     "url": `/justify-pending`,
+    //     "emoji": "AlertTriangle",
+    //     "color": "text-red-600",
+    //     "states": ['pi', 'ma']
+    // }
 ]
 
 router.get('/custom_links', async (req, res) => {
@@ -757,7 +545,7 @@ router.post('/upload_agent', upload.single('file'), async (req, res) => {
         }
 
         const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
-        
+
         if (!allowedTypes.includes(req.file.mimetype)) {
             return res.status(400).json({ error: 'Tipo de arquivo não permitido' });
         }

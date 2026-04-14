@@ -187,7 +187,7 @@ async function licacaoNovaC12ForAgent({ state = 'pi', id, date = today() }) {
 }
 
 // ─── fastC12ForAgent ────────────────────────────────────────────────────────────
-async function fastC12ForAgent({ state = 'pi', id, date = today() }) {
+async function fastC12ForAgent({ state = 'pi', id, date = today(), page = 1, limit = 9999 }) {
     let query = `
     WITH timeline_agente AS (
         SELECT 
@@ -217,12 +217,14 @@ async function fastC12ForAgent({ state = 'pi', id, date = today() }) {
         to_char((tempo_execucao_segundos || ' seconds')::interval, 'HH24:MI:SS') as tempo_formatado
     FROM calculo_tempo
     WHERE ntlei = 'C12'
+    AND status_ds = 'LG'
     AND tempo_execucao_segundos < 60
-    ORDER BY data_conclusao ASC;
+    ORDER BY data_conclusao ASC
+    LIMIT $3 OFFSET $4;
     `;
 
 
-    const { rows } = state === 'pi' ? await pi_pool.query(query, [id, date]) : await ma_pool.query(query, [id, date]);
+    const { rows } = state === 'pi' ? await pi_pool.query(query, [id, date, limit, (page - 1) * limit]) : await ma_pool.query(query, [id, date, limit, (page - 1) * limit]);
     return rows?.map(r => {
         const dt = new Date(r.data_conclusao);
         r.data_conclusao = dt.toLocaleDateString('pt-BR');

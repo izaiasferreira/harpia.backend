@@ -18,7 +18,7 @@ router.post('/justify_pending', async (req, res) => {
     try {
         if (!checkToken(req, res)) return;
 
-        const { autor, estado, quantidade, foto } = req.body;
+        const { autor, estado, quantidade, tipo, unidade_leitura, foto } = req.body;
 
         if (!autor || !estado) {
             return res.status(400).json({ error: 'Autor e estado são obrigatórios' });
@@ -31,6 +31,8 @@ router.post('/justify_pending', async (req, res) => {
             state: estado,
             autor,
             quantidade,
+            tipo,
+            unidade_leitura,
             foto
         });
 
