@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { Client } = require('minio');
 require('dotenv').config();
+
+const { minioClient, BUCKET_NAME, ensureBucketExists, getPublicUrl } = require('../functions/minio');
 
 function checkToken(req, res) {
     if (req.query.token !== process.env.API_TOKEN) {
@@ -17,37 +18,6 @@ const upload = multer({
     storage,
     limits: { fileSize: 10 * 1024 * 1024 }
 });
-
-const minioClient = new Client({
-    endPoint: process.env.MINIO_ENDPOINT || 'localhost',
-    port: parseInt(process.env.MINIO_PORT) || 9000,
-    useSSL: process.env.MINIO_USE_SSL === 'true',
-    accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
-    secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin'
-});
-
-const BUCKET_NAME = process.env.MINIO_BUCKET || 'api-banco';
-const PUBLIC_URL = process.env.MINIO_PUBLIC_URL || 'http://localhost:9000';
-
-async function ensureBucketExists() {
-    const bucketExists = await minioClient.bucketExists(BUCKET_NAME);
-    if (!bucketExists) {
-        await minioClient.makeBucket(BUCKET_NAME);
-        console.log(`Bucket '${BUCKET_NAME}' criado com sucesso.`);
-        
-        await minioClient.setBucketPolicy(BUCKET_NAME, JSON.stringify({
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Principal": "*",
-                    "Action": ["s3:GetObject"],
-                    "Resource": [`arn:aws:s3:::${BUCKET_NAME}/*`]
-                }
-            ]
-        }));
-    }
-}
 
 router.post('/upload', upload.single('file'), async (req, res) => {
     try {
@@ -72,12 +42,10 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
         await minioClient.putObject(BUCKET_NAME, fullPath, req.file.buffer);
 
-        const publicUrl = `${PUBLIC_URL}/${BUCKET_NAME}/${fullPath}`;
-
         res.json({
             success: true,
             fileName: fullPath,
-            url: publicUrl,
+            url: getPublicUrl(fullPath),
             size: req.file.size,
             mimetype: req.file.mimetype
         });

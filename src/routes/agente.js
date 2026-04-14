@@ -20,7 +20,6 @@ const {
     respond_pending_justify,
     get_pending_justify_by_id,
     get_pending_justifies,
-    delete_pending_justify,
     save_daily_report,
     get_daily_reports,
     get_daily_report_today,
@@ -28,8 +27,16 @@ const {
     get_inventory_by_agent,
     save_inventory
 } = require('../functions/postgresFunctions');
+const { minioClient, BUCKET_NAME, ensureBucketExists, getPublicUrl } = require('../functions/minio');
 const { telegramAuth } = require('../middlewares/telegramAuth');
 const { today, parse_date } = require('../utils/dates');
+const multer = require('multer');
+
+const storage = multer.memoryStorage();
+const upload = multer({ 
+    storage,
+    limits: { fileSize: 10 * 1024 * 1024 }
+});
 
 router.use(telegramAuth);
 
@@ -409,48 +416,54 @@ router.get('/agent_data', async (req, res) => {
     }
 });
 
+const links = [
+    {
+        "id": "servicos-app",
+        "label": "Serviços",
+        "description": "Meus serviços atribuídos",
+        "url": 'https://service.izisolucoes.com.br/servicos/default/699e3e5914265fccd12f57ad?matricula=${id}',
+        "emoji": "Smartphone",
+        "color": "text-blue-600",
+        "states": ['pi']
+    },
+    {
+        "id": "busca-app",
+        "label": "Pesquisar Instalação",
+        "description": "Encontre instalações",
+        "url": `/search`,
+        "emoji": "MapPinned",
+        "color": "text-green-600",
+        "states": ['pi']
+    },
+    {
+        "id": "inventario-app",
+        "label": "Inventário",
+        "description": "Cadastre os equipamentos",
+        "url": `/inventory`,
+        "emoji": "Box",
+        "color": "text-yellow-600",
+        "states": ['pi', 'ma']
+    },
+    {
+        "id": "daily-report-app",
+        "label": "Diário de bordo",
+        "description": "Como foi seu dia?",
+        "url": `/daily-report`,
+        "emoji": "Newspaper",
+        "color": "text-blue-600",
+        "states": ['pi', 'ma']
+    },
+]
+
 router.get('/custom_links', async (req, res) => {
     try {
         const state = req.colaborador.estado || 'pi';
         const id = req.colaborador.id;
-        if (state === 'pi') {
-            return res.json([
-                {
-                    "id": "servicos-app",
-                    "label": "Serviços",
-                    "url": `https://service.izisolucoes.com.br/servicos/default/699e3e5914265fccd12f57ad?matricula=${id}`,
-                    "emoji": "Smartphone",
-                    "color": "text-blue-600"
-                },
-                {
-                    "id": "busca-app",
-                    "label": "Pesquisar Instalação",
-                    "url": `/search`,
-                    "emoji": "MapPinned",
-                    "color": "text-green-600"
-                },
-                {
-                    "id": "inventario-app",
-                    "label": "Inventário",
-                    "url": `/inventory`,
-                    "emoji": "Box",
-                    "color": "text-yellow-600"
-                },
-            ]);
-        }
-        if (state === 'ma') {
-            return res.json([
-                {
-                    "id": "inventario-app",
-                    "label": "Inventário",
-                    "url": `/inventory`,
-                    "emoji": "Box",
-                    "color": "text-yellow-600"
-                }
-            ]);
-        }
-
-        return res.json([]);
+        const links_filtered = links.filter(link => link.states.includes(state));
+        links_filtered.forEach(link => {
+            link.url = link.url.replace('${id}', id);
+        });
+        return res.json(links_filtered);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -733,6 +746,42 @@ router.post('/inventory', async (req, res) => {
         res.status(201).json(result);
     } catch (err) {
         console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/upload_agent', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+        }
+
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+        
+        if (!allowedTypes.includes(req.file.mimetype)) {
+            return res.status(400).json({ error: 'Tipo de arquivo não permitido' });
+        }
+
+        await ensureBucketExists();
+
+        const timestamp = Date.now();
+        const ext = req.file.originalname.split('.').pop();
+        const agentId = req.colaborador.id;
+        const fileName = `${timestamp}-${agentId}-${Math.random().toString(36).substring(7)}.${ext}`;
+        const fullPath = `agents/${agentId}/${fileName}`;
+
+        await minioClient.putObject(BUCKET_NAME, fullPath, req.file.buffer);
+
+        res.json({
+            success: true,
+            fileName: fullPath,
+            url: getPublicUrl(fullPath),
+            size: req.file.size,
+            mimetype: req.file.mimetype
+        });
+
+    } catch (err) {
+        console.error('Erro no upload_agent:', err);
         res.status(500).json({ error: err.message });
     }
 });

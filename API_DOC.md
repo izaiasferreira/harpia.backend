@@ -8,6 +8,13 @@ API para gestão de leituras, agentes e monitoria de serviços dos estados do Pi
 
 ---
 
+> **⚠️ Mantenha a documentação atualizada!**
+> 
+> Sempre que corrigir, adicionar ou remover uma feature, atualize esta documentação.
+> Isso inclui: novos endpoints, parâmetros, respostas, erros, variáveis de ambiente, etc.
+
+---
+
 ## Arquitetura
 
 ```
@@ -85,6 +92,9 @@ curl "http://localhost:3040/api/logs/data" -H "Authorization: SENHA"
 ---
 
 ## Endpoints
+
+> **Nota:** Todos os endpoints estão disponíveis com ou sem prefixo `/api`.
+> Ex: `/pendencias` e `/api/pendencias` retornam o mesmo resultado.
 
 ---
 
@@ -1010,6 +1020,14 @@ WHATSAPP_LINK_SEND_TEXT=
 # Aceita IPs, domínios e URLs completas; subdomínios são aceitos automaticamente
 CORS_ORIGINS=*
 
+# MinIO/S3 (uploads)
+MINIO_ENDPOINT=files.izu.tec.br
+MINIO_PORT=9000
+MINIO_USE_SSL=false
+MINIO_ACCESS_KEY=
+MINIO_SECRET_KEY=
+MINIO_BUCKET=api-banco-dev
+
 # Token admin (uso interno)
 ADMIN_TOKEN=
 
@@ -1166,6 +1184,116 @@ Cria novo registro de inventário ou atualiza `updated_at` se os dados forem igu
 
 **Erros:**
 - `400` — Agente é obrigatório
+
+---
+
+### Upload (MinIO/S3)
+
+**Autenticação:** Token simples (`?token=API_TOKEN`)
+
+---
+
+#### `POST /upload`
+Faz upload de arquivo para o MinIO/S3.
+
+**Query Params:**
+| Param | Tipo | Descrição |
+|---|---|---|
+| `token` | string | **Obrigatório** |
+
+**Body:** `multipart/form-data`
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `file` | file | Arquivo (obrigatório) |
+
+**Tipos permitidos:** `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `application/pdf`
+
+**Tamanho máx:** 10MB
+
+**Retorno (sucesso):**
+```json
+{
+    "success": true,
+    "fileName": "reports/1234567890-abc.png",
+    "url": "http://files.izu.tec.br:9000/api-banco-dev/reports/1234567890-abc.png",
+    "size": 6509737,
+    "mimetype": "image/png"
+}
+```
+
+**Retorno (erro):**
+```json
+{ "error": "Nenhum arquivo enviado" }
+```
+```json
+{ "error": "Tipo de arquivo não permitido" }
+```
+
+**Nota:** A URL retornada é pública (acesso sem autenticação). O bucket precisa ter a policy `s3:GetObject` aplicada.
+
+---
+
+#### `GET /upload/health`
+Verifica a conexão com o MinIO.
+
+**Query Params:** `token`
+
+**Retorno (sucesso):**
+```json
+{ "status": "ok", "bucket": "api-banco-dev" }
+```
+
+**Retorno (erro):**
+```json
+{ "status": "error", "error": "mensagem de erro" }
+```
+
+---
+
+### Upload do Agente
+
+**Autenticação:** Telegram (`X-Telegram-Init-Data`)
+
+---
+
+#### `POST /upload_agent`
+Faz upload de arquivo para o MinIO/S3 vinculado ao agente autenticado.
+
+**Headers:** `X-Telegram-Init-Data`
+
+**Body:** `multipart/form-data`
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `file` | file | Arquivo (obrigatório) |
+
+**Tipos permitidos:** `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `application/pdf`
+
+**Tamanho máx:** 10MB
+
+**Path do arquivo:** `agents/{matricula}/{timestamp}-{matricula}-{random}.{ext}`
+
+**Retorno (sucesso):**
+```json
+{
+    "success": true,
+    "fileName": "agents/t19596/1234567890-t19596-abc.png",
+    "url": "http://files.izi.tec.br:9000/api-banco-dev/agents/t19596/1234567890-t19596-abc.png",
+    "size": 6509737,
+    "mimetype": "image/png"
+}
+```
+
+**Retorno (erro):**
+```json
+{ "error": "Nenhum arquivo enviado" }
+```
+```json
+{ "error": "Tipo de arquivo não permitido" }
+```
+
+**Nota:** A URL retornada é pública (acesso sem autenticação). O arquivo é salvo na pasta do agente (agents/{matricula}/).
 
 ---
 

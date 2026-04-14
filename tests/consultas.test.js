@@ -1,12 +1,13 @@
 const app = require('../src/app');
 const request = require('supertest');
-const pool = require('../src/db');
+const { pi_pool, ma_pool } = require('../src/db');
 
 describe('Consultas Routes (E2E)', () => {
     const token = process.env.API_TOKEN;
 
     afterAll(async () => {
-        await pool.end();
+        await pi_pool.end();
+        await ma_pool.end();
     }, 10000);
 
     const testEndpoints = [
