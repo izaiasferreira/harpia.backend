@@ -63,22 +63,29 @@ app.use('/', publicRouter);
 
 // Consultas
 app.use('/', consultasRouter);
+app.use('/api', consultasRouter);
 
 // Webhooks
 app.use('/', webhooksRouter);
+app.use('/api', webhooksRouter);
 
 // Revalidacao
 app.use('/', revalidateRouter);
+app.use('/api', revalidateRouter);
 
 // Agent Default Auth (sem telegram auth)
 app.use('/', agentDefaultAuthRouter)
+app.use('/api', agentDefaultAuthRouter)
 
 // Upload de arquivos para MinIO/S3
 app.use('/', uploadRouter)
+app.use('/api', uploadRouter)
 
 app.use('/', agenteRouter)
+app.use('/api', agenteRouter)
 
 app.use('/', publicRouter)
+app.use('/api', publicRouter)
 
 app.use('/api', logsRouter)
 

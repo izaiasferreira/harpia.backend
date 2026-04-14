@@ -10,21 +10,21 @@ describe('Consultas Routes (E2E)', () => {
     }, 10000);
 
     const testEndpoints = [
-        { name: 'pendencias', path: '/pendencias', type: 'text' },
-        { name: 'pendencias_json', path: '/pendencias_json', type: 'json' },
-        { name: 'cnl', path: '/cnl', type: 'text' },
-        { name: 'cnl_to_lido_json', path: '/cnl_to_lido_json', type: 'json' },
-        { name: 'first_cnl_json', path: '/first_cnl_json', type: 'json' },
-        { name: 'c12_json', path: '/c12_json', type: 'json' },
-        { name: 'c12_to_lido_json', path: '/c12_to_lido_json', type: 'json' },
-        { name: 'first_c12_json', path: '/first_c12_json', type: 'json' },
-        { name: 'e02_json', path: '/e02_json', type: 'json' },
-        { name: 'c16_json', path: '/c16_json', type: 'json' },
-        { name: 'perdas', path: '/perdas', type: 'text' },
-        { name: 'perdas_json', path: '/perdas_json', type: 'json' },
-        { name: 'not_start_services', path: '/not_start_services', type: 'json' },
-        { name: 'completed_services', path: '/completed_services', type: 'json' },
-        { name: 'incompleted_services', path: '/incompleted_services', type: 'json' }
+        { name: 'pendencias', path: '/api/pendencias', type: 'text' },
+        { name: 'pendencias_json', path: '/api/pendencias_json', type: 'json' },
+        { name: 'cnl', path: '/api/cnl', type: 'text' },
+        { name: 'cnl_to_lido_json', path: '/api/cnl_to_lido_json', type: 'json' },
+        { name: 'first_cnl_json', path: '/api/first_cnl_json', type: 'json' },
+        { name: 'c12_json', path: '/api/c12_json', type: 'json' },
+        { name: 'c12_to_lido_json', path: '/api/c12_to_lido_json', type: 'json' },
+        { name: 'first_c12_json', path: '/api/first_c12_json', type: 'json' },
+        { name: 'e02_json', path: '/api/e02_json', type: 'json' },
+        { name: 'c16_json', path: '/api/c16_json', type: 'json' },
+        { name: 'perdas', path: '/api/perdas', type: 'text' },
+        { name: 'perdas_json', path: '/api/perdas_json', type: 'json' },
+        { name: 'not_start_services', path: '/api/not_start_services', type: 'json' },
+        { name: 'completed_services', path: '/api/completed_services', type: 'json' },
+        { name: 'incompleted_services', path: '/api/incompleted_services', type: 'json' }
     ];
 
     testEndpoints.forEach(endpoint => {
@@ -41,7 +41,7 @@ describe('Consultas Routes (E2E)', () => {
     });
 
     it('should return token error if invalid token', async () => {
-        const res = await request(app).get('/pendencias_json?token=wrong');
+        const res = await request(app).get('/api/pendencias_json?token=wrong');
         expect(res.body).toHaveProperty('error', 'Token inválido');
     });
 });
