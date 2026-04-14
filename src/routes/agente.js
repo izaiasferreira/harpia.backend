@@ -24,7 +24,9 @@ const {
     save_daily_report,
     get_daily_reports,
     get_daily_report_today,
-    delete_daily_report
+    delete_daily_report,
+    get_inventory_by_agent,
+    save_inventory
 } = require('../functions/postgresFunctions');
 const { telegramAuth } = require('../middlewares/telegramAuth');
 const { today, parse_date } = require('../utils/dates');
@@ -92,6 +94,10 @@ router.get('/agent_dashboard', async (req, res) => {
                     autoSlideInterval: 5000,
                     banners: [
                         {
+                            imageUrl: 'https://litter.catbox.moe/7qafg3.png',
+                            action: { type: 'link', url: '/inventory' }
+                        },
+                        {
                             imageUrl: 'https://litter.catbox.moe/22q59u.png',
                             action: { type: 'link', url: `https://forms.cattalk.com.br/form/satisfacao-ceneged-bot?id=${id}` }
                         },
@@ -99,7 +105,7 @@ router.get('/agent_dashboard', async (req, res) => {
                             imageUrl: 'https://litter.catbox.moe/z9zjpw.png',
                             action: { type: 'link', url: '' }
                         },
-                        {
+                        state === 'pi' && {
                             imageUrl: 'https://litter.catbox.moe/y62ct7.png',
                             action: { type: 'link', url: '/search' }
                         }
@@ -423,10 +429,25 @@ router.get('/custom_links', async (req, res) => {
                     "emoji": "MapPinned",
                     "color": "text-green-600"
                 },
+                {
+                    "id": "inventario-app",
+                    "label": "Inventário",
+                    "url": `/inventory`,
+                    "emoji": "Box",
+                    "color": "text-yellow-600"
+                },
             ]);
         }
         if (state === 'ma') {
-            return res.json([]);
+            return res.json([
+                {
+                    "id": "inventario-app",
+                    "label": "Inventário",
+                    "url": `/inventory`,
+                    "emoji": "Box",
+                    "color": "text-yellow-600"
+                }
+            ]);
         }
 
         return res.json([]);
@@ -596,7 +617,7 @@ router.post('/daily_report', async (req, res) => {
 
         const existingToday = await get_daily_report_today({ state: estado, autor });
         if (existingToday) {
-            return res.status(409).json({ 
+            return res.status(409).json({
                 error: 'Já existe um report diário para hoje',
                 existing: existingToday
             });
@@ -647,6 +668,69 @@ router.get('/daily_report/check_today', async (req, res) => {
 
         const result = await get_daily_report_today({ state: estado, autor });
         res.json({ hasReportToday: !!result, data: result });
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+router.get('/inventory', async (req, res) => {
+    try {
+        const estado = req.colaborador.estado || 'pi';
+        const agente = req.query.agente || req.colaborador.id;
+
+        const result = await get_inventory_by_agent({ agente, estado });
+        if (!result) {
+            return res.status(404).json({ error: 'Nenhum inventário encontrado para este agente' });
+        }
+        res.json(result);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+router.post('/inventory', async (req, res) => {
+    try {
+        const estado = req.colaborador.estado || 'pi';
+        const {
+            agente,
+            pda_imei_1,
+            pda_imei_2,
+            pda_numero_serie,
+            pda_marca,
+            pda_modelo,
+            pda_numero_chip,
+            pda_versao_android,
+            pda_versao_bluetooth,
+            impressora_numero_serie,
+            impressora_marca,
+            impressora_modelo
+        } = req.body;
+
+        if (!agente) {
+            return res.status(400).json({ error: 'Agente é obrigatório' });
+        }
+
+        const result = await save_inventory({
+            state: estado,
+            agente,
+            pda_imei_1,
+            pda_imei_2,
+            pda_numero_serie,
+            pda_marca,
+            pda_modelo,
+            pda_numero_chip,
+            pda_versao_android,
+            pda_versao_bluetooth,
+            impressora_numero_serie,
+            impressora_modelo,
+            impressora_marca
+        });
+
+        res.status(201).json(result);
     } catch (err) {
         console.log(err);
         res.status(500).json({ error: err.message });

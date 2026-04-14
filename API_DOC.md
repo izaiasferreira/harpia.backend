@@ -1084,6 +1084,91 @@ Todas as requisições (exceto `/api/logs*` e `/logs*`) são registradas automat
 
 ---
 
+### Inventory
+
+**Autenticação:** Telegram Auth (middleware `telegramAuth`)
+
+---
+
+#### `GET /inventory`
+Retorna o último registro de inventário do agente.
+
+**Query Params:**
+
+| Param | Tipo | Descrição |
+|---|---|---|
+| `agente` | string | (opcional) Filtrar por agente específico |
+
+**Retorno (sucesso):**
+```json
+{
+    "id": 1,
+    "agente": "t33029830",
+    "pda_imei_1": "351234567890123",
+    "pda_imei_2": "351234567890124",
+    "pda_numero_serie": "PDA123456789",
+    "pda_marca": "SAMSUNG",
+    "pda_modelo": "SM-1234",
+    "pda_numero_chip": "5511999998888",
+    "pda_versao_android": "11.0",
+    "pda_versao_bluetooth": "5.0",
+    "impressora_numero_serie": "PRN987654321",
+    "impressora_modelo": "MZ320",
+    "impressora_marca": "ZEBRA",
+    "estado": "pi",
+    "created_at": "2026-04-13T10:00:00.000Z",
+    "updated_at": "2026-04-13T10:00:00.000Z"
+}
+```
+
+**Erros:**
+- `404` — Nenhum inventário encontrado para este agente
+
+---
+
+#### `POST /inventory`
+Cria novo registro de inventário ou atualiza `updated_at` se os dados forem iguais.
+
+**Body:**
+```json
+{
+    "agente": "T33029830",
+    "pda_imei_1": "351234567890123",
+    "pda_imei_2": "351234567890124",
+    "pda_numero_serie": "PDA123456789",
+    "pda_marca": "SAMSUNG",
+    "pda_modelo": "SM-1234",
+    "pda_numero_chip": "5511999998888",
+    "pda_versao_android": "11.0",
+    "pda_versao_bluetooth": "5.0",
+    "impressora_numero_serie": "PRN987654321",
+    "impressora_modelo": "MZ320",
+    "impressora_marca": "ZEBRA"
+}
+```
+
+**Retorno (sucesso):**
+```json
+{
+    "id": 2,
+    "agente": "t33029830",
+    ...
+    "estado": "pi",
+    "created_at": "2026-04-13T11:00:00.000Z",
+    "updated_at": "2026-04-13T11:00:00.000Z",
+    "action": "created"
+}
+```
+
+**Comportamento:**
+- Se dados iguais ao último registro → atualiza apenas `updated_at` (retorna `action: "updated_at"`)
+- Se dados diferentes → cria novo registro (retorna `action: "created"`)
+
+**Erros:**
+- `400` — Agente é obrigatório
+
+---
+
 ## CORS
 
 O CORS é configurado via `CORS_ORIGINS` no `.env`:

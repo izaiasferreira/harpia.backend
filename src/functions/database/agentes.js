@@ -817,6 +817,141 @@ async function delete_daily_report({ id, estado = 'pi' }) {
     return rows[0];
 }
 
+// ─── inventory ───────────────────────────────────────────────────────────
+async function get_inventory_by_agent({ agente, estado = 'pi' }) {
+    const activeState = (estado || 'pi').toLowerCase();
+    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS inventory (
+            id SERIAL PRIMARY KEY,
+            agente TEXT NOT NULL,
+            pda_imei_1 TEXT,
+            pda_imei_2 TEXT,
+            pda_numero_serie TEXT,
+            pda_marca TEXT,
+            pda_modelo TEXT,
+            pda_numero_chip TEXT,
+            pda_versao_android TEXT,
+            pda_versao_bluetooth TEXT,
+            impressora_numero_serie TEXT,
+            impressora_modelo TEXT,
+            impressora_marca TEXT,
+            estado TEXT DEFAULT 'pi',
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+    await pool.query(createTableQuery);
+
+    const query = `
+        SELECT * FROM inventory 
+        WHERE LOWER(agente) = LOWER($1)
+        ORDER BY id DESC
+        LIMIT 1;
+    `;
+    const { rows } = await pool.query(query, [agente]);
+    return rows[0] || null;
+}
+
+async function save_inventory({
+    state = 'pi',
+    agente,
+    pda_imei_1,
+    pda_imei_2,
+    pda_numero_serie,
+    pda_marca,
+    pda_modelo,
+    pda_numero_chip,
+    pda_versao_android,
+    pda_versao_bluetooth,
+    impressora_numero_serie,
+    impressora_modelo,
+    impressora_marca,
+    created_at = new Date(),
+    updated_at = new Date()
+}) {
+    const pool = state === 'pi' ? pi_pool : ma_pool;
+
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS inventory (
+            id SERIAL PRIMARY KEY,
+            agente TEXT NOT NULL,
+            pda_imei_1 TEXT,
+            pda_imei_2 TEXT,
+            pda_numero_serie TEXT,
+            pda_marca TEXT,
+            pda_modelo TEXT,
+            pda_numero_chip TEXT,
+            pda_versao_android TEXT,
+            pda_versao_bluetooth TEXT,
+            impressora_numero_serie TEXT,
+            impressora_modelo TEXT,
+            estado TEXT DEFAULT 'pi',
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+    await pool.query(createTableQuery);
+
+    const existing = await get_inventory_by_agent({ agente, estado: state });
+    
+    if (existing) {
+        const sameData = 
+            existing.pda_imei_1 === pda_imei_1 &&
+            existing.pda_imei_2 === pda_imei_2 &&
+            existing.pda_numero_serie === pda_numero_serie &&
+            existing.pda_marca === pda_marca &&
+            existing.pda_modelo === pda_modelo &&
+            existing.pda_numero_chip === pda_numero_chip &&
+            existing.pda_versao_android === pda_versao_android &&
+            existing.pda_versao_bluetooth === pda_versao_bluetooth &&
+            existing.impressora_numero_serie === impressora_numero_serie &&
+            existing.impressora_modelo === impressora_modelo &&
+            existing.impressora_marca === impressora_marca;
+
+        if (sameData) {
+            const updateQuery = `
+                UPDATE inventory 
+                SET updated_at = $1
+                WHERE id = $2
+                RETURNING *;
+            `;
+            const { rows } = await pool.query(updateQuery, [updated_at, existing.id]);
+            return { ...rows[0], action: 'updated_at' };
+        }
+    }
+
+    const insertQuery = `
+        INSERT INTO inventory (
+            agente, pda_imei_1, pda_imei_2, pda_numero_serie, pda_marca, pda_modelo,
+            pda_numero_chip, pda_versao_android, pda_versao_bluetooth,
+            impressora_numero_serie, impressora_modelo, impressora_marca,
+            estado, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        RETURNING *;
+    `;
+    const values = [
+        agente.toLowerCase(),
+        pda_imei_1 || null,
+        pda_imei_2 || null,
+        pda_numero_serie || null,
+        pda_marca || null,
+        pda_modelo || null,
+        pda_numero_chip || null,
+        pda_versao_android || null,
+        pda_versao_bluetooth || null,
+        impressora_numero_serie || null,
+        impressora_modelo || null,
+        impressora_marca || null,
+        state.toLowerCase(),
+        created_at,
+        updated_at
+    ];
+    const { rows } = await pool.query(insertQuery, values);
+    return { ...rows[0], action: 'created' };
+}
+
 module.exports = {
     getLeiturasForAgent,
     getLeiturasPendingForAgent,
@@ -838,5 +973,7 @@ module.exports = {
     save_daily_report,
     get_daily_reports,
     get_daily_report_today,
-    delete_daily_report
+    delete_daily_report,
+    get_inventory_by_agent,
+    save_inventory
 };
