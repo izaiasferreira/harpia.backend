@@ -719,6 +719,12 @@ async function save_daily_report({
     `;
     await pool.query(createTableQuery);
 
+    // Adicionar coluna foto se não existir (para tabelas antigas)
+    await pool.query(`
+        ALTER TABLE daily_report 
+        ADD COLUMN IF NOT EXISTS foto TEXT;
+    `).catch(() => {});
+
     const existingQuery = `
         SELECT id FROM daily_report 
         WHERE LOWER(autor) = LOWER($1) AND DATE(created_at) = CURRENT_DATE;
