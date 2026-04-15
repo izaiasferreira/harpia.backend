@@ -347,9 +347,11 @@ router.get('/justify_pending', async (req, res) => {
     try {
         const estado = req.colaborador.estado || 'pi';
         const autor = req.query.autor || req.colaborador.id;
-        const status = req.query.status;
+        const status = req.query.status || 'pendente';
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
 
-        const result = await get_pending_justifies({ state: estado, autor, status });
+        const result = await get_pending_justifies({ state: estado, autor, status, page, limit });
         res.json(result);
     } catch (err) {
         console.log(err);

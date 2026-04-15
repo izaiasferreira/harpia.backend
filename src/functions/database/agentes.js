@@ -630,7 +630,7 @@ async function get_pending_justify_by_id({ id, estado = 'pi' }) {
     return rows[0] || null;
 }
 
-async function get_pending_justifies({ state = 'pi', autor, status }) {
+async function get_pending_justifies({ state = 'pi', autor, status = 'pendente', page = 1, limit = 20 }) {
     const pool = state === 'pi' ? pi_pool : ma_pool;
 
     const createTableQuery = `
@@ -638,6 +638,8 @@ async function get_pending_justifies({ state = 'pi', autor, status }) {
             id SERIAL PRIMARY KEY,
             autor TEXT NOT NULL,
             quantidade INTEGER NOT NULL,
+            tipo TEXT,
+            unidade_leitura TEXT,
             motivo TEXT,
             observacao TEXT,
             foto TEXT,
@@ -661,10 +663,21 @@ async function get_pending_justifies({ state = 'pi', autor, status }) {
         query += ` AND LOWER(status) = $${params.length}`;
     }
 
-    query += ` ORDER BY created_at DESC`;
+    const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as total');
+    const countResult = await pool.query(countQuery, params);
+    const total = parseInt(countResult.rows[0]?.total || 0);
+
+    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, (page - 1) * limit);
 
     const { rows } = await pool.query(query, params);
-    return rows;
+    return {
+        data: rows,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+    };
 }
 
 async function delete_pending_justify({ id, estado = 'pi' }) {

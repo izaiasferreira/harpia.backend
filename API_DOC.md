@@ -704,12 +704,23 @@ Lista justificativas de pendências por autor e/ou status.
 
 **Query Params:**
 
-| Param | Tipo | Descrição |
-|---|---|---|
-| `autor` | string | (opcional) Filtrar por autor |
-| `status` | string | (opcional) Filtrar por status: "pendente" ou "respondido" |
+| Param | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `autor` | string | (auto) | Filtrar por autor (padrão: logged in) |
+| `status` | string | `pendente` | Filtrar por status: "pendente" ou "respondido" |
+| `page` | number | 1 | Página |
+| `limit` | number | 20 | Itens por página |
 
-**Retorno (sucesso):** Array de justificativas.
+**Retorno (sucesso):**
+```json
+{
+    "data": [...],
+    "total": 10,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1
+}
+```
 
 ---
 
