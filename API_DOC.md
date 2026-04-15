@@ -486,18 +486,35 @@ Consulta justificativas de erros do agente com dados da matriz.
 **Retorno (com resultado):**
 ```json
 {
-    "id": 1,
-    "instalacao": "18518168",
-    "tipo": "cnl",
-    "motivo": "Medidor com defeito",
-    "justificativa": "Realmente estava com defeito",
-    "foto": "base64_string",
-    "data_leit_prev": "10/04/2026",
-    "author": "t19596",
-    "estado": "pi",
-    "has_justified": true,
-    "created_at": "2026-04-12T01:50:22.000Z",
-    "updated_at": "2026-04-12T01:50:22.000Z"
+    "instalacao": "649945",
+    "unidade_leitura": "TH09B011",
+    "tipo": "OB",
+    "tipo_ordem": null,
+    "concluido": "PENDENTE",
+    "status_ds": "LG",
+    "agente": "T19596",
+    "nome_agente": "ANDRE FELIPE MIRANDA COSTA OLIVEIRA",
+    "etapa": "09",
+    "cidade": "TERESINA",
+    "seccional": "UAC TERESINA",
+    "regional": "METROPOLITANA",
+    "supervisor": "CLEMILTON DE FRANCA FEITOSA",
+    "ntlei": "SEM APONTAMENTO",
+    "data_leit_prev": "2026-04-15T03:00:00.000Z",
+    "data_conclusao": null,
+    "latitude": null,
+    "longitude": null,
+    "perda_prevista_mensal": "49",
+    "perda_definitiva": "0",
+    "status_perda": "SEM PERDA",
+    "apontamento": "C12",
+    "grupo_cnl": "MEDIÇÃO",
+    "tipo_perda": "CLIENTE CR SEM EVOLUCAO - 113",
+    "tem_perda": "SEM PERDA",
+    "motivo_perda": "SEM PERDA",
+    "mes_ref_atual": "202604",
+    "mes_ref_anterior": "202603",
+    "has_justified": false
 }
 ```
 

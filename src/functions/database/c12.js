@@ -211,7 +211,7 @@ async function fastC12ForAgent({ state = 'pi', id, date = today(), page = 1, lim
     )
     SELECT 
         instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
-        status_ds, data_conclusao, latitude, longitude,
+        status_ds, data_conclusao, latitude, longitude, data_leit_prev,
         tempo_execucao_segundos,
         to_char((tempo_execucao_segundos || ' seconds')::interval, 'HH24:MI:SS') as tempo_formatado
     FROM calculo_tempo

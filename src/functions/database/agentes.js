@@ -2,6 +2,58 @@ const { pi_pool, ma_pool, localizacoes_pi_pool } = require('../../db');
 const { today } = require('../../utils/dates');
 const { fastC12ForAgent, firstC12ForAgent } = require('./c12');
 
+/**
+ * Verifica quais instalações têm justificativas respondidas
+ * Retorna mapa: { instalacao: true/false }
+ */
+async function checkJustifiedByInstallations(installations, estado = 'pi') {
+    const pool = estado === 'pi' ? pi_pool : ma_pool;
+    
+    if (!installations || installations.length === 0) return {};
+    
+    // Garante que a tabela existe
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS justificativas (
+            id SERIAL PRIMARY KEY,
+            instalacao TEXT,
+            tipo TEXT,
+            motivo TEXT,
+            justificativa TEXT,
+            foto TEXT,
+            data_leit_prev TEXT,
+            author TEXT,
+            estado TEXT,
+            quantidade INTEGER,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP
+        );
+    `;
+    await pool.query(createTableQuery);
+    
+    // Busca justificativas respondidas para essas instalações
+    const placeholders = installations.map((_, i) => `$${i + 1}`).join(', ');
+    const query = `
+        SELECT DISTINCT instalacao 
+        FROM justificativas 
+        WHERE TRIM(instalacao) IN (${placeholders})
+        AND estado = $${installations.length + 1}
+    `;
+    const params = [...installations.map(i => i.trim()), estado.toLowerCase()];
+    
+    const { rows } = await pool.query(query, params);
+    
+    // Cria mapa de justificativas
+    const justified = {};
+    installations.forEach(inst => {
+        justified[inst.trim()] = false;
+    });
+    rows.forEach(row => {
+        justified[row.instalacao.trim()] = true;
+    });
+    
+    return justified;
+}
+
 // ─── orderLeituras (Helper) ───────────────────────────────────────────────────
 function orderLeituras(rows) {
     const ordenados = rows.sort((a, b) => new Date(a.data_conclusao) - new Date(b.data_conclusao));
@@ -156,11 +208,11 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
     if (filter === 'fast_c12') {
         const rows = await fastC12ForAgent({ state, id, date, limit, page })
         if (rows.length === 0) return [];
-        return rows.map(r => {
+        result.push(...rows.map(r => {
             r['tempo_execucao'] = r['tempo_formatado']
             delete r['tempo_formatado']
             return r
-        });
+        }));
 
     }
 
@@ -170,7 +222,10 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
         result.push(...rows);
     }
 
-    return result;
+    return result.map(r => {
+        r.data_leit_prev = new Date(r.data_leit_prev).toLocaleDateString('pt-BR');
+        return r
+    });
 
 }
 
@@ -560,8 +615,8 @@ async function pre_create_pending_justify({
     await pool.query(createTableQuery);
 
     // Adicionar colunas se não existirem (para tabelas antigas)
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => {});
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => { });
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => { });
 
     const insertQuery = `
         INSERT INTO justify_pending (autor, quantidade, tipo, unidade_leitura, foto, estado, status, created_at, updated_at)
@@ -600,8 +655,8 @@ async function respond_pending_justify({
     await pool.query(createTableQuery);
 
     // Adicionar colunas se não existirem (para tabelas antigas)
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => {});
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => { });
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => { });
 
     const updateQuery = `
         UPDATE justify_pending 
@@ -634,8 +689,8 @@ async function get_pending_justify_by_id({ id, estado = 'pi' }) {
     await pool.query(createTableQuery);
 
     // Adicionar colunas se não existirem (para tabelas antigas)
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => {});
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => { });
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => { });
 
     const query = `SELECT * FROM justify_pending WHERE id = $1;`;
     const { rows } = await pool.query(query, [id]);
@@ -664,8 +719,8 @@ async function get_pending_justifies({ state = 'pi', autor, status = 'pendente',
     await pool.query(createTableQuery);
 
     // Adicionar colunas se não existirem (para tabelas antigas)
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => {});
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => { });
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => { });
 
     let query = `SELECT * FROM justify_pending WHERE 1=1`;
     const params = [];
@@ -739,7 +794,7 @@ async function save_daily_report({
     await pool.query(`
         ALTER TABLE daily_report 
         ADD COLUMN IF NOT EXISTS foto TEXT;
-    `).catch(() => {});
+    `).catch(() => { });
 
     const existingQuery = `
         SELECT id FROM daily_report 
@@ -980,6 +1035,7 @@ module.exports = {
     update_justify,
     delete_justify,
     getWeeklyCNLStats,
+    checkJustifiedByInstallations,
     pre_create_pending_justify,
     respond_pending_justify,
     get_pending_justify_by_id,

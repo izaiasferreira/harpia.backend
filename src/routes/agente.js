@@ -17,6 +17,7 @@ const {
     delete_justify,
     get_instalations_matriz,
     getWeeklyCNLStats,
+    checkJustifiedByInstallations,
     respond_pending_justify,
     get_pending_justify_by_id,
     get_pending_justifies,
@@ -131,6 +132,26 @@ router.get('/agent_services', async (req, res) => {
         const state = req.colaborador.estado || 'pi';
         const id = req.colaborador.id;
         const result = await getLeiturasForAgent({ state, id, date: today_date, page: page || 1, filter: atual_filter });
+        
+        // Verificar justificativas
+        const data = Array.isArray(result) ? result : result?.data || [];
+        if (data.length > 0) {
+            const installations = data.map(r => r.instalacao);
+            const justified = await checkJustifiedByInstallations(installations, state);
+            
+            const resultWithJustified = (Array.isArray(result) ? result : data).map(r => ({
+                ...r,
+                justificado: !!justified[r.instalacao]
+            }));
+            
+            if (Array.isArray(result)) {
+                res.json(resultWithJustified);
+            } else {
+                res.json({ ...result, data: resultWithJustified });
+            }
+            return;
+        }
+        
         res.json(result);
     } catch (err) {
         console.log(err);
@@ -154,6 +175,7 @@ router.post('/search_in', async (req, res) => {
             return;
         }
         const results = await get_instalations({ state, query: cleanQueries, type });
+
         res.json(results);
     } catch (err) {
         console.log(err);
@@ -166,8 +188,27 @@ router.get('/predicted', async (req, res) => {
         const { status, page, limit } = req.query;
         const state = req.colaborador.estado || 'pi';
         const id = req.colaborador.id;
-
         const results = await get_predicted({ state, id, status, page, limit });
+        
+        // Verificar justificativas
+        const data = Array.isArray(results) ? results : results?.data || [];
+        if (data.length > 0) {
+            const installations = data.map(r => r.instalacao);
+            const justified = await checkJustifiedByInstallations(installations, state);
+            
+            const resultWithJustified = (Array.isArray(results) ? results : data).map(r => ({
+                ...r,
+                justificado: !!justified[r.instalacao]
+            }));
+            
+            if (Array.isArray(results)) {
+                res.json(resultWithJustified);
+            } else {
+                res.json({ ...results, data: resultWithJustified });
+            }
+            return;
+        }
+        
         res.json(results);
     } catch (err) {
         console.log(err);
@@ -214,7 +255,14 @@ router.get('/get_justify', async (req, res) => {
         const { tipo, instalacao, data_leit_prev } = req.query;
         const estado = req.colaborador.estado;
         const results = await get_justify({ estado, tipo, instalacao, data_leit_prev });
-        const instalation_data = await get_instalations_matriz({ estado, instalacao, data_leit_prev });
+
+        var instalation_data = await get_instalations_matriz({ estado, instalacao, data_leit_prev });
+        delete instalation_data['tipo'];
+
+        console.log(instalation_data);
+
+
+
         const has_justified = results.hasOwnProperty('id');
         res.json({ ...instalation_data, ...results, has_justified });
     } catch (err) {
