@@ -1,6 +1,6 @@
 const { pi_pool, ma_pool, localizacoes_pi_pool } = require('../../db');
 const { today } = require('../../utils/dates');
-const { fastC12ForAgent } = require('./c12');
+const { fastC12ForAgent, firstC12ForAgent } = require('./c12');
 
 // ─── orderLeituras (Helper) ───────────────────────────────────────────────────
 function orderLeituras(rows) {
@@ -36,6 +36,7 @@ function orderLeituras(rows) {
 // ─── getLeiturasForAgent ───────────────────────────────────────────────────────
 async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1, limit = 20, filter = 'all' }) {
     const result = [];
+    let params = [id.toUpperCase(), id.toLowerCase(), date, limit, (page - 1) * limit]
 
     if (filter === 'pending') {
         return getLeiturasPendingForAgent({ state, id, date, page, limit });
@@ -53,9 +54,9 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
             ORDER BY data_conclusao ASC
             LIMIT $4 OFFSET $5;`;
 
-        const { rows } = state === 'pi' 
-            ? await pi_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), date, limit, (page - 1) * limit]) 
-            : await ma_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), date, limit, (page - 1) * limit]);
+        const { rows } = state === 'pi'
+            ? await pi_pool.query(query_all, params)
+            : await ma_pool.query(query_all, params);
         if (rows.length === 0) return [];
         result.push(...orderLeituras(rows));
     }
@@ -76,9 +77,9 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
             FROM historico_completo
             LIMIT $4 OFFSET $5`;
 
-        const { rows } = state === 'pi' 
-            ? await pi_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), date, limit, (page - 1) * limit]) 
-            : await ma_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), date, limit, (page - 1) * limit]);
+        const { rows } = state === 'pi'
+            ? await pi_pool.query(query_all, params)
+            : await ma_pool.query(query_all, params);
         if (rows.length === 0) return [];
         result.push(...orderLeituras(rows));
     }
@@ -89,15 +90,16 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
                 SELECT 
                     instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
                 FROM matriz
-                WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
+                WHERE agente IN ($1, $2)
                 AND ntlei = 'C12'
-                AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
+                AND data_conclusao >= TO_DATE($3, 'DD/MM/YYYY')
+                AND data_conclusao < TO_DATE($3, 'DD/MM/YYYY') + interval '1 day'
             )
             SELECT *
             FROM historico_completo
-            LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
+            LIMIT $4 OFFSET $5`;
 
-        const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        const { rows } = state === 'pi' ? await pi_pool.query(query_all, params) : await ma_pool.query(query_all, params);
         if (rows.length === 0) return [];
         result.push(...orderLeituras(rows));
 
@@ -105,74 +107,67 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
 
     if (filter === 'c12_out_time') {
         const query_all = `
-            WITH historico_completo AS (
-                SELECT 
-                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
-                FROM matriz
-                WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
+            SELECT 
+                instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
+            FROM matriz
+                WHERE agente IN ($1, $2)
                 AND ntlei = 'C12'
-                AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
-            )
-            SELECT *
-            FROM historico_completo
-            LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
+                AND data_conclusao >= TO_DATE($3, 'DD/MM/YYYY')
+                AND data_conclusao < TO_DATE($3, 'DD/MM/YYYY') + interval '1 day'
+                LIMIT $4 OFFSET $5`;
 
-        const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        const { rows } = state === 'pi' ? await pi_pool.query(query_all, params) : await ma_pool.query(query_all, params);
+        console.log(rows[0])
         if (rows.length === 0) return [];
-        result.push(...rows);
+
+        const hourLimit = 'pi' ? 8 : 7
+        result.push(
+            ...rows
+                ?.map(r => {
+                    const dt = new Date(r.data_conclusao);
+                    r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+                    return r;
+                })
+                ?.filter(r => parseInt(r.hora_conclusao.split(':')[0]) < hourLimit)
+        )
+
 
     }
 
     if (filter === 'c12_ligacao_nova') {
         const query_all = `
-            WITH historico_completo AS (
-                SELECT 
-                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
-                FROM matriz
-                WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
+            SELECT 
+                instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
+            FROM matriz
+                WHERE agente IN ($1, $2)
                 AND ntlei = 'C12'
+                AND data_conclusao >= TO_DATE($3, 'DD/MM/YYYY')
+                AND data_conclusao < TO_DATE($3, 'DD/MM/YYYY') + interval '1 day'
                 AND instalacao LIKE '200%'
-                AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
-            )
-            SELECT *
-            FROM historico_completo
-            LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
+                AND status_ds = 'LG'
+                LIMIT $4 OFFSET $5`;
 
-        const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        const { rows } = state === 'pi' ? await pi_pool.query(query_all, params) : await ma_pool.query(query_all, params);
         if (rows.length === 0) return [];
         result.push(...orderLeituras(rows));
 
     }
 
     if (filter === 'fast_c12') {
-        const rows = await fastC12ForAgent({state, id, date, limit, page})
+        const rows = await fastC12ForAgent({ state, id, date, limit, page })
         if (rows.length === 0) return [];
-        return rows;
+        return rows.map(r => {
+            r['tempo_execucao'] = r['tempo_formatado']
+            delete r['tempo_formatado']
+            return r
+        });
 
     }
 
     if (filter === 'first_c12') {
-        const query_all = `
-            WITH historico_agentes AS (
-                SELECT 
-                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente, tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude,
-                    status_ds,
-                    LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant,
-                    LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant2
-                FROM matriz
-            )
-            SELECT instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente, tem_perda, nome_agente, latitude, longitude
-            FROM historico_agentes
-            WHERE agente IN ('${id?.toUpperCase()}', '${id?.toLowerCase()}')
-            AND data_conclusao::date = TO_DATE('${date}', 'DD.MM.YYYY')
-            AND ntlei = 'C12'
-            AND status_ds = 'LG'
-            AND (ntlei_ant LIKE 'A%' OR ntlei_ant IN ('B09', 'B10', 'B15'))
-            AND (ntlei_ant2 LIKE 'A%' OR ntlei_ant2 IN ('B09', 'B10', 'B15'))
-            LIMIT ${limit} OFFSET ${(page - 1) * limit}`;
-        const { rows } = state === 'pi' ? await pi_pool.query(query_all) : await ma_pool.query(query_all);
+        const rows = await firstC12ForAgent({ state, id, date, limit, page });
         if (rows.length === 0) return [];
-        result.push(...orderLeituras(rows));
+        result.push(...rows);
     }
 
     return result;
@@ -194,8 +189,8 @@ async function getLeiturasPendingForAgent({ state = 'pi', id, date = today(), pa
             AND data_leit_prev < TO_DATE($3, 'DD.MM.YYYY') + interval '1 day'
             LIMIT $4 OFFSET $5;`;
 
-    const { rows } = state === 'pi' 
-        ? await pi_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), first_month_day, limit, (page - 1) * limit]) 
+    const { rows } = state === 'pi'
+        ? await pi_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), first_month_day, limit, (page - 1) * limit])
         : await ma_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), first_month_day, limit, (page - 1) * limit]);
     if (rows.length === 0) return [];
     return rows;
@@ -252,8 +247,6 @@ async function get_instalation_matriz({ estado, instalacao, data_leit_prev }) {
     const activeState = (estado || 'pi').toLowerCase();
     const pool = activeState === 'ma' ? ma_pool : pi_pool;
 
-    console.log(`[DEBUG] get_instalation_matriz - Pool: ${activeState}, Instalacao: ${instalacao}`);
-
     const sql = `
         SELECT * FROM matriz
         WHERE TRIM(instalacao) = TRIM($1)
@@ -305,7 +298,6 @@ async function get_predicted({ state = 'pi', id, status = 'PENDENTE', page = 1, 
     const rows_instalations = await get_instalations({ state, query: rows_ids, type: 'instalacao' });
 
     const result = rows.map((r, i) => {
-        console.log(r);
         const instalation = rows_instalations.find(i => i.instalacao === r.instalacao);
         if (instalation) {
             r['lat_cad'] = instalation.lat_cad;
@@ -497,7 +489,7 @@ async function getWeeklyCNLStats({ state = 'pi', id, date = today() }) {
     const target_date = new Date(y, m - 1, d);
     // ISODOW 1(Seg)-7(Dom). JS getDay 0(Dom)-6(Sab).
     const currentDayIso = target_date.getDay() === 0 ? 7 : target_date.getDay();
-    
+
     const query = `
         SELECT 
             EXTRACT(ISODOW FROM data_conclusao)::INTEGER as dow,
@@ -512,8 +504,8 @@ async function getWeeklyCNLStats({ state = 'pi', id, date = today() }) {
         ORDER BY 1;
     `;
 
-    const { rows } = state === 'pi' 
-        ? await pi_pool.query(query, [id.toUpperCase(), id.toLowerCase(), date]) 
+    const { rows } = state === 'pi'
+        ? await pi_pool.query(query, [id.toUpperCase(), id.toLowerCase(), date])
         : await ma_pool.query(query, [id.toUpperCase(), id.toLowerCase(), date]);
 
     const labels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
@@ -883,9 +875,9 @@ async function save_inventory({
     await pool.query(createTableQuery);
 
     const existing = await get_inventory_by_agent({ agente, estado: state });
-    
+
     if (existing) {
-        const sameData = 
+        const sameData =
             existing.pda_imei_1 === pda_imei_1 &&
             existing.pda_imei_2 === pda_imei_2 &&
             existing.pda_numero_serie === pda_numero_serie &&
@@ -945,7 +937,7 @@ module.exports = {
     getLeiturasPendingForAgent,
     getCalendarForAgent,
     getAgentTelegramId,
-    get_instalations_matriz: get_instalation_matriz,    
+    get_instalations_matriz: get_instalation_matriz,
     get_instalations,
     get_predicted,
     save_justify,

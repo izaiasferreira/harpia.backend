@@ -42,7 +42,6 @@ async function c12_Json(state = 'pi', region = 'all', dateinit = today(), dateen
                 instalacao, etapa, seccional, regional, ntlei, ntlei_ant, ntlei_ant2, 
                 agente, nome_agente, supervisor, status_ds, data_conclusao, latitude, longitude,
                 tempo_execucao_segundos,
-                -- Formatação HH:MM:SS
                 to_char(tempo_execucao_segundos * interval '1 second', 'HH24:MI:SS') as tempo_formatado
             FROM calculo_tempo
             WHERE (data_conclusao >= TO_DATE($1, 'DD/MM/YYYY') AND data_conclusao < TO_DATE($2, 'DD/MM/YYYY') + interval '1 day')
@@ -231,6 +230,39 @@ async function fastC12ForAgent({ state = 'pi', id, date = today(), page = 1, lim
         r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
         return r;
     });
+}
+
+// ─── firstC12ForAgent (otimizado) ────────────────────────────────────────────────
+async function firstC12ForAgent({ state = 'pi', id, date = today(), page = 1, limit = 9999 }) {
+    const query = `
+    WITH base AS (
+        SELECT 
+            instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente, tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude,
+            status_ds,
+            ROW_NUMBER() OVER (PARTITION BY instalacao ORDER BY data_conclusao) as rn
+        FROM matriz
+        WHERE UPPER(agente) = UPPER($1)
+        AND data_conclusao >= TO_DATE($2, 'DD/MM/YYYY')
+        AND data_conclusao < TO_DATE($2, 'DD/MM/YYYY') + interval '1 day'
+        AND ntlei = 'C12'
+        AND status_ds = 'LG'
+    ),
+    com_anterior AS (
+        SELECT 
+            b.*,
+            LAG(b.ntlei) OVER (PARTITION BY b.instalacao ORDER BY b.data_conclusao) as ntlei_ant,
+            LAG(b.ntlei, 2) OVER (PARTITION BY b.instalacao ORDER BY b.data_conclusao) as ntlei_ant2
+        FROM base b
+    )
+    SELECT instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente, tem_perda, nome_agente, latitude, longitude
+    FROM com_anterior
+    WHERE (ntlei_ant LIKE 'A%' OR ntlei_ant IN ('B09', 'B10', 'B15'))
+    AND (ntlei_ant2 LIKE 'A%' OR ntlei_ant2 IN ('B09', 'B10', 'B15'))
+    LIMIT $3 OFFSET $4;
+    `;
+
+    const { rows } = state === 'pi' ? await pi_pool.query(query, [id, date, limit, (page - 1) * limit]) : await ma_pool.query(query, [id, date, limit, (page - 1) * limit]);
+    return rows;
 }
 
 module.exports = {
