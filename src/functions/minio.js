@@ -3,11 +3,11 @@ const { Client } = require('minio');
 
 const minioClient = new Client({
     endPoint: process.env.MINIO_ENDPOINT || 'localhost',
-    port: 9000,
-    useSSL: false,
+    port: parseInt(process.env.MINIO_PORT) || 9000,
+    useSSL: process.env.MINIO_USE_SSL === 'true',
     accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
     secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
-    region: process.env.MINIO_REGION
+    region: process.env.MINIO_REGION || 'pi-ma'
 });
 
 const BUCKET_NAME = process.env.MINIO_BUCKET || 'api-banco';
