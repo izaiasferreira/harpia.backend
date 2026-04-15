@@ -1,44 +1,125 @@
 require('dotenv').config();
 const { Client } = require('minio');
+const sharp = require('sharp');
 
-const minioClient = new Client({
-    endPoint: process.env.MINIO_ENDPOINT || 'localhost',
+// ==========================================
+// Configurações
+// ==========================================
+const CONFIG = {
+    // MinIO
+    endpoint: process.env.MINIO_ENDPOINT || 'localhost',
     port: parseInt(process.env.MINIO_PORT) || 9000,
     useSSL: process.env.MINIO_USE_SSL === 'true',
     accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
     secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
-    region: process.env.MINIO_REGION || 'pi-ma'
+    region: process.env.MINIO_REGION || 'pi-ma',
+    bucket: process.env.MINIO_BUCKET || 'api-banco',
+    
+    // Compressão de imagens
+    imageQuality: parseInt(process.env.IMAGE_QUALITY) || 80,
+    imageMaxWidth: parseInt(process.env.IMAGE_MAX_WIDTH) || 1920,
+    imageMaxHeight: parseInt(process.env.IMAGE_MAX_HEIGHT) || 1080,
+    
+    // URL pública da API
+    publicBaseUrl: process.env.PUBLIC_BASE_URL
+};
+
+// ==========================================
+// Cliente MinIO
+// ==========================================
+const minioClient = new Client({
+    endPoint: CONFIG.endpoint,
+    port: CONFIG.port,
+    useSSL: CONFIG.useSSL,
+    accessKey: CONFIG.accessKey,
+    secretKey: CONFIG.secretKey,
+    region: CONFIG.region
 });
 
-const BUCKET_NAME = process.env.MINIO_BUCKET || 'api-banco';
+// ==========================================
+// Funções
+// ==========================================
 
+/**
+ * Comprime imagem antes do upload
+ */
+async function compressImage(buffer, mimeType) {
+    const image = sharp(buffer);
+    const metadata = await image.metadata();
+    
+    // Redimensiona se necessário
+    if (metadata.width > CONFIG.imageMaxWidth || metadata.height > CONFIG.imageMaxHeight) {
+        image.resize(CONFIG.imageMaxWidth, CONFIG.imageMaxHeight, {
+            fit: 'inside',
+            withoutEnlargement: true
+        });
+    }
+    
+    // Aplica compressão conforme o tipo
+    let pipeline = image;
+    switch (mimeType) {
+        case 'image/jpeg':
+        case 'image/jpg':
+            pipeline = pipeline.jpeg({ quality: CONFIG.imageQuality });
+            break;
+        case 'image/png':
+            pipeline = pipeline.png({ compressionLevel: 9 });
+            break;
+        case 'image/webp':
+            pipeline = pipeline.webp({ quality: CONFIG.imageQuality });
+            break;
+        case 'image/gif':
+            pipeline = image.gif();
+            break;
+    }
+    
+    return pipeline.toBuffer();
+}
+
+/**
+ * Garante que o bucket existe e tem política pública
+ */
 async function ensureBucketExists() {
-    const bucketExists = await minioClient.bucketExists(BUCKET_NAME);
-    if (!bucketExists) {
-        await minioClient.makeBucket(BUCKET_NAME);
-        console.log(`Bucket '${BUCKET_NAME}' criado com sucesso.`);
+    const exists = await minioClient.bucketExists(CONFIG.bucket);
+    if (!exists) {
+        await minioClient.makeBucket(CONFIG.bucket);
         
-        await minioClient.setBucketPolicy(BUCKET_NAME, JSON.stringify({
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Principal": "*",
-                    "Action": ["s3:GetObject"],
-                    "Resource": [`arn:aws:s3:::${BUCKET_NAME}/*`]
-                }
-            ]
-        }));
+        const policy = {
+            Version: '2012-10-17',
+            Statement: [{
+                Effect: 'Allow',
+                Principal: '*',
+                Action: ['s3:GetObject'],
+                Resource: [`arn:aws:s3:::${CONFIG.bucket}/*`]
+            }]
+        };
+        
+        await minioClient.setBucketPolicy(CONFIG.bucket, JSON.stringify(policy));
     }
 }
 
-function getPublicUrl(fullPath) {
-    return `http://${process.env.MINIO_ENDPOINT}:9000/${BUCKET_NAME}/${fullPath}`;
+/**
+ * Gera URL pública para acessar arquivo (via proxy da API)
+ */
+function getFileUrl(path) {
+    return `${CONFIG.publicBaseUrl}/file/${path}`;
 }
 
+/**
+ * Gera URL pública para acessar arquivo de bucket específico
+ */
+function getBucketFileUrl(bucket, path) {
+    return `${CONFIG.publicBaseUrl}/files/${bucket}/${path}`;
+}
+
+// ==========================================
+// Exports
+// ==========================================
 module.exports = {
     minioClient,
-    BUCKET_NAME,
+    CONFIG,
+    compressImage,
     ensureBucketExists,
-    getPublicUrl
+    getFileUrl,
+    getBucketFileUrl
 };

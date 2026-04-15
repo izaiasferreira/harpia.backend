@@ -26,7 +26,7 @@ const {
     get_inventory_by_agent,
     save_inventory
 } = require('../functions/postgresFunctions');
-const { minioClient, BUCKET_NAME, ensureBucketExists, getPublicUrl } = require('../functions/minio');
+const { minioClient, CONFIG, ensureBucketExists, getFileUrl, compressImage } = require('../functions/minio');
 const { telegramAuth } = require('../middlewares/telegramAuth');
 const { today, parse_date } = require('../utils/dates');
 const multer = require('multer');
@@ -531,13 +531,23 @@ router.post('/upload_agent', upload.single('file'), async (req, res) => {
         const fileName = `${timestamp}-${agentId}-${Math.random().toString(36).substring(7)}.${ext}`;
         const fullPath = `agents/${agentId}/${fileName}`;
 
-        await minioClient.putObject(BUCKET_NAME, fullPath, req.file.buffer);
+        let fileBuffer = req.file.buffer;
+        let originalSize = fileBuffer.length;
+
+        if (['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(req.file.mimetype)) {
+            fileBuffer = await compressImage(fileBuffer, req.file.mimetype);
+            console.log(`Imagem comprimida: ${originalSize} -> ${fileBuffer.length} bytes (${Math.round((1 - fileBuffer.length / originalSize) * 100)}% redução)`);
+        }
+
+        await minioClient.putObject(CONFIG.bucket, fullPath, fileBuffer);
 
         res.json({
             success: true,
             fileName: fullPath,
-            url: getPublicUrl(fullPath),
-            size: req.file.size,
+            url: getFileUrl(fullPath),
+            size: fileBuffer.length,
+            originalSize: originalSize,
+            compression: originalSize !== fileBuffer.length ? Math.round((1 - fileBuffer.length / originalSize) * 100) + '%' : null,
             mimetype: req.file.mimetype
         });
 
