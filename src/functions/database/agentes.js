@@ -559,6 +559,10 @@ async function pre_create_pending_justify({
     `;
     await pool.query(createTableQuery);
 
+    // Adicionar colunas se não existirem (para tabelas antigas)
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => {});
+
     const insertQuery = `
         INSERT INTO justify_pending (autor, quantidade, tipo, unidade_leitura, foto, estado, status, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, 'pendente', $7, $8)
@@ -595,6 +599,10 @@ async function respond_pending_justify({
     `;
     await pool.query(createTableQuery);
 
+    // Adicionar colunas se não existirem (para tabelas antigas)
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => {});
+
     const updateQuery = `
         UPDATE justify_pending 
         SET motivo = $1, observacao = $2, foto = COALESCE($3, foto), status = 'respondido', updated_at = $4
@@ -625,6 +633,10 @@ async function get_pending_justify_by_id({ id, estado = 'pi' }) {
     `;
     await pool.query(createTableQuery);
 
+    // Adicionar colunas se não existirem (para tabelas antigas)
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => {});
+
     const query = `SELECT * FROM justify_pending WHERE id = $1;`;
     const { rows } = await pool.query(query, [id]);
     return rows[0] || null;
@@ -650,6 +662,10 @@ async function get_pending_justifies({ state = 'pi', autor, status = 'pendente',
         );
     `;
     await pool.query(createTableQuery);
+
+    // Adicionar colunas se não existirem (para tabelas antigas)
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => {});
 
     let query = `SELECT * FROM justify_pending WHERE 1=1`;
     const params = [];
