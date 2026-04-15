@@ -31,6 +31,7 @@ const { telegramAuth } = require('../middlewares/telegramAuth');
 const { today, parse_date } = require('../utils/dates');
 const multer = require('multer');
 const { generateDashboard } = require('../functions/generateDashboard');
+const { generateCustomLinks } = require('../functions/generateCustomLinks');
 
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -195,63 +196,14 @@ router.get('/agent_data', async (req, res) => {
     }
 });
 
-const links = [
-    {
-        "id": "servicos-app",
-        "label": "Serviços",
-        "description": "Meus serviços atribuídos",
-        "url": 'https://service.izisolucoes.com.br/servicos/default/699e3e5914265fccd12f57ad?matricula=${id}',
-        "emoji": "Smartphone",
-        "color": "text-blue-600",
-        "states": ['pi']
-    },
-    {
-        "id": "busca-app",
-        "label": "Pesquisar Instalação",
-        "description": "Encontre instalações",
-        "url": `/search`,
-        "emoji": "MapPinned",
-        "color": "text-green-600",
-        "states": ['pi']
-    },
-    {
-        "id": "inventario-app",
-        "label": "Inventário",
-        "description": "Cadastre os equipamentos",
-        "url": `/inventory`,
-        "emoji": "Box",
-        "color": "text-yellow-600",
-        "states": ['pi', 'ma']
-    },
-    // {
-    //     "id": "daily-report-app",
-    //     "label": "Diário de bordo",
-    //     "description": "Como foi seu dia?",
-    //     "url": `/daily-report`,
-    //     "emoji": "Newspaper",
-    //     "color": "text-blue-600",
-    //     "states": ['pi', 'ma']
-    // },
-    // {
-    //     "id": "justify-pending-app",
-    //     "label": "Justificar pendências",
-    //     "description": "Justifique suas pendências",
-    //     "url": `/justify-pending`,
-    //     "emoji": "AlertTriangle",
-    //     "color": "text-red-600",
-    //     "states": ['pi', 'ma']
-    // }
-]
+
 
 router.get('/custom_links', async (req, res) => {
     try {
         const state = req.colaborador.estado || 'pi';
         const id = req.colaborador.id;
-        const links_filtered = links.filter(link => link.states.includes(state));
-        links_filtered.forEach(link => {
-            link.url = link.url.replace('${id}', id);
-        });
-        return res.json(links_filtered);
+        const links = generateCustomLinks({ state, id });
+        return res.json(links);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
