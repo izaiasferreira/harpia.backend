@@ -490,7 +490,7 @@ router.post('/inventory', async (req, res) => {
 
         const result = await save_inventory({
             state: estado,
-            agente,
+            agente: agente.toUpperCase(),
             pda_imei_1,
             pda_imei_2,
             pda_numero_serie,
