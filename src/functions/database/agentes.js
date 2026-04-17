@@ -967,29 +967,40 @@ async function save_inventory({
     const existing = await get_inventory_by_agent({ agente, estado: state });
 
     if (existing) {
-        const sameData =
-            existing.pda_imei_1 === pda_imei_1 &&
-            existing.pda_imei_2 === pda_imei_2 &&
-            existing.pda_numero_serie === pda_numero_serie &&
-            existing.pda_marca === pda_marca &&
-            existing.pda_modelo === pda_modelo &&
-            existing.pda_numero_chip === pda_numero_chip &&
-            existing.pda_versao_android === pda_versao_android &&
-            existing.pda_versao_bluetooth === pda_versao_bluetooth &&
-            existing.impressora_numero_serie === impressora_numero_serie &&
-            existing.impressora_modelo === impressora_modelo &&
-            existing.impressora_marca === impressora_marca;
-
-        if (sameData) {
-            const updateQuery = `
-                UPDATE inventory 
-                SET updated_at = $1
-                WHERE id = $2
-                RETURNING *;
-            `;
-            const { rows } = await pool.query(updateQuery, [updated_at, existing.id]);
-            return { ...rows[0], action: 'updated_at' };
-        }
+        const updateQuery = `
+            UPDATE inventory 
+            SET pda_imei_1 = $1,
+                pda_imei_2 = $2,
+                pda_numero_serie = $3,
+                pda_marca = $4,
+                pda_modelo = $5,
+                pda_numero_chip = $6,
+                pda_versao_android = $7,
+                pda_versao_bluetooth = $8,
+                impressora_numero_serie = $9,
+                impressora_modelo = $10,
+                impressora_marca = $11,
+                updated_at = $12
+            WHERE id = $13
+            RETURNING *;
+        `;
+        const values = [
+            pda_imei_1 || null,
+            pda_imei_2 || null,
+            pda_numero_serie || null,
+            pda_marca || null,
+            pda_modelo || null,
+            pda_numero_chip || null,
+            pda_versao_android || null,
+            pda_versao_bluetooth || null,
+            impressora_numero_serie || null,
+            impressora_modelo || null,
+            impressora_marca || null,
+            updated_at,
+            existing.id
+        ];
+        const { rows } = await pool.query(updateQuery, values);
+        return { ...rows[0], action: 'updated' };
     }
 
     const insertQuery = `
@@ -1019,6 +1030,16 @@ async function save_inventory({
         updated_at
     ];
     const { rows } = await pool.query(insertQuery, values);
+    const newId = rows[0].id;
+
+    const deleteDuplicatesQuery = `
+        DELETE FROM inventory 
+        WHERE agente = $1 
+        AND estado = $2 
+        AND id < $3
+    `;
+    await pool.query(deleteDuplicatesQuery, [agente.toLowerCase(), state.toLowerCase(), newId]);
+
     return { ...rows[0], action: 'created' };
 }
 
