@@ -775,6 +775,16 @@ curl http://localhost:3040/admin/user/me \
 | `branches` | Gerenciar filiais |
 | `permissions` | Gerenciar permissões |
 
+### Verificação de Módulo
+
+Para endpoints que requerem módulo específico, use:
+
+```javascript
+router.post('/endpoint', verifyToken, verifyModule('nome_modulo'), async (req, res) => {
+```
+
+O middleware `verifyModule` verifica se o usuário tem o módulo em `req.user.modules` (preenchido por `verifyToken`).
+
 ---
 
 ## API Routes
@@ -800,14 +810,32 @@ Cria novo usuário (apenas COMPANY_ADMIN).
 **Headers:** `Authorization: Bearer <token>`
 
 **Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `email` | string | Sim | Email do usuário |
+| `senha` | string | Sim | Senha do usuário |
+| `nome` | string | Sim | Nome do usuário |
+| `role` | string | Não | Papel: `USER` ou `COMPANY_ADMIN` (padrão: `USER`) |
+| `estado` | string | Não | Estado: `pi` ou `ma` (padrão: `pi`) |
+| `branches` | number[] | Não | IDs das filiais (array) |
+| `permissions` | number[] | Não | IDs das permissões (array) |
+
+**Body示例:**
 ```json
 {
-    "email": "novo@empresa.com",
+    "email": "joao@empresa.com",
     "senha": "senha123",
-    "nome": "Novo Usuário",
+    "nome": "João Silva",
     "role": "USER",
-    "estado": "pi"
+    "estado": "pi",
+    "branches": [1, 2],
+    "permissions": [1, 2]
 }
+```
+
+**Response 201:**
+```json
+{ "id": 3, "email": "joao@empresa.com", "nome": "João Silva", "role": "USER", "estado": "pi", "ativo": true }
 ```
 
 ---
@@ -1449,7 +1477,11 @@ Retorna o dashboard administrativo com estatísticas e widgets.
 
 Busca informações de instalações no banco de localizações.
 
-**Autenticação:** Bearer token (COMPANY_ADMIN)
+**Autenticação:** Bearer token + módulo `search_in`
+
+**Módulos necessários:** `search_in`
+
+Para usar este endpoint, o usuário precisa ter uma permissão com o módulo `search_in` atribuído.
 
 **Body:**
 | Campo | Tipo | Obrigatório | Descrição |

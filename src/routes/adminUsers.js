@@ -32,7 +32,9 @@ const ADMIN_NOME = process.env.ADMIN_NOME || 'Admin Principal';
                 senha: ADMIN_SENHA,
                 nome: ADMIN_NOME,
                 role: 'COMPANY_ADMIN',
-                estado: 'pi'
+                estado: 'pi',
+                branches: [],
+                permissions: []
             });
             console.log(`Admin criado: ${ADMIN_EMAIL}`);
         }
@@ -75,13 +77,21 @@ router.post('/register', requireCompanyAdmin, async (req, res) => {
             return res.status(403).json({ error: 'Apenas Administradores podem criar usuários' });
         }
 
-        const { email, senha, nome, role, estado } = req.body;
+        const { email, senha, nome, role, estado, branches, permissions } = req.body;
 
         if (!email || !senha || !nome) {
             return res.status(400).json({ error: 'Email, senha e nome são obrigatórios' });
         }
 
-        const user = await createUser({ email, senha, nome, role: role || 'USER', estado: estado || req.user.estado });
+        const user = await createUser({ 
+            email, 
+            senha, 
+            nome, 
+            role: role || 'USER', 
+            estado: estado || req.user.estado,
+            branches: branches || [],
+            permissions: permissions || []
+        });
         res.status(201).json(user);
     } catch (error) {
         if (error.message.includes('já existe')) {

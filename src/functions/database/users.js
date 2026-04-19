@@ -16,6 +16,17 @@ async function createUsersTable() {
             ativo BOOLEAN DEFAULT true
         )
     `);
+
+    await cenos_pool.query(`
+        CREATE TABLE IF NOT EXISTS user_branches (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+            state TEXT DEFAULT 'pi',
+            created_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE(user_id, branch_id, state)
+        )
+    `);
 }
 
 async function createUser({
@@ -23,7 +34,9 @@ async function createUser({
     senha,
     nome,
     role = 'USER',
-    estado = 'pi'
+    estado = 'pi',
+    branches = [],
+    permissions = []
 }) {
     await createUsersTable();
 
@@ -49,6 +62,26 @@ async function createUser({
         role,
         estado.toLowerCase()
     ]);
+
+    const userId = rows[0].id;
+    const state = estado.toLowerCase();
+
+    if (branches.length > 0) {
+        const branchValues = branches.map((b, i) => `($1, $${i + 2}, $${i + 3})`).join(', ');
+        await pool.query(
+            `INSERT INTO user_branches (user_id, branch_id, state) VALUES ${branchValues}`,
+            [userId, ...branches, state]
+        );
+    }
+
+    if (permissions.length > 0) {
+        const permValues = permissions.map((p, i) => `($1, $${i + 2}, $${i + 3})`).join(', ');
+        await pool.query(
+            `INSERT INTO user_permissions (user_id, permission_id, state) VALUES ${permValues}`,
+            [userId, ...permissions, state]
+        );
+    }
+
     return rows[0];
 }
 

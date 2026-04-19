@@ -65,10 +65,12 @@ function verifyModule(moduleId) {
 
         const modules = req.user.modules || [];
 
+        // Se o usuário for admin, ele tem acesso a todos os módulos
         if(req.user.role.toLowerCase().includes('admin')) {
             return next();
         }
         
+        // Se o módulo não estiver na lista de módulos do usuário, ele não tem acesso
         if (!modules.includes(moduleId)) {
             return res.status(403).json({ error: `Módulo não autorizado` });
         }
