@@ -28,7 +28,6 @@
 | `DELETE` | Soft delete |
 | `ASSIGN` | Atribuição (permissão/filial) |
 | `UNASSIGN` | Remoção de atribuição |
-| `TOGGLE` | Ativar/desativar módulo |
 | `EXPORT` | Exportação de dados |
 | `PASSWORD_RESET` | Reset de senha |
 
@@ -67,7 +66,7 @@ async function auditLogger(request: FastifyRequest, reply: FastifyReply) {
 
 ### Sanitização de Dados Sensíveis
 
-Campos `password`, `passwordHash`, `token`, `refreshToken`, `secret` são substituídos por `***REDACTED***`.
+Campos `password`, `passwordHash`, `token`, `secret` são substituídos por `***REDACTED***`.
 
 ### Extração de IP (com Load Balancer)
 
@@ -207,7 +206,7 @@ describe('Audit Module E2E', () => {
     it('should log login with IP');
     it('should log failed login');
     it('should log permission assignment');
-    it('should log module toggle');
+    it('should log permission assignment');
     it('should sanitize passwords');
     it('should record duration');
     it('should not block response');

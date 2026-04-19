@@ -3,18 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 
 const { minioClient, CONFIG, compressImage, ensureBucketExists, getFileUrl } = require('../functions/minio');
-
-// ==========================================
-// Middleware
-// ==========================================
-
-function checkToken(req, res) {
-    if (req.query.token !== process.env.API_TOKEN) {
-        res.status(401).json({ error: 'Token inválido' });
-        return false;
-    }
-    return true;
-}
+const { verifyToken } = require('../middlewares/jwtAuth');
 
 const storage = multer.memoryStorage();
 const upload = multer({ 
@@ -30,9 +19,8 @@ const upload = multer({
  * POST /upload
  * Upload de arquivo com compressão de imagem
  */
-router.post('/upload', upload.single('file'), async (req, res) => {
+router.post('/upload', upload.single('file'), verifyToken, async (req, res) => {
     try {
-        if (!checkToken(req, res)) return;
         if (!req.file) {
             return res.status(400).json({ error: 'Nenhum arquivo enviado' });
         }
@@ -77,19 +65,6 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     } catch (err) {
         console.error('Erro no upload:', err);
         res.status(500).json({ error: err.message });
-    }
-});
-
-/**
- * GET /upload/health
- * Verifica conexão com MinIO
- */
-router.get('/upload/health', async (req, res) => {
-    try {
-        await minioClient.listBuckets();
-        res.json({ status: 'ok', bucket: CONFIG.bucket });
-    } catch (err) {
-        res.status(500).json({ status: 'error', error: err.message });
     }
 });
 

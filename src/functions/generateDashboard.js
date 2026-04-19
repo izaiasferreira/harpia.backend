@@ -1,23 +1,29 @@
-function generateDashboard({ state, id, today_date, stats }) {
+require('dotenv').config();
 
+function generateDashboard({ state, id, today_date, stats }) {
+    function getAssetsLink(fileName) {
+        const assetsLink = process.env.PUBLIC_BASE_URL + '/files/assets/' + fileName;
+        return assetsLink;
+    }
     let banners = [
         {
-            imageUrl: 'https://litter.catbox.moe/7qafg3.png',
+            imageUrl: getAssetsLink('banner7.png'),
             action: { type: 'link', url: '/inventory' }
         },
         {
-            imageUrl: 'https://litter.catbox.moe/22q59u.png',
+            imageUrl: getAssetsLink('banner4.png'),
             action: { type: 'link', url: `https://forms.cattalk.com.br/form/satisfacao-ceneged-bot?id=${id}` }
         },
         {
-            imageUrl: 'https://litter.catbox.moe/z9zjpw.png',
+            imageUrl: getAssetsLink('banner5.png'),
             action: { type: 'link', url: '' }
         }
     ]
+    console.log(banners)
 
     if (state === 'pi') {
         banners.push({
-            imageUrl: 'https://litter.catbox.moe/y62ct7.png',
+            imageUrl: getAssetsLink('banner6.png'),
             action: { type: 'link', url: '/search' }
         })
     }

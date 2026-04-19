@@ -1,6 +1,10 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 
+const cenos_pool = new Pool({
+    connectionString: process.env.PG_CONNECTION,
+});
+
 const pi_pool = new Pool({
     connectionString: process.env.PG_CONNECTION_PI,
 });
@@ -13,4 +17,4 @@ const localizacoes_pi_pool = new Pool({
     connectionString: process.env.PG_CONNECTION_LOCALIZACOES_PI,
 });
 
-module.exports = { pi_pool, ma_pool, localizacoes_pi_pool };
+module.exports = { cenos_pool, pi_pool, ma_pool, localizacoes_pi_pool };

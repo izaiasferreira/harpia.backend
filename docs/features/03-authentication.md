@@ -8,42 +8,30 @@
 
 ## 3.1. Estratégia de Autenticação
 
-### Fluxo JWT com Refresh Token
+### Fluxo JWT Simples
 
 ```mermaid
 sequenceDiagram
     participant C as Client
     participant A as API
     participant DB as Database
-    participant R as Redis
 
     C->>A: POST /auth/login (email, password)
     A->>DB: Find user by email
     A->>A: Verify password (Argon2)
-    A->>DB: Create session record
-    A->>R: Store session in cache
-    A-->>C: { accessToken } + HttpOnly cookie (refreshToken)
+    A-->>C: { accessToken (8h) }
 
-    Note over C,A: Access Token expires (15min)
-
-    C->>A: POST /auth/refresh (cookie: refreshToken)
-    A->>A: Verify refresh token
-    A->>DB: Validate session exists
-    A->>DB: Update session
-    A-->>C: { newAccessToken } + new cookie
+    Note over C,A: Access Token expires (8h)
 
     C->>A: POST /auth/logout
-    A->>DB: Delete session
-    A->>R: Invalidate cache
     A-->>C: 200 OK
 ```
 
 ### Tokens
 
-| Token | Tipo | Expiração | Storage | Conteúdo |
-|-------|------|-----------|---------|----------|
-| **Access Token** | JWT | 15 minutos | Memory (client) | `{ userId, role, companyId, email }` |
-| **Refresh Token** | Opaque (nanoid) | 7 dias | HttpOnly Secure cookie | Hash em DB |
+| Token            | Tipo | Expiração | Storage         | Conteúdo                             |
+|------------------|------|-----------|-----------------|--------------------------------------|
+| **Access Token** | JWT  | 8 horas   | Memory (client) | `{ userId, role, companyId, email }` |
 
 ### Access Token Payload
 
@@ -103,9 +91,6 @@ const loginSchema = z.object({
 
 **Response Headers (Set-Cookie)**:
 ```
-Set-Cookie: refreshToken=rft_abc123...; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=604800
-```
-
 **Response 401**:
 ```json
 {
@@ -137,42 +122,6 @@ Set-Cookie: refreshToken=rft_abc123...; HttpOnly; Secure; SameSite=Strict; Path=
 
 ---
 
-### `POST /api/v1/auth/refresh`
-
-**Descrição**: Renovar access token usando refresh token do cookie.
-
-**Request**: Nenhum body (refresh token vem do cookie).
-
-**Response 200**:
-```json
-{
-  "success": true,
-  "data": {
-    "accessToken": "eyJhbGciOiJIUzI1NiIs..."
-  }
-}
-```
-
-**Response 401**:
-```json
-{
-  "success": false,
-  "error": {
-    "code": "INVALID_REFRESH_TOKEN",
-    "message": "Sessão expirada. Faça login novamente."
-  }
-}
-```
-
-**Regras de Negócio**:
-- Validar que a sessão existe no banco
-- Validar que a sessão não expirou
-- Gerar novo access token
-- Rotacionar refresh token (token rotation)
-- Se refresh token já foi usado (replay attack), invalidar TODAS as sessões do usuário
-
----
-
 ### `POST /api/v1/auth/logout`
 
 **Descrição**: Invalidar sessão atual.
@@ -188,36 +137,8 @@ Set-Cookie: refreshToken=rft_abc123...; HttpOnly; Secure; SameSite=Strict; Path=
 ```
 
 **Regras de Negócio**:
-- Deletar sessão do banco
-- Limpar cookie de refresh token
+- Invalidar token localmente
 - Logar ação no audit log
-
----
-
-### `POST /api/v1/auth/forgot-password`
-
-**Descrição**: Solicitar email de redefinição de senha.
-
-**Request Body**:
-```json
-{
-  "email": "user@company.com"
-}
-```
-
-**Response 200** (sempre retorna sucesso para não expor emails cadastrados):
-```json
-{
-  "success": true,
-  "message": "Se o email estiver cadastrado, você receberá um link de redefinição."
-}
-```
-
-**Regras de Negócio**:
-- Gerar token de reset (nanoid, 64 chars)
-- Armazenar hash do token no Redis (TTL: 1 hora)
-- Enviar email com link (futuro - por enquanto logar no console)
-- Máximo 3 solicitações por email em 1 hora
 
 ---
 
@@ -296,17 +217,8 @@ const resetPasswordSchema = z.object({
       { "id": "01902jkl-...", "name": "Filial Sul", "code": "FS01" }
     ],
     "permissions": [
-      {
-        "id": "01902mno-...",
-        "name": "Leitor",
-        "slug": "leitor",
-        "modules": [
-          { "moduleId": "users", "actions": ["read"] },
-          { "moduleId": "branches", "actions": ["read"] }
-        ]
-      }
-    ],
-    "enabledModules": ["users", "branches", "dashboard", "audit"]
+      { "id": "01902mno-...", "name": "Leitor" }
+    ]
   }
 }
 ```
@@ -398,7 +310,6 @@ describe('Auth Module E2E', () => {
   // Login
   describe('POST /api/v1/auth/login', () => {
     it('should login with valid credentials and return access token');
-    it('should set httpOnly cookie with refresh token');
     it('should return 401 for invalid email');
     it('should return 401 for invalid password');
     it('should return 403 for disabled account');
@@ -410,20 +321,8 @@ describe('Auth Module E2E', () => {
     it('should return 422 for missing password');
   });
 
-  // Refresh
-  describe('POST /api/v1/auth/refresh', () => {
-    it('should return new access token with valid refresh token cookie');
-    it('should return 401 when no refresh token cookie present');
-    it('should return 401 for expired refresh token');
-    it('should return 401 for invalid refresh token');
-    it('should rotate refresh token (new cookie)');
-    it('should invalidate all sessions on refresh token replay');
-  });
-
   // Logout
   describe('POST /api/v1/auth/logout', () => {
-    it('should invalidate current session');
-    it('should clear refresh token cookie');
     it('should return 401 without auth header');
     it('should create audit log entry');
   });
@@ -450,7 +349,7 @@ describe('Auth Module E2E', () => {
   // Me
   describe('GET /api/v1/auth/me', () => {
     it('should return full user profile with permissions and branches');
-    it('should return enabled modules for user company');
+    it('should return permissions for user');
     it('should return 401 without auth header');
     it('should return 401 with expired access token');
     it('should return correct data for SUPER_ADMIN (no company)');

@@ -1,7 +1,5 @@
 # 04 — Usuários & Tipos de Usuário
 
-> **Módulo**: `users`  
-> **Tipo**: Core (não desativável)  
 > **Prefixo de rota**: `/api/v1/users`
 
 ---
@@ -30,22 +28,21 @@ graph TD
 
 ### Matriz de Capacidades
 
-| Capacidade | SUPER_ADMIN | SUPPORT | COMPANY_ADMIN | USER |
-|-----------|:-----------:|:-------:|:-------------:|:----:|
-| Ver empresas | ✅ | ✅ | ❌ | ❌ |
-| Criar empresa | ✅ | ✅ | ❌ | ❌ |
-| Editar empresa | ✅ | ❌ | ❌ | ❌ |
-| Deletar empresa | ✅ | ❌ | ❌ | ❌ |
-| **Ver usuários** | Todos | COMPANY_ADMIN + USER | Própria empresa | ❌ |
-| Ver suportes | ✅ | ❌ | ❌ | ❌ |
-| Criar usuários | ✅ (qualquer) | ✅ (COMPANY_ADMIN + USER) | ✅ (USER da empresa) | ❌ |
-| Editar usuários | ✅ | ❌ | ✅ (USER da empresa) | ❌ |
-| Deletar usuários | ✅ | ❌ | ✅ (USER da empresa) | ❌ |
-| Resetar senha (empresa) | ✅ | ✅ | ❌ | ❌ |
-| Ativar/desativar usuários | ✅ | ❌ | ✅ (USER da empresa) | ❌ |
-| Criar filial | ✅ | ❌ | ✅ (própria empresa) | ❌ |
-| Gerenciar permissões | ❌ | ❌ | ✅ (na empresa) | ❌ |
-| Ver audit logs | ✅ | ✅ | ❌ | ❌ |
+Capacidade,SUPER_ADMIN,SUPPORT,COMPANY_ADMIN,USER
+Ver empresas,✅,✅,❌,❌
+Criar empresa,✅,✅,❌,❌
+Editar empresa,✅,❌,❌,❌
+Deletar empresa,✅,❌,❌,❌
+Ver usuários,Todos,COMPANY_ADMIN + USER,Própria empresa,❌
+Ver suportes,✅,❌,❌,❌
+Criar usuários,✅ (todos),✅ (COMPANY_ADMIN + USER),✅ (USER da empresa),❌
+Editar usuários,✅,❌,✅ (USER da empresa),❌
+Deletar usuários,✅,❌,✅ (USER da empresa),❌
+Resetar senha (empresa),✅,✅,❌,❌
+Ativar/desativar usuários,✅,❌,✅ (USER da empresa),❌
+Criar filial,✅,❌,✅ (própria empresa),❌
+Gerenciar permissões,❌,❌,✅ (na empresa),❌
+Ver audit logs,✅,✅,❌,❌
 
 ---
 
@@ -140,18 +137,7 @@ graph TD
         "assignedBy": { "id": "...", "name": "Admin" }
       }
     ],
-    "permissions": [
-      {
-        "id": "01902mno-...",
-        "name": "Leitor",
-        "slug": "leitor",
-        "modules": [
-          { "moduleId": "users", "actions": ["read"] }
-        ],
-        "assignedAt": "2024-01-05T00:00:00Z",
-        "assignedBy": { "id": "...", "name": "Admin" }
-      }
-    ],
+    "permissions": ["search", "justify_pending", ...],
     "metadata": { "preferences": { "theme": "dark" } },
     "lastLoginAt": "2024-01-15T10:30:00Z",
     "lastLoginIp": "189.45.32.10",
@@ -163,7 +149,7 @@ graph TD
 
 **Regras de Escopo**:
 - `SUPER_ADMIN`: pode ver qualquer usuário
-- `SUPPORT`: pode ver qualquer usuário (exceto outros SUPER_ADMINs)
+- `SUPPORT`: pode ver qualquer usuário (exceto outros SUPPORT e SUPER_ADMINs)
 - `COMPANY_ADMIN`: pode ver apenas usuários da sua empresa
 - `USER`: pode ver apenas a si mesmo (via `/auth/me`)
 
@@ -182,8 +168,7 @@ graph TD
   "role": "USER",
   "companyId": "01902def-...",
   "phone": "+5511988888888",
-  "branchIds": ["01902ghi-...", "01902jkl-..."],
-  "permissionIds": ["01902mno-..."]
+  "branchIds": ["01902ghi-...", "01902jkl-..."]
 }
 ```
 
@@ -192,25 +177,24 @@ graph TD
 const createUserSchema = z.object({
   name: z.string().min(2).max(255),
   email: z.string().email().max(255),
-  password: passwordSchema,  // Mesmas regras do auth
+  password: passwordSchema,
   role: z.enum(['SUPER_ADMIN', 'SUPPORT', 'COMPANY_ADMIN', 'USER']),
-  companyId: z.string().uuid().optional(),       // Required for COMPANY_ADMIN/USER
+  companyId: z.string().uuid().optional(),
   phone: z.string().max(20).optional(),
   branchIds: z.array(z.string().uuid()).optional(),
-  permissionIds: z.array(z.string().uuid()).optional(),
 });
 ```
 
 **Regras de Negócio**:
 - `SUPER_ADMIN` pode criar qualquer tipo
 - `COMPANY_ADMIN` pode criar apenas `USER` dentro da sua empresa
-- `SUPPORT` não pode criar usuários
+- `SUPPORT` pode criar `COMPANY_ADMIN` e `USER`
 - `companyId` é obrigatório para `COMPANY_ADMIN` e `USER`
 - `companyId` é proibido para `SUPER_ADMIN` e `SUPPORT`
 - Filiais (`branchIds`) devem pertencer à empresa do usuário
-- Permissões (`permissionIds`) devem pertencer à empresa do usuário
 - Email deve ser único globalmente
 - Senha é armazenada como hash Argon2
+- Permissões são atribuídas separadamente via `PUT /users/:id/permissions`
 
 **Response 201**:
 ```json
@@ -249,7 +233,9 @@ const createUserSchema = z.object({
 - Não é possível alterar `email` ou `role` por esta rota
 - Para alterar senha, usar `/auth/reset-password`
 - `SUPER_ADMIN` pode editar qualquer usuário
+- `SUPPORT` pode editar `COMPANY_ADMIN` e `USER`
 - `COMPANY_ADMIN` pode editar apenas `USER`s da sua empresa
+- `USER` não pode editar ninguém, apenas a si mesmo
 - Ao desativar (`isActive: false`), todas as sessões são invalidadas
 - Logar alterações no audit log com old/new values
 
@@ -261,8 +247,10 @@ const createUserSchema = z.object({
 
 **Regras de Negócio**:
 - `SUPER_ADMIN` pode desativar qualquer usuário (exceto a si mesmo)
-- **Não é possível deletar o último SUPER_ADMIN** (proteção)
+- `SUPPORT` pode desativar `COMPANY_ADMIN` e `USER`
 - `COMPANY_ADMIN` pode desativar apenas `USER`s da sua empresa
+- `USER` não pode desativar ninguém, nem a si mesmo
+- **Não é possível deletar o último SUPER_ADMIN** (proteção)
 - Soft delete: `deleted_at` é preenchido, `is_active = false`
 - Todas as sessões do usuário são invalidadas
 - Audit log registrado
@@ -312,14 +300,14 @@ const createUserSchema = z.object({
 - Substitui TODAS as atribuições (full sync)
 - Array vazio remove todas as permissões
 - Permissões devem pertencer à mesma empresa do usuário
-- Apenas `COMPANY_ADMIN` da empresa ou `SUPER_ADMIN`
+- Apenas `COMPANY_ADMIN` da empresa ou `SUPER_ADMIN` ou `SUPPORT`
 - Registra quem fez a atribuição (`assigned_by`)
 
 ---
 
 ### `POST /api/v1/users/:id/reset-password`
 
-**Descrição**: Resetar senha de um usuário (por admin/suporte).
+**Descrição**: Resetar senha de um usuário (por admin/suporte/super_admin).
 
 **Request Body**:
 ```json
@@ -341,8 +329,9 @@ const resetPasswordSchema = z.object({
 
 **Regras de Negócio**:
 - `SUPER_ADMIN`: pode resetar senha de qualquer usuário
-- `SUPPORT`: pode resetar senha de usuários de empresa (não de ADMIN/SUPER_ADMIN)
-- `COMPANY_ADMIN`: não pode resetar senha (via API)
+- `SUPPORT`: pode resetar senha de usuários de ADMIN e USER
+- `COMPANY_ADMIN`: pode resetar senha de usuários de USER
+- `USER`: não pode resetar senha de ninguém, exceto a si mesmo
 - Nova senha invalida todas as sessões existentes do usuário
 - Audit log registrado
 

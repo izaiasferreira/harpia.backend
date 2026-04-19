@@ -49,45 +49,42 @@ app.use(express.static('public'));
 
 // Routes
 const consultasRouter = require('./routes/consultas');
-const webhooksRouter = require('./routes/webhooks');
-const revalidateRouter = require('./routes/revalidate');
 const agenteRouter = require('./routes/agente')
+const adminRouter = require('./routes/admin')
+const adminUsersRouter = require('./routes/adminUsers')
+const adminBranchesRouter = require('./routes/adminBranches')
+const adminPermissionsRouter = require('./routes/adminPermissions')
 const logsRouter = require('./routes/logs')
 const publicRouter = require('./routes/public')
 const agentDefaultAuthRouter = require('./routes/agentDefaultAuth')
 const uploadRouter = require('./routes/upload')
 
-// Health check agora em public.js
 // Rotas públicas (calendar, feriados)
-app.use('/', publicRouter);
+app.use('/public', publicRouter)
 
 // Consultas
-app.use('/', consultasRouter);
-app.use('/api', consultasRouter);
-
-// Webhooks
-app.use('/', webhooksRouter);
-app.use('/api', webhooksRouter);
-
-// Revalidacao
-app.use('/', revalidateRouter);
-app.use('/api', revalidateRouter);
+app.use('/api', consultasRouter)
 
 // Agent Default Auth (sem telegram auth)
-app.use('/', agentDefaultAuthRouter)
-app.use('/api', agentDefaultAuthRouter)
+app.use('/agent', agentDefaultAuthRouter)
 
-// Upload de arquivos para MinIO/S3
-app.use('/', uploadRouter)
-app.use('/api', uploadRouter)
+// Admin Upload (/admin/upload/*)
+app.use('/admin/upload', uploadRouter)
 
-app.use('/', agenteRouter)
-app.use('/api', agenteRouter)
+// Admin (antes do agente para evitar conflito)
+app.use('/admin', adminRouter)
 
-app.use('/', publicRouter)
-app.use('/api', publicRouter)
+// Admin Users (/admin/user/*)
+app.use('/admin/user', adminUsersRouter)
 
-app.use('/api', logsRouter)
+// Admin Branches (/admin/branch/*)
+app.use('/admin/branch', adminBranchesRouter)
+
+// Admin Permissions (/admin/permission/*)
+app.use('/admin/permission', adminPermissionsRouter)
+
+// Agente
+app.use('/agent', agenteRouter)
 
 
 // Tratamento de erros limpo para o CORS (evita sujar o log com stack trace inteiro)

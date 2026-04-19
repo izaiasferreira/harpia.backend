@@ -3,6 +3,7 @@
 API para gestão de leituras, agentes e monitoria de serviços dos estados do Piauí (PI) e Maranhão (MA).
 
 - **Porta padrão:** `3040`
+- **Porta Admin:** `3041`
 - **Timezone:** `America/Sao_Paulo`
 - **Stack:** Node.js + Express + PostgreSQL + Redis
 
@@ -26,8 +27,6 @@ src/
 ├── routes/
 │   ├── public.js            # Rotas públicas (sem autenticação)
 │   ├── consultas.js         # Consultas gerais (token simples)
-│   ├── revalidate.js        # Revalidação de fotos (token simples)
-│   ├── webhooks.js          # Webhooks externos (token simples)
 │   ├── agente.js            # Rotas para o app do agente (Telegram auth)
 │   └── logs.js              # Interface de logs Redis (auth por senha)
 ├── middlewares/
@@ -48,7 +47,7 @@ A API possui 3 modos de autenticação:
 
 ### 1. Token Simples (Query Param)
 
-Usado nas rotas de consultas gerais, revalidação e webhooks.
+Usado nas rotas de consultas gerais.
 O token é definido em `API_TOKEN`.
 
 ```bash
@@ -102,7 +101,7 @@ curl "http://localhost:3040/api/logs/data" -H "Authorization: SENHA"
 
 Rate limit: **60 req/min** por IP.
 
-#### `GET /health`
+#### `GET /public/health`
 Verifica se a API está online.
 
 **Retorno:**
@@ -116,36 +115,9 @@ Verifica se a API está online.
 
 ---
 
-#### `GET /calendar`
-Retorna o calendário de etapas de leitura do mês.
-
-**Query Params:**
-
-| Param | Tipo | Padrão | Descrição |
-|---|---|---|---|
-| `state` | string | `pi` | Estado (`pi` ou `ma`) |
-
-**Retorno:** Array de etapas do roteiro.
-
----
-
-#### `GET /feriados`
-Retorna lista de feriados do estado.
-
-**Query Params:**
-
-| Param | Tipo | Padrão | Descrição |
-|---|---|---|---|
-| `state` | string | `pi` | Estado (`pi` ou `ma`) |
-
-**Retorno:**
-```json
-["03/04/2026", "21/04/2026"]
-```
-
----
-
-#### `GET /metabase_geral`
+#### `GET /public/calendar`
+#### `GET /public/feriados`
+#### `GET /public/metabase_geral`
 Redireciona para o dashboard geral embarcado no Metabase (dashboard ID 4).
 
 - **Autenticação:** Nenhuma
@@ -169,298 +141,38 @@ Parâmetros comuns:
 
 ---
 
-#### `GET /last_update`
-Retorna horários da última atualização dos dados.
-
-**Query Params:** `token`, `state`
-
-**Retorno:**
-```json
-[
-    { "title": "abap2_hora", "value": "16:30:00" },
-    { "title": "abap_hora",  "value": "16:30:00" },
-    { "title": "last_register", "value": "10/04/2026 às 16:35:00" }
-]
-```
-
----
-
-#### `GET /pendencias`
-Retorna pendências do mês atual como texto formatado.
-
-**Query Params:** `token`, `state`, `regional`
-
----
-
-#### `GET /pendencias_json`
-Retorna pendências do mês atual como array JSON.
-
-**Query Params:** `token`, `state`, `regional`
-
----
-
-#### `GET /pontualidade`
-Retorna indicadores de pontualidade como texto formatado.
-
-**Query Params:** `token`, `state`, `regional`
-
----
-
-#### `GET /pontualidade_json`
-Retorna indicadores de pontualidade como array JSON.
-
-**Query Params:** `token`, `state`, `regional`
-
----
-
-#### `GET /cnl`
-Retorna resumo de CNL (Consumo Não Lido) como texto formatado.
-
-**Query Params:** `token`, `state`, `regional`, `dateinit`, `dateend`
-
----
-
-#### `GET /cnl_to_lido_json`
-Retorna registros CNL que transitaram para "Lido".
-
-**Query Params:** `token`, `state`, `regional`, `dateinit`
-
----
-
-#### `GET /first_cnl_json`
-Retorna primeiros CNL registrados no período.
-
-**Query Params:** `token`, `state`, `regional`, `dateinit`, `dateend`
-
----
-
-#### `GET /c12_json`
-Retorna registros C12 (leituras fora de horário).
-
-**Query Params:** `token`, `state`, `regional`, `dateinit`, `dateend`
-
----
-
-#### `GET /c12_to_lido_json`
-Retorna registros C12 que transitaram para "Lido".
-
-**Query Params:** `token`, `state`, `regional`, `dateinit`
-
----
-
-#### `GET /first_c12_json`
-Retorna primeiros C12 registrados no período.
-
-**Query Params:** `token`, `state`, `regional`, `dateinit`, `dateend`
-
----
-
-#### `GET /fast_c12_json`
-Retorna C12 executados em menos de 60 segundos (suspeitos de fraude).
-
-**Query Params:** `token`, `state`, `regional`, `dateinit`, `dateend`
-
----
-
-#### `GET /licacao_nova_c12_json`
-Retorna C12 em ligações novas (instalação cujo código inicia com `200`).
-
-**Query Params:** `token`, `state`, `regional`, `dateinit`, `dateend`
-
----
-
-#### `GET /e02_json`
-Retorna registros E02.
-
-**Query Params:** `token`, `state`, `regional`, `dateinit`, `dateend`
-
----
-
-#### `GET /c16_json`
-Retorna registros C16.
-
-**Query Params:** `token`, `state`, `regional`, `dateinit`, `dateend`
-
----
-
-#### `GET /perdas`
-Retorna resumo de perdas como texto formatado.
-
-**Query Params:** `token`, `state`, `regional`, `dateinit`, `dateend`
-
----
-
-#### `GET /perdas_json`
-Retorna resumo de perdas como array JSON.
-
-**Query Params:** `token`, `state`, `regional`, `dateinit`, `dateend`
-
----
-
-#### `GET /not_start_services`
-Retorna agentes que ainda não iniciaram nenhum serviço no dia.
-
-**Query Params:** `token`, `state`
-
----
-
-#### `GET /completed_services`
-Retorna agentes que concluíram serviços mas têm mais de 10 pendências.
-
-**Query Params:** `token`, `state`
-
----
-
-#### `GET /incompleted_services`
+#### `GET /api/last_update`
+#### `GET /api/pendencias`
+#### `GET /api/pendencias_json`
+#### `GET /api/pontualidade`
+#### `GET /api/pontualidade_json`
+#### `GET /api/cnl`
+#### `GET /api/cnl_to_lido_json`
+#### `GET /api/first_cnl_json`
+#### `GET /api/c12_json`
+#### `GET /api/c12_to_lido_json`
+#### `GET /api/first_c12_json`
+#### `GET /api/fast_c12_json`
+#### `GET /api/licacao_nova_c12_json`
+#### `GET /api/e02_json`
+#### `GET /api/c16_json`
+#### `GET /api/perdas`
+#### `GET /api/perdas_json`
+#### `GET /api/not_start_services`
+#### `GET /api/completed_services`
+#### `GET /api/incompleted_services`
 Retorna agentes com conclusão parcial de serviços.
 
 **Query Params:** `token`, `state`
 
 ---
 
-#### `GET /agent_telegram_id`
-Retorna o `telegram_id` vinculado a uma matrícula.
-
-**Query Params:** `token`, `state`, `id` (matrícula)
-
-**Retorno:**
-```json
-{ "telegram_id": 8469360771 }
-```
-> Retorna `{ "telegram_id": null }` se não encontrado.
-
----
-
-### Rotas do Agente
-
-**Autenticação:** Telegram (`X-Telegram-Init-Data`)
-
-> ⚠️ Todas as rotas deste grupo requerem o header `X-Telegram-Init-Data`. Sem ele, a resposta será `401`.
-
----
-
-#### `GET /agent_statistics`
-Retorna estatísticas resumidas do agente para o dia.
-
-**Query Params:**
-
-| Param | Tipo | Padrão | Descrição |
-|---|---|---|---|
-| `date` | string | hoje | Data no formato `DD.MM.YYYY` ou `YYYY-MM-DD` |
-
-**Retorno:**
-```json
-[
-    { "title": "Leituras Realizadas",  "value": 150,   "color": "#00c742ff", "unity": "",    "filter": "all" },
-    { "title": "Perdas Geradas",       "value": 250,   "color": "#EF4444",   "unity": "Kwh", "filter": "perdas" },
-    { "title": "Quantidade de CNL",    "value": "10",  "color": "#EF4444",   "unity": "",    "filter": "cnl" },
-    { "title": "Percentual de CNL",    "value": "6.7", "color": "#EF4444",   "unity": "%",   "filter": "cnl" },
-    { "title": "Quantidade de C12",    "value": 5,     "color": "#00c742ff", "unity": "",    "filter": "c12" },
-    { "title": "C12 Fora de Horário",  "value": 2,     "color": "#EF4444",   "unity": "",    "filter": "c12_out_time" },
-    { "title": "C12 em Ligação Nova",  "value": 1,     "color": "#EF4444",   "unity": "",    "filter": "c12_ligacao_nova" }
-]
-```
-
-> A cor muda para `#EF4444` (vermelho) quando os valores excedem os limiares: CNL > 6%, C12 fora de horário > 1, perdas > 0, ligação nova > 0.
-
----
-
-#### `GET /agent_statistics_more`
-Retorna estatísticas complementares (C12 rápidos e entrantes).
-
-**Query Params:**
-
-| Param | Tipo | Padrão | Descrição |
-|---|---|---|---|
-| `date` | string | hoje | Data no formato `DD.MM.YYYY` ou `YYYY-MM-DD` |
-
-**Retorno:**
-```json
-[
-    { "title": "C12 Rápidos",  "value": 3, "color": "#EF4444",   "unity": "", "filter": "fast_c12" },
-    { "title": "C12 Entrante", "value": 2, "color": "#EF4444",   "unity": "", "filter": "first_c12" }
-]
-```
-
----
-
-#### `GET /agent_services`
-Lista de leituras/serviços do agente com paginação e filtro.
-
-**Query Params:**
-
-| Param | Tipo | Padrão | Descrição |
-|---|---|---|---|
-| `page` | number | `1` | Página |
-| `date` | string | hoje | Data no formato `DD.MM.YYYY` ou `YYYY-MM-DD` |
-| `filter` | string | `all` | Filtro de tipo de serviço |
-
-**Valores válidos para `filter`:**
-
-| Valor | Descrição |
-|---|---|
-| `all` | Todos os serviços |
-| `cnl` | Apenas CNL |
-| `c12` | Apenas C12 |
-| `c12_out_time` | C12 fora de horário (antes das 8h) |
-| `c12_ligacao_nova` | C12 em ligação nova |
-| `fast_c12` | C12 executados em < 60s |
-| `first_c12` | Primeiros C12 do dia |
-| `perdas` | Serviços com perda prevista > 0 |
-
-**Retorno:** Array de leituras com campos como `instalacao`, `etapa`, `ntlei`, `data_conclusao`, `hora_conclusao`, `perda_prevista_mensal`, `tem_perda`, etc.
-
----
-
-#### `POST /search_in`
-Busca instalações no cadastro por instalação, medidor ou contacontrato.
-
-**Body:**
-```json
-{
-    "type": "instalacao",
-    "queries": ["10000001", "10000002"]
-}
-```
-
-| Campo | Valores válidos |
-|---|---|
-| `type` | `instalacao`, `medidor`, `contacontrato` |
-| `queries` | Array de strings (máximo 10 itens) |
-
-**Retorno:** Array de dados cadastrais (coordenadas, endereço, cliente, etc.).
-
-**Erros:**
-- `400` — Nenhuma query fornecida ou limite excedido (> 10)
-
----
-
-#### `GET /predicted`
-Busca serviços com perdas previstas do agente.
-
-**Query Params:**
-
-| Param | Tipo | Padrão | Descrição |
-|---|---|---|---|
-| `status` | string | `PENDENTE` | Status da perda |
-| `page` | number | — | Página |
-| `limit` | number | — | Itens por página |
-
-**Retorno:** Lista de serviços com perdas previstas.
-
----
-
-#### `GET /last_update_agent`
-Retorna o horário do último processamento (`abap2_hora`) para uso no app do agente.
-
-**Retorno:**
-```json
-{ "title": "abap2_hora", "value": "16:30:00" }
-```
-
----
-
-#### `GET /agent_data`
+#### `GET /agent/telegram_id`
+#### `GET /agent/dashboard`
+#### `GET /agent/statistics`
+#### `GET /agent/statistics_more`
+#### `GET /agent/services`
+#### `GET /agent/data`
 Retorna os dados do colaborador autenticado (matrícula e estado).
 
 **Retorno:**
@@ -470,7 +182,7 @@ Retorna os dados do colaborador autenticado (matrícula e estado).
 
 ---
 
-#### `GET /get_justify`
+#### `GET /agent/get_justify`
 Consulta justificativas de erros do agente com dados da matriz.
 
 **Query Params:**
@@ -674,7 +386,7 @@ Pré-cria uma justificativa de pendências do dia.
 
 ---
 
-#### `GET /justify_pending/:id`
+#### `GET /agent/justify_pending/:id`
 Consulta uma justificativa de pendências pelo ID.
 
 **URL Params:**
@@ -716,7 +428,7 @@ Responde uma justificativa de pendências pré-criada.
 
 ---
 
-#### `GET /justify_pending`
+#### `GET /agent/justify_pending`
 Lista justificativas de pendências por autor e/ou status.
 
 **Query Params:**
@@ -804,7 +516,7 @@ Cria um reporte diário de performance (1 por dia).
 
 ---
 
-#### `GET /daily_report`
+#### `GET /agent/daily_report`
 Lista reportes diários por autor e/ou data.
 
 **Query Params:**
@@ -819,7 +531,7 @@ Lista reportes diários por autor e/ou data.
 
 ---
 
-#### `GET /daily_report/check_today`
+#### `GET /agent/daily_report/check_today`
 Verifica se já existe um reporte diário para hoje.
 
 **Retorno (sucesso):**
@@ -860,41 +572,9 @@ Deleta um reporte diário pelo ID.
 
 ---
 
-#### `GET /files_for_revalidate`
-Retorna fotos marcadas como suspeitas aguardando revisão.
-
-**Query Params:** `token`
-
----
-
-#### `POST /revalidate_file`
-Registra a validação manual de uma foto suspeita.
-
-**Query Params:** `token`
-
-**Body:**
-```json
-{
-    "instalacao": "12345",
-    "data": "10.04.2026",
-    "validation": "VERDADEIRO"
-}
-```
-
-| Campo | Valores |
-|---|---|
-| `validation` | `VERDADEIRO` ou `FALSO` |
-
----
-
-#### `GET /filter_options`
-Retorna as opções de filtro disponíveis (regionais, seccionais, agentes).
-
-**Query Params:** `token`
-
----
-
-#### `GET /files_for_view`
+#### `GET /api/files_for_revalidate`
+#### `GET /api/filter_options`
+#### `GET /api/files_for_view`
 Visualiza arquivos filtrados de revalidação.
 
 **Query Params:** `token`, `date`, `regional`, `seccional`, `agent`, `validation`
@@ -1026,13 +706,400 @@ Remove seletivamente logs que correspondem aos filtros informados.
 
 ---
 
+---
+
+## Sistema de Usuários, Permissões e Módulos
+
+### Visão Geral
+
+O sistema possui:
+- **Roles**: `COMPANY_ADMIN` e `USER`
+- **Módulos**: features do código (fixos): `search_in`, `justify`, `create_justify`, `inventory`, `daily_report`, etc.
+- **Permissões**: agrupamentos de módulos criados pelo COMPANY_ADMIN
+- **Usuários**: recebem permissões que definem acesso aos módulos
+- **Filiais (branches)**: regionais/seccionais existentes
+
+### Autenticação JWT
+
+#### Login
+```bash
+curl -X POST http://localhost:3040/admin/user/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@empresa.com","senha":"senha123"}'
+```
+
+**Retorno:**
+```json
+{
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "user": {
+        "id": 1,
+        "email": "user@empresa.com",
+        "nome": "João Silva",
+        "role": "USER",
+        "estado": "pi"
+    }
+}
+```
+
+#### Requisições Autenticadas
+Todas as requisições autenticadas devem usar o header `Authorization: Bearer <token>`.
+
+**Exemplo:**
+```bash
+curl http://localhost:3040/admin/user/me \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
+```
+
+### Roles e Permissões
+
+| Role | Descrição |
+|------|-----------|
+| `COMPANY_ADMIN` | Admin da empresa - acesso total |
+| `USER` | Usuário comum - acesso via permissões |
+
+### Módulos Disponíveis
+
+| ID | Descrição |
+|----|-----------|
+| `search_in` | Busca de instalações |
+| `justify` | Visualizar justificativas |
+| `create_justify` | Criar justificativas |
+| `update_justify` | Editar justificativas |
+| `delete_justify` | Excluir justificativas |
+| `justify_pending` | Justificar pendências |
+| `daily_report` | Relatórios diários |
+| `inventory` | Inventário de equipamentos |
+| `audit` | Logs de auditoria |
+| `users` | Gerenciar usuários |
+| `branches` | Gerenciar filiais |
+| `permissions` | Gerenciar permissões |
+
+---
+
+## API Routes
+
+### Users
+
+#### `POST /admin/user/login`
+Login de usuário.
+
+**Body:**
+```json
+{
+    "email": "user@empresa.com",
+    "senha": "senha123"
+}
+```
+
+---
+
+#### `POST /admin/user/register`
+Cria novo usuário (apenas COMPANY_ADMIN).
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:**
+```json
+{
+    "email": "novo@empresa.com",
+    "senha": "senha123",
+    "nome": "Novo Usuário",
+    "role": "USER",
+    "estado": "pi"
+}
+```
+
+---
+
+#### `GET /admin/user/me`
+Dados do usuário logado com seus módulos.
+
+**Headers:** `Authorization: Bearer <token>`
+
+---
+
+#### `GET /admin/user/users`
+Lista usuários (apenas COMPANY_ADMIN).
+
+---
+
+#### `GET /admin/user/users/:id`
+Detalhes de usuário com permissões.
+
+---
+
+#### `PUT /admin/user/users/:id`
+Atualiza usuário (apenas COMPANY_ADMIN).
+
+---
+
+#### `PUT /admin/user/users/:id/permissions`
+Atribui permissões a usuário.
+
+**Body:**
+```json
+{ "permissionIds": [1, 2, 3] }
+```
+
+---
+
+#### `DELETE /admin/user/users/:id`
+Desativa usuário (apenas COMPANY_ADMIN).
+
+---
+
+#### `GET /admin/user/modules`
+Lista módulos disponíveis.
+
+**Retorno:**
+```json
+[
+    { "id": "search_in", "name": "Search In" },
+    { "id": "justify", "name": "Justify" },
+    ...
+]
+```
+
+---
+
+### Branches
+
+#### `GET /admin/branch`
+Lista filiais (apenas COMPANY_ADMIN).
+
+---
+
+#### `POST /admin/branch`
+Cria filial (apenas COMPANY_ADMIN).
+
+**Body:**
+```json
+{
+    "name": "METROPOLITANA",
+    "code": "MET",
+    "state": "pi"
+}
+```
+
+---
+
+#### `GET /admin/branch/:id`
+Detalhes de filial.
+
+---
+
+#### `PUT /admin/branch/:id`
+Atualiza filial.
+
+---
+
+#### `DELETE /admin/branch/:id`
+Remove filial.
+
+---
+
+### Permissions
+
+#### `GET /admin/permission`
+Lista permissões (apenas COMPANY_ADMIN).
+
+---
+
+#### `POST /admin/permission`
+Cria permissão (apenas COMPANY_ADMIN).
+
+**Body:**
+```json
+{
+    "name": "Supervisor",
+    "description": "Pode gerenciar justificativas",
+    "modules": ["justify", "create_justify", "update_justify", "justify_pending"]
+}
+```
+
+---
+
+#### `GET /admin/permission/:id`
+Detalhes de permissão.
+
+---
+
+#### `PUT /admin/permission/:id`
+Atualiza permissão.
+
+---
+
+#### `DELETE /admin/permission/:id`
+Remove permissão.
+
+---
+
+## API Admin (Legacy)
+
+**Autenticação:** Basic Auth + Header `x-admin-id`
+
+> Rotas legadas (mantidas para compatibilidade).
+
+### Login
+
+#### `POST /admin/login`
+Realiza login e retorna os dados do admin.
+
+**Body:**
+```json
+{
+    "email": "admin@email.com",
+    "senha": "senha123"
+}
+```
+
+**Retorno (sucesso):**
+```json
+{
+    "id": 1,
+    "email": "admin@email.com",
+    "nome": "Admin Principal",
+    "estado": "pi",
+    "nivel": "admin"
+}
+```
+
+**Erros:**
+- `400` — Email e senha obrigatórios
+- `401` — Credenciais inválidas
+
+---
+
+### Registro
+
+#### `POST /admin/register`
+Cria um novo admin. **Apenas para criar o primeiro admin.**
+
+**Body:**
+```json
+{
+    "email": "admin@email.com",
+    "senha": "senha123",
+    "nome": "Nome do Admin",
+    "estado": "pi",
+    "nivel": "admin"
+}
+```
+
+**Retorno (sucesso):** `201` com dados do admin criado.
+
+**Erros:**
+- `400` — Email, senha e nome obrigatórios
+- `409` — Admin já existe com este email
+
+---
+
+### CRUD de Admins
+
+#### `GET /admin/admins`
+Lista todos os admins.
+
+**Query Params:**
+
+| Param | Tipo | Descrição |
+|---|---|---|
+| estado | string | (opcional) Filtrar por estado |
+
+**Retorno:** Array de admins.
+
+---
+
+#### `PUT /admin/admins/:id`
+Atualiza dados de um admin.
+
+**Body:**
+```json
+{
+    "nome": "Novo Nome",
+    "estado": "pi",
+    "nivel": "admin",
+    "ativo": true
+}
+```
+
+---
+
+#### `PUT /admin/admins/:id/password`
+Altera senha de um admin.
+
+**Body:**
+```json
+{ "senha": "nova_senha" }
+```
+
+---
+
+#### `DELETE /admin/admins/:id`
+Desativa um admin (soft delete).
+
+---
+
+### Justificativas
+
+#### `GET /admin/justify`
+Busca justificativas (same API principal).
+
+**Query Params:** `instalacao`, `tipo`, `data_leit_prev`, `estado`, `author`
+
+---
+
+#### `PUT /admin/justify/:id`
+Atualiza uma justificativa.
+
+---
+
+#### `DELETE /admin/justify/:id`
+Deleta uma justificativa.
+
+---
+
+### Justify Pending
+
+#### `GET /admin/justify_pending`
+Lista justificativas pendentes.
+
+**Query Params:** `autor`, `status`, `page`, `limit`, `estado`
+
+---
+
+### Daily Report
+
+#### `GET /admin/daily_report`
+Lista reportes diários.
+
+**Query Params:** `autor`, `data`, `limit`, `estado`
+
+---
+
+### Inventory
+
+#### `GET /admin/inventory`
+Busca inventário de agente.
+
+**Query Params:** `agente`, `estado`
+
+---
+
+### Dados do Admin
+
+#### `GET /admin/me`
+Retorna dados do admin autenticado.
+
+---
+
 ## Variáveis de Ambiente
 
 ```env
 # Servidor
 PORT=3040
 
-# Token de API (consultas, revalidação e webhooks)
+# Token de API (consultas)
 API_TOKEN=
 
 # Autenticação Telegram
@@ -1061,6 +1128,15 @@ WHATSAPP_LINK_SEND_TEXT=
 # Aceita IPs, domínios e URLs completas; subdomínios são aceitos automaticamente
 CORS_ORIGINS=*
 
+# Admin API JWT
+JWT_SECRET=sua_chave_jwt_segura
+ADMIN_SECRET=sua_chave_admin_segura
+
+# Admin inicial (criado automaticamente na primeira execução)
+ADMIN_EMAIL=admin@empresa.com
+ADMIN_SENHA=senha_admin
+ADMIN_NOME=Admin Principal
+
 # MinIO/S3 (uploads)
 MINIO_ENDPOINT=files.izu.tec.br
 MINIO_PORT=9000
@@ -1074,6 +1150,12 @@ ADMIN_TOKEN=
 
 # ID do Telegram para testes E2E
 TEST_TELEGRAM_ID=
+
+# Admin API (criado automaticamente na primeira inicialização)
+ADMIN_SECRET=
+ADMIN_EMAIL=
+ADMIN_SENHA=
+ADMIN_NOME=
 ```
 
 ---
@@ -1149,7 +1231,7 @@ Todas as requisições (exceto `/api/logs*` e `/logs*`) são registradas automat
 
 ---
 
-#### `GET /inventory`
+#### `GET /api/inventory`
 Retorna o último registro de inventário do agente.
 
 **Query Params:**
@@ -1186,7 +1268,7 @@ Retorna o último registro de inventário do agente.
 ---
 
 #### `POST /inventory`
-Cria novo registro de inventário ou atualiza `updated_at` se os dados forem iguais.
+Cria ou atualiza registro de inventário (sempre atualiza o mesmo registro).
 
 **Body:**
 ```json
@@ -1215,13 +1297,14 @@ Cria novo registro de inventário ou atualiza `updated_at` se os dados forem igu
     "estado": "pi",
     "created_at": "2026-04-13T11:00:00.000Z",
     "updated_at": "2026-04-13T11:00:00.000Z",
-    "action": "created"
+    "action": "updated"
 }
 ```
 
 **Comportamento:**
-- Se dados iguais ao último registro → atualiza apenas `updated_at` (retorna `action: "updated_at"`)
-- Se dados diferentes → cria novo registro (retorna `action: "created"`)
+- Se registro existe → atualiza todos os campos (retorna `action: "updated"`)
+- Se não existe → cria novo registro (retorna `action: "created"`)
+- Ao criar, remove registros antigos do mesmo agente (mantém apenas o mais recente)
 
 **Erros:**
 - `400` — Agente é obrigatório
@@ -1275,19 +1358,27 @@ Faz upload de arquivo para o MinIO/S3.
 
 ---
 
-#### `GET /upload/health`
-Verifica a conexão com o MinIO.
+#### `POST /admin/upload/upload`
+Upload de arquivo (imagem ou PDF) com compressão.
 
-**Query Params:** `token`
+**Headers:** `Authorization: Bearer <token>`
 
-**Retorno (sucesso):**
+**Body:** `multipart/form-data`
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| file | file | Arquivo (máx 10MB) |
+
+**Tipos permitidos:** image/jpeg, image/png, image/gif, image/webp, application/pdf
+
+**Retorno:**
 ```json
-{ "status": "ok", "bucket": "api-banco-dev" }
-```
-
-**Retorno (erro):**
-```json
-{ "status": "error", "error": "mensagem de erro" }
+{
+    "url": "https://file.izu.tec.br/api-banco-dev/reports/1234567890-abc.jpg",
+    "fileName": "reports/1234567890-abc.jpg",
+    "originalSize": 1024000,
+    "finalSize": 204800
+}
 ```
 
 ---

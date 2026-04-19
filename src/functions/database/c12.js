@@ -104,45 +104,6 @@ async function C12ToLidoJson(state = 'pi', region = 'all', dateinit = today()) {
     const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
     return rows;
 }
-
-// ─── firstC12ForAgent ────────────────────────────────────────────────────────────
-async function firstC12ForAgent({ state = 'pi', id, date = today() }) {
-    let query = `
-   WITH installations_today AS (
-        SELECT DISTINCT instalacao 
-        FROM matriz 
-        WHERE agente = $1 
-        AND data_conclusao >= TO_DATE($2, 'DD/MM/YYYY')
-        AND data_conclusao < TO_DATE($2, 'DD/MM/YYYY') + interval '1 day'
-   ),
-   historico_agentes AS (
-    SELECT 
-        instalacao, etapa, ntlei, agente,
-        status_ds, data_conclusao,
-        LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant,
-        LAG(status_ds) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as status_ant,
-        LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant2,
-        LAG(status_ds, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as status_ant2
-    FROM matriz
-    WHERE instalacao IN (SELECT instalacao FROM installations_today)
-    )
-    SELECT instalacao, etapa, ntlei, agente, status_ds, data_conclusao
-    FROM historico_agentes
-    WHERE 
-    agente = $1
-    AND data_conclusao >= TO_DATE($2, 'DD/MM/YYYY')
-    AND data_conclusao < TO_DATE($2, 'DD/MM/YYYY') + interval '1 day'
-    AND ntlei = 'C12'
-    AND status_ds = 'LG'
-    AND (ntlei_ant  LIKE 'A%' OR ntlei_ant  IN ('B09', 'B10', 'B15') )
-    AND (ntlei_ant2  LIKE 'A%' OR ntlei_ant2  IN ('B09', 'B10', 'B15'))
-    ORDER BY data_conclusao;
-  `;
-
-    const { rows } = state === 'pi' ? await pi_pool.query(query, [id, date]) : await ma_pool.query(query, [id, date]);
-    return rows;
-}
-
 // ─── licacaoNovaC12ForAgent ─────────────────────────────────────────────────────
 async function licacaoNovaC12ForAgent({ state = 'pi', id, date = today() }) {
     let query = `

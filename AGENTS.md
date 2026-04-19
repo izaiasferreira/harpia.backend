@@ -17,6 +17,19 @@
 - Atualizar documentação afetada
 - Adicionar/atualizar testes relevantes
 
+## DIRECTRIZ CRÍTICA: Não Mexer em Rotas Existentes
+
+**REGRA:** Nunca modificar endpoints, rotas ou funcionalidades existentes.
+- Apenas criar NOVOS arquivos, NOVAS rotas, NOVAS features
+- Sempre reaproveitar tabelas/funções existentes
+- Se precisar adaptar algo, criar nova função em vez de modificar
+
+**Exemplo de erro:**
+- Mudar parâmetros de uma função existente
+
+**Exemplo correto:**
+- Criar nova função com parâmetros diferentes
+
 ### Estrutura de documentação (API_DOC.md):
 ```markdown
 ## POST /endpoint

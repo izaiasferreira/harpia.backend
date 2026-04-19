@@ -1,7 +1,5 @@
 # 05 — Empresas (Tenants)
 
-> **Módulo**: `companies`  
-> **Tipo**: Core (não desativável)  
 > **Prefixo de rota**: `/api/v1/companies`
 
 ---
@@ -82,7 +80,7 @@ declare module 'fastify' {
       "stats": {
         "branchCount": 3,
         "userCount": 15,
-        "moduleCount": 5
+        "permissionsCount": 3
       },
       "createdAt": "2024-01-01T00:00:00Z"
     }
@@ -112,9 +110,7 @@ declare module 'fastify' {
     "id": "01902def-...",
     "name": "Empresa X Ltda",
     "slug": "empresa-x",
-    "document": "12.345.678/0001-99",
     "email": "contato@empresax.com",
-    "phone": "+5511988887777",
     "settings": {
       "timezone": "America/Sao_Paulo",
       "locale": "pt-BR",
@@ -126,17 +122,12 @@ declare module 'fastify' {
       }
     },
     "isActive": true,
-    "modules": [
-      { "id": "users", "name": "Usuários", "isEnabled": true },
-      { "id": "audit", "name": "Auditoria", "isEnabled": true },
-      { "id": "reports", "name": "Relatórios", "isEnabled": false }
-    ],
     "stats": {
       "branchCount": 3,
       "activeBranches": 3,
       "userCount": 15,
       "activeUsers": 13,
-      "moduleCount": 5,
+      "permissionsCount": 3,
       "permissionCount": 4
     },
     "createdAt": "2024-01-01T00:00:00Z",
@@ -158,9 +149,7 @@ declare module 'fastify' {
 {
   "name": "Nova Empresa Ltda",
   "slug": "nova-empresa",
-  "document": "98.765.432/0001-00",
   "email": "admin@novaempresa.com",
-  "phone": "+5511977776666",
   "settings": {
     "timezone": "America/Sao_Paulo",
     "locale": "pt-BR",
@@ -171,8 +160,7 @@ declare module 'fastify' {
     "name": "Admin Nova Empresa",
     "email": "admin@novaempresa.com",
     "password": "AdminP@ss2024!"
-  },
-  "enabledModuleIds": ["users", "branches", "permissions", "audit"]
+  }
 }
 ```
 
@@ -190,7 +178,6 @@ const createCompanySchema = z.object({
     email: z.string().email(),
     password: passwordSchema,
   }),
-  enabledModuleIds: z.array(z.string()).optional(),
 });
 ```
 
@@ -231,7 +218,6 @@ const createCompanySchema = z.object({
 {
   "name": "Empresa X — Novo Nome",
   "email": "novo@empresax.com",
-  "phone": "+5511966665555",
   "settings": {
     "timezone": "America/Sao_Paulo",
     "maxUsers": 100
@@ -243,7 +229,7 @@ const createCompanySchema = z.object({
 - Não pode alterar `slug`
 - Não pode alterar `isActive`
 - Não pode alterar `maxUsers` ou `maxBranches` nos settings
-- Pode alterar: `name`, `email`, `phone`, `theme` (dentro de settings)
+- Pode alterar: `name`, `email`, `theme` (dentro de settings)
 
 ---
 
@@ -287,14 +273,8 @@ const createCompanySchema = z.object({
       "total": 3,
       "active": 3
     },
-    "modules": {
-      "enabled": 5,
-      "disabled": 2,
-      "total": 7
-    },
     "permissions": {
-      "total": 4,
-      "assignments": 28
+      "total": 4
     },
     "auditLogs": {
       "last24h": 142,
@@ -329,14 +309,12 @@ describe('Companies Module E2E', () => {
     it('should return own company for COMPANY_ADMIN');
     it('should return 403 when COMPANY_ADMIN tries to view another company');
     it('should return 404 for non-existent company');
-    it('should include modules list with enabled status');
+    it('should include modules list');
   });
 
   // Create
   describe('POST /api/v1/companies', () => {
-    it('should create company with admin user in transaction');
-    it('should enable core modules automatically');
-    it('should enable specified additional modules');
+    it('should create company with admin user');
     it('should return 409 for duplicate slug');
     it('should return 403 for non-SUPER_ADMIN');
     it('should return 422 for invalid slug format');

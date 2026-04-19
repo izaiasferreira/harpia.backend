@@ -1,6 +1,6 @@
 # 12 — Testes E2E & Estratégia de Testes
 
-> **Ferramentas**: Vitest (unit + integration) | Playwright (E2E frontend) | Supertest (E2E backend)  
+> **Ferramentas**: Vitest (unit + integration) | Supertest (E2E API)  
 > **Cobertura mínima**: 80% lines, 100% das rotas
 
 ---
@@ -10,8 +10,7 @@
 ```mermaid
 pyramid
     title Pirâmide de Testes
-    "E2E (Frontend)" : 15
-    "E2E (Backend API)" : 30
+    "E2E (API)" : 30
     "Integration" : 25
     "Unit" : 30
 ```
@@ -20,8 +19,7 @@ pyramid
 |------|-----------|--------|-------------------|
 | **Unit** | Vitest | Services, utils, validators | ~60 testes |
 | **Integration** | Vitest + DB test container | Service + DB | ~40 testes |
-| **E2E Backend** | Vitest + Supertest | Rotas HTTP completas | ~120 testes |
-| **E2E Frontend** | Playwright | Fluxos de UI completos | ~50 testes |
+| **E2E API** | Vitest + Supertest | Rotas HTTP completas | ~170 testes |
 
 **Total estimado: ~270 testes**
 
@@ -49,7 +47,6 @@ beforeEach(async () => {
   await testDb.delete(auditLogs);
   await testDb.delete(userPermissions);
   await testDb.delete(userBranches);
-  await testDb.delete(permissionModules);
   await testDb.delete(companyModules);
   await testDb.delete(sessions);
   await testDb.delete(permissions);
@@ -131,13 +128,7 @@ describe('AuthService', () => {
 
   describe('generateTokens', () => {
     it('should generate access token with correct payload');
-    it('should generate refresh token');
     it('should create session in database');
-  });
-
-  describe('rotateRefreshToken', () => {
-    it('should invalidate old token and generate new');
-    it('should detect replay attack and invalidate all sessions');
   });
 });
 
@@ -263,140 +254,7 @@ describe('Users E2E', () => {
 
 ---
 
-## 12.5. Testes E2E Frontend (Playwright)
-
-### Setup
-
-```typescript
-// playwright.config.ts
-import { defineConfig } from '@playwright/test';
-
-export default defineConfig({
-  testDir: './src/__tests__',
-  fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
-  use: {
-    baseURL: 'http://localhost:5173',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
-  },
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-  },
-});
-```
-
-### Cenários E2E Frontend
-
-```typescript
-// auth.e2e.test.ts
-test.describe('Authentication Flow', () => {
-  test('should show login page', async ({ page }) => {
-    await page.goto('/login');
-    await expect(page.locator('#login-form')).toBeVisible();
-  });
-
-  test('should login successfully', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('#email-input', 'admin@cenos.app');
-    await page.fill('#password-input', 'cenos@2024!');
-    await page.click('#login-button');
-    await expect(page).toHaveURL('/');
-    await expect(page.locator('#dashboard-title')).toBeVisible();
-  });
-
-  test('should show error for invalid credentials', async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('#email-input', 'wrong@test.com');
-    await page.fill('#password-input', 'wrongpass');
-    await page.click('#login-button');
-    await expect(page.locator('#login-error')).toBeVisible();
-  });
-
-  test('should redirect unauthenticated user to login', async ({ page }) => {
-    await page.goto('/users');
-    await expect(page).toHaveURL('/login');
-  });
-
-  test('should logout successfully', async ({ page }) => {
-    // Login first, then logout
-    await loginViaUI(page);
-    await page.click('#user-menu-button');
-    await page.click('#logout-button');
-    await expect(page).toHaveURL('/login');
-  });
-});
-
-// users.e2e.test.ts
-test.describe('Users Management', () => {
-  test('should list users', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/users');
-    await expect(page.locator('#users-table')).toBeVisible();
-  });
-
-  test('should create new user', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/users/new');
-    await page.fill('#user-name-input', 'New User');
-    await page.fill('#user-email-input', 'new@test.com');
-    await page.fill('#user-password-input', 'SecureP@ss123');
-    await page.click('#submit-user-button');
-    await expect(page.locator('#success-toast')).toBeVisible();
-  });
-
-  test('should assign branches to user', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/users/USER_ID');
-    await page.click('#manage-branches-button');
-    await page.click('#branch-checkbox-1');
-    await page.click('#save-branches-button');
-    await expect(page.locator('#success-toast')).toBeVisible();
-  });
-
-  test('should hide create button for users without permission', async ({ page }) => {
-    await loginAsNormalUser(page);
-    await page.goto('/users');
-    await expect(page.locator('#create-user-button')).not.toBeVisible();
-  });
-});
-
-// permissions.e2e.test.ts
-test.describe('Permissions Management', () => {
-  test('should create permission with module selection', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/permissions/new');
-    await page.fill('#permission-name-input', 'Auditor');
-    await page.click('#module-toggle-audit');
-    await page.click('#action-read-audit');
-    await page.click('#action-export-audit');
-    await page.click('#submit-permission-button');
-    await expect(page.locator('#success-toast')).toBeVisible();
-  });
-});
-
-// dark-mode.e2e.test.ts
-test.describe('Dark Mode', () => {
-  test('should toggle dark mode', async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.click('#theme-toggle');
-    await expect(page.locator('html')).toHaveClass(/dark/);
-  });
-
-  test('should persist theme preference', async ({ page }) => {
-    // Set dark mode, reload, verify
-  });
-});
-```
-
----
-
-## 12.6. Configuração Vitest
+## 12.5. Configuração Vitest
 
 ```typescript
 // vitest.config.ts (unit + integration)

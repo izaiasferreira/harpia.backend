@@ -312,17 +312,6 @@ router.get('/agent_telegram_id', async (req, res) => {
     }
 });
 
-// [{
-//     instalacao: "9999999",
-//     ntlei: "A01",
-//     tipo: "cnl", // cnl, perda,
-//     foto: "link", // opcional
-//     data_leit_prev: "dd/mm/yyyy",
-//     data_conclusao: "hh:mm:ss",
-//     justificativa: "A01",
-//     observacao: "observacao"
-// }]
-
 router.post('/justification_codes', async (req, res) => {
     if (!checkToken(req, res)) return;
     try {
@@ -339,30 +328,5 @@ router.post('/justification_codes', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// [{
-//     foto: "link", // opcional
-//     data_leit_prev: "dd/mm/yyyy",
-//     data_conclusao: "hh:mm:ss",
-//     justificativa: "A01",
-//     observacao: "observacao"
-// }]
-
-// router.post('/daily_report', async (req, res) => {
-//     if (!checkToken(req, res)) return;
-//     try {
-//         const state = req.query.state || 'pi';
-//         const id = req.query.id;
-//         const result = await getAgentTelegramId({ state, id });
-//         if (result.length === 0) {
-//             res.json({ telegram_id: null });
-//             return;
-//         }
-//         res.json({ telegram_id: result[0].telegram_id });
-//     } catch (err) {
-//         console.log(err);
-//         res.status(500).json({ error: err.message });
-//     }
-// });
 
 module.exports = router;

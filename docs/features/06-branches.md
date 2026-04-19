@@ -1,7 +1,5 @@
 # 06 — Filiais (Branches)
 
-> **Módulo**: `branches`  
-> **Tipo**: Core (não desativável)  
 > **Prefixo de rota**: `/api/v1/branches`
 
 ---
@@ -65,11 +63,7 @@ Empresa X
       "companyId": "01902def-...",
       "name": "Filial Centro",
       "code": "FC01",
-      "address": "Rua das Flores, 123",
-      "city": "São Paulo",
-      "state": "SP",
-      "zipCode": "01234-567",
-      "phone": "+5511933332222",
+      "state": "pi",
       "isActive": true,
       "userCount": 8,
       "createdAt": "2024-01-01T00:00:00Z"
@@ -99,11 +93,7 @@ Empresa X
     },
     "name": "Filial Centro",
     "code": "FC01",
-    "address": "Rua das Flores, 123",
-    "city": "São Paulo",
-    "state": "SP",
-    "zipCode": "01234-567",
-    "phone": "+5511933332222",
+    "state": "pi",
     "settings": {},
     "isActive": true,
     "userCount": 8,
@@ -127,11 +117,7 @@ Empresa X
   "companyId": "01902def-...",
   "name": "Filial Leste",
   "code": "FL01",
-  "address": "Av. Brasil, 456",
-  "city": "São Paulo",
-  "state": "SP",
-  "zipCode": "04567-890",
-  "phone": "+5511922221111",
+  "state": "pi",
   "settings": {}
 }
 ```
@@ -142,11 +128,7 @@ const createBranchSchema = z.object({
   companyId: z.string().uuid(),     // COMPANY_ADMIN: auto-fill from tenant context
   name: z.string().min(2).max(255),
   code: z.string().min(2).max(50).regex(/^[A-Z0-9]+$/, 'Código deve ser maiúsculas e números'),
-  address: z.string().max(500).optional(),
-  city: z.string().max(100).optional(),
   state: z.string().length(2).optional(),
-  zipCode: z.string().max(10).optional(),
-  phone: z.string().max(20).optional(),
   settings: z.record(z.unknown()).optional(),
 });
 ```
@@ -178,14 +160,13 @@ const createBranchSchema = z.object({
 
 **Descrição**: Atualizar filial.
 
-**Permissão**: `SUPER_ADMIN`, `COMPANY_ADMIN` (própria empresa)
+**Permissão**: `SUPER_ADMIN`, `SUPPORT`, `COMPANY_ADMIN` (própria empresa)
 
 **Request Body** (campos opcionais):
 ```json
 {
   "name": "Filial Centro — Matriz",
-  "address": "Rua das Flores, 123 - Andar 2",
-  "phone": "+5511933332223"
+  "state": "pi"
 }
 ```
 
@@ -200,7 +181,7 @@ const createBranchSchema = z.object({
 
 **Descrição**: Soft delete da filial.
 
-**Permissão**: `SUPER_ADMIN`, `COMPANY_ADMIN` (própria empresa)
+**Permissão**: `SUPER_ADMIN`, `SUPPORT`, `COMPANY_ADMIN` (própria empresa)
 
 **Regras de Negócio**:
 - Soft delete: `is_active = false`, `deleted_at` preenchido
@@ -214,7 +195,7 @@ const createBranchSchema = z.object({
 
 **Descrição**: Listar usuários atribuídos a uma filial.
 
-**Permissão**: `COMPANY_ADMIN` (própria empresa), `SUPER_ADMIN`
+**Permissão**: `COMPANY_ADMIN` (própria empresa), `SUPER_ADMIN`, `SUPPORT`
 
 **Response 200**:
 ```json

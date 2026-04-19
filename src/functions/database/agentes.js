@@ -1,4 +1,4 @@
-const { pi_pool, ma_pool, localizacoes_pi_pool } = require('../../db');
+const { pi_pool, ma_pool, localizacoes_pi_pool, cenos_pool } = require('../../db');
 const { today } = require('../../utils/dates');
 const { fastC12ForAgent, firstC12ForAgent } = require('./c12');
 
@@ -7,7 +7,7 @@ const { fastC12ForAgent, firstC12ForAgent } = require('./c12');
  * Retorna mapa: { instalacao: true/false }
  */
 async function checkJustifiedByInstallations(installations, estado = 'pi') {
-    const pool = estado === 'pi' ? pi_pool : ma_pool;
+    const pool = cenos_pool;
     
     if (!installations || installations.length === 0) return {};
     
@@ -399,7 +399,7 @@ async function save_justify({
         );
     `;
 
-    const pool = state === 'pi' ? pi_pool : ma_pool;
+    const pool = cenos_pool;
     await pool.query(createTableQuery);
 
     const insertQuery = `

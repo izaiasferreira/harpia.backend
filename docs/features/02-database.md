@@ -1,8 +1,6 @@
 # 02 — Banco de Dados & Migrations
 
-> **Módulo**: Core  
-> **Tecnologia**: PostgreSQL 16 + Drizzle ORM  
-> **Desativável**: ❌ (Core do sistema)
+> **Tecnologia**: PostgreSQL 16 + Drizzle ORM
 
 ---
 
@@ -23,7 +21,6 @@ O banco de dados PostgreSQL é a camada de persistência principal. Utilizamos:
 erDiagram
     COMPANIES ||--o{ BRANCHES : has
     COMPANIES ||--o{ USERS : employs
-    COMPANIES ||--o{ COMPANY_MODULES : enables
     COMPANIES ||--o{ PERMISSIONS : defines
     
     BRANCHES ||--o{ USER_BRANCHES : assigns
@@ -33,11 +30,9 @@ erDiagram
     USERS ||--o{ SESSIONS : authenticates
     USERS ||--o{ AUDIT_LOGS : generates
     
-    PERMISSIONS ||--o{ PERMISSION_MODULES : grants
     PERMISSIONS ||--o{ USER_PERMISSIONS : assigned_to
     
-    MODULES ||--o{ COMPANY_MODULES : enabled_for
-    MODULES ||--o{ PERMISSION_MODULES : included_in
+    MODULES ||--o{ MODULES : has
 
     COMPANIES {
         uuid id PK
@@ -92,7 +87,6 @@ erDiagram
     SESSIONS {
         uuid id PK
         uuid user_id FK
-        string refresh_token_hash
         string ip_address
         string user_agent
         timestamp expires_at
@@ -105,23 +99,14 @@ erDiagram
         string name
         string slug UK
         string description
-        jsonb metadata
+        jsonb modules
         boolean is_active
         timestamp created_at
         timestamp updated_at
         timestamp deleted_at
     }
 
-    PERMISSION_MODULES {
-        uuid id PK
-        uuid permission_id FK
-        string module_id FK
-        jsonb actions
-        timestamp created_at
-    }
-
     USER_PERMISSIONS {
-        uuid id PK
         uuid user_id FK
         uuid permission_id FK
         timestamp assigned_at
@@ -142,22 +127,8 @@ erDiagram
         string description
         string version
         string category
-        boolean is_core
         boolean is_active
-        jsonb default_config
         timestamp created_at
-        timestamp updated_at
-    }
-
-    COMPANY_MODULES {
-        uuid id PK
-        uuid company_id FK
-        string module_id FK
-        boolean is_enabled
-        jsonb config
-        timestamp enabled_at
-        uuid enabled_by FK
-        timestamp disabled_at
     }
 
     AUDIT_LOGS {
@@ -196,7 +167,6 @@ export const companies = pgTable('companies', {
   id: uuid('id').primaryKey().$defaultFn(createId),
   name: varchar('name', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 100 }).notNull().unique(),
-  document: varchar('document', { length: 20 }), // CNPJ
   email: varchar('email', { length: 255 }),
   phone: varchar('phone', { length: 20 }),
   settings: jsonb('settings').$type<CompanySettings>().default({}),
@@ -275,12 +245,7 @@ export const branches = pgTable('branches', {
   id: uuid('id').primaryKey().$defaultFn(createId),
   companyId: uuid('company_id').notNull().references(() => companies.id),
   name: varchar('name', { length: 255 }).notNull(),
-  code: varchar('code', { length: 50 }).notNull(),
-  address: text('address'),
-  city: varchar('city', { length: 100 }),
   state: varchar('state', { length: 2 }),
-  zipCode: varchar('zip_code', { length: 10 }),
-  phone: varchar('phone', { length: 20 }),
   settings: jsonb('settings').$type<BranchSettings>().default({}),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -299,7 +264,6 @@ export const branches = pgTable('branches', {
 export const sessions = pgTable('sessions', {
   id: uuid('id').primaryKey().$defaultFn(createId),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  refreshTokenHash: varchar('refresh_token_hash', { length: 255 }).notNull(),
   ipAddress: varchar('ip_address', { length: 45 }).notNull(),
   userAgent: text('user_agent'),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -319,7 +283,7 @@ export const permissions = pgTable('permissions', {
   name: varchar('name', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 100 }).notNull(),
   description: text('description'),
-  metadata: jsonb('metadata').$type<PermissionMetadata>().default({}),
+  modules: jsonb('modules').$type<string[]>().notNull().default([]),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -329,21 +293,8 @@ export const permissions = pgTable('permissions', {
   uniqueIndex('permissions_company_slug_unique').on(table.companyId, table.slug),
 ]);
 
-// Tabela pivot: quais módulos e ações uma permissão concede
-export const permissionModules = pgTable('permission_modules', {
-  id: uuid('id').primaryKey().$defaultFn(createId),
-  permissionId: uuid('permission_id').notNull().references(() => permissions.id, { onDelete: 'cascade' }),
-  moduleId: varchar('module_id', { length: 100 }).notNull().references(() => modules.id),
-  actions: jsonb('actions').$type<string[]>().notNull().default([]),
-  // actions: ['read', 'create', 'update', 'delete', 'export']
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [
-  uniqueIndex('perm_modules_unique').on(table.permissionId, table.moduleId),
-]);
-
 // Tabela pivot: quais permissões um usuário tem
 export const userPermissions = pgTable('user_permissions', {
-  id: uuid('id').primaryKey().$defaultFn(createId),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   permissionId: uuid('permission_id').notNull().references(() => permissions.id, { onDelete: 'cascade' }),
   assignedAt: timestamp('assigned_at', { withTimezone: true }).notNull().defaultNow(),
@@ -368,32 +319,11 @@ export const userBranches = pgTable('user_branches', {
 
 ```typescript
 export const modules = pgTable('modules', {
-  id: varchar('id', { length: 100 }).primaryKey(),  // e.g. 'users', 'inventory', 'reports'
+  id: varchar('id', { length: 100 }).primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
-  version: varchar('version', { length: 20 }).notNull().default('1.0.0'),
-  category: varchar('category', { length: 100 }),
-  isCore: boolean('is_core').notNull().default(false),
-  isActive: boolean('is_active').notNull().default(true),  // Global toggle
-  defaultConfig: jsonb('default_config').$type<Record<string, unknown>>().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
-
-// Quais módulos estão habilitados por empresa
-export const companyModules = pgTable('company_modules', {
-  id: uuid('id').primaryKey().$defaultFn(createId),
-  companyId: uuid('company_id').notNull().references(() => companies.id),
-  moduleId: varchar('module_id', { length: 100 }).notNull().references(() => modules.id),
-  isEnabled: boolean('is_enabled').notNull().default(true),
-  config: jsonb('config').$type<Record<string, unknown>>().default({}),
-  enabledAt: timestamp('enabled_at', { withTimezone: true }),
-  enabledBy: uuid('enabled_by').references(() => users.id),
-  disabledAt: timestamp('disabled_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [
-  uniqueIndex('company_modules_unique').on(table.companyId, table.moduleId),
-]);
 ```
 
 ### `audit-logs.ts`
@@ -436,37 +366,19 @@ export const auditLogs = pgTable('audit_logs', {
 
 O seed inicial cria:
 
-1. **Módulos core** (auth, users, companies, branches, permissions, modules, audit)
-2. **Super Admin** padrão (email: `admin@cenos.app`, senha: `cenos@2024!`)
-3. **Empresa demo** com 2 filiais
-4. **Usuários demo** (1 admin empresa, 2 normais)
-5. **Permissões demo** (Leitura, Edição, Admin)
+1. **Módulos** (features do código): search_in, justify_pending, installations, audit, etc
+2. **Super Admin** padrão (email: `process.env.SUPER_ADMIN_EMAIL`, senha: `process.env.SUPER_ADMIN_PASSWORD`)
 
 ```typescript
 // db/seed.ts
 async function seed() {
-  // 1. Insert core modules
-  await db.insert(modules).values([
-    { id: 'auth', name: 'Autenticação', isCore: true, ... },
-    { id: 'users', name: 'Usuários', isCore: true, ... },
-    { id: 'companies', name: 'Empresas', isCore: true, ... },
-    { id: 'branches', name: 'Filiais', isCore: true, ... },
-    { id: 'permissions', name: 'Permissões', isCore: true, ... },
-    { id: 'modules', name: 'Módulos', isCore: true, ... },
-    { id: 'audit', name: 'Auditoria', isCore: true, ... },
-  ]);
-
-  // 2. Create super admin
+  // 1. Create super admin
   const superAdmin = await db.insert(users).values({
     name: 'Super Admin',
     email: 'admin@cenos.app',
     passwordHash: await hashPassword('cenos@2024!'),
     role: 'SUPER_ADMIN',
   }).returning();
-
-  // 3. Create demo company + branches
-  // 4. Create demo users
-  // 5. Create demo permissions
 }
 ```
 
@@ -483,7 +395,6 @@ async function seed() {
 | `permissions` | `permissions_company_slug_unique` | `company_id, slug` | Slug da permissão único por empresa |
 | `user_branches` | `user_branches_unique` | `user_id, branch_id` | Evitar duplicatas |
 | `user_permissions` | `user_permissions_unique` | `user_id, permission_id` | Evitar duplicatas |
-| `company_modules` | `company_modules_unique` | `company_id, module_id` | Evitar duplicatas |
 
 ### Estratégia de Partitioning (Futuro)
 

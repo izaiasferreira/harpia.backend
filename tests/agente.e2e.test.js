@@ -74,14 +74,14 @@ describe('Agente Routes (E2E)', () => {
     // ─── Autenticação ────────────────────────────────────────────────────────
 describe('Autenticação', () => {
         it('deve retornar 401 sem header de autenticação', async () => {
-            const res = await request(app).get('/api/agent_data');
+            const res = await request(app).get('/agent_data');
             expect(res.statusCode).toBe(401);
             expect(res.body).toHaveProperty('error');
         }, 15000);
 
         it('deve retornar 403 com token inválido', async () => {
             const res = await request(app)
-                .get('/api/agent_data')
+                .get('/agent_data')
                 .set('X-Telegram-Init-Data', 'token_invalido_123');
             expect(res.statusCode).toBe(403);
         }, 15000);
@@ -91,7 +91,7 @@ describe('Autenticação', () => {
     describe('GET /agent_data', () => {
         it('deve retornar id e estado do colaborador', async () => {
             const res = await request(app)
-                .get('/api/agent_data')
+                .get('/agent_data')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             expect(res.body).toHaveProperty('id');
@@ -103,7 +103,7 @@ describe('Autenticação', () => {
     describe('GET /agent_dashboard', () => {
         it('deve retornar layout e array de widgets', async () => {
             const res = await request(app)
-                .get('/api/agent_dashboard')
+                .get('/agent_dashboard')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             expect(res.body).toHaveProperty('layout');
@@ -123,7 +123,7 @@ describe('Autenticação', () => {
     describe('GET /agent_statistics', () => {
         it('deve retornar array de estatísticas com campos obrigatórios', async () => {
             const res = await request(app)
-                .get('/api/agent_statistics')
+                .get('/agent_statistics')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             expect(Array.isArray(res.body)).toBe(true);
@@ -139,7 +139,7 @@ describe('Autenticação', () => {
     describe('GET /agent_statistics_more', () => {
         it('deve retornar array de estatísticas complementares', async () => {
             const res = await request(app)
-                .get('/api/agent_statistics_more')
+                .get('/agent_statistics_more')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             expect(Array.isArray(res.body)).toBe(true);
@@ -154,7 +154,7 @@ describe('Autenticação', () => {
     describe('GET /agent_services', () => {
         it('deve retornar array de leituras', async () => {
             const res = await request(app)
-                .get('/api/agent_services')
+                .get('/agent_services')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             expect(Array.isArray(res.body)).toBe(true);
@@ -162,7 +162,7 @@ describe('Autenticação', () => {
 
         it('deve aceitar filtro por tipo', async () => {
             const res = await request(app)
-                .get('/api/agent_services?filter=cnl')
+                .get('/agent_services?filter=cnl')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             expect(Array.isArray(res.body)).toBe(true);
@@ -173,7 +173,7 @@ describe('Autenticação', () => {
     describe('GET /last_update_agent', () => {
         it('deve retornar objeto com title e value', async () => {
             const res = await request(app)
-                .get('/api/last_update_agent')
+                .get('/last_update_agent')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             // Pode retornar null se não houver dados, ou um objeto com title
@@ -187,7 +187,7 @@ describe('Autenticação', () => {
     describe('GET /custom_links', () => {
         it('deve retornar array de links', async () => {
             const res = await request(app)
-                .get('/api/custom_links')
+                .get('/custom_links')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             expect(Array.isArray(res.body)).toBe(true);
@@ -198,7 +198,7 @@ describe('Autenticação', () => {
     describe('GET /predicted', () => {
         it('deve retornar array de serviços com perdas', async () => {
             const res = await request(app)
-                .get('/api/predicted')
+                .get('/predicted')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             expect(Array.isArray(res.body)).toBe(true);
@@ -209,7 +209,7 @@ describe('Autenticação', () => {
     describe('POST /search_in', () => {
         it('deve retornar 400 se queries vazio', async () => {
             const res = await request(app)
-                .post('/api/search_in')
+                .post('/search_in')
                 .set(authHeader())
                 .send({ type: 'instalacao', queries: [] });
             expect(res.statusCode).toBe(400);
@@ -219,7 +219,7 @@ describe('Autenticação', () => {
         it('deve retornar 400 se mais de 10 queries', async () => {
             const queries = Array.from({ length: 11 }, (_, i) => `${10000000 + i}`);
             const res = await request(app)
-                .post('/api/search_in')
+                .post('/search_in')
                 .set(authHeader())
                 .send({ type: 'instalacao', queries });
             expect(res.statusCode).toBe(400);
@@ -228,7 +228,7 @@ describe('Autenticação', () => {
 
         it('deve retornar resultado para queries válidas', async () => {
             const res = await request(app)
-                .post('/api/search_in')
+                .post('/search_in')
                 .set(authHeader())
                 .send({ type: 'instalacao', queries: ['18518168'] });
             expect(res.statusCode).toBe(200);
@@ -244,7 +244,7 @@ describe('Autenticação', () => {
         // 1. Criar
         it('POST /create_justify — deve criar uma justificativa', async () => {
             const res = await request(app)
-                .post('/api/create_justify')
+                .post('/create_justify')
                 .set(authHeader())
                 .send(JUSTIFY_DATA);
 
@@ -260,7 +260,7 @@ describe('Autenticação', () => {
         // 2. Duplicata
         it('POST /create_justify — deve rejeitar duplicata', async () => {
             const res = await request(app)
-                .post('/api/create_justify')
+                .post('/create_justify')
                 .set(authHeader())
                 .send(JUSTIFY_DATA);
 
@@ -271,7 +271,7 @@ describe('Autenticação', () => {
         // 3. Consultar
         it('GET /get_justify — deve encontrar a justificativa criada', async () => {
             const res = await request(app)
-                .get(`/api/get_justify?instalacao=${JUSTIFY_DATA.instalacao}&tipo=${JUSTIFY_DATA.tipo}&data_leit_prev=${encodeURIComponent(JUSTIFY_DATA.data_leit_prev)}`)
+                .get(`/get_justify?instalacao=${JUSTIFY_DATA.instalacao}&tipo=${JUSTIFY_DATA.tipo}&data_leit_prev=${encodeURIComponent(JUSTIFY_DATA.data_leit_prev)}`)
                 .set(authHeader());
 
             expect(res.statusCode).toBe(200);
@@ -284,7 +284,7 @@ describe('Autenticação', () => {
             expect(createdJustifyId).not.toBeNull();
 
             const res = await request(app)
-                .put('/api/update_justify')
+                .put('/update_justify')
                 .set(authHeader())
                 .send({
                     id: createdJustifyId,
@@ -300,7 +300,7 @@ describe('Autenticação', () => {
         // 5. Verificar atualização
         it('GET /get_justify — deve refletir a atualização', async () => {
             const res = await request(app)
-                .get(`/api/get_justify?instalacao=${JUSTIFY_DATA.instalacao}&tipo=${JUSTIFY_DATA.tipo}&data_leit_prev=${encodeURIComponent(JUSTIFY_DATA.data_leit_prev)}`)
+                .get(`/get_justify?instalacao=${JUSTIFY_DATA.instalacao}&tipo=${JUSTIFY_DATA.tipo}&data_leit_prev=${encodeURIComponent(JUSTIFY_DATA.data_leit_prev)}`)
                 .set(authHeader());
 
             expect(res.statusCode).toBe(200);
@@ -310,7 +310,7 @@ describe('Autenticação', () => {
         // 6. Update sem ID retorna 400
         it('PUT /update_justify — deve retornar 400 sem ID', async () => {
             const res = await request(app)
-                .put('/api/update_justify')
+                .put('/update_justify')
                 .set(authHeader())
                 .send({ motivo: 'Teste sem ID' });
 
@@ -321,7 +321,7 @@ describe('Autenticação', () => {
         // 7. Update com ID inexistente retorna 404
         it('PUT /update_justify — deve retornar 404 para ID inexistente', async () => {
             const res = await request(app)
-                .put('/api/update_justify')
+                .put('/update_justify')
                 .set(authHeader())
                 .send({ id: 999999, motivo: 'Teste' });
 
@@ -331,7 +331,7 @@ describe('Autenticação', () => {
         // 8. Delete com ID inexistente retorna 404
         it('DELETE /delete_justify/:id — deve retornar 404 para ID inexistente', async () => {
             const res = await request(app)
-                .delete('/api/delete_justify/999999')
+                .delete('/delete_justify/999999')
                 .set(authHeader());
 
             expect(res.statusCode).toBe(404);
@@ -342,7 +342,7 @@ describe('Autenticação', () => {
             expect(createdJustifyId).not.toBeNull();
 
             const res = await request(app)
-                .delete(`/api/delete_justify/${createdJustifyId}`)
+                .delete(`/delete_justify/${createdJustifyId}`)
                 .set(authHeader());
 
             expect(res.statusCode).toBe(200);
@@ -353,7 +353,7 @@ describe('Autenticação', () => {
         // 10. Confirmar exclusão
         it('GET /get_justify — não deve encontrar após exclusão', async () => {
             const res = await request(app)
-                .get(`/api/get_justify?instalacao=${JUSTIFY_DATA.instalacao}&tipo=${JUSTIFY_DATA.tipo}&data_leit_prev=${encodeURIComponent(JUSTIFY_DATA.data_leit_prev)}`)
+                .get(`/get_justify?instalacao=${JUSTIFY_DATA.instalacao}&tipo=${JUSTIFY_DATA.tipo}&data_leit_prev=${encodeURIComponent(JUSTIFY_DATA.data_leit_prev)}`)
                 .set(authHeader());
 
             expect(res.statusCode).toBe(200);
@@ -398,7 +398,7 @@ describe('Autenticação', () => {
     describe('GET /agent_statistics', () => {
         it('deve retornar array de estatísticas com campos obrigatórios', async () => {
             const res = await request(app)
-                .get('/api/agent_statistics')
+                .get('/agent_statistics')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             expect(Array.isArray(res.body)).toBe(true);
@@ -414,7 +414,7 @@ describe('Autenticação', () => {
     describe('GET /agent_statistics_more', () => {
         it('deve retornar array de estatísticas complementares', async () => {
             const res = await request(app)
-                .get('/api/agent_statistics_more')
+                .get('/agent_statistics_more')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             expect(Array.isArray(res.body)).toBe(true);
@@ -429,7 +429,7 @@ describe('Autenticação', () => {
     describe('GET /agent_services', () => {
         it('deve retornar array de leituras', async () => {
             const res = await request(app)
-                .get('/api/agent_services')
+                .get('/agent_services')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             expect(Array.isArray(res.body)).toBe(true);
@@ -437,7 +437,7 @@ describe('Autenticação', () => {
 
         it('deve aceitar filtro por tipo', async () => {
             const res = await request(app)
-                .get('/api/agent_services?filter=cnl')
+                .get('/agent_services?filter=cnl')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             expect(Array.isArray(res.body)).toBe(true);
@@ -448,7 +448,7 @@ describe('Autenticação', () => {
     describe('GET /last_update_agent', () => {
         it('deve retornar objeto com title e value', async () => {
             const res = await request(app)
-                .get('/api/last_update_agent')
+                .get('/last_update_agent')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             // Pode retornar null se não houver dados, ou um objeto com title
@@ -462,7 +462,7 @@ describe('Autenticação', () => {
     describe('GET /custom_links', () => {
         it('deve retornar array de links', async () => {
             const res = await request(app)
-                .get('/api/custom_links')
+                .get('/custom_links')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             expect(Array.isArray(res.body)).toBe(true);
@@ -473,7 +473,7 @@ describe('Autenticação', () => {
     describe('GET /predicted', () => {
         it('deve retornar array de serviços com perdas', async () => {
             const res = await request(app)
-                .get('/api/predicted')
+                .get('/predicted')
                 .set(authHeader());
             expect(res.statusCode).toBe(200);
             expect(Array.isArray(res.body)).toBe(true);
@@ -484,7 +484,7 @@ describe('Autenticação', () => {
     describe('POST /search_in', () => {
         it('deve retornar 400 se queries vazio', async () => {
             const res = await request(app)
-                .post('/api/search_in')
+                .post('/search_in')
                 .set(authHeader())
                 .send({ type: 'instalacao', queries: [] });
             expect(res.statusCode).toBe(400);
@@ -494,7 +494,7 @@ describe('Autenticação', () => {
         it('deve retornar 400 se mais de 10 queries', async () => {
             const queries = Array.from({ length: 11 }, (_, i) => `${10000000 + i}`);
             const res = await request(app)
-                .post('/api/search_in')
+                .post('/search_in')
                 .set(authHeader())
                 .send({ type: 'instalacao', queries });
             expect(res.statusCode).toBe(400);
@@ -503,7 +503,7 @@ describe('Autenticação', () => {
 
         it('deve retornar resultado para queries válidas', async () => {
             const res = await request(app)
-                .post('/api/search_in')
+                .post('/search_in')
                 .set(authHeader())
                 .send({ type: 'instalacao', queries: ['18518168'] });
             expect(res.statusCode).toBe(200);
@@ -519,7 +519,7 @@ describe('Autenticação', () => {
         // 1. Criar
         it('POST /create_justify — deve criar uma justificativa', async () => {
             const res = await request(app)
-                .post('/api/create_justify')
+                .post('/create_justify')
                 .set(authHeader())
                 .send(JUSTIFY_DATA);
 
@@ -535,7 +535,7 @@ describe('Autenticação', () => {
         // 2. Duplicata
         it('POST /create_justify — deve rejeitar duplicata', async () => {
             const res = await request(app)
-                .post('/api/create_justify')
+                .post('/create_justify')
                 .set(authHeader())
                 .send(JUSTIFY_DATA);
 
@@ -546,7 +546,7 @@ describe('Autenticação', () => {
         // 3. Consultar
         it('GET /get_justify — deve encontrar a justificativa criada', async () => {
             const res = await request(app)
-                .get(`/api/get_justify?instalacao=${JUSTIFY_DATA.instalacao}&tipo=${JUSTIFY_DATA.tipo}&data_leit_prev=${encodeURIComponent(JUSTIFY_DATA.data_leit_prev)}`)
+                .get(`/get_justify?instalacao=${JUSTIFY_DATA.instalacao}&tipo=${JUSTIFY_DATA.tipo}&data_leit_prev=${encodeURIComponent(JUSTIFY_DATA.data_leit_prev)}`)
                 .set(authHeader());
 
             expect(res.statusCode).toBe(200);
@@ -559,7 +559,7 @@ describe('Autenticação', () => {
             expect(createdJustifyId).not.toBeNull();
 
             const res = await request(app)
-                .put('/api/update_justify')
+                .put('/update_justify')
                 .set(authHeader())
                 .send({
                     id: createdJustifyId,
@@ -575,7 +575,7 @@ describe('Autenticação', () => {
         // 5. Verificar atualização
         it('GET /get_justify — deve refletir a atualização', async () => {
             const res = await request(app)
-                .get(`/api/get_justify?instalacao=${JUSTIFY_DATA.instalacao}&tipo=${JUSTIFY_DATA.tipo}&data_leit_prev=${encodeURIComponent(JUSTIFY_DATA.data_leit_prev)}`)
+                .get(`/get_justify?instalacao=${JUSTIFY_DATA.instalacao}&tipo=${JUSTIFY_DATA.tipo}&data_leit_prev=${encodeURIComponent(JUSTIFY_DATA.data_leit_prev)}`)
                 .set(authHeader());
 
             expect(res.statusCode).toBe(200);
@@ -585,7 +585,7 @@ describe('Autenticação', () => {
         // 6. Update sem ID retorna 400
         it('PUT /update_justify — deve retornar 400 sem ID', async () => {
             const res = await request(app)
-                .put('/api/update_justify')
+                .put('/update_justify')
                 .set(authHeader())
                 .send({ motivo: 'Teste sem ID' });
 
@@ -596,7 +596,7 @@ describe('Autenticação', () => {
         // 7. Update com ID inexistente retorna 404
         it('PUT /update_justify — deve retornar 404 para ID inexistente', async () => {
             const res = await request(app)
-                .put('/api/update_justify')
+                .put('/update_justify')
                 .set(authHeader())
                 .send({ id: 999999, motivo: 'Teste' });
 
@@ -606,7 +606,7 @@ describe('Autenticação', () => {
         // 8. Delete com ID inexistente retorna 404
         it('DELETE /delete_justify/:id — deve retornar 404 para ID inexistente', async () => {
             const res = await request(app)
-                .delete('/api/delete_justify/999999')
+                .delete('/delete_justify/999999')
                 .set(authHeader());
 
             expect(res.statusCode).toBe(404);
@@ -617,7 +617,7 @@ describe('Autenticação', () => {
             expect(createdJustifyId).not.toBeNull();
 
             const res = await request(app)
-                .delete(`/api/delete_justify/${createdJustifyId}`)
+                .delete(`/delete_justify/${createdJustifyId}`)
                 .set(authHeader());
 
             expect(res.statusCode).toBe(200);
@@ -628,7 +628,7 @@ describe('Autenticação', () => {
         // 10. Confirmar exclusão
         it('GET /get_justify — não deve encontrar após exclusão', async () => {
             const res = await request(app)
-                .get(`/api/get_justify?instalacao=${JUSTIFY_DATA.instalacao}&tipo=${JUSTIFY_DATA.tipo}&data_leit_prev=${encodeURIComponent(JUSTIFY_DATA.data_leit_prev)}`)
+                .get(`/get_justify?instalacao=${JUSTIFY_DATA.instalacao}&tipo=${JUSTIFY_DATA.tipo}&data_leit_prev=${encodeURIComponent(JUSTIFY_DATA.data_leit_prev)}`)
                 .set(authHeader());
 
             expect(res.statusCode).toBe(200);
