@@ -41,12 +41,12 @@ router.get('/:id', requireCompanyAdmin, async (req, res) => {
 router.post('/', requireCompanyAdmin, async (req, res) => {
     try {
         const { name, description, modules } = req.body;
-
+        
         if (!name || !modules || !Array.isArray(modules)) {
             return res.status(400).json({ error: 'Nome e array de módulos são obrigatórios' });
         }
 
-        const availableModules = listModules().map(m => m.id);
+        const availableModules = (await listModules()).map(m => m.id);
         const invalidModules = modules.filter(m => !availableModules.includes(m));
         if (invalidModules.length > 0) {
             return res.status(400).json({ error: `Módulos inválidos: ${invalidModules.join(', ')}` });

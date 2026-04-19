@@ -57,9 +57,30 @@ async function getUserModules(userId, estado) {
     return await getModules(userId, estado);
 }
 
+function verifyModule(moduleId) {
+    return async (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Usuário não autenticado' });
+        }
+
+        const modules = req.user.modules || [];
+
+        if(req.user.role.toLowerCase().includes('admin')) {
+            return next();
+        }
+        
+        if (!modules.includes(moduleId)) {
+            return res.status(403).json({ error: `Módulo não autorizado` });
+        }
+        
+        next();
+    };
+}
+
 module.exports = {
     generateToken,
     verifyToken,
+    verifyModule,
     getUserModules,
     JWT_SECRET
 };

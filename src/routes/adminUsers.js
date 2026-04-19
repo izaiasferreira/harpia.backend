@@ -92,7 +92,7 @@ router.post('/register', requireCompanyAdmin, async (req, res) => {
 });
 
 // Me
-router.get('/me', verifyToken(), async (req, res) => {
+router.get('/me', requireCompanyAdmin, async (req, res) => {
     try {
         const modules = await getUserModules(req.user.id, req.user.estado);
         res.json({ ...req.user, modules });
@@ -195,7 +195,7 @@ router.delete('/users/:id', requireCompanyAdmin, async (req, res) => {
 });
 
 // Modules
-router.get('/modules', verifyToken(), async (req, res) => {
+router.get('/modules', requireCompanyAdmin, async (req, res) => {
     try {
         const modules = listModules();
         res.json(modules);

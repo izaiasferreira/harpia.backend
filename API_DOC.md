@@ -1429,6 +1429,64 @@ Faz upload de arquivo para o MinIO/S3 vinculado ao agente autenticado.
 
 ---
 
+## POST /admin/dashboard
+
+Retorna o dashboard administrativo com estatísticas e widgets.
+
+**Autenticação:** Bearer token (COMPANY_ADMIN)
+
+**Response 200:**
+```json
+{
+    "layout": { "columns": 3, "gap": 16, "baseRowHeight": 165 },
+    "widgets": [...]
+}
+```
+
+---
+
+## POST /admin/search_in
+
+Busca informações de instalações no banco de localizações.
+
+**Autenticação:** Bearer token (COMPANY_ADMIN)
+
+**Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `type` | string | Não | Tipo de busca: `instalacao` (padrão), `medidor`, `contacontrato` |
+| `queries` | string[] | Sim | Array de valores para buscar (máx 10) |
+
+**Body示例:**
+```json
+{
+    "type": "instalacao",
+    "queries": ["12345678", "87654321"]
+}
+```
+
+**Response 200:**
+```json
+[
+    {
+        "instalacao": "12345678",
+        "medidor": "12345678",
+        "conta_contrato": "12345678001",
+        ...
+    }
+]
+```
+
+**Response 400:**
+```json
+{ "error": "Nenhuma query fornecida" }
+```
+```json
+{ "error": "Limite de consulta excedido (máximo 10)" }
+```
+
+---
+
 ## CORS
 
 O CORS é configurado via `CORS_ORIGINS` no `.env`:

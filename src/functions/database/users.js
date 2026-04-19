@@ -1,4 +1,5 @@
 const { cenos_pool } = require('../../db');
+const bcrypt = require('bcrypt');
 
 async function createUsersTable() {
     await cenos_pool.query(`
@@ -34,6 +35,8 @@ async function createUser({
         throw new Error('Usuário já existe com este email');
     }
 
+    const hashedSenha = await bcrypt.hash(senha, 10);
+
     const insertQuery = `
         INSERT INTO users (email, senha, nome, role, estado)
         VALUES ($1, $2, $3, $4, $5)
@@ -41,7 +44,7 @@ async function createUser({
     `;
     const { rows } = await pool.query(insertQuery, [
         email.toLowerCase(),
-        senha,
+        hashedSenha,
         nome,
         role,
         estado.toLowerCase()
@@ -49,16 +52,23 @@ async function createUser({
     return rows[0];
 }
 
-async function verifyUser(email, senha, estado = 'pi') {
+async function verifyUser(email, senha) {
     const pool = cenos_pool;
 
     const query = `
-        SELECT id, email, nome, role, ativo
+        SELECT id, email, senha, nome, role, ativo
         FROM users 
-        WHERE email = $1 AND senha = $2 AND ativo = true
+        WHERE email = $1 AND ativo = true
     `;
-    const { rows } = await pool.query(query, [email.toLowerCase(), senha]);
-    return rows[0] || null;
+    const { rows } = await pool.query(query, [email.toLowerCase()]);
+    
+    if (rows.length === 0) return null;
+    
+    const valid = await bcrypt.compare(senha, rows[0].senha);
+    if (!valid) return null;
+    
+    const { senha: _, ...user } = rows[0];
+    return user;
 }
 
 async function getUserById(id, estado = 'pi') {
@@ -137,8 +147,9 @@ async function updateUser(id, data, estado = 'pi') {
     return rows[0] || null;
 }
 
-async function changePassword(id, novaSenha, estado = 'pi') {
+async function changePassword(id, novaSenha) {
     const pool = cenos_pool;
+    const hashedSenha = await bcrypt.hash(novaSenha, 10);
 
     const query = `
         UPDATE users 
@@ -146,7 +157,7 @@ async function changePassword(id, novaSenha, estado = 'pi') {
         WHERE id = $2
         RETURNING id;
     `;
-    const { rows } = await pool.query(query, [novaSenha, id]);
+    const { rows } = await pool.query(query, [hashedSenha, id]);
     return rows[0] || null;
 }
 

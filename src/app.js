@@ -54,10 +54,40 @@ const adminRouter = require('./routes/admin')
 const adminUsersRouter = require('./routes/adminUsers')
 const adminBranchesRouter = require('./routes/adminBranches')
 const adminPermissionsRouter = require('./routes/adminPermissions')
+const adminConsultRouter = require('./routes/adminConsult')
 const logsRouter = require('./routes/logs')
 const publicRouter = require('./routes/public')
 const agentDefaultAuthRouter = require('./routes/agentDefaultAuth')
 const uploadRouter = require('./routes/upload')
+
+// Arquivos estáticos (assets do MinIO)
+const { minioClient, CONFIG } = require('./functions/minio');
+app.use('/file/:path(*)', async (req, res) => {
+    try {
+        const { path } = req.params;
+        const stream = await minioClient.getObject(CONFIG.bucket, path);
+        
+        const ext = path.split('.').pop()?.toLowerCase();
+        const contentTypes = {
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'webp': 'image/webp',
+            'pdf': 'application/pdf'
+        };
+        
+        const contentType = contentTypes[ext] || 'application/octet-stream';
+        res.set('Content-Type', contentType);
+        res.set('Cache-Control', 'public, max-age=31536000');
+        res.set('Access-Control-Allow-Origin', '*');
+        
+        stream.pipe(res);
+    } catch (err) {
+        console.error('Erro ao servir arquivo:', err.message);
+        res.status(404).json({ error: 'Arquivo não encontrado' });
+    }
+});
 
 // Rotas públicas (calendar, feriados)
 app.use('/public', publicRouter)
@@ -70,6 +100,9 @@ app.use('/agent', agentDefaultAuthRouter)
 
 // Admin Upload (/admin/upload/*)
 app.use('/admin/upload', uploadRouter)
+
+// Admin Consult dashboard (antes do adminRouter para evitar conflito)
+app.use('/admin', adminConsultRouter)
 
 // Admin (antes do agente para evitar conflito)
 app.use('/admin', adminRouter)
