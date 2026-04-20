@@ -46,6 +46,7 @@ router.get('/dashboard', verifyToken(), async (req, res) => {
 });
 
 // users_agents result example
+// [
 // {
 //     "id": "T47384",
 //     "telegram_id": "7136458344",
@@ -58,6 +59,7 @@ router.get('/dashboard', verifyToken(), async (req, res) => {
 //     "gestor": "DIOGO VICTOR SOARES MOURA",
 //     "matricula": "017865"
 // }
+// ]
 router.get('/users_agents', verifyToken(), async (req, res) => {
     try {
         const user = req.user;
@@ -92,6 +94,7 @@ router.post('/search_in', verifyToken(), verifyModule('search_in'), async (req, 
 });
 
 // justify result example
+// [
 // {
 //     "id": 45,
 //     "instalacao": "2000166754",
@@ -106,6 +109,7 @@ router.post('/search_in', verifyToken(), verifyModule('search_in'), async (req, 
 //     "created_at": "2026-04-19T16:45:31.694Z",
 //     "updated_at": "2026-04-19T16:45:31.694Z"
 // }
+// ]
 router.get('/justify', verifyToken(), verifyModule('justify'), async (req, res) => {
     try {
         const { instalacao, tipo, data_leit_prev, estado } = req.query;
@@ -124,6 +128,7 @@ router.get('/justify', verifyToken(), verifyModule('justify'), async (req, res) 
 
 
 // justify_pending result example
+// [
 // {
 //         "id": 1,
 //         "autor": "t38876",
@@ -138,6 +143,7 @@ router.get('/justify', verifyToken(), verifyModule('justify'), async (req, res) 
 //         "created_at": "2026-04-20T12:50:26.962Z",
 //         "updated_at": "2026-04-20T12:50:26.962Z"
 // }
+// ]
 router.get('/justify_pending', verifyToken(), verifyModule('justify_pending'), async (req, res) => {
     try {
         const { autor, status, page, limit, estado } = req.query;
@@ -159,6 +165,7 @@ router.get('/justify_pending', verifyToken(), verifyModule('justify_pending'), a
 });
 
 // daily_report result example
+// [
 // {
 //    "id": 1,
 //    "autor": "t38876",
@@ -171,6 +178,7 @@ router.get('/justify_pending', verifyToken(), verifyModule('justify_pending'), a
 //    "updated_at": "2026-04-15T01:56:53.731Z",
 //    "foto": "http://files.izi.tec.br:9000/api-banco-prod/agents/T38876/1776217829450-T38876-echin.png"
 // }
+// ]
 router.get('/daily_report', verifyToken(), verifyModule('daily_report'), async (req, res) => {
     try {
         const { autor, data, limit } = req.query;
@@ -184,6 +192,7 @@ router.get('/daily_report', verifyToken(), verifyModule('daily_report'), async (
 
 
 // inventory result example
+// [
 // {
 // "id": 43,
 // "agente": "l83649894",
@@ -201,7 +210,8 @@ router.get('/daily_report', verifyToken(), verifyModule('daily_report'), async (
 // "estado": "pi",
 // "created_at": "2026-04-15T20:10:13.953Z",
 // "updated_at": "2026-04-15T20:10:13.953Z"
-//}
+// }
+// ]
 router.get('/inventory', verifyToken(), verifyModule('inventory'), async (req, res) => {
     try {
         const user = req.user;
@@ -212,7 +222,18 @@ router.get('/inventory', verifyToken(), verifyModule('inventory'), async (req, r
     }
 });
 
-
+// available_modules result example
+// [
+//     {
+//         "id": "search_in",
+//         "name": "Busca Instalação"
+//     },
+//     {
+//         "id": "update_search_in",
+//         "name": "Atualizar Busca Instalação"
+//     },
+//     ...
+// ]
 router.get('/available_modules', verifyToken('COMPANY_ADMIN'), async (req, res) => {
     try {
         const modules = await listModules();
