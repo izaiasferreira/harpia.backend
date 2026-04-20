@@ -19,7 +19,7 @@ const upload = multer({
  * POST /upload
  * Upload de arquivo com compressão de imagem
  */
-router.post('/upload', upload.single('file'), verifyToken, async (req, res) => {
+router.post('/upload', upload.single('file'), verifyToken(), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'Nenhum arquivo enviado' });

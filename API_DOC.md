@@ -1457,7 +1457,7 @@ Faz upload de arquivo para o MinIO/S3 vinculado ao agente autenticado.
 
 ---
 
-## POST /admin/dashboard
+## GET /admin/dashboard
 
 Retorna o dashboard administrativo com estatísticas e widgets.
 
@@ -1516,6 +1516,63 @@ Para usar este endpoint, o usuário precisa ter uma permissão com o módulo `se
 ```json
 { "error": "Limite de consulta excedido (máximo 10)" }
 ```
+
+---
+
+## GET /admin/justify
+
+Busca justificativas cadastradas.
+
+**Autenticação:** Bearer token + módulo `justify`
+
+**Query Params:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `instalacao` | string | Não | Filtro por agente/autor |
+| `tipo` | string | Não | Filtro por tipo |
+| `data_leit_prev` | string | Não | Filtro por data (DD/MM/YYYY) |
+| `estado` | string | Não | Estado: `pi` ou `ma` |
+
+---
+
+## GET /admin/justify_pending
+
+Lista justificativas pendentes de aprovação.
+
+**Autenticação:** Bearer token + módulo `justify_pending`
+
+**Query Params:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `autor` | string | Não | Filtro por agente |
+| `status` | string | Não | Status: `PENDING`, `APPROVED`, `REJECTED` |
+| `estado` | string | Não | Estado: `pi` ou `ma` |
+| `page` | number | Não | Página (padrão: 1) |
+| `limit` | number | Não | Limite (padrão: 20) |
+
+---
+
+## GET /admin/daily_report
+
+Lista relatórios diários dos agentes.
+
+**Autenticação:** Bearer token + módulo `daily_report`
+
+**Query Params:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `autor` | string | Não | Filtro por agente |
+| `data` | string | Não | Filtro por data (DD/MM/YYYY) |
+| `estado` | string | Não | Estado: `pi` ou `ma` |
+| `limit` | number | Não | Limite (padrão: 10) |
+
+---
+
+## GET /admin/inventory
+
+Lista inventário de equipamentos dos agentes.
+
+**Autenticação:** Bearer token + módulo `inventory`
 
 ---
 

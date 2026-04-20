@@ -2,36 +2,26 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const { generateDashboardAdmin } = require('../functions/generateDashboard');
-const { localizacoes_pi_pool } = require('../db');
+const {
+    get_inventory_admin,
+    get_justify_admin,
+    get_pending_justifies_admin,
+    get_daily_reports_admin,
+    get_instalations_admin
+} = require('../functions/database/admin');
 
-const requireCompanyAdmin = verifyToken();
-const requireSearchIn = verifyModule('search_in');
 
-async function get_instalations({ query = [], type }) {
-    if (!query || query.length === 0) return [];
-
-    let column = 'instalacao';
-    if (type === 'medidor') column = 'medidor';
-    if (type === 'contacontrato') column = 'conta_contrato';
-
-    const placeholders = query.map((_, i) => `$${i + 1}`).join(',');
-    const sql = `
-        SELECT * 
-        FROM dados_instalacoes 
-        WHERE ${column} IN (${placeholders})
-    `;
-    try {
-        const { rows } = await localizacoes_pi_pool.query(sql, query);
-        return rows;
-    } catch (err) {
-        console.error('Erro em get_instalations:', err);
-        throw err;
-    }
+async function listModules() {
+    return AVAILABLE_MODULES.map(id => ({
+        id,
+        name: id.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+    }));
 }
 
 
+
 // Dashboard
-router.get('/dashboard', requireCompanyAdmin, async (req, res) => {
+router.get('/dashboard', verifyToken(), async (req, res) => {
     try {
         const user = req.user;
         const result = await generateDashboardAdmin(user)
@@ -43,7 +33,7 @@ router.get('/dashboard', requireCompanyAdmin, async (req, res) => {
 });
 
 // Search installation
-router.post('/search_in', verifyToken, verifyModule('search_in'), async (req, res) => {
+router.post('/search_in', verifyToken(), verifyModule('search_in'), async (req, res) => {
     try {
         const { type, queries } = req.body;
 
@@ -55,12 +45,71 @@ router.post('/search_in', verifyToken, verifyModule('search_in'), async (req, re
         if (cleanQueries.length > 10) {
             return res.status(400).json({ error: 'Limite de consulta excedido (máximo 10)' });
         }
-        const results = await get_instalations({ query: cleanQueries, type });
+        const results = await get_instalations_admin({ query: cleanQueries, type });
 
         res.json(results);
     } catch (err) {
         console.log(err);
         res.status(500).json({ error: err.message });
+    }
+});
+
+
+router.get('/justify', verifyToken(), verifyModule('justify'), async (req, res) => {
+    try {
+        const { instalacao, tipo, data_leit_prev, estado } = req.query;
+
+        const result = await get_justify_admin({
+            instalacao,
+            tipo,
+            data_leit_prev,
+            estado
+        });
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get('/justify_pending', verifyToken(), verifyModule('justify_pending'), async (req, res) => {
+    try {
+        const { autor, status, page, limit, estado } = req.query;
+        const user = req.user;
+
+        const result = await get_pending_justifies_admin({
+            state: estado,
+            autor,
+            status,
+            page,
+            limit,
+            user
+        });
+
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get('/daily_report', verifyToken(), verifyModule('daily_report'), async (req, res) => {
+    try {
+        const { autor, data, limit } = req.query;
+        const user = req.user;
+
+        const reports = await get_daily_reports_admin({ autor, data, limit, page: 1, includeAll: true, user });
+        res.json(reports);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get('/inventory', verifyToken(), verifyModule('inventory'), async (req, res) => {
+    try {
+        const user = req.user;
+        const result = await get_inventory_admin({ user });
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 

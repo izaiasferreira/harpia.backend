@@ -11,6 +11,7 @@ function generateToken(user) {
 }
 
 function verifyToken(requiredRole = null) {
+    
     return async (req, res, next) => {
         const authHeader = req.headers.authorization;
         
@@ -36,7 +37,13 @@ function verifyToken(requiredRole = null) {
                 return res.status(403).json({ error: `Acesso restrito apenas para Administradores` });
             }
 
-            const modules = await getUserModules(decoded.id, decoded.estado);
+            let modules = [];
+            try {
+                modules = await getUserModules(decoded.id, decoded.estado);
+            } catch (modErr) {
+                console.error('Error loading modules:', modErr.message);
+            }
+            
             req.user = { 
                 id: decoded.id, 
                 estado: decoded.estado, 
@@ -45,7 +52,7 @@ function verifyToken(requiredRole = null) {
                 email: user.email,
                 modules 
             };
-            next();
+           return next();
         } catch (err) {
             return res.status(401).json({ error: 'Token expirado ou inválido' });
         }
@@ -53,8 +60,13 @@ function verifyToken(requiredRole = null) {
 }
 
 async function getUserModules(userId, estado) {
-    const { getUserModules: getModules } = require('../functions/database/permissions');
-    return await getModules(userId, estado);
+    try {
+        const { getUserModules: getModules } = require('../functions/database/permissions');
+        return await getModules(userId, estado);
+    } catch (err) {
+        console.error('getUserModules error:', err.message);
+        return [];
+    }
 }
 
 function verifyModule(moduleId) {

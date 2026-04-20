@@ -594,7 +594,7 @@ async function pre_create_pending_justify({
     created_at = new Date(),
     updated_at = new Date()
 }) {
-    const pool = state === 'pi' ? pi_pool : ma_pool;
+    const pool = cenos_pool;
 
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS justify_pending (

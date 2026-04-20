@@ -1,178 +1,186 @@
-const { pi_pool, ma_pool } = require('../../db');
+const { pi_pool, ma_pool, localizacoes_pi_pool, cenos_pool } = require('../../db');
+const { today } = require('../../utils/dates');
 
-async function createAdminTable() {
-    const query = `
-        CREATE TABLE IF NOT EXISTS admin_users (
+
+const userIsAdmin = (user) => {
+    return user.role.toLowerCase().includes('admin');
+}
+
+// ─── inventory ───────────────────────────────────────────────────────────
+async function get_inventory_admin({ user }) {
+    let activeState = (user.estado || 'pi').toLowerCase();
+    if(userIsAdmin(user)) activeState = null;
+
+    let pool = cenos_pool;
+    
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS inventory (
             id SERIAL PRIMARY KEY,
-            email TEXT UNIQUE NOT NULL,
-            senha TEXT NOT NULL,
-            nome TEXT NOT NULL,
+            agente TEXT NOT NULL,
+            pda_imei_1 TEXT,
+            pda_imei_2 TEXT,
+            pda_numero_serie TEXT,
+            pda_marca TEXT,
+            pda_modelo TEXT,
+            pda_numero_chip TEXT,
+            pda_versao_android TEXT,
+            pda_versao_bluetooth TEXT,
+            impressora_numero_serie TEXT,
+            impressora_modelo TEXT,
+            impressora_marca TEXT,
             estado TEXT DEFAULT 'pi',
-            nivel TEXT DEFAULT 'admin',
             created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW(),
-            ultimo_login TIMESTAMP,
-            ativo BOOLEAN DEFAULT true
+            updated_at TIMESTAMP DEFAULT NOW()
         );
     `;
-    await pi_pool.query(query);
-}
+    await pool.query(createTableQuery);
 
-async function createAdmin({
-    email,
-    senha,
-    nome,
-    estado = 'pi',
-    nivel = 'admin'
-}) {
-    await createAdminTable();
-
-    const checkQuery = `SELECT id FROM admin_users WHERE email = $1`;
-    const checkResult = await pi_pool.query(checkQuery, [email.toLowerCase()]);
-    if (checkResult.rows.length > 0) {
-        throw new Error('Admin já existe com este email');
-    }
-
-    const insertQuery = `
-        INSERT INTO admin_users (email, senha, nome, estado, nivel)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, email, nome, estado, nivel, ativo;
-    `;
-    const { rows } = await pi_pool.query(insertQuery, [
-        email.toLowerCase(),
-        senha,
-        nome,
-        estado.toLowerCase(),
-        nivel
-    ]);
-    return rows[0];
-}
-
-async function verifyAdmin(email, senha) {
-    const query = `
-        SELECT id, email, nome, estado, nivel, ativo
-        FROM admin_users 
-        WHERE email = $1 AND senha = $2 AND ativo = true
-    `;
-    const { rows } = await pi_pool.query(query, [email.toLowerCase(), senha]);
-    return rows[0] || null;
-}
-
-async function getAdminById(id) {
-    const query = `
-        SELECT id, email, nome, estado, nivel, ativo, created_at, ultimo_login
-        FROM admin_users 
-        WHERE id = $1 AND ativo = true
-    `;
-    const { rows } = await pi_pool.query(query, [id]);
-    return rows[0] || null;
-}
-
-async function updateLastLogin(id) {
-    const query = `
-        UPDATE admin_users 
-        SET ultimo_login = NOW() 
-        WHERE id = $1
-    `;
-    await pi_pool.query(query, [id]);
-}
-
-async function listAdmins(estado = 'all') {
     let query = `
-        SELECT id, email, nome, estado, nivel, ativo, created_at, ultimo_login
-        FROM admin_users 
-        ORDER BY nome
+        SELECT * FROM inventory
     `;
-    let params = [];
 
-    if (estado && estado !== 'all') {
-        query = `
-            SELECT id, email, nome, estado, nivel, ativo, created_at, ultimo_login
-            FROM admin_users 
-            WHERE estado = $1
-            ORDER BY nome
-        `;
-        params = [estado.toLowerCase()];
+    if(activeState){
+        query += ` WHERE estado = $1`;
+        const { rows } = await pool.query(query, [activeState]);
+        return rows;
     }
-
-    const { rows } = await pi_pool.query(query, params);
+    const { rows } = await pool.query(query);
     return rows;
 }
 
-async function updateAdmin(id, data) {
-    const { nome, estado, nivel, ativo } = data;
-    
-    const updates = [];
+// ─── justify ───────────────────────────────────────────────────────────
+async function get_justify_admin({ instalacao, tipo, data_leit_prev, estado }) {
+    const pool = cenos_pool;
+
+    let query = `SELECT * FROM justificativas WHERE 1=1`;
     const params = [];
     let paramIndex = 1;
 
-    if (nome) {
-        updates.push(`nome = $${paramIndex}`);
-        params.push(nome);
+    if (instalacao) {
+        query += ` AND autor = $${paramIndex}`;
+        params.push(instalacao);
+        paramIndex++;
+    }
+    if (tipo) {
+        query += ` AND tipo = $${paramIndex}`;
+        params.push(tipo);
+        paramIndex++;
+    }
+    if (data_leit_prev) {
+        query += ` AND data_leit_prev = $${paramIndex}`;
+        params.push(data_leit_prev);
         paramIndex++;
     }
     if (estado) {
-        updates.push(`estado = $${paramIndex}`);
+        query += ` AND estado = $${paramIndex}`;
         params.push(estado.toLowerCase());
         paramIndex++;
     }
-    if (nivel) {
-        updates.push(`nivel = $${paramIndex}`);
-        params.push(nivel);
-        paramIndex++;
-    }
-    if (typeof ativo === 'boolean') {
-        updates.push(`ativo = $${paramIndex}`);
-        params.push(ativo);
-        paramIndex++;
-    }
 
-    if (updates.length === 0) return null;
+    query += ` ORDER BY created_at DESC`;
 
-    updates.push(`updated_at = NOW()`);
-    
-    params.push(id);
-    const query = `
-        UPDATE admin_users 
-        SET ${updates.join(', ')}
-        WHERE id = $${paramIndex}
-        RETURNING id, email, nome, estado, nivel, ativo;
-    `;
-    
-    const { rows } = await pi_pool.query(query, params);
-    return rows[0] || null;
+    const { rows } = await pool.query(query, params);
+    return rows;
 }
 
-async function changePassword(id, novaSenha) {
-    const query = `
-        UPDATE admin_users 
-        SET senha = $1, updated_at = NOW()
-        WHERE id = $2
-        RETURNING id;
-    `;
-    const { rows } = await pi_pool.query(query, [novaSenha, id]);
-    return rows[0] || null;
+// ─── justify_pending ───────────────────────────────────────────────────────────
+async function get_pending_justifies_admin({ state = 'pi', autor, status = 'pendente', page = 1, limit = 20, user }) {
+    const pool = cenos_pool;
+
+    let query = `SELECT * FROM justify_pending WHERE 1=1`;
+    const params = [];
+    let paramIndex = 1;
+
+    if (autor) {
+        query += ` AND autor = $${paramIndex}`;
+        params.push(autor);
+        paramIndex++;
+    }
+    if (status) {
+        query += ` AND status = $${paramIndex}`;
+        params.push(status);
+        paramIndex++;
+    }
+    if (state && !userIsAdmin(user)) {
+        query += ` AND estado = $${paramIndex}`;
+        params.push(state.toLowerCase());
+        paramIndex++;
+    }
+
+    const limitVal = parseInt(limit) || 20;
+    const offsetVal = (parseInt(page) - 1) * limitVal;
+
+    query += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limitVal, offsetVal);
+
+    const { rows } = await pool.query(query,params);
+    return rows;
 }
 
-async function deleteAdmin(id) {
-    const query = `
-        UPDATE admin_users 
-        SET ativo = false, updated_at = NOW()
-        WHERE id = $1
-        RETURNING id;
+// ─── daily_report ───────────────────────────────────────────────────────────
+async function get_daily_reports_admin({ autor, data, limit = 10, page = 1, includeAll = false, user }) {
+    const pool = cenos_pool;
+
+    let query = `SELECT * FROM daily_report WHERE 1=1`;
+    const params = [];
+    let paramIndex = 1;
+
+    if (autor) {
+        query += ` AND autor = $${paramIndex}`;
+        params.push(autor);
+        paramIndex++;
+    }
+    if (data) {
+        query += ` AND DATE(created_at) = $${paramIndex}`;
+        params.push(data);
+        paramIndex++;
+    }
+    if (!userIsAdmin(user)) {
+        query += ` AND estado = $${paramIndex}`;
+        params.push(user.estado.toLowerCase());
+        paramIndex++;
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    if (!includeAll) {
+        const limitVal = parseInt(limit) || 10;
+        const offsetVal = (parseInt(page) - 1) * limitVal;
+
+        query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        params.push(limitVal, offsetVal);
+    }
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
+async function get_instalations_admin({ query = [], type }) {
+    if (!query || query.length === 0) return [];
+
+    let column = 'instalacao';
+    if (type === 'medidor') column = 'medidor';
+    if (type === 'contacontrato') column = 'conta_contrato';
+
+    const placeholders = query.map((_, i) => `$${i + 1}`).join(',');
+    const sql = `
+        SELECT * 
+        FROM dados_instalacoes 
+        WHERE ${column} IN (${placeholders})
     `;
-    const { rows } = await pi_pool.query(query, [id]);
-    return rows[0] ? true : false;
+    try {
+        const { rows } = await localizacoes_pi_pool.query(sql, query);
+        return rows;
+    } catch (err) {
+        console.error('Erro em get_instalations:', err);
+        throw err;
+    }
 }
 
 module.exports = {
-    createAdminTable,
-    createAdmin,
-    verifyAdmin,
-    getAdminById,
-    updateLastLogin,
-    listAdmins,
-    updateAdmin,
-    changePassword,
-    deleteAdmin
+    get_inventory_admin,
+    get_justify_admin,
+    get_pending_justifies_admin,
+    get_daily_reports_admin,
+    get_instalations_admin
 };

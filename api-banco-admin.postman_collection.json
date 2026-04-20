@@ -1,0 +1,664 @@
+{
+    "info": {
+        "name": "API Banco - Admin",
+        "description": "Collection for API Banco Admin routes",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:3040",
+            "type": "string"
+        },
+        {
+            "key": "token",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{token}}"
+            }
+        ]
+    },
+    "event": [
+        {
+            "listen": "prerequest",
+            "script": {
+                "type": "string",
+                "exec": [
+                    "if (!pm.environment.get('token') && pm.request.url.path.includes('/login')) {",
+                    "    // Skip auth for login",
+                    "} else if (!pm.environment.get('token')) {",
+                    "    pm.skipExecution = true;",
+                    "    pm.test('Token required - update variable \"token\"', () => {});",
+                    "}"
+                ]
+            }
+        }
+    ],
+    "item": [
+        {
+            "name": "Auth",
+            "item": [
+                {
+                    "name": "POST /admin/user/login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"admin@email.com\",\n    \"senha\": \"senha123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/user/login",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "user", "login"]
+                        }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    pm.environment.set('token', json.token);",
+                                    "}",
+                                    "pm.test('Status 200', () => {",
+                                    "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+                                    "});"
+                                ],
+                                "type": "string"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "POST /admin/user/register",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"novo@empresa.com\",\n    \"senha\": \"senha123\",\n    \"nome\": \"Novo Usuário\",\n    \"role\": \"USER\",\n    \"estado\": \"pi\",\n    \"branches\": [],\n    \"permissions\": []\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/user/register",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "user", "register"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Dashboard",
+            "item": [
+                {
+                    "name": "GET /admin/dashboard",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/dashboard",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "dashboard"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Search",
+            "item": [
+                {
+                    "name": "POST /admin/search_in",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"type\": \"instalacao\",\n    \"queries\": [\"12345678\"]\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/search_in",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "search_in"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Justify",
+            "item": [
+                {
+                    "name": "GET /admin/justify",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/justify?estado=pi",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "justify"],
+                            "query": [
+                                {
+                                    "key": "estado",
+                                    "value": "pi"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /admin/justify_pending",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/justify_pending?estado=pi&status=PENDING",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "justify_pending"],
+                            "query": [
+                                {
+                                    "key": "estado",
+                                    "value": "pi"
+                                },
+                                {
+                                    "key": "status",
+                                    "value": "PENDING"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Daily Report",
+            "item": [
+                {
+                    "name": "GET /admin/daily_report",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/daily_report?estado=pi",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "daily_report"],
+                            "query": [
+                                {
+                                    "key": "estado",
+                                    "value": "pi"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Inventory",
+            "item": [
+                {
+                    "name": "GET /admin/inventory",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/inventory",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "inventory"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Users",
+            "item": [
+                {
+                    "name": "GET /admin/user/me",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/user/me",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "user", "me"]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /admin/user/users",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/user/users",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "user", "users"]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT /admin/user/users/:id",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"nome\": \"Nome Atualizado\",\n    \"role\": \"USER\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/user/users/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "user", "users", "1"]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT /admin/user/users/:id/password",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"senha\": \"novaSenha123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/user/users/1/password",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "user", "users", "1", "password"]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT /admin/user/users/:id/permissions",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"permissions\": [1, 2]\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/user/users/1/permissions",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "user", "users", "1", "permissions"]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /admin/user/users/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/user/users/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "user", "users", "1"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Branches",
+            "item": [
+                {
+                    "name": "GET /admin/branch",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/branch",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "branch"]
+                        }
+                    }
+                },
+                {
+                    "name": "POST /admin/branch",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"nome\": \"Nova Filial\",\n    \"codigo\": \"NOVA01\",\n    \"regional\": \"Norte\",\n    \"estado\": \"pi\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/branch",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "branch"]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /admin/branch/:id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/branch/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "branch", "1"]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT /admin/branch/:id",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"nome\": \"Filial Atualizada\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/branch/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "branch", "1"]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /admin/branch/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/branch/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "branch", "1"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Permissions",
+            "item": [
+                {
+                    "name": "GET /admin/permission",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/permission",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "permission"]
+                        }
+                    }
+                },
+                {
+                    "name": "POST /admin/permission",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Nova Permissão\",\n    \"description\": \"Descrição da permissão\",\n    \"modules\": [\"search_in\", \"justify\"]\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/permission",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "permission"]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /admin/permission/:id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/permission/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "permission", "1"]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT /admin/permission/:id",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Permissão Atualizada\",\n    \"modules\": [\"search_in\"]\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/permission/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "permission", "1"]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /admin/permission/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/permission/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "permission", "1"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Public",
+            "item": [
+                {
+                    "name": "GET /public/health",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/public/health",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["public", "health"]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /public/calendar",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/public/calendar?state=pi",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["public", "calendar"],
+                            "query": [
+                                {
+                                    "key": "state",
+                                    "value": "pi"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /public/feriados",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/public/feriados?state=pi",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["public", "feriados"],
+                            "query": [
+                                {
+                                    "key": "state",
+                                    "value": "pi"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

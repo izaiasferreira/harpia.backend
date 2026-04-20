@@ -50,12 +50,10 @@ app.use(express.static('public'));
 // Routes
 const consultasRouter = require('./routes/consultas');
 const agenteRouter = require('./routes/agente')
-const adminRouter = require('./routes/admin')
 const adminUsersRouter = require('./routes/adminUsers')
 const adminBranchesRouter = require('./routes/adminBranches')
 const adminPermissionsRouter = require('./routes/adminPermissions')
 const adminConsultRouter = require('./routes/adminModules')
-const logsRouter = require('./routes/logs')
 const publicRouter = require('./routes/public')
 const agentDefaultAuthRouter = require('./routes/agentDefaultAuth')
 const uploadRouter = require('./routes/upload')
@@ -101,11 +99,8 @@ app.use('/agent', agentDefaultAuthRouter)
 // Admin Upload (/admin/upload/*)
 app.use('/admin/upload', uploadRouter)
 
-// Admin Consult dashboard (antes do adminRouter para evitar conflito)
+// Admin Modules (dashboard + search_in)
 app.use('/admin', adminConsultRouter)
-
-// Admin (antes do agente para evitar conflito)
-app.use('/admin', adminRouter)
 
 // Admin Users (/admin/user/*)
 app.use('/admin/user', adminUsersRouter)
