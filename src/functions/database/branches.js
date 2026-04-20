@@ -1,19 +1,6 @@
 const { cenos_pool } = require('../../db');
 
-const AVAILABLE_MODULES = [
-    'search_in',
-    'justify',
-    'create_justify',
-    'update_justify',
-    'delete_justify',
-    'justify_pending',
-    'daily_report',
-    'inventory',
-    'audit',
-    'users',
-    'branches',
-    'permissions'
-];
+
 
 async function createBranchesTable() {
     await cenos_pool.query(`
@@ -138,20 +125,11 @@ async function deleteBranch(id, state = 'pi') {
     return rows[0] ? true : false;
 }
 
-async function listModules() {
-    return AVAILABLE_MODULES.map(id => ({
-        id,
-        name: id.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-    }));
-}
-
 module.exports = {
     createBranchesTable,
     createBranch,
     getBranchById,
     listBranches,
     updateBranch,
-    deleteBranch,
-    listModules,
-    AVAILABLE_MODULES
+    deleteBranch
 };

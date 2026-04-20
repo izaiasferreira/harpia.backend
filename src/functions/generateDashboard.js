@@ -259,7 +259,7 @@ function generateDashboard({ state, id, today_date, stats }) {
 }
 
 
-async function generateDashboardAdmin(user) {
+async function generateDashboardAdmin({ user, stats }) {
 
     const widgets = [
         {
@@ -268,12 +268,52 @@ async function generateDashboardAdmin(user) {
             size: { colSpan: 1, rowSpan: 1 },
             data: {
                 title: 'Usuários Cadastrados',
-                value: '48',
-                subtitle: 'Agentes ativos no sistema',
+                value: stats.users_agents?.length,
+                subtitle: 'Agentes cadastrados no sistema',
                 icon: 'users',
                 color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
             },
             action: { type: 'link', url: '/control/users' },
+        },
+        {
+            id: 'chart-reports-week',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                chartType: 'bar',
+                title: 'Quantidade por processo',
+                dataset: [
+                    { label: 'Cobrança', value: stats.users_agents?.filter(u => u.setor === 'COBRANÇA').length },
+                    { label: 'Negociação', value: stats.users_agents?.filter(u => u.setor === 'NEGOCIAÇÃO').length },
+                    { label: 'Leitura', value: stats.users_agents?.filter(u => u.setor === 'LEITURA').length },
+                ],
+            },
+        },
+        {
+            id: 'chart-reports-week',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 2 },
+            data: {
+                chartType: 'donut',
+                title: 'Quantidade por estado',
+                dataset: [
+                    { label: 'Piauí', value: stats.users_agents?.filter(u => u.estado === 'pi').length },
+                    { label: 'Maranhão', value: stats.users_agents?.filter(u => u.estado === 'ma').length }
+                ],
+            },
+        },
+        {
+            id: 'inventory-count',
+            type: 'statCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                title: 'Inventários Registrados',
+                value: stats.inventory?.length,
+                subtitle: 'PDAs, impressoras e maquinetas',
+                icon: 'package',
+                color: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
+            },
+            action: { type: 'link', url: '/control/inventory' },
         },
         {
             id: 'pending-justifies',
@@ -281,8 +321,8 @@ async function generateDashboardAdmin(user) {
             size: { colSpan: 1, rowSpan: 1 },
             data: {
                 title: 'Justificativas Pendentes',
-                value: '12',
-                subtitle: 'Aguardando revisão',
+                value: stats.justify_pending?.length,
+                subtitle: 'Aguardando resposta',
                 icon: 'file-text',
                 color: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
             },
@@ -293,53 +333,13 @@ async function generateDashboardAdmin(user) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Relatórios Hoje',
-                value: '34',
-                subtitle: 'De 48 agentes esperados',
+                title: 'Diários de bordo',
+                value: stats.daily_report?.length,
+                subtitle: 'Enviados hoje',
                 icon: 'check-circle',
                 color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
             },
             action: { type: 'link', url: '/control/daily-reports' },
-        },
-        {
-            id: 'alert-pending',
-            type: 'alertCard',
-            size: { colSpan: 3, rowSpan: 1 },
-            data: {
-                title: 'Atenção',
-                message: '12 justificativas de pendências aguardam sua revisão. Clique aqui para visualizá-las.',
-                severity: 'warning',
-            },
-            action: { type: 'link', url: '/control/justify-pending' },
-        },
-        {
-            id: 'chart-reports-week',
-            type: 'chartCard',
-            size: { colSpan: 2, rowSpan: 2 },
-            data: {
-                chartType: 'bar',
-                title: 'Relatórios por dia (semana atual)',
-                dataset: [
-                    { label: 'Seg', value: 38 },
-                    { label: 'Ter', value: 42 },
-                    { label: 'Qua', value: 29 },
-                    { label: 'Qui', value: 45 },
-                    { label: 'Sex', value: 34 },
-                ],
-            },
-        },
-        {
-            id: 'inventory-count',
-            type: 'statCard',
-            size: { colSpan: 1, rowSpan: 1 },
-            data: {
-                title: 'Inventários Registrados',
-                value: '41',
-                subtitle: 'PDAs e impressoras',
-                icon: 'package',
-                color: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
-            },
-            action: { type: 'link', url: '/control/inventory' },
         },
         {
             id: 'branches-count',

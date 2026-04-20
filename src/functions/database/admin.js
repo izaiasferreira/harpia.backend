@@ -6,13 +6,109 @@ const userIsAdmin = (user) => {
     return user.role.toLowerCase().includes('admin');
 }
 
+async function get_users_agents_admin({ user, ids = [] }) {
+    const pool = cenos_pool;
+    let query = `SELECT * FROM login WHERE 1=1`;
+    const params = [];
+    let paramIndex = 1;
+    
+    if (user.estado && !userIsAdmin(user)) {
+        query += ` AND estado = $${paramIndex}`;
+        params.push(user.estado.toLowerCase());
+        paramIndex++;
+    }
+    if (ids.length > 0) {
+        const upperIds = ids.map(id => id.toString().toUpperCase());
+        const placeholders = upperIds.map((_, i) => `$${paramIndex + i}`).join(',');
+        query += ` AND UPPER("id") IN (${placeholders})`;
+        params.push(...upperIds);
+        paramIndex += upperIds.length;
+    }
+
+    const { rows } = await pool.query(query, params);
+    let usersData = [];
+
+    if (rows.length === 0) return [];
+
+    const usersIds = rows.map(r => r.id);
+    const placeholders = usersIds.map((_, i) => `$${i + 1}`).join(',');
+
+    if (user.estado && !userIsAdmin(user)) {
+        const pool_state = user.estado.toLowerCase() === 'pi' ? pi_pool : ma_pool;
+        try {
+            const usersData = await pool_state.query(`SELECT * FROM colaboradores WHERE id IN (${placeholders})`, usersIds);
+            const localData = await pool_state.query(`SELECT DISTINCT ON (TRIM(UPPER(agente))) agente as id, seccional, regional, data_conclusao FROM matriz WHERE TRIM(UPPER(agente)) IN (${placeholders}) ORDER BY TRIM(UPPER(agente)), data_conclusao DESC;`, usersIds);
+            
+            usersData = usersData.rows.map(r => {
+                let localDataFind = localData.rows.find(l => l?.id?.toString().toLowerCase() === r?.ID?.toString().toLowerCase());
+                return { ...r, ...(localDataFind || {}) };
+            });
+        } catch (err) {
+            console.error('Erro ao buscar dados dos colaboradores:', err.message);
+        }
+    } else {
+        try {
+            let {rows: usersDataPi} = await pi_pool.query(`SELECT * FROM colaboradores WHERE "ID" IN (${placeholders})`, usersIds);
+            const {rows: localDataPi} = await pi_pool.query(`SELECT DISTINCT ON (TRIM(UPPER(agente))) agente as id, seccional, regional, data_conclusao FROM matriz WHERE TRIM(UPPER(agente)) IN (${placeholders}) ORDER BY TRIM(UPPER(agente)), data_conclusao DESC;`, usersIds);
+            usersDataPi = usersDataPi.map(r => {
+                let localDataFind = localDataPi.find(l => l.id?.toString().toLowerCase() === r.ID?.toString().toLowerCase());
+                return { ...r, ...(localDataFind || {}) };
+            });
+            
+            let {rows: usersDataMa} = await ma_pool.query(`SELECT * FROM colaboradores WHERE "ID" IN (${placeholders})`, usersIds);
+            const {rows: localDataMa} = await ma_pool.query(`SELECT DISTINCT ON (TRIM(UPPER(agente))) agente as id, seccional, regional, data_conclusao FROM matriz WHERE TRIM(UPPER(agente)) IN (${placeholders}) ORDER BY TRIM(UPPER(agente)), data_conclusao DESC;`, usersIds);
+            usersDataMa = usersDataMa.map(r => {
+                let localDataFind = localDataMa.find(l => l.id?.toString().toLowerCase() === r.ID?.toString().toLowerCase());
+                return { ...r, ...(localDataFind || {}) };
+            });
+            usersData = [...usersDataPi, ...usersDataMa];
+        } catch (err) {
+            console.error('Erro ao buscar dados dos colaboradores (PI/MA):', err.message);
+        }
+    }
+
+    const setor = {
+        "NEG": 'NEGOCIAÇÃO',
+        "LEI": 'LEITURA',
+        "COB": 'COBRANÇA'
+    }
+    const veiculo = {
+        "MOT": 'AGENTE COMERCIAL MOTOCICLISTA',
+        "PE": 'AGENTE COMERCIAL A PÉ',
+        "PÉ": 'AGENTE COMERCIAL A PÉ'
+    }
+    return rows.map(r => {
+        let userDataFind = usersData.find(u => u.ID?.toString().toUpperCase() === r.id?.toString().toUpperCase());
+        let userDataFormated = { ...r, ...(userDataFind || {}) };
+        let cargo = userDataFormated?.Cargo;
+        let setor_key = Object.keys(setor).find(k => cargo?.includes(k));
+        let veiculo_key = Object.keys(veiculo).find(k => cargo?.includes(k));
+
+        userDataFormated['setor'] = setor[setor_key] || 'SEM SETOR';
+        userDataFormated['cargo'] = veiculo[veiculo_key] || 'SEM VEICULO';
+        delete userDataFormated?.Cargo;
+
+        userDataFormated['gestor'] = userDataFormated['GESTOR IMEDIATO']
+        delete userDataFormated['GESTOR IMEDIATO'];
+
+        userDataFormated['matricula'] = userDataFormated['MAT']
+        delete userDataFormated['MAT'];
+
+        delete userDataFormated['data_conclusao'];
+        delete userDataFormated['ID'];
+
+        return userDataFormated;
+    });
+}
+
 // ─── inventory ───────────────────────────────────────────────────────────
-async function get_inventory_admin({ user }) {
+async function get_inventory_admin({ user, with_users = false }) {
+
     let activeState = (user.estado || 'pi').toLowerCase();
-    if(userIsAdmin(user)) activeState = null;
+    if (userIsAdmin(user)) activeState = null;
 
     let pool = cenos_pool;
-    
+
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS inventory (
             id SERIAL PRIMARY KEY,
@@ -36,16 +132,28 @@ async function get_inventory_admin({ user }) {
     await pool.query(createTableQuery);
 
     let query = `
-        SELECT * FROM inventory
+        SELECT DISTINCT ON (agente) * FROM inventory
     `;
 
-    if(activeState){
+    if (activeState) {
         query += ` WHERE estado = $1`;
+        query += ` ORDER BY agente, created_at DESC`;
         const { rows } = await pool.query(query, [activeState]);
         return rows;
     }
+
+    query += ` ORDER BY agente, created_at DESC`;
     const { rows } = await pool.query(query);
-    return rows;
+
+    if (!with_users) return rows;
+
+    const users_agents = await get_users_agents_admin({ user, ids: rows.map(r => r.agente) });
+
+    return rows.map(r => {
+        let userDataFind = users_agents.find(u => u.id?.toString().toUpperCase() === r.agente?.toString().toUpperCase());
+        let userDataFormated = { ...r, ...(userDataFind || {}) };
+        return userDataFormated;
+    });
 }
 
 // ─── justify ───────────────────────────────────────────────────────────
@@ -113,7 +221,7 @@ async function get_pending_justifies_admin({ state = 'pi', autor, status = 'pend
     query += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limitVal, offsetVal);
 
-    const { rows } = await pool.query(query,params);
+    const { rows } = await pool.query(query, params);
     return rows;
 }
 
@@ -182,5 +290,6 @@ module.exports = {
     get_justify_admin,
     get_pending_justifies_admin,
     get_daily_reports_admin,
-    get_instalations_admin
+    get_instalations_admin,
+    get_users_agents_admin
 };

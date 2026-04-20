@@ -760,20 +760,20 @@ curl http://localhost:3040/admin/user/me \
 
 ### Módulos Disponíveis
 
-| ID | Descrição |
-|----|-----------|
-| `search_in` | Busca de instalações |
-| `justify` | Visualizar justificativas |
-| `create_justify` | Criar justificativas |
-| `update_justify` | Editar justificativas |
-| `delete_justify` | Excluir justificativas |
-| `justify_pending` | Justificar pendências |
-| `daily_report` | Relatórios diários |
-| `inventory` | Inventário de equipamentos |
-| `audit` | Logs de auditoria |
-| `users` | Gerenciar usuários |
-| `branches` | Gerenciar filiais |
-| `permissions` | Gerenciar permissões |
+| ID | Nome | Descrição |
+|----|----|-----------|
+| `search_in` | Busca Instalação | Busca de instalações |
+| `update_search_in` | Atualizar Busca Instalação | Editar dados de busca |
+| `justify` | Consultar Justificativa | Visualizar justificativas de instalação |
+| `create_justify` | Criar Justificativa | Criar novas justificativas |
+| `update_justify` | Atualizar Justificativa | Editar justificativas existentes |
+| `delete_justify` | Deletar Justificativa | Remover justificativas |
+| `justify_pending` | Consultar Pendências | Visualizar justificativas de pendências |
+| `daily_report` | Consultar Diário | Visualizar diários de bordo |
+| `inventory` | Inventário | Gerenciar inventário de equipamentos |
+| `users` | Usuários | Gerenciar usuários do sistema |
+| `branches` | Filiais | Gerenciar filiais/regionais |
+| `permissions` | Permissões | Gerenciar níveis de acesso |
 
 ### Verificação de Módulo
 
@@ -877,19 +877,9 @@ Desativa usuário (apenas COMPANY_ADMIN).
 
 ---
 
-#### `GET /admin/user/modules`
-Lista módulos disponíveis.
-
-**Retorno:**
-```json
-[
-    { "id": "search_in", "name": "Search In" },
-    { "id": "justify", "name": "Justify" },
-    ...
-]
-```
-
 ---
+
+### Branches
 
 ### Branches
 
@@ -1506,6 +1496,23 @@ Para usar este endpoint, o usuário precisa ter uma permissão com o módulo `se
         "conta_contrato": "12345678001",
         ...
     }
+]
+```
+
+---
+
+#### `GET /admin/available_modules`
+
+Lista todos os módulos disponíveis no sistema com seus IDs e nomes amigáveis.
+
+**Autenticação:** Bearer token (COMPANY_ADMIN)
+
+**Response 200:**
+```json
+[
+    { "id": "search_in", "name": "Busca Instalação" },
+    { "id": "update_search_in", "name": "Atualizar Busca Instalação" },
+    ...
 ]
 ```
 

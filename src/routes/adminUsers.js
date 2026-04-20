@@ -16,7 +16,7 @@ const {
     getUserPermissions,
     getUserModules
 } = require('../functions/database/permissions');
-const { listModules } = require('../functions/database/branches');
+
 const { generateToken, verifyToken } = require('../middlewares/jwtAuth');
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
@@ -204,14 +204,6 @@ router.delete('/users/:id', requireCompanyAdmin, async (req, res) => {
     }
 });
 
-// Modules
-router.get('/modules', requireCompanyAdmin, async (req, res) => {
-    try {
-        const modules = listModules();
-        res.json(modules);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
+
 
 module.exports = router;
