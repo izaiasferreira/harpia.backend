@@ -89,7 +89,7 @@ async function verifyUser(email, senha) {
     const pool = cenos_pool;
 
     const query = `
-        SELECT id, email, senha, nome, role, ativo
+        SELECT id, email, senha, nome, role, estado, ativo
         FROM users 
         WHERE email = $1 AND ativo = true
     `;
@@ -108,7 +108,7 @@ async function getUserById(id, estado = 'pi') {
     const pool = cenos_pool;
 
     const query = `
-        SELECT id, email, nome, role, ativo, created_at, ultimo_login
+        SELECT id, email, nome, role, estado, ativo, created_at, ultimo_login
         FROM users 
         WHERE id = $1 AND ativo = true
     `;
@@ -131,7 +131,7 @@ async function listUsers(estado = 'pi') {
     const pool = cenos_pool;
 
     const query = `
-        SELECT id, email, nome, role, ativo, created_at, ultimo_login
+        SELECT id, email, nome, role, estado, ativo, created_at, ultimo_login
         FROM users 
         WHERE ativo = true
         ORDER BY nome

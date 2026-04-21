@@ -8,13 +8,11 @@ const {
     updateBranch,
     deleteBranch
 } = require('../functions/database/branches');
-const { verifyToken } = require('../middlewares/jwtAuth');
+const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 
 createBranchesTable().catch(console.error);
 
-const requireCompanyAdmin = verifyToken('COMPANY_ADMIN');
-
-router.get('/', requireCompanyAdmin, async (req, res) => {
+router.get('/', verifyToken(), verifyModule('branches'), async (req, res) => {
     try {
         const branches = await listBranches(req.user.estado);
         res.json(branches);
@@ -23,7 +21,7 @@ router.get('/', requireCompanyAdmin, async (req, res) => {
     }
 });
 
-router.get('/:id', requireCompanyAdmin, async (req, res) => {
+router.get('/:id', verifyToken(), verifyModule('branches'), async (req, res) => {
     try {
         const { id } = req.params;
         
@@ -37,7 +35,7 @@ router.get('/:id', requireCompanyAdmin, async (req, res) => {
     }
 });
 
-router.post('/', requireCompanyAdmin, async (req, res) => {
+router.post('/', verifyToken(), verifyModule('create_branch'), async (req, res) => {
     try {
         const { name, code, state, parent_id } = req.body;
 
@@ -60,7 +58,7 @@ router.post('/', requireCompanyAdmin, async (req, res) => {
     }
 });
 
-router.put('/:id', requireCompanyAdmin, async (req, res) => {
+router.put('/:id', verifyToken(), verifyModule('update_branch'), async (req, res) => {
     try {
         const { id } = req.params;
         const data = req.body;
@@ -75,7 +73,7 @@ router.put('/:id', requireCompanyAdmin, async (req, res) => {
     }
 });
 
-router.delete('/:id', requireCompanyAdmin, async (req, res) => {
+router.delete('/:id', verifyToken(), verifyModule('delete_branch'), async (req, res) => {
     try {
         const { id } = req.params;
         

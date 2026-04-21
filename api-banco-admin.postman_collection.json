@@ -91,10 +91,6 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
                             }
                         ],
                         "body": {
@@ -117,16 +113,21 @@
                     "name": "GET /admin/dashboard",
                     "request": {
                         "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
-                            }
-                        ],
                         "url": {
                             "raw": "{{baseUrl}}/admin/dashboard",
                             "host": ["{{baseUrl}}"],
                             "path": ["admin", "dashboard"]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /admin/available_modules",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/available_modules",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "available_modules"]
                         }
                     }
                 }
@@ -143,10 +144,6 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
                             }
                         ],
                         "body": {
@@ -159,6 +156,17 @@
                             "path": ["admin", "search_in"]
                         }
                     }
+                },
+                {
+                    "name": "PUT /admin/search_in/:id",
+                    "request": {
+                        "method": "PUT",
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/search_in/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "search_in", "1"]
+                        }
+                    }
                 }
             ]
         },
@@ -169,12 +177,6 @@
                     "name": "GET /admin/justify",
                     "request": {
                         "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
-                            }
-                        ],
                         "url": {
                             "raw": "{{baseUrl}}/admin/justify?estado=pi",
                             "host": ["{{baseUrl}}"],
@@ -189,15 +191,67 @@
                     }
                 },
                 {
+                    "name": "POST /admin/justify",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"instalacao\": \"12345678\",\n    \"tipo\": \"cnl\",\n    \"motivo\": \"Motivo Teste\",\n    \"justificativa\": \"Justificativa Teste\",\n    \"data_leit_prev\": \"20/04/2026\",\n    \"author\": \"ADMIN\",\n    \"estado\": \"pi\",\n    \"quantidade\": 1\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/justify",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "justify"]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT /admin/justify/:id",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"motivo\": \"Motivo Atualizado\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/justify/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "justify", "1"]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /admin/justify/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/justify/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "justify", "1"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Justify Pending",
+            "item": [
+                {
                     "name": "GET /admin/justify_pending",
                     "request": {
                         "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
-                            }
-                        ],
                         "url": {
                             "raw": "{{baseUrl}}/admin/justify_pending?estado=pi&status=PENDING",
                             "host": ["{{baseUrl}}"],
@@ -214,6 +268,59 @@
                             ]
                         }
                     }
+                },
+                {
+                    "name": "POST /admin/justify_pending",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"autor\": \"agente01\",\n    \"quantidade\": 5,\n    \"tipo\": \"cnl\",\n    \"estado\": \"pi\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/justify_pending",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "justify_pending"]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT /admin/justify_pending/:id",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"status\": \"respondido\",\n    \"motivo\": \"Aceito\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/justify_pending/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "justify_pending", "1"]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /admin/justify_pending/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/justify_pending/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "justify_pending", "1"]
+                        }
+                    }
                 }
             ]
         },
@@ -224,12 +331,6 @@
                     "name": "GET /admin/daily_report",
                     "request": {
                         "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
-                            }
-                        ],
                         "url": {
                             "raw": "{{baseUrl}}/admin/daily_report?estado=pi",
                             "host": ["{{baseUrl}}"],
@@ -242,6 +343,59 @@
                             ]
                         }
                     }
+                },
+                {
+                    "name": "POST /admin/daily_report",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"autor\": \"agente01\",\n    \"nota\": 5,\n    \"motivo\": \"Bom trabalho\",\n    \"estado\": \"pi\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/daily_report",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "daily_report"]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT /admin/daily_report/:id",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"nota\": 4\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/daily_report/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "daily_report", "1"]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /admin/daily_report/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/daily_report/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "daily_report", "1"]
+                        }
+                    }
                 }
             ]
         },
@@ -252,16 +406,63 @@
                     "name": "GET /admin/inventory",
                     "request": {
                         "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
-                            }
-                        ],
                         "url": {
                             "raw": "{{baseUrl}}/admin/inventory",
                             "host": ["{{baseUrl}}"],
                             "path": ["admin", "inventory"]
+                        }
+                    }
+                },
+                {
+                    "name": "POST /admin/inventory",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"agente\": \"agente01\",\n    \"pda_imei_1\": \"123456789\",\n    \"estado\": \"pi\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/inventory",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "inventory"]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT /admin/inventory/:id",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"pda_marca\": \"Samsung\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/inventory/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "inventory", "1"]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /admin/inventory/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/inventory/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "inventory", "1"]
                         }
                     }
                 }
@@ -274,12 +475,6 @@
                     "name": "GET /admin/user/me",
                     "request": {
                         "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
-                            }
-                        ],
                         "url": {
                             "raw": "{{baseUrl}}/admin/user/me",
                             "host": ["{{baseUrl}}"],
@@ -291,16 +486,21 @@
                     "name": "GET /admin/user/users",
                     "request": {
                         "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
-                            }
-                        ],
                         "url": {
                             "raw": "{{baseUrl}}/admin/user/users",
                             "host": ["{{baseUrl}}"],
                             "path": ["admin", "user", "users"]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /admin/user/users/:id",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/user/users/1",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "user", "users", "1"]
                         }
                     }
                 },
@@ -312,10 +512,6 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
                             }
                         ],
                         "body": {
@@ -337,10 +533,6 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
                             }
                         ],
                         "body": {
@@ -362,15 +554,11 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
                             }
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"permissions\": [1, 2]\n}"
+                            "raw": "{\n    \"permissionIds\": [1, 2]\n}"
                         },
                         "url": {
                             "raw": "{{baseUrl}}/admin/user/users/1/permissions",
@@ -383,12 +571,6 @@
                     "name": "DELETE /admin/user/users/:id",
                     "request": {
                         "method": "DELETE",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
-                            }
-                        ],
                         "url": {
                             "raw": "{{baseUrl}}/admin/user/users/1",
                             "host": ["{{baseUrl}}"],
@@ -405,12 +587,6 @@
                     "name": "GET /admin/branch",
                     "request": {
                         "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
-                            }
-                        ],
                         "url": {
                             "raw": "{{baseUrl}}/admin/branch",
                             "host": ["{{baseUrl}}"],
@@ -426,15 +602,11 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
                             }
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"nome\": \"Nova Filial\",\n    \"codigo\": \"NOVA01\",\n    \"regional\": \"Norte\",\n    \"estado\": \"pi\"\n}"
+                            "raw": "{\n    \"name\": \"Nova Filial\",\n    \"code\": \"NOVA01\",\n    \"state\": \"pi\"\n}"
                         },
                         "url": {
                             "raw": "{{baseUrl}}/admin/branch",
@@ -447,12 +619,6 @@
                     "name": "GET /admin/branch/:id",
                     "request": {
                         "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
-                            }
-                        ],
                         "url": {
                             "raw": "{{baseUrl}}/admin/branch/1",
                             "host": ["{{baseUrl}}"],
@@ -468,15 +634,11 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
                             }
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"nome\": \"Filial Atualizada\"\n}"
+                            "raw": "{\n    \"name\": \"Filial Atualizada\"\n}"
                         },
                         "url": {
                             "raw": "{{baseUrl}}/admin/branch/1",
@@ -489,12 +651,6 @@
                     "name": "DELETE /admin/branch/:id",
                     "request": {
                         "method": "DELETE",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
-                            }
-                        ],
                         "url": {
                             "raw": "{{baseUrl}}/admin/branch/1",
                             "host": ["{{baseUrl}}"],
@@ -511,12 +667,6 @@
                     "name": "GET /admin/permission",
                     "request": {
                         "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
-                            }
-                        ],
                         "url": {
                             "raw": "{{baseUrl}}/admin/permission",
                             "host": ["{{baseUrl}}"],
@@ -532,15 +682,11 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
                             }
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"name\": \"Nova Permissão\",\n    \"description\": \"Descrição da permissão\",\n    \"modules\": [\"search_in\", \"justify\"]\n}"
+                            "raw": "{\n    \"name\": \"Nova Permissão\",\n    \"description\": \"Descrição da permissão\",\n    \"modules\": [\"search_in\", \"justify\"],\n    \"filters\": [\n        { \"type\": \"regional\", \"value\": \"UAC METROPOLITANA\" },\n        { \"type\": \"estado\", \"value\": \"pi\" }\n    ]\n}"
                         },
                         "url": {
                             "raw": "{{baseUrl}}/admin/permission",
@@ -553,12 +699,6 @@
                     "name": "GET /admin/permission/:id",
                     "request": {
                         "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
-                            }
-                        ],
                         "url": {
                             "raw": "{{baseUrl}}/admin/permission/1",
                             "host": ["{{baseUrl}}"],
@@ -574,10 +714,6 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
                             }
                         ],
                         "body": {
@@ -595,16 +731,90 @@
                     "name": "DELETE /admin/permission/:id",
                     "request": {
                         "method": "DELETE",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{token}}"
-                            }
-                        ],
                         "url": {
                             "raw": "{{baseUrl}}/admin/permission/1",
                             "host": ["{{baseUrl}}"],
                             "path": ["admin", "permission", "1"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Agentes",
+            "item": [
+                {
+                    "name": "GET /admin/users_agents",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/users_agents",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "users_agents"]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /admin/users_agents/:id",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/users_agents/T12345",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "users_agents", "T12345"]
+                        }
+                    }
+                },
+                {
+                    "name": "POST /admin/users_agents",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"id\": \"T12345\",\n    \"matricula\": \"12345\",\n    \"nome\": \"João Agente\",\n    \"estado\": \"pi\",\n    \"gestor\": \"Gestor X\",\n    \"cargo\": \"Consultor\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/users_agents",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "users_agents"]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT /admin/users_agents/:id",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"id\": \"T12345\",\n    \"matricula\": \"12345\",\n    \"nome\": \"João Agente Atualizado\",\n    \"gestor\": \"Gestor Y\",\n    \"cargo\": \"Senior\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/users_agents/T12345",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "users_agents", "T12345"]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /admin/users_agents/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/admin/users_agents/T12345",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["admin", "users_agents", "T12345"]
                         }
                     }
                 }

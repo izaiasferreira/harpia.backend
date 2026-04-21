@@ -17,7 +17,7 @@ const {
     getUserModules
 } = require('../functions/database/permissions');
 
-const { generateToken, verifyToken } = require('../middlewares/jwtAuth');
+const { generateToken, verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_SENHA = process.env.ADMIN_SENHA;
@@ -71,17 +71,15 @@ router.post('/login', async (req, res) => {
     }
 });
 
-router.post('/register', requireCompanyAdmin, async (req, res) => {
+router.post('/register', verifyToken(), verifyModule('create_user'), async (req, res) => {
     try {
-        if (req.user.role !== 'COMPANY_ADMIN') {
-            return res.status(403).json({ error: 'Apenas Administradores podem criar usuários' });
-        }
-
         const { email, senha, nome, role, estado, branches, permissions } = req.body;
 
         if (!email || !senha || !nome) {
             return res.status(400).json({ error: 'Email, senha e nome são obrigatórios' });
         }
+
+        console.log(req.body);
 
         const user = await createUser({ 
             email, 
@@ -102,7 +100,7 @@ router.post('/register', requireCompanyAdmin, async (req, res) => {
 });
 
 // Me
-router.get('/me', requireCompanyAdmin, async (req, res) => {
+router.get('/me', verifyToken(), async (req, res) => {
     try {
         const modules = await getUserModules(req.user.id, req.user.estado);
         res.json({ ...req.user, modules });
@@ -112,16 +110,21 @@ router.get('/me', requireCompanyAdmin, async (req, res) => {
 });
 
 // Users CRUD
-router.get('/users', requireCompanyAdmin, async (req, res) => {
+router.get('/users', verifyToken(), verifyModule('users'), async (req, res) => {
     try {
         const users = await listUsers(req.user.estado);
-        res.json(users);
+        const usersWithDetails = await Promise.all(users.map(async (u) => {
+            const modules = await getUserModules(u.id, req.user.estado);
+            const permissions = await getUserPermissions(u.id, req.user.estado);
+            return { ...u, modules, permissions: permissions.map(p => p.id) };
+        }));
+        res.json(usersWithDetails);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-router.get('/users/:id', requireCompanyAdmin, async (req, res) => {
+router.get('/users/:id', verifyToken(), verifyModule('users'), async (req, res) => {
     try {
         const { id } = req.params;
         
@@ -132,13 +135,15 @@ router.get('/users/:id', requireCompanyAdmin, async (req, res) => {
 
         const estado = user.estado || req.user.estado;
         const perms = await getUserPermissions(id, estado);
-        res.json({ ...user, permissions: perms });
+        const modules = await getUserModules(id, estado);
+        
+        res.json({ ...user, modules, permissions: perms });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-router.put('/users/:id', requireCompanyAdmin, async (req, res) => {
+router.put('/users/:id', verifyToken(), verifyModule('update_user'), async (req, res) => {
     try {
         const { id } = req.params;
         const data = req.body;
@@ -153,7 +158,7 @@ router.put('/users/:id', requireCompanyAdmin, async (req, res) => {
     }
 });
 
-router.put('/users/:id/password', requireCompanyAdmin, async (req, res) => {
+router.put('/users/:id/password', verifyToken(), verifyModule('update_user'), async (req, res) => {
     try {
         const { id } = req.params;
         const { senha } = req.body;
@@ -172,7 +177,7 @@ router.put('/users/:id/password', requireCompanyAdmin, async (req, res) => {
     }
 });
 
-router.put('/users/:id/permissions', requireCompanyAdmin, async (req, res) => {
+router.put('/users/:id/permissions', verifyToken(), verifyModule('permissions'), async (req, res) => {
     try {
         const { id } = req.params;
         const { permissionIds } = req.body;
@@ -190,7 +195,7 @@ router.put('/users/:id/permissions', requireCompanyAdmin, async (req, res) => {
     }
 });
 
-router.delete('/users/:id', requireCompanyAdmin, async (req, res) => {
+router.delete('/users/:id', verifyToken(), verifyModule('delete_user'), async (req, res) => {
     try {
         const { id } = req.params;
         

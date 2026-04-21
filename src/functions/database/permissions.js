@@ -8,6 +8,7 @@ async function createPermissionsTable() {
             slug TEXT NOT NULL,
             description TEXT,
             modules TEXT[],
+            filters JSONB DEFAULT '[]',
             user_count INTEGER DEFAULT 0,
             state TEXT DEFAULT 'pi',
             created_at TIMESTAMP DEFAULT NOW(),
@@ -16,6 +17,13 @@ async function createPermissionsTable() {
             UNIQUE(slug, state)
         )
     `);
+
+    // Garantir que a coluna filters existe se o banco já foi criado antes
+    try {
+        await cenos_pool.query(`ALTER TABLE permissions ADD COLUMN IF NOT EXISTS filters JSONB DEFAULT '[]'`);
+    } catch (err) {
+        console.error('Erro ao adicionar coluna filters:', err.message);
+    }
 
     await cenos_pool.query(`
         CREATE TABLE IF NOT EXISTS user_permissions (
@@ -37,6 +45,7 @@ async function createPermission({
     name,
     description = '',
     modules = [],
+    filters = [],
     state = 'pi'
 }) {
     await createPermissionsTable();
@@ -51,15 +60,16 @@ async function createPermission({
     }
 
     const insertQuery = `
-        INSERT INTO permissions (name, slug, description, modules, state)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, name, slug, description, modules, user_count, state, ativo;
+        INSERT INTO permissions (name, slug, description, modules, filters, state)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, name, slug, description, modules, filters, user_count, state, ativo;
     `;
     const { rows } = await pool.query(insertQuery, [
         name,
         slug,
         description,
         modules,
+        JSON.stringify(filters),
         state.toLowerCase()
     ]);
     return rows[0];
@@ -69,7 +79,7 @@ async function getPermissionById(id, state = 'pi') {
     const pool = cenos_pool;
 
     const query = `
-        SELECT id, name, slug, description, modules, user_count, state, ativo, created_at
+        SELECT id, name, slug, description, modules, filters, user_count, state, ativo, created_at
         FROM permissions 
         WHERE id = $1 AND ativo = true
     `;
@@ -81,7 +91,7 @@ async function listPermissions(state = 'pi') {
     const pool = cenos_pool;
 
     const query = `
-        SELECT id, name, slug, description, modules, user_count, state, ativo, created_at
+        SELECT id, name, slug, description, modules, filters, user_count, state, ativo, created_at
         FROM permissions 
         WHERE ativo = true
         ORDER BY name
@@ -92,7 +102,7 @@ async function listPermissions(state = 'pi') {
 
 async function updatePermission(id, data, state = 'pi') {
     const pool = cenos_pool;
-    const { name, description, modules, ativo } = data;
+    const { name, description, modules, filters, ativo } = data;
     
     const updates = [];
     const params = [];
@@ -114,6 +124,11 @@ async function updatePermission(id, data, state = 'pi') {
         params.push(modules);
         paramIndex++;
     }
+    if (filters) {
+        updates.push(`filters = $${paramIndex}`);
+        params.push(JSON.stringify(filters));
+        paramIndex++;
+    }
     if (typeof ativo === 'boolean') {
         updates.push(`ativo = $${paramIndex}`);
         params.push(ativo);
@@ -129,7 +144,7 @@ async function updatePermission(id, data, state = 'pi') {
         UPDATE permissions 
         SET ${updates.join(', ')}
         WHERE id = $${paramIndex}
-        RETURNING id, name, slug, description, modules, user_count, ativo;
+        RETURNING id, name, slug, description, modules, filters, user_count, ativo;
     `;
     
     const { rows } = await pool.query(query, params);
@@ -186,7 +201,7 @@ async function getUserPermissions(userId, state = 'pi') {
     const pool = cenos_pool;
 
     const query = `
-        SELECT p.id, p.name, p.slug, p.modules
+        SELECT p.id, p.name, p.slug, p.modules, p.filters
         FROM permissions p
         JOIN user_permissions up ON p.id = up.permission_id
         WHERE up.user_id = $1 AND up.state = $2 AND p.ativo = true

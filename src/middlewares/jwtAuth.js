@@ -38,10 +38,13 @@ function verifyToken(requiredRole = null) {
             }
 
             let modules = [];
+            let permissions = [];
             try {
-                modules = await getUserModules(decoded.id, decoded.estado);
+                const { getUserModules: getModules, getUserPermissions: getPermissions } = require('../functions/database/permissions');
+                modules = await getModules(decoded.id, decoded.estado);
+                permissions = await getPermissions(decoded.id, decoded.estado);
             } catch (modErr) {
-                console.error('Error loading modules:', modErr.message);
+                console.error('Error loading permissions/modules:', modErr.message);
             }
             
             req.user = { 
@@ -50,7 +53,8 @@ function verifyToken(requiredRole = null) {
                 role: user.role,
                 nome: user.nome,
                 email: user.email,
-                modules 
+                modules,
+                permissions
             };
            return next();
         } catch (err) {

@@ -848,12 +848,26 @@ Dados do usuário logado com seus módulos.
 ---
 
 #### `GET /admin/user/users`
-Lista usuários (apenas COMPANY_ADMIN).
+Lista usuários com seus módulos e permissões (apenas COMPANY_ADMIN).
+
+**Response 200:**
+[
+    {
+        "id": 3,
+        "email": "joao@empresa.com",
+        "nome": "João Silva",
+        "role": "USER",
+        "estado": "pi",
+        "ativo": true,
+        "modules": ["search_in"],
+        "permissions": [...]
+    }
+]
 
 ---
 
 #### `GET /admin/user/users/:id`
-Detalhes de usuário com permissões.
+Detalhes de usuário com módulos e permissões.
 
 ---
 
@@ -878,6 +892,75 @@ Desativa usuário (apenas COMPANY_ADMIN).
 ---
 
 ---
+
+### Colaboradores (Agentes)
+
+#### `GET /admin/users_agents`
+Lista colaboradores (agentes) dos bancos PI e MA.
+
+**Headers:** `Authorization: Bearer <token>`
+
+| Parâmetro | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `page` | number | 1 | Número da página |
+| `limit` | number | 9999 | Quantidade de registros por página |
+| `search` | string | - | Termo de busca (ID, Nome, Email) |
+| `estado` | string | - | "pi" ou "ma" |
+| `regional` | string | - | Ex: "UAC METROPOLITANA" |
+| `seccional` | string | - | Ex: "UAC TERESINA" |
+| `gestor` | string | - | Nome do gestor imediato |
+
+
+**Response 200:**
+```json
+[
+    {
+        "id": "T47384",
+        "telegram_id": "7136458344",
+        "estado": "pi",
+        "Nome": "MAURICIO PINTO RODRIGUES",
+        "seccional": "UAC TERESINA",
+        "regional": "METROPOLITANA",
+        "setor": "COBRANÇA",
+        "cargo": "AGENTE COMERCIAL MOTOCICLISTA",
+        "gestor": "DIOGO VICTOR SOARES MOURA",
+        "matricula": "017865"
+    }
+]
+```
+
+---
+
+#### `GET /admin/users_agents/:id`
+Busca detalhes de um colaborador por ID (MAT).
+
+---
+
+#### `POST /admin/users_agents`
+Cria um novo colaborador no banco de dados do estado correspondente.
+
+**Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `id` | string | Sim | ID/MAT do agente (ex: "T12345") |
+| `matricula` | string | Sim | Matrícula numérica |
+| `nome` | string | Sim | Nome completo |
+| `estado` | string | Sim | "pi" ou "ma" |
+| `gestor` | string | Não | Nome do gestor imediato |
+| `cargo` | string | Não | Descrição do cargo |
+
+---
+
+#### `PUT /admin/users_agents/:id`
+Atualiza dados de um colaborador existente.
+
+---
+
+#### `DELETE /admin/users_agents/:id`
+Remove um colaborador do banco de dados.
+
+---
+
 
 ### Branches
 
@@ -928,13 +1011,30 @@ Lista permissões (apenas COMPANY_ADMIN).
 Cria permissão (apenas COMPANY_ADMIN).
 
 **Body:**
-```json
 {
     "name": "Supervisor",
     "description": "Pode gerenciar justificativas",
-    "modules": ["justify", "create_justify", "update_justify", "justify_pending"]
+    "modules": ["justify", "create_justify", "update_justify", "justify_pending"],
+    "filters": [
+        { "type": "regional", "value": "UAC METROPOLITANA" },
+        { "type": "estado", "value": "pi" }
+    ]
 }
 ```
+
+### Body
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `name` | string | Sim | Nome da permissão |
+| `description` | string | Não | Descrição |
+| `modules` | string[] | Sim | Array de IDs de módulos |
+| `filters` | object[] | Não | Array de filtros de acesso: `[{type, value}]` |
+
+#### Tipos de Filtros Permitidos:
+- `estado` (ex: "pi", "ma")
+- `regional` (ex: "UAC METROPOLITANA")
+- `seccional`
+- `supervisor`
 
 ---
 
@@ -953,7 +1053,78 @@ Remove permissão.
 
 ---
 
+---
+
+### Gestão Administrativa
+
+> Endpoints para gestão de dados operacionais (Justificativas, Inventário, Diários).
+> Todos os endpoints de listagem suportam os parâmetros `page` (padrão 1), `limit` (padrão 9999) e `search` (busca textual em múltiplas colunas).
+
+#### `GET /admin/dashboard`
+Retorna estatísticas consolidadas para o dashboard administrativo.
+
+---
+
+#### `GET /admin/available_modules`
+Lista todos os módulos disponíveis no sistema (apenas para `COMPANY_ADMIN`).
+
+---
+
+#### `POST /admin/search_in`
+Busca informações detalhadas de instalações (PI/MA).
+
+**Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `type` | string | Sim | "instalacao" ou "matricula" |
+| `queries` | string[] | Sim | Array de termos de busca (máx 10) |
+
+---
+
+#### `GET /admin/justify`
+Lista justificativas de instalações com filtros.
+
+**Query Parameters:** `instalacao`, `tipo`, `data_leit_prev`, `estado`, `page`, `limit`, `search`.
+
+---
+
+#### `GET /admin/justify_pending`
+Lista justificativas de pendências com filtros.
+
+**Query Parameters:** `autor`, `status`, `estado`, `page`, `limit`, `search`.
+
+---
+
+#### `GET /admin/daily_report`
+Lista diários de bordo dos agentes com filtros.
+
+**Query Parameters:** `autor`, `data`, `motivo`, `estado`, `page`, `limit`, `search`.
+
+---
+
+#### `GET /admin/inventory`
+Lista inventário de equipamentos.
+
+**Query Parameters:** `page`, `limit`, `search`.
+
+#### `POST /admin/inventory`
+Cria registro de inventário.
+
+**Body Sample:**
+```json
+{
+    "agente": "L83649894",
+    "pda_imei_1": "353101...",
+    "pda_marca": "SAMSUNG",
+    "pda_modelo": "SM-A057M",
+    "impressora_marca": "ZEBRA"
+}
+```
+
+---
+
 ## API Admin (Legacy)
+
 
 **Autenticação:** Basic Auth + Header `x-admin-id`
 

@@ -9,13 +9,11 @@ const {
     deletePermission
 } = require('../functions/database/permissions');
 const { listModules } = require('../functions/database/branches');
-const { verifyToken } = require('../middlewares/jwtAuth');
+const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 
 createPermissionsTable().catch(console.error);
 
-const requireCompanyAdmin = verifyToken('COMPANY_ADMIN');
-
-router.get('/', requireCompanyAdmin, async (req, res) => {
+router.get('/', verifyToken(), verifyModule('permissions'), async (req, res) => {
     try {
         const permissions = await listPermissions(req.user.estado);
         res.json(permissions);
@@ -24,7 +22,7 @@ router.get('/', requireCompanyAdmin, async (req, res) => {
     }
 });
 
-router.get('/:id', requireCompanyAdmin, async (req, res) => {
+router.get('/:id', verifyToken(), verifyModule('permissions'), async (req, res) => {
     try {
         const { id } = req.params;
         
@@ -38,12 +36,28 @@ router.get('/:id', requireCompanyAdmin, async (req, res) => {
     }
 });
 
-router.post('/', requireCompanyAdmin, async (req, res) => {
+router.post('/', verifyToken(), verifyModule('create_permission'), async (req, res) => {
     try {
-        const { name, description, modules } = req.body;
+        const { name, description, modules, filters } = req.body;
         
         if (!name || !modules || !Array.isArray(modules)) {
             return res.status(400).json({ error: 'Nome e array de módulos são obrigatórios' });
+        }
+
+        if (filters && !Array.isArray(filters)) {
+            return res.status(400).json({ error: 'Filtros devem ser um array' });
+        }
+
+        if (filters) {
+            const allowedTypes = ['estado', 'regional', 'seccional', 'supervisor'];
+            for (const f of filters) {
+                if (!f.type || !f.value) {
+                    return res.status(400).json({ error: 'Cada filtro deve ter type e value' });
+                }
+                if (!allowedTypes.includes(f.type)) {
+                    return res.status(400).json({ error: `Tipo de filtro inválido: ${f.type}. Permitidos: ${allowedTypes.join(', ')}` });
+                }
+            }
         }
 
         const availableModules = (await listModules()).map(m => m.id);
@@ -56,6 +70,7 @@ router.post('/', requireCompanyAdmin, async (req, res) => {
             name,
             description,
             modules,
+            filters: filters || [],
             state: req.user.estado
         });
         res.status(201).json(permission);
@@ -67,10 +82,26 @@ router.post('/', requireCompanyAdmin, async (req, res) => {
     }
 });
 
-router.put('/:id', requireCompanyAdmin, async (req, res) => {
+router.put('/:id', verifyToken(), verifyModule('update_permission'), async (req, res) => {
     try {
         const { id } = req.params;
         const data = req.body;
+
+        if (data.filters && !Array.isArray(data.filters)) {
+            return res.status(400).json({ error: 'Filtros devem ser um array' });
+        }
+
+        if (data.filters) {
+            const allowedTypes = ['estado', 'regional', 'seccional', 'supervisor'];
+            for (const f of data.filters) {
+                if (!f.type || !f.value) {
+                    return res.status(400).json({ error: 'Cada filtro deve ter type e value' });
+                }
+                if (!allowedTypes.includes(f.type)) {
+                    return res.status(400).json({ error: `Tipo de filtro inválido: ${f.type}. Permitidos: ${allowedTypes.join(', ')}` });
+                }
+            }
+        }
         
         const permission = await updatePermission(id, data, req.user.estado);
         if (!permission) {
@@ -82,7 +113,7 @@ router.put('/:id', requireCompanyAdmin, async (req, res) => {
     }
 });
 
-router.delete('/:id', requireCompanyAdmin, async (req, res) => {
+router.delete('/:id', verifyToken(), verifyModule('delete_permission'), async (req, res) => {
     try {
         const { id } = req.params;
         
