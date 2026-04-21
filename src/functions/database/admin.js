@@ -88,15 +88,37 @@ async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, 
         }
     }
 
-    if (ids.length > 0) {
-        const upperIds = ids.map(id => id.toString().toUpperCase());
-        const placeholders = upperIds.map((_, i) => `$${paramIndex + i}`).join(',');
-        query += ` AND UPPER("id") IN (${placeholders})`;
-        params.push(...upperIds);
-        paramIndex += upperIds.length;
-    }
+    let searchIds = [];
     if (search) {
-        query += ` AND (id ILIKE $${paramIndex} OR nome ILIKE $${paramIndex} OR email ILIKE $${paramIndex})`;
+        try {
+            let poolsToQuery = activeEstado ? [activeEstado.toLowerCase() === 'pi' ? pi_pool : ma_pool] : [pi_pool, ma_pool];
+            for (const p of poolsToQuery) {
+                const { rows } = await p.query(`SELECT DISTINCT "ID" as id FROM colaboradores WHERE "Nome" ILIKE $1`, [`%${search}%`]);
+                searchIds.push(...rows.map(r => r.id));
+            }
+        } catch (err) {
+            console.error('Erro ao buscar nomes externos:', err.message);
+        }
+    }
+
+    if (ids.length > 0 || searchIds.length > 0) {
+        const combinedIds = [...new Set([...ids, ...searchIds])].map(id => id?.toString()?.toUpperCase());
+        if (combinedIds.length > 0) {
+            const placeholders = combinedIds.map((_, i) => `$${paramIndex + i}`).join(',');
+            
+            if (search) {
+                // Se houver busca, queremos IDs que batem com o nome OU campos que batem no login
+                query += ` AND (UPPER("id") IN (${placeholders}) OR id ILIKE $${paramIndex + combinedIds.length})`;
+                params.push(...combinedIds, `%${search}%`);
+                paramIndex += combinedIds.length + 1;
+            } else {
+                query += ` AND UPPER("id") IN (${placeholders})`;
+                params.push(...combinedIds);
+                paramIndex += combinedIds.length;
+            }
+        }
+    } else if (search) {
+        query += ` AND (id ILIKE $${paramIndex})`;
         params.push(`%${search}%`);
         paramIndex++;
     }
@@ -166,8 +188,8 @@ async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, 
         let setor_key = Object.keys(setor).find(k => cargo?.includes(k));
         let veiculo_key = Object.keys(veiculo).find(k => cargo?.includes(k));
 
-        userDataFormated['setor'] = setor[setor_key] || 'SEM SETOR';
-        userDataFormated['cargo'] = veiculo[veiculo_key] || 'SEM VEICULO';
+        userDataFormated['setor'] = setor[setor_key] || '---';
+        userDataFormated['cargo'] = veiculo[veiculo_key] || '---';
         delete userDataFormated?.Cargo;
 
         userDataFormated['gestor'] = userDataFormated['GESTOR IMEDIATO']
@@ -178,6 +200,13 @@ async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, 
 
         delete userDataFormated['data_conclusao'];
         delete userDataFormated['ID'];
+
+        if(!userDataFormated?.regional) userDataFormated['regional'] = '---';
+        if(!userDataFormated?.seccional) userDataFormated['seccional'] = '---';
+        if(!userDataFormated?.estado) userDataFormated['estado'] = '---';
+        if(!userDataFormated?.Nome) userDataFormated['Nome'] = '---';
+        if(!userDataFormated?.gestor) userDataFormated['gestor'] = '---';
+        if(!userDataFormated?.matricula) userDataFormated['matricula'] = '---';
 
         return userDataFormated;
     });
@@ -340,6 +369,15 @@ async function delete_inventory_admin(id) {
 }
 
 // ─── justify ───────────────────────────────────────────────────────────
+async function get_justify_types_admin() {
+    const pool = cenos_pool;
+
+    let query = `SELECT DISTINCT tipo FROM justificativas WHERE tipo IS NOT NULL AND tipo <> '' ORDER BY tipo ASC`;
+    const { rows } = await pool.query(query);
+    return rows.map(r => r.tipo);
+}
+
+
 async function get_justify_admin({ instalacao, tipo, data_leit_prev, estado, page = 1, limit = 9999, search }) {
     const pool = cenos_pool;
 
@@ -413,6 +451,12 @@ async function delete_justify_admin(id) {
 }
 
 // ─── justify_pending ───────────────────────────────────────────────────────────
+async function get_justify_pending_types() {
+    const pool = cenos_pool;
+    const { rows } = await pool.query("SELECT DISTINCT tipo FROM justify_pending WHERE tipo IS NOT NULL AND tipo <> '' ORDER BY tipo ASC");
+    return rows.map(r => r.tipo);
+}
+
 async function get_pending_justifies_admin({ state = 'pi', autor, status = 'pendente', page = 1, limit = 9999, user, search }) {
     const pool = cenos_pool;
 
@@ -466,6 +510,11 @@ async function create_pending_justify_admin(data) {
 
 async function update_pending_justify_admin(id, data) {
     const pool = cenos_pool;
+    
+    // Injetamos o status respondido para garantir que a pendência seja marcada como tratada
+    // Fazemos isso no objeto data para evitar erro de duplicidade no SQL caso status venha no body
+    data.status = 'respondido';
+
     const fields = Object.keys(data).filter(k => k !== 'id');
     const values = fields.map(k => data[k]);
     const setClause = fields.map((k, i) => `${k} = $${i + 1}`).join(', ');
@@ -603,5 +652,7 @@ module.exports = {
     create_user_agent_admin,
     update_user_agent_admin,
     delete_user_agent_admin,
-    send_message_to_agent
+    send_message_to_agent,
+    get_justify_types_admin,
+    get_justify_pending_types
 };

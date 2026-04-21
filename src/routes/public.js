@@ -77,7 +77,7 @@ router.get('/metabase_geral', async (req, res) => {
 const crypto = require('crypto');
 require('dotenv').config();
 
-const { pi_pool } = require('../db');
+const { pi_pool, cenos_pool } = require('../db');
 router.get('/generate_token', async (req, res) => {
     try {
         if (!checkToken(req, res)) return;
@@ -93,7 +93,7 @@ router.get('/generate_token', async (req, res) => {
             const token = crypto.randomBytes(32).toString('hex');
             const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000 * 30);
 
-            await pi_pool.query(`
+            await cenos_pool.query(`
             CREATE TABLE IF NOT EXISTS telegram_tokens (
                 id SERIAL PRIMARY KEY, 
                 token VARCHAR(255) NOT NULL UNIQUE, 
@@ -104,7 +104,7 @@ router.get('/generate_token', async (req, res) => {
             )
         `);
 
-            await pi_pool.query(
+            await cenos_pool.query(
                 'INSERT INTO telegram_tokens (token, telegram_user_id, expires_at) VALUES ($1, $2, $3)',
                 [token, telegramId, expiresAt]
             );

@@ -1088,10 +1088,21 @@ Lista justificativas de instalações com filtros.
 
 ---
 
+#### `GET /admin/justify/types`
+Retorna uma lista de strings com os motivos únicos de justificativas.
+
+
+---
+
 #### `GET /admin/justify_pending`
 Lista justificativas de pendências com filtros.
 
 **Query Parameters:** `autor`, `status`, `estado`, `page`, `limit`, `search`.
+
+---
+
+#### `PUT /admin/justify_pending/:id`
+Atualiza uma justificativa de pendência e a marca como `respondido`.
 
 ---
 

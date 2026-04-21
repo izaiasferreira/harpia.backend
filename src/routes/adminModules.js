@@ -24,7 +24,8 @@ const {
     create_user_agent_admin,
     update_user_agent_admin,
     delete_user_agent_admin,
-    send_message_to_agent
+    send_message_to_agent,
+    get_justify_types_admin
 } = require('../functions/database/admin');
 const { listModules } = require('../functions/modules');
 
@@ -201,6 +202,16 @@ router.get('/justify', verifyToken(), verifyModule('justify'), async (req, res) 
     }
 });
 
+
+router.get('/justify/types', verifyToken(), verifyModule('justify'), async (req, res) => {
+    try {
+        const result = await get_justify_types_admin();
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 router.post('/justify', verifyToken(), verifyModule('create_justify'), async (req, res) => {
     try {
         const result = await save_justify_admin(req.body);
@@ -256,6 +267,7 @@ router.get('/justify_pending', verifyToken(), verifyModule('justify_pending'), a
         res.status(500).json({ error: error.message });
     }
 });
+
 
 router.post('/justify_pending', verifyToken(), verifyModule('create_justify_pending'), async (req, res) => {
     try {

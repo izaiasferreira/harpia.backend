@@ -296,6 +296,7 @@ async function get_instalations({ state, query = [], type }) {
         throw err;
     }
 }
+
 async function get_instalation_matriz({ estado, instalacao, data_leit_prev }) {
     if (!instalacao || !data_leit_prev) return {};
 
@@ -428,9 +429,6 @@ async function save_justify({
 
 // ─── get_justify ─────────────────────────────────────────────────────────────
 async function get_justify({ instalacao, data_leit_prev, estado = 'pi', author, tipo, quantidade }) {
-    // Garantir que o estado seja minúsculo para a seleção do pool e filtro
-    const activeState = (estado || 'pi').toLowerCase();
-
     // Garantir que a tabela existe antes de consultar
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS justificativas (
@@ -448,7 +446,7 @@ async function get_justify({ instalacao, data_leit_prev, estado = 'pi', author, 
             updated_at TIMESTAMP
         );
     `;
-    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+    const pool = cenos_pool;
     await pool.query(createTableQuery);
 
     let querySql = `SELECT * FROM justificativas WHERE 1=1`;
@@ -462,8 +460,8 @@ async function get_justify({ instalacao, data_leit_prev, estado = 'pi', author, 
         params.push(data_leit_prev.trim());
         querySql += ` AND TRIM(data_leit_prev) = $${params.length}`;
     }
-    if (activeState) {
-        params.push(activeState);
+    if (estado) {
+        params.push(estado.toLowerCase());
         querySql += ` AND LOWER(estado) = $${params.length}`;
     }
     if (author) {
@@ -486,8 +484,7 @@ async function get_justify({ instalacao, data_leit_prev, estado = 'pi', author, 
 
 // ─── update_justify ───────────────────────────────────────────────────────────
 async function update_justify({ id, estado = 'pi', ...fields }) {
-    const activeState = (estado || 'pi').toLowerCase();
-    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+    const pool = cenos_pool;
 
     // Campos permitidos para atualização
     const allowedFields = ['instalacao', 'tipo', 'motivo', 'justificativa', 'foto', 'data_leit_prev', 'quantidade'];
@@ -529,8 +526,7 @@ async function update_justify({ id, estado = 'pi', ...fields }) {
 
 // ─── delete_justify ───────────────────────────────────────────────────────────
 async function delete_justify({ id, estado = 'pi' }) {
-    const activeState = (estado || 'pi').toLowerCase();
-    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+    const pool = cenos_pool;
 
     const sql = `DELETE FROM justificativas WHERE id = $1 RETURNING *;`;
     const { rows } = await pool.query(sql, [id]);
@@ -635,8 +631,7 @@ async function respond_pending_justify({
     foto,
     updated_at = new Date()
 }) {
-    const activeState = (estado || 'pi').toLowerCase();
-    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+    const pool = cenos_pool;
 
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS justify_pending (
@@ -669,8 +664,7 @@ async function respond_pending_justify({
 }
 
 async function get_pending_justify_by_id({ id, estado = 'pi' }) {
-    const activeState = (estado || 'pi').toLowerCase();
-    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+    const pool = cenos_pool;
 
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS justify_pending (
@@ -698,7 +692,7 @@ async function get_pending_justify_by_id({ id, estado = 'pi' }) {
 }
 
 async function get_pending_justifies({ state = 'pi', autor, status = 'pendente', page = 1, limit = 20 }) {
-    const pool = state === 'pi' ? pi_pool : ma_pool;
+    const pool = cenos_pool;
 
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS justify_pending (
@@ -752,8 +746,7 @@ async function get_pending_justifies({ state = 'pi', autor, status = 'pendente',
 }
 
 async function delete_pending_justify({ id, estado = 'pi' }) {
-    const activeState = (estado || 'pi').toLowerCase();
-    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+    const pool = cenos_pool;
 
     const sql = `DELETE FROM justify_pending WHERE id = $1 RETURNING *;`;
     const { rows } = await pool.query(sql, [id]);
@@ -772,7 +765,7 @@ async function save_daily_report({
     created_at = new Date(),
     updated_at = new Date()
 }) {
-    const pool = state === 'pi' ? pi_pool : ma_pool;
+    const pool = cenos_pool;
 
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS daily_report (
@@ -815,7 +808,7 @@ async function save_daily_report({
 }
 
 async function get_daily_reports({ state = 'pi', autor, data, limit = 10 }) {
-    const pool = state === 'pi' ? pi_pool : ma_pool;
+    const pool = cenos_pool;
 
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS daily_report (
@@ -852,7 +845,7 @@ async function get_daily_reports({ state = 'pi', autor, data, limit = 10 }) {
 }
 
 async function get_daily_report_today({ state = 'pi', autor }) {
-    const pool = state === 'pi' ? pi_pool : ma_pool;
+    const pool = cenos_pool;
 
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS daily_report (
@@ -878,8 +871,7 @@ async function get_daily_report_today({ state = 'pi', autor }) {
 }
 
 async function delete_daily_report({ id, estado = 'pi' }) {
-    const activeState = (estado || 'pi').toLowerCase();
-    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+    const pool = cenos_pool;
 
     const sql = `DELETE FROM daily_report WHERE id = $1 RETURNING *;`;
     const { rows } = await pool.query(sql, [id]);
@@ -889,8 +881,7 @@ async function delete_daily_report({ id, estado = 'pi' }) {
 
 // ─── inventory ───────────────────────────────────────────────────────────
 async function get_inventory_by_agent({ agente, estado = 'pi' }) {
-    const activeState = (estado || 'pi').toLowerCase();
-    const pool = activeState === 'ma' ? ma_pool : pi_pool;
+    const pool = cenos_pool;
 
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS inventory (
@@ -941,7 +932,7 @@ async function save_inventory({
     created_at = new Date(),
     updated_at = new Date()
 }) {
-    const pool = state === 'pi' ? pi_pool : ma_pool;
+    const pool = cenos_pool;
 
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS inventory (

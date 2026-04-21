@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { pi_pool } = require('../db');
+const { cenos_pool } = require('../db');
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
@@ -9,7 +9,7 @@ async function ensureTelegramTokensTable() {
     if (tableChecked) return;
     
     try {
-        await pi_pool.query(`
+        await cenos_pool.query(`
             CREATE TABLE IF NOT EXISTS telegram_tokens (
                 id SERIAL PRIMARY KEY,
                 token VARCHAR(255) NOT NULL UNIQUE,
@@ -20,11 +20,11 @@ async function ensureTelegramTokensTable() {
             )
         `);
         
-        await pi_pool.query(`
+        await cenos_pool.query(`
             CREATE INDEX IF NOT EXISTS idx_telegram_tokens_token ON telegram_tokens(token)
         `);
         
-        await pi_pool.query(`
+        await cenos_pool.query(`
             CREATE INDEX IF NOT EXISTS idx_telegram_tokens_user_id ON telegram_tokens(telegram_user_id)
         `);
         
@@ -92,7 +92,7 @@ async function telegramAuth(req, res, next) {
         } else {
             await ensureTelegramTokensTable();
             
-            const { rows } = await pi_pool.query(
+            const { rows } = await cenos_pool.query(
                 'SELECT telegram_user_id FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
                 [initData]
             );
@@ -107,7 +107,7 @@ async function telegramAuth(req, res, next) {
         // Garantir que o ID seja string para bater com o tipo TEXT na tabela login
         const telegramIdStr = String(telegramId).trim();
 
-        const { rows: collaboratorRows } = await pi_pool.query(
+        const { rows: collaboratorRows } = await cenos_pool.query(
             'SELECT id, estado FROM login WHERE telegram_id = $1',
             [telegramIdStr]
         );
