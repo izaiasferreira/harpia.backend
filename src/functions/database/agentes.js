@@ -270,7 +270,7 @@ async function getAgentTelegramId({ state = 'pi', id }) {
     WHERE id in ('${id.toUpperCase()}', '${id.toLowerCase()}')
     `;
 
-    const { rows } = await pi_pool.query(query);
+    const { rows } = await cenos_pool.query(query);
     return rows;
 }
 
