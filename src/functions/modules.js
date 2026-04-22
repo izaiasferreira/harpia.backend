@@ -39,10 +39,10 @@ const AVAILABLE_MODULES = [
     { id: 'delete_permission', name: 'Deletar Permissão' },
     // Agentes
     { id: 'users_agents', name: 'Consultar Agentes' },
-    { id: 'create_users_agents', name: 'Criar Agente' },
-    { id: 'update_users_agents', name: 'Atualizar Agente' },
-    { id: 'delete_users_agents', name: 'Deletar Agente' },
-    { id: 'send_message_to_agent', name: 'Enviar Mensagem para Agente' }
+    { id: 'create_user_agent', name: 'Criar Agente' },
+    { id: 'update_user_agent', name: 'Atualizar Agente' },
+    { id: 'delete_user_agent', name: 'Deletar Agente' },
+    { id: 'send_message_user_agent', name: 'Enviar Mensagem para Agente' }
 ];
 
 async function listModules() {

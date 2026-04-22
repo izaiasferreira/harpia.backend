@@ -8,7 +8,7 @@ const {
     updatePermission,
     deletePermission
 } = require('../functions/database/permissions');
-const { listModules } = require('../functions/database/branches');
+const { listModules } = require('../functions/modules');
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 
 createPermissionsTable().catch(console.error);

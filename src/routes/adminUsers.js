@@ -79,8 +79,6 @@ router.post('/register', verifyToken(), verifyModule('create_user'), async (req,
             return res.status(400).json({ error: 'Email, senha e nome são obrigatórios' });
         }
 
-        console.log(req.body);
-
         const user = await createUser({ 
             email, 
             senha, 
@@ -103,7 +101,8 @@ router.post('/register', verifyToken(), verifyModule('create_user'), async (req,
 router.get('/me', verifyToken(), async (req, res) => {
     try {
         const modules = await getUserModules(req.user.id, req.user.estado);
-        res.json({ ...req.user, modules });
+        const permissions = await getUserPermissions(req.user.id, req.user.estado);
+        res.json({ ...req.user, modules});
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

@@ -1,3 +1,4 @@
+const axios = require('axios');
 const { pi_pool, ma_pool, localizacoes_pi_pool, cenos_pool } = require('../../db');
 const { today } = require('../../utils/dates');
 
@@ -7,219 +8,188 @@ const userIsAdmin = (user) => {
 }
 
 
-
-async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, search, regional, seccional, gestor, estado }) {
-    const pool = cenos_pool;
-    let query = `SELECT * FROM login WHERE 1=1`;
-    const params = [];
-    let paramIndex = 1;
-
-    let activeEstado = estado || user.estado;
-
-    if (activeEstado && !userIsAdmin(user)) {
-        query += ` AND estado = $${paramIndex}`;
-        params.push(activeEstado.toLowerCase());
-        paramIndex++;
-    }
-
-    // Handle regional/seccional filtering from external matriz tables
-    if (regional || seccional) {
-        let externalIds = [];
-        try {
-            let poolsToQuery = [];
-            if (activeEstado) {
-                poolsToQuery = [activeEstado.toLowerCase() === 'pi' ? pi_pool : ma_pool];
-            } else {
-                poolsToQuery = [pi_pool, ma_pool];
-            }
-
-            for (const p of poolsToQuery) {
-                let mQuery = `SELECT DISTINCT TRIM(UPPER(agente)) as id FROM matriz WHERE 1=1`;
-                const mParams = [];
-                let mIndex = 1;
-                if (regional) {
-                    mQuery += ` AND regional = $${mIndex}`;
-                    mParams.push(regional.toUpperCase());
-                    mIndex++;
-                }
-                if (seccional) {
-                    mQuery += ` AND seccional = $${mIndex}`;
-                    mParams.push(seccional.toUpperCase());
-                    mIndex++;
-                }
-                const { rows } = await p.query(mQuery, mParams);
-                externalIds.push(...rows.map(r => r.id));
-            }
-
-            if (externalIds.length > 0) {
-                ids = ids.length > 0 ? ids.filter(id => externalIds.includes(id.toUpperCase())) : externalIds;
-            } else {
-                return []; // No agents found in this regional/seccional
-            }
-        } catch (err) {
-            console.error('Erro ao filtrar por regional/seccional:', err.message);
-        }
-    }
-
-    // Handle gestor filtering from external colaboradores table
-    if (gestor) {
-        let externalIds = [];
-        try {
-            let poolsToQuery = [];
-            if (activeEstado) {
-                poolsToQuery = [activeEstado.toLowerCase() === 'pi' ? pi_pool : ma_pool];
-            } else {
-                poolsToQuery = [pi_pool, ma_pool];
-            }
-
-            for (const p of poolsToQuery) {
-                let cQuery = `SELECT DISTINCT TRIM(UPPER("ID")) as id FROM colaboradores WHERE "GESTOR IMEDIATO" ILIKE $1`;
-                const { rows } = await p.query(cQuery, [`%${gestor}%`]);
-                externalIds.push(...rows.map(r => r.id));
-            }
-
-            if (externalIds.length > 0) {
-                ids = ids.length > 0 ? ids.filter(id => externalIds.includes(id.toUpperCase())) : externalIds;
-            } else {
-                return []; // No agents found with this gestor
-            }
-        } catch (err) {
-            console.error('Erro ao filtrar por gestor:', err.message);
-        }
-    }
-
-    let searchIds = [];
-    if (search) {
-        try {
-            let poolsToQuery = activeEstado ? [activeEstado.toLowerCase() === 'pi' ? pi_pool : ma_pool] : [pi_pool, ma_pool];
-            for (const p of poolsToQuery) {
-                const { rows } = await p.query(`SELECT DISTINCT "ID" as id FROM colaboradores WHERE "Nome" ILIKE $1`, [`%${search}%`]);
-                searchIds.push(...rows.map(r => r.id));
-            }
-        } catch (err) {
-            console.error('Erro ao buscar nomes externos:', err.message);
-        }
-    }
-
-    if (ids.length > 0 || searchIds.length > 0) {
-        const combinedIds = [...new Set([...ids, ...searchIds])].map(id => id?.toString()?.toUpperCase());
-        if (combinedIds.length > 0) {
-            const placeholders = combinedIds.map((_, i) => `$${paramIndex + i}`).join(',');
-            
-            if (search) {
-                // Se houver busca, queremos IDs que batem com o nome OU campos que batem no login
-                query += ` AND (UPPER("id") IN (${placeholders}) OR id ILIKE $${paramIndex + combinedIds.length})`;
-                params.push(...combinedIds, `%${search}%`);
-                paramIndex += combinedIds.length + 1;
-            } else {
-                query += ` AND UPPER("id") IN (${placeholders})`;
-                params.push(...combinedIds);
-                paramIndex += combinedIds.length;
-            }
-        }
-    } else if (search) {
-        query += ` AND (id ILIKE $${paramIndex})`;
-        params.push(`%${search}%`);
-        paramIndex++;
-    }
-
-    const limitVal = parseInt(limit) || 9999;
-    const offsetVal = (parseInt(page) - 1) * limitVal;
-
-    query += ` ORDER BY id DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(limitVal, offsetVal);
-
-    const { rows } = await pool.query(query, params);
-    let usersData = [];
-
-    if (rows.length === 0) return [];
-
-    const usersIds = rows.map(r => r.id);
-    const placeholders = usersIds.map((_, i) => `$${i + 1}`).join(',');
-
-    if (user.estado && !userIsAdmin(user)) {
-        const pool_state = user.estado.toLowerCase() === 'pi' ? pi_pool : ma_pool;
-        try {
-            const usersData = await pool_state.query(`SELECT * FROM colaboradores WHERE id IN (${placeholders})`, usersIds);
-            const localData = await pool_state.query(`SELECT DISTINCT ON (TRIM(UPPER(agente))) agente as id, seccional, regional, data_conclusao FROM matriz WHERE TRIM(UPPER(agente)) IN (${placeholders}) ORDER BY TRIM(UPPER(agente)), data_conclusao DESC;`, usersIds);
-
-            usersData = usersData.rows.map(r => {
-                let localDataFind = localData.rows.find(l => l?.id?.toString().toLowerCase() === r?.ID?.toString().toLowerCase());
-                return { ...r, ...(localDataFind || {}) };
-            });
-        } catch (err) {
-            console.error('Erro ao buscar dados dos colaboradores:', err.message);
-        }
-    } else {
-        try {
-            let { rows: usersDataPi } = await pi_pool.query(`SELECT * FROM colaboradores WHERE "ID" IN (${placeholders})`, usersIds);
-            const { rows: localDataPi } = await pi_pool.query(`SELECT DISTINCT ON (TRIM(UPPER(agente))) agente as id, seccional, regional, data_conclusao FROM matriz WHERE TRIM(UPPER(agente)) IN (${placeholders}) ORDER BY TRIM(UPPER(agente)), data_conclusao DESC;`, usersIds);
-            usersDataPi = usersDataPi.map(r => {
-                let localDataFind = localDataPi.find(l => l.id?.toString().toLowerCase() === r.ID?.toString().toLowerCase());
-                return { ...r, ...(localDataFind || {}) };
-            });
-
-            let { rows: usersDataMa } = await ma_pool.query(`SELECT * FROM colaboradores WHERE "ID" IN (${placeholders})`, usersIds);
-            const { rows: localDataMa } = await ma_pool.query(`SELECT DISTINCT ON (TRIM(UPPER(agente))) agente as id, seccional, regional, data_conclusao FROM matriz WHERE TRIM(UPPER(agente)) IN (${placeholders}) ORDER BY TRIM(UPPER(agente)), data_conclusao DESC;`, usersIds);
-            usersDataMa = usersDataMa.map(r => {
-                let localDataFind = localDataMa.find(l => l.id?.toString().toLowerCase() === r.ID?.toString().toLowerCase());
-                return { ...r, ...(localDataFind || {}) };
-            });
-            usersData = [...usersDataPi, ...usersDataMa];
-        } catch (err) {
-            console.error('Erro ao buscar dados dos colaboradores (PI/MA):', err.message);
-        }
-    }
-
-    const setor = {
-        "NEG": 'NEGOCIAÇÃO',
-        "LEI": 'LEITURA',
-        "COB": 'COBRANÇA'
-    }
-    const veiculo = {
-        "MOT": 'AGENTE COMERCIAL MOTOCICLISTA',
-        "PE": 'AGENTE COMERCIAL A PÉ',
-        "PÉ": 'AGENTE COMERCIAL A PÉ'
-    }
-    return rows.map(r => {
-        let userDataFind = usersData.find(u => u.ID?.toString().toUpperCase() === r.id?.toString().toUpperCase());
-        let userDataFormated = { ...r, ...(userDataFind || {}) };
-        let cargo = userDataFormated?.Cargo;
-        let setor_key = Object.keys(setor).find(k => cargo?.includes(k));
-        let veiculo_key = Object.keys(veiculo).find(k => cargo?.includes(k));
-
-        userDataFormated['setor'] = setor[setor_key] || '---';
-        userDataFormated['cargo'] = veiculo[veiculo_key] || '---';
-        delete userDataFormated?.Cargo;
-
-        userDataFormated['gestor'] = userDataFormated['GESTOR IMEDIATO']
-        delete userDataFormated['GESTOR IMEDIATO'];
-
-        userDataFormated['matricula'] = userDataFormated['MAT']
-        delete userDataFormated['MAT'];
-
-        delete userDataFormated['data_conclusao'];
-        delete userDataFormated['ID'];
-
-        if(!userDataFormated?.regional) userDataFormated['regional'] = '---';
-        if(!userDataFormated?.seccional) userDataFormated['seccional'] = '---';
-        if(!userDataFormated?.estado) userDataFormated['estado'] = '---';
-        if(!userDataFormated?.Nome) userDataFormated['Nome'] = '---';
-        if(!userDataFormated?.gestor) userDataFormated['gestor'] = '---';
-        if(!userDataFormated?.matricula) userDataFormated['matricula'] = '---';
-
-        return userDataFormated;
-    });
+const setor = {
+    "NEG": 'NEGOCIAÇÃO',
+    "LEI": 'LEITURA',
+    "COB": 'COBRANÇA'
+}
+const veiculo = {
+    "MOT": 'AGENTE COMERCIAL MOTOCICLISTA',
+    "PE": 'AGENTE COMERCIAL A PÉ',
+    "PÉ": 'AGENTE COMERCIAL A PÉ'
 }
 
-async function create_user_agent_admin({ id, matricula, nome, estado, gestor, cargo, user }) {
-    let query = `INSERT INTO colaboradores ("ID", "MAT", "Nome", "GESTOR IMEDIATO", "Cargo") VALUES ($1, $2, $3, $4, $5)`;
-    const params = [id?.toUpperCase(), matricula, nome, gestor, cargo];
+const getUserAllowedStatePools = (user) => {
+    const isMainAdmin = userIsAdmin(user);
+    const userFilters = user?.permissions?.map(p => p.filters).flat() || [];
+    const statesFilters = userFilters.filter(f => f.type === 'estado').map(f => f.value.toLowerCase());
+    
+    const available = [];
+    if (isMainAdmin || statesFilters.includes('pi')) available.push({ state: 'pi', pool: pi_pool });
+    if (isMainAdmin || statesFilters.includes('ma')) available.push({ state: 'ma', pool: ma_pool });
+    return available;
+};
 
-    if (user.estado !== estado && !userIsAdmin(user)) return { error: 'Você não está autorizado a criar usuários em outros estados' };
+async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, search, regional, seccional, gestor, estado }) {
+    const availablePools = getUserAllowedStatePools(user);
+
+    // Filtra pelo estado solicitado, se houver
+    let targetPools = availablePools;
+    if (estado) {
+        targetPools = availablePools.filter(p => p.state === estado.toLowerCase());
+    }
+
+    // Busca IDs no login (cenos_pool) se houver busca por texto
+    let searchIdsFromLogin = [];
+    if (search) {
+        const { rows: loginMatches } = await cenos_pool.query(
+            `SELECT id FROM login WHERE id ILIKE $1`,
+            [`%${search}%`]
+        );
+        searchIdsFromLogin = loginMatches.map(l => l.id.toUpperCase());
+    }
+
+    let rowsACC = [];
+
+    for (const { state, pool } of targetPools) {
+        let colabQuery = `SELECT * FROM colaboradores WHERE 1=1`;
+        const colabParams = [];
+        let paramIdx = 1;
+
+        if (search) {
+            // Busca por Nome ou ID ou IDs encontrados via busca de Email
+            const conditions = [`"Nome" ILIKE $${paramIdx}`, `"ID" ILIKE $${paramIdx}`];
+            colabParams.push(`%${search}%`);
+            paramIdx++;
+
+            if (searchIdsFromLogin.length > 0) {
+                conditions.push(`"ID" = ANY($${paramIdx})`);
+                colabParams.push(searchIdsFromLogin);
+                paramIdx++;
+            }
+            colabQuery += ` AND (${conditions.join(' OR ')})`;
+        }
+
+        if (ids && ids.length > 0) {
+            colabQuery += ` AND "ID" = ANY($${paramIdx})`;
+            colabParams.push(ids.map(id => id.toUpperCase()));
+            paramIdx++;
+        }
+
+        if (regional) {
+            colabQuery += ` AND "regional" ILIKE $${paramIdx}`;
+            colabParams.push(`%${regional}%`);
+            paramIdx++;
+        }
+
+        if (seccional) {
+            colabQuery += ` AND "seccional" ILIKE $${paramIdx}`;
+            colabParams.push(`%${seccional}%`);
+            paramIdx++;
+        }
+
+        if (gestor) {
+            colabQuery += ` AND "GESTOR IMEDIATO" ILIKE $${paramIdx}`;
+            colabParams.push(`%${gestor}%`);
+            paramIdx++;
+        }
+
+        const { rows } = await pool.query(colabQuery, colabParams);
+
+        const result = rows.map(r => {
+            const mapped = {
+                ...r,
+                gestor: r['GESTOR IMEDIATO'],
+                matricula: `${parseInt(r['MAT'])}`,
+                nome: r['Nome'],
+                id: (r['ID']).toUpperCase(),
+                estado: state
+            };
+
+            delete mapped['GESTOR IMEDIATO'];
+            delete mapped['MAT'];
+            delete mapped['Nome'];
+            delete mapped['ID'];
+
+            let cargo = r?.Cargo;
+            let setor_key = Object.keys(setor).find(k => cargo?.includes(k));
+            let veiculo_key = Object.keys(veiculo).find(k => cargo?.includes(k));
+
+            mapped['setor'] = setor[setor_key] || null;
+            mapped['cargo'] = veiculo[veiculo_key] || null;
+            delete mapped['Cargo'];
+
+            return mapped;
+        });
+
+        // Complementa com dados do cenos_pool.login para pegar telegram_id e outros campos
+        if (result.length > 0) {
+            const { rows: loginData } = await cenos_pool.query(
+                `SELECT * FROM login WHERE id IN (${result.map((_, i) => `$${i + 1}`).join(',')})`,
+                result.map(r => r.id)
+            );
+
+            result.forEach(r => {
+                const login = loginData.find(l => l.id === r.id);
+                r.telegram_id = login?.telegram_id || null;
+                // Garante valores null para campos vazios
+                r.seccional = r.seccional || null;
+                r.regional = r.regional || null;
+            });
+        }
+
+        rowsACC.push(...result);
+    }
+
+    // Ordenação básica (pode ser expandida se necessário)
+    rowsACC.sort((a, b) => a.nome.localeCompare(b.nome));
+
+    // Paginação em memória
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    return rowsACC.slice(offset, offset + parseInt(limit));
+}
+
+async function get_user_agent_options({ estado }) {
+    let result = {
+        gestores: [],
+        cargos: [],
+        regionais: [],
+        seccionais: []
+    };
+    const query = `SELECT DISTINCT "GESTOR IMEDIATO" FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL`;
+    const { rows } = await estado === 'pi' ? await pi_pool.query(query) : await ma_pool.query(query);
+    result.gestores = rows.map(r => r['GESTOR IMEDIATO']);
+    
+
+    const query2 = `SELECT DISTINCT uac FROM localidades WHERE uac IS NOT NULL`;
+    const { rows: rows2 } = await estado === 'pi' ? await pi_pool.query(query2) : await ma_pool.query(query2);
+    result.seccionais = rows2.map(r => r['uac']);
+
+    const query3 = `SELECT DISTINCT regional FROM localidades WHERE regional IS NOT NULL`;
+    const { rows: rows3 } = await estado === 'pi' ? await pi_pool.query(query3) : await ma_pool.query(query3);
+    result.regionais = rows3.map(r => r['regional']);
+
+    const query4 = `SELECT DISTINCT "Cargo" FROM colaboradores WHERE "Cargo" IS NOT NULL`;
+    const { rows: rows4 } = await estado === 'pi' ? await pi_pool.query(query4) : await ma_pool.query(query4);
+    result.cargos = rows4.map(r => r['Cargo']);
+    
+    return result;
+}
+
+async function create_user_agent_admin({ id, matricula, nome, estado, gestor, cargo, user, seccional, regional }) {
+    const allowedPools = getUserAllowedStatePools(user);
+    const target = allowedPools.find(p => p.state === estado.toLowerCase());
+
+    if (!target) {
+        return { error: `Você não tem permissão para cadastrar agentes no estado ${estado.toUpperCase()}` };
+    }
+
+    const query = `INSERT INTO colaboradores ("ID", "MAT", "Nome", "GESTOR IMEDIATO", "Cargo", "seccional", "regional") VALUES ($1, $2, $3, $4, $5, $6, $7)`;
+    const params = [id?.toUpperCase(), matricula, nome, gestor, cargo, seccional, regional];
+
     try {
-        await estado === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
-        let result = await get_users_agents_admin({ user, ids: [id] });
+        await target.pool.query(query, params);
+        const result = await get_users_agents_admin({ user, ids: [id], estado });
         return result[0];
     } catch (err) {
         console.error('Erro ao criar usuário:', err.message);
@@ -227,26 +197,131 @@ async function create_user_agent_admin({ id, matricula, nome, estado, gestor, ca
     }
 }
 
-async function send_message_to_agent({ id, text, file, user }) {
+async function send_message_to_agent({ id, text, file, webAppButtonText, webAppButtonUrl, options, user }) {
     const userData = await get_users_agents_admin({ user, ids: [id] });
     if (!userData.length) return { error: 'Usuário não encontrado' };
 
-    const params = [id?.toUpperCase(), text, file];
-    if (user.estado !== userData[0].estado && !userIsAdmin(user)) return { error: 'Você não está autorizado a enviar mensagens para usuários de outros estados' };
+    const agent = userData[0];
+    if (!agent.telegram_id) return { error: 'Este agente não possui Telegram ID vinculado' };
 
-    return { message: 'Mensagem enviada com sucesso' };
+    const allowedPools = getUserAllowedStatePools(user);
+    if (!allowedPools.find(p => p.state === agent.estado.toLowerCase())) {
+        return { error: `Você não tem permissão para enviar mensagens para agentes do estado ${agent.estado.toUpperCase()}` };
+    }
+
+    let payload;
+    let contentType = 'application/json';
+
+    // Se o arquivo for um objeto vindo do Multer (buffer), usamos FormData
+    if (file && typeof file === 'object' && file.buffer) {
+        const formData = new FormData();
+        formData.append('chatId', agent.telegram_id);
+        if (text) formData.append('text', text);
+        if (webAppButtonText) formData.append('webAppButtonText', webAppButtonText);
+        if (webAppButtonUrl) formData.append('webAppButtonUrl', webAppButtonUrl);
+        if (options) formData.append('options', typeof options === 'string' ? options : JSON.stringify(options));
+
+        let mediaType = 'document';
+        const mimetype = file.mimetype || '';
+        if (mimetype.startsWith('image/')) mediaType = 'image';
+        else if (mimetype.startsWith('video/')) mediaType = 'video';
+        else if (mimetype.startsWith('audio/')) mediaType = 'audio';
+
+        formData.append('mediaType', mediaType);
+        formData.append('media', new Blob([file.buffer]), file.originalname);
+        
+        payload = formData;
+        contentType = undefined; // Deixa o axios definir o boundary
+    } else {
+        // Envio via JSON (Texto e/ou mídias por URL)
+        payload = {
+            chatId: agent.telegram_id,
+            text,
+            webAppButtonText,
+            webAppButtonUrl,
+            options
+        };
+
+        if (file && typeof file === 'string' && file.startsWith('http')) {
+            const ext = file.split('.').pop().toLowerCase();
+            if (['jpg', 'jpeg', 'png'].includes(ext)) {
+                payload.photo = file;
+            } else if (['mp4', 'mov', 'avi'].includes(ext)) {
+                payload.video = file;
+            } else {
+                payload.document = file;
+            }
+        }
+    }
+
+    let result;
+    try {
+        const headers = {
+            'Authorization': `Bearer ${process.env.TELEGRAM_API_TOKEN}`
+        };
+        if (contentType) headers['Content-Type'] = contentType;
+
+        const response = await axios.post(`${process.env.TELEGRAM_API_URL}/sendMessage`, payload, { headers });
+        result = { message: 'Mensagem enviada com sucesso', telegramResponse: response.data };
+    } catch (error) {
+        console.error('Erro ao enviar mensagem via Telegram:', error.response?.data || error.message);
+        result = { error: 'Falha ao enviar mensagem via Telegram API', details: error.response?.data || error.message };
+    }
+
+    // Gravar log no banco cenos_pool
+    try {
+        await cenos_pool.query(`
+            CREATE TABLE IF NOT EXISTS sent_messages_admin (
+                id SERIAL PRIMARY KEY,
+                agente_id TEXT,
+                operador_id TEXT,
+                texto TEXT,
+                arquivo TEXT,
+                sucesso BOOLEAN,
+                resposta JSONB,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        `);
+
+        const insertQuery = `
+            INSERT INTO sent_messages_admin (agente_id, operador_id, texto, arquivo, sucesso, resposta)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `;
+        const logParams = [
+            id?.toUpperCase(),
+            user.matricula || user.id || 'ADMIN',
+            text || null,
+            typeof file === 'string' ? file : (file?.originalname || null),
+            !result.error,
+            JSON.stringify(result.telegramResponse || result.details || result)
+        ];
+        await cenos_pool.query(insertQuery, logParams);
+    } catch (logError) {
+        console.error('Erro ao gravar log de mensagem:', logError.message);
+    }
+
+    return result;
 }
 
-async function delete_user_agent_admin({ id, user }) {
+async function delete_user_agent_admin({ id, user, deleteLogin = false }) {
     const userData = await get_users_agents_admin({ user, ids: [id] });
     if (!userData.length) return { error: 'Usuário não encontrado' };
 
-    const params = [id?.toUpperCase()];
-    if (user.estado !== userData[0].estado && !userIsAdmin(user)) return { error: 'Você não está autorizado a deletar usuários em outros estados' };
+    const agent = userData[0];
+    const allowedPools = getUserAllowedStatePools(user);
+    const target = allowedPools.find(p => p.state === agent.estado.toLowerCase());
+
+    if (!target) {
+        return { error: `Você não tem permissão para deletar agentes no estado ${agent.estado.toUpperCase()}` };
+    }
 
     try {
-        let query = `DELETE FROM colaboradores WHERE "ID" = $1`;
-        await user.estado === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
+        await target.pool.query(`DELETE FROM colaboradores WHERE "ID" = $1`, [id?.toUpperCase()]);
+        
+        if (deleteLogin) {
+            await cenos_pool.query(`DELETE FROM login WHERE id = $1`, [id?.toUpperCase()]);
+        }
+
         return { message: 'Usuário deletado com sucesso' };
     } catch (err) {
         console.error('Erro ao deletar usuário:', err.message);
@@ -254,17 +329,24 @@ async function delete_user_agent_admin({ id, user }) {
     }
 }
 
-async function update_user_agent_admin({ id, matricula, nome, gestor, cargo, user }) {
+async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, regional, user }) {
     const userData = await get_users_agents_admin({ user, ids: [id] });
     if (!userData.length) return { error: 'Usuário não encontrado' };
 
-    const params = [matricula, nome, gestor, cargo, id?.toUpperCase()];
-    if (user.estado !== userData[0].estado && !userIsAdmin(user)) return { error: 'Você não está autorizado a atualizar usuários em outros estados' };
+    const agent = userData[0];
+    const allowedPools = getUserAllowedStatePools(user);
+    const target = allowedPools.find(p => p.state === agent.estado.toLowerCase());
+
+    if (!target) {
+        return { error: `Você não tem permissão para atualizar agentes no estado ${agent.estado.toUpperCase()}` };
+    }
+
+    const query = `UPDATE colaboradores SET "Nome" = $1, "GESTOR IMEDIATO" = $2, "Cargo" = $3, "seccional" = $4, "regional" = $5 WHERE "ID" = $6`;
+    const params = [nome, gestor, cargo, seccional, regional, id?.toUpperCase()];
 
     try {
-        let query = `UPDATE colaboradores SET "MAT" = $1, "Nome" = $2, "GESTOR IMEDIATO" = $3, "Cargo" = $4 WHERE "ID" = $5`;
-        await user.estado === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
-        let result = await get_users_agents_admin({ user, ids: [id] });
+        await target.pool.query(query, params);
+        const result = await get_users_agents_admin({ user, ids: [id], estado: agent.estado });
         return result[0];
     } catch (err) {
         console.error('Erro ao atualizar usuário:', err.message);
@@ -510,7 +592,7 @@ async function create_pending_justify_admin(data) {
 
 async function update_pending_justify_admin(id, data) {
     const pool = cenos_pool;
-    
+
     // Injetamos o status respondido para garantir que a pendência seja marcada como tratada
     // Fazemos isso no objeto data para evitar erro de duplicidade no SQL caso status venha no body
     data.status = 'respondido';
@@ -654,5 +736,6 @@ module.exports = {
     delete_user_agent_admin,
     send_message_to_agent,
     get_justify_types_admin,
-    get_justify_pending_types
+    get_justify_pending_types,
+    get_user_agent_options
 };

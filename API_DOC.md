@@ -774,6 +774,11 @@ curl http://localhost:3040/admin/user/me \
 | `users` | Usuários | Gerenciar usuários do sistema |
 | `branches` | Filiais | Gerenciar filiais/regionais |
 | `permissions` | Permissões | Gerenciar níveis de acesso |
+| `users_agents` | Consultar Agentes | Visualizar lista de agentes/colaboradores |
+| `create_user_agent` | Criar Agente | Cadastrar novo agente no banco estadual |
+| `update_user_agent` | Atualizar Agente | Editar dados de um agente existente |
+| `delete_user_agent` | Deletar Agente | Remover/Desativar um agente |
+| `send_message_to_agent` | Enviar Mensagem | Enviar mensagem via Telegram para o agente |
 
 ### Verificação de Módulo
 
@@ -1640,6 +1645,151 @@ Retorna o dashboard administrativo com estatísticas e widgets.
 {
     "layout": { "columns": 3, "gap": 16, "baseRowHeight": 165 },
     "widgets": [...]
+}
+```
+
+---
+
+## GET /admin/users_agents
+
+Lista todos os agentes (colaboradores) cadastrados, cruzando dados de login e informações de campo dos bancos estaduais (`pi_pool` e `ma_pool`).
+
+**Autenticação:** Bearer token + módulo `users_agents`
+
+**Query Params:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `search` | string | Não | Busca por nome ou ID |
+| `regional` | string | Não | Filtro por regional |
+| `seccional` | string | Não | Filtro por seccional |
+| `gestor` | string | Não | Filtro por nome do gestor |
+| `estado` | string | Não | Estado: `pi` ou `ma` |
+| `page` | number | Não | Página (padrão: 1) |
+| `limit` | number | Não | Limite (padrão: 10) |
+
+**Response 200:**
+```json
+[
+  {
+    "id": "T19610",
+    "matricula": "6703",
+    "nome": "LINDOMAR ROCHA DE BRITO",
+    "gestor": "ROMARIO DE ARAUJO GONDIM",
+    "estado": "pi",
+    "setor": "NEGOCIAÇÃO",
+    "cargo": "AGENTE COMERCIAL MOTOCICLISTA",
+    "telegram_id": null,
+    "seccional": null,
+    "regional": null
+  }
+]
+```
+
+---
+
+## GET /admin/users_agents/options
+
+Retorna listas de opções únicas para filtros e cadastros (gestores, cargos, regionais e seccionais).
+
+**Autenticação:** Bearer token + módulo `users_agents`
+
+**Query Params:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `estado` | string | Não | Estado: `pi` ou `ma` (padrão: estado do usuário) |
+
+**Response 200:**
+```json
+{
+  "gestores": ["ROMARIO DE ARAUJO GONDIM", "DIOGO VICTOR SOARES MOURA"],
+  "cargos": ["AGENTE COMERCIAL MOTOCICLISTA", "AGENTE COMERCIAL A PÉ"],
+  "regionais": ["METROPOLITANA", "INTERIOR"],
+  "seccionais": ["UAC TERESINA", "UAC TIMON"]
+}
+```
+
+---
+
+## POST /admin/users_agents
+
+Cadastra um novo agente no banco de colaboradores do estado especificado.
+
+**Autenticação:** Bearer token + módulo `create_user_agent`
+
+**Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `id` | string | Sim | ID único do agente (ex: T12345) |
+| `matricula` | string | Sim | Matrícula da concessionária |
+| `nome` | string | Sim | Nome completo |
+| `estado` | string | Sim | `pi` ou `ma` |
+| `gestor` | string | Sim | Nome completo do gestor imediato |
+| `cargo` | string | Sim | Cargo do agente |
+| `seccional` | string | Sim | Seccional originária |
+| `regional` | string | Sim | Regional originária |
+
+**Response 200:** Objeto do agente criado.
+
+---
+
+## PUT /admin/users_agents/:id
+
+Atualiza dados de um agente existente. **Nota:** Não é permitido alterar `id`, `matricula` ou `estado`.
+
+**Autenticação:** Bearer token + módulo `update_user_agent`
+
+**Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `nome` | string | Não | Novo nome completo |
+| `gestor` | string | Não | Novo gestor imediato |
+| `cargo` | string | Não | Novo cargo |
+| `seccional` | string | Não | Nova seccional |
+| `regional` | string | Não | Nova regional |
+
+**Response 200:** Objeto do agente atualizado.
+
+---
+
+## DELETE /admin/users_agents/:id
+
+Deleta um agente do banco de colaboradores.
+
+**Autenticação:** Bearer token + módulo `delete_user_agent`
+
+**Query Params:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `deleteLogin` | boolean | Não | Se `true`, remove também o registro da tabela `login` (padrão: `false`) |
+
+**Response 200:**
+```json
+{ "message": "Usuário deletado com sucesso" }
+```
+
+---
+
+## POST /admin/send_message_user_agent
+
+Envia uma mensagem (texto, mídia via URL ou upload de arquivo) para o Telegram de um agente. Suporta tanto JSON quanto `multipart/form-data`.
+
+**Autenticação:** Bearer token + módulo `send_message_user_agent`
+
+**Body (JSON ou Multipart):**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `id` | string | Sim | ID único do agente (ex: T12345) |
+| `text` | string | Não* | Texto da mensagem ou legenda (obrigatório se não houver arquivo) |
+| `file` | string/file | Não* | URL da mídia ou Arquivo binário (obrigatório se não houver texto) |
+| `webAppButtonText`| string | Não | Texto para o botão de Mini App (ex: 🚀 Abrir App) |
+| `webAppButtonUrl` | string | Não | URL do Mini App |
+| `options` | object/string| Não | JSON com configurações extras (ex: `reply_markup`) |
+
+**Response 200:**
+```json
+{
+  "message": "Mensagem enviada com sucesso",
+  "telegramResponse": { ... }
 }
 ```
 

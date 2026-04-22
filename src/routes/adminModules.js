@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const { generateDashboardAdmin } = require('../functions/generateDashboard');
 const {
@@ -25,7 +27,8 @@ const {
     update_user_agent_admin,
     delete_user_agent_admin,
     send_message_to_agent,
-    get_justify_types_admin
+    get_justify_types_admin,
+    get_user_agent_options
 } = require('../functions/database/admin');
 const { listModules } = require('../functions/modules');
 
@@ -89,6 +92,17 @@ router.get('/users_agents', verifyToken(), verifyModule('users_agents'), async (
     }
 });
 
+router.get('/users_agents/options', verifyToken(), verifyModule('users_agents'), async (req, res) => {
+    try {
+        const { estado } = req.query;
+        const result = await get_user_agent_options({ estado: estado || req.user.estado });
+        res.json(result);
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({ error: error.message });
+    }
+});
+
 router.get('/users_agents/:id', verifyToken(), verifyModule('users_agents'), async (req, res) => {
     try {
         const user = req.user;
@@ -104,11 +118,11 @@ router.get('/users_agents/:id', verifyToken(), verifyModule('users_agents'), asy
     }
 });
 
-router.post('/users_agents', verifyToken(), verifyModule('create_users_agents'), async (req, res) => {
+router.post('/users_agents', verifyToken(), verifyModule('create_user_agent'), async (req, res) => {
     try {
-        const { id, matricula, nome, estado, gestor, cargo } = req.body;
+        const { id, matricula, nome, estado, gestor, cargo, seccional, regional } = req.body;
         const user = req.user;
-        const result = await create_user_agent_admin({ id, matricula, nome, estado, gestor, cargo, user });
+        const result = await create_user_agent_admin({ id, matricula, nome, estado, gestor, cargo, seccional, regional, user });
         res.json(result);
     } catch (error) {
         console.log(error)
@@ -116,23 +130,12 @@ router.post('/users_agents', verifyToken(), verifyModule('create_users_agents'),
     }
 });
 
-router.put('/users_agents/:id', verifyToken(), verifyModule('update_users_agents'), async (req, res) => {
-    try {
-        const { id, matricula, nome, gestor, cargo } = req.body;
-        const user = req.user;
-        const result = await update_user_agent_admin({ id, matricula, nome, gestor, cargo, user });
-        res.json(result);
-    } catch (error) {
-        console.log(error)
-        res.status(500).json({ error: error.message });
-    }
-});
-
-router.delete('/users_agents/:id', verifyToken(), verifyModule('delete_users_agents'), async (req, res) => {
+router.put('/users_agents/:id', verifyToken(), verifyModule('update_user_agent'), async (req, res) => {
     try {
         const { id } = req.params;
+        const { nome, gestor, cargo, seccional, regional } = req.body;
         const user = req.user;
-        const result = await delete_user_agent_admin({ id, user });
+        const result = await update_user_agent_admin({ id, nome, gestor, cargo, seccional, regional, user });
         res.json(result);
     } catch (error) {
         console.log(error)
@@ -140,11 +143,33 @@ router.delete('/users_agents/:id', verifyToken(), verifyModule('delete_users_age
     }
 });
 
-router.post('/send_message_to_agent', verifyToken(), verifyModule('send_message_to_agent'), async (req, res) => {
+router.delete('/users_agents/:id', verifyToken(), verifyModule('delete_user_agent'), async (req, res) => {
     try {
-        const { id, text, file } = req.body;
+        const { id } = req.params;
+        const { deleteLogin } = req.query;
         const user = req.user;
-        const result = await send_message_to_agent({ id, text, file, user });
+        const result = await delete_user_agent_admin({ id, user, deleteLogin: deleteLogin === 'true' });
+        res.json(result);
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post('/send_message_user_agent', verifyToken(), verifyModule('send_message_user_agent'), upload.single('file'), async (req, res) => {
+    try {
+        const { id, text, file: fileUrl, webAppButtonText, webAppButtonUrl, options } = req.body;
+        const file = req.file; // From multer
+        const user = req.user;
+        const result = await send_message_to_agent({ 
+            id, 
+            text, 
+            file: file || fileUrl, 
+            webAppButtonText, 
+            webAppButtonUrl, 
+            options, 
+            user 
+        });
         res.json(result);
     } catch (error) {
         console.log(error)
@@ -175,23 +200,6 @@ router.put('/search_in/:id', verifyToken(), verifyModule('update_search_in'), as
     }
 });
 
-// justify result example
-// [
-// {
-//     "id": 45,
-//     "instalacao": "2000166754",
-//     "tipo": "perda",
-//     "motivo": "Falta de atenção",
-//     "justificativa": "",
-//     "foto": "http://localhost:3040/file/agents/T38876/1776617120611-T38876-owkfta.png",
-//     "data_leit_prev": "04/03/2026",
-//     "author": "T38876",
-//     "estado": "pi",
-//     "quantidade": null,
-//     "created_at": "2026-04-19T16:45:31.694Z",
-//     "updated_at": "2026-04-19T16:45:31.694Z"
-// }
-// ]
 router.get('/justify', verifyToken(), verifyModule('justify'), async (req, res) => {
     try {
         const { instalacao, tipo, data_leit_prev, estado, page, limit, search } = req.query;
@@ -239,24 +247,6 @@ router.delete('/justify/:id', verifyToken(), verifyModule('delete_justify'), asy
     }
 });
 
-
-// justify_pending result example
-// [
-// {
-//         "id": 1,
-//         "autor": "t38876",
-//         "quantidade": 10,
-//         "tipo": null,
-//         "unidade_leitura": "TH03B050",
-//         "motivo": null,
-//         "observacao": null,
-//         "foto": null,
-//         "estado": "pi",
-//         "status": "pendente",
-//         "created_at": "2026-04-20T12:50:26.962Z",
-//         "updated_at": "2026-04-20T12:50:26.962Z"
-// }
-// ]
 router.get('/justify_pending', verifyToken(), verifyModule('justify_pending'), async (req, res) => {
     try {
         const { autor, status, page, limit, estado, search } = req.query;
@@ -296,21 +286,6 @@ router.delete('/justify_pending/:id', verifyToken(), verifyModule('delete_justif
     }
 });
 
-// daily_report result example
-// [
-// {
-//    "id": 1,
-//    "autor": "t38876",
-//    "nota": 4,
-//    "motivo": "Tudo certo",
-//    "observacao": "Deu certo",
-//    "estado": "pi",
-//    "data_report": "2026-04-15T03:00:00.000Z",
-//    "created_at": "2026-04-15T01:56:53.731Z",
-//    "updated_at": "2026-04-15T01:56:53.731Z",
-//    "foto": "http://files.izi.tec.br:9000/api-banco-prod/agents/T38876/1776217829450-T38876-echin.png"
-// }
-// ]
 router.get('/daily_report', verifyToken(), verifyModule('daily_report'), async (req, res) => {
     try {
         const { autor, data, limit, page, search, estado, motivo } = req.query;
@@ -349,28 +324,6 @@ router.delete('/daily_report/:id', verifyToken(), verifyModule('delete_daily_rep
     }
 });
 
-
-// inventory result example
-// [
-// {
-// "id": 43,
-// "agente": "l83649894",
-// "pda_imei_1": "353101 867268 186",
-// "pda_imei_2": "895510 951600 084",
-// "pda_numero_serie": "R9QY100RRVN",
-// "pda_marca": "SAMSUNG",
-// "pda_modelo": "SM-A057M",
-// "pda_numero_chip": "(86) 98105-6395",
-// "pda_versao_android": "15.0",
-// "pda_versao_bluetooth": null,
-// "impressora_numero_serie": "XXRBN250800695",
-// "impressora_modelo": "ZQ521",
-// "impressora_marca": "ZEBRA",
-// "estado": "pi",
-// "created_at": "2026-04-15T20:10:13.953Z",
-// "updated_at": "2026-04-15T20:10:13.953Z"
-// }
-// ]
 router.get('/inventory', verifyToken(), verifyModule('inventory'), async (req, res) => {
     try {
         const { page, limit, search } = req.query;
@@ -409,18 +362,6 @@ router.delete('/inventory/:id', verifyToken(), verifyModule('delete_inventory'),
     }
 });
 
-// available_modules result example
-// [
-//     {
-//         "id": "search_in",
-//         "name": "Busca Instalação"
-//     },
-//     {
-//         "id": "update_search_in",
-//         "name": "Atualizar Busca Instalação"
-//     },
-//     ...
-// ]
 router.get('/available_modules', verifyToken('COMPANY_ADMIN'), async (req, res) => {
     try {
         const modules = await listModules();
