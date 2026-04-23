@@ -55,7 +55,7 @@ async function perdasJson(state = 'pi', region = 'all', dateinit = today(), date
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, motivo_perda,
-           perda_prevista_mensal, agente, nome_agente, latitude, longitude, data_conclusao, supervisor, tipo_perda,status_perda, ntlei as apontamento_atual, apontamento as apontamento_anterior, grupo_cnl
+           perda_prevista_mensal, agente, nome_agente, latitude, longitude, data_conclusao, data_leit_prev, supervisor, tipo_perda,status_perda, ntlei as apontamento_atual, apontamento as apontamento_anterior, grupo_cnl
     FROM matriz
     WHERE data_conclusao::date
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
@@ -71,6 +71,7 @@ async function perdasJson(state = 'pi', region = 'all', dateinit = today(), date
         const dt = new Date(r.data_conclusao);
         r.data_conclusao = dt.toLocaleDateString('pt-BR');
         r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+        r.data_leit_prev = new Date(r.data_leit_prev).toLocaleDateString('pt-BR');
         return r;
     });
 }

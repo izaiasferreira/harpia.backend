@@ -42,7 +42,21 @@ const AVAILABLE_MODULES = [
     { id: 'create_user_agent', name: 'Criar Agente' },
     { id: 'update_user_agent', name: 'Atualizar Agente' },
     { id: 'delete_user_agent', name: 'Deletar Agente' },
-    { id: 'send_message_user_agent', name: 'Enviar Mensagem para Agente' }
+    { id: 'send_message_user_agent', name: 'Enviar Mensagem para Agente' },
+    // Treinamentos
+    { id: 'training_projects', name: 'Projetos de Treinamento' },
+    { id: 'create_training_project', name: 'Criar Projeto de Treinamento' },
+    { id: 'update_training_project', name: 'Atualizar Projeto de Treinamento' },
+    { id: 'delete_training_project', name: 'Deletar Projeto de Treinamento' },
+    // Modelos de Mensagem
+    { id: 'message_templates', name: 'Consultar Modelos de Mensagem' },
+    { id: 'create_message_template', name: 'Criar Modelo de Mensagem' },
+    { id: 'update_message_template', name: 'Atualizar Modelo de Mensagem' },
+    { id: 'delete_message_template', name: 'Deletar Modelo de Mensagem' },
+    // Relatórios de Segurança
+    { id: 'security_reports', name: 'Consultar Relatórios de Segurança' },
+    { id: 'create_security_report', name: 'Criar Relatório de Segurança' },
+    { id: 'delete_security_report', name: 'Deletar Relatório de Segurança' }
 ];
 
 async function listModules() {

@@ -15,7 +15,7 @@ async function c12_Json(state = 'pi', region = 'all', dateinit = today(), dateen
             ),
             base_calculos AS (
                 SELECT 
-                    instalacao, etapa, TRIM(seccional) as seccional, TRIM(regional) as regional, TRIM(ntlei) as ntlei, agente, nome_agente, supervisor,
+                    instalacao, etapa, TRIM(seccional) as seccional, TRIM(regional) as regional, TRIM(ntlei) as ntlei, agente, nome_agente, supervisor, data_leit_prev,
                     status_ds, data_conclusao, latitude, longitude, tipo_perda,
                     -- Histórico por Instalação
                     LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant,
@@ -40,7 +40,7 @@ async function c12_Json(state = 'pi', region = 'all', dateinit = today(), dateen
             )
             SELECT 
                 instalacao, etapa, seccional, regional, ntlei, ntlei_ant, ntlei_ant2, 
-                agente, nome_agente, supervisor, status_ds, data_conclusao, latitude, longitude,
+                agente, nome_agente, supervisor, data_leit_prev, status_ds, data_conclusao, latitude, longitude,
                 tempo_execucao_segundos,
                 to_char(tempo_execucao_segundos * interval '1 second', 'HH24:MI:SS') as tempo_formatado
             FROM calculo_tempo
@@ -59,6 +59,7 @@ async function c12_Json(state = 'pi', region = 'all', dateinit = today(), dateen
             const dt = new Date(r.data_conclusao);
             r.data_conclusao = dt.toLocaleDateString('pt-BR');
             r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+            r.data_leit_prev = new Date(r.data_leit_prev).toLocaleDateString('pt-BR');
             return r;
         });
     } catch (error) {

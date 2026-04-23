@@ -227,9 +227,11 @@ router.put('/justify/:id', verifyToken(), verifyModule('update_justify'), async 
 
 router.delete('/justify/:id', verifyToken(), verifyModule('delete_justify'), async (req, res) => {
     try {
+        console.log(req.params.id)
         const result = await delete_justify_admin(req.params.id);
         res.json(result);
     } catch (error) {
+        console.log(error)
         res.status(500).json({ error: error.message });
     }
 });

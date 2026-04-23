@@ -79,12 +79,14 @@ async function notStartServices(state = 'pi',) {
     supervisor,
     COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao::date = CURRENT_DATE) AS total_concluidas,
     COUNT(*) FILTER (WHERE concluido <> 'CONCLUIDO') AS total_pend,
+    -- Nova coluna JSON com valores únicos
+    COALESCE(json_agg(DISTINCT unidade_leitura) FILTER (WHERE concluido <> 'CONCLUIDO'), '[]') AS unidades_leitura,
     TO_CHAR(CURRENT_DATE, 'DD/MM/YYYY') AS date
     FROM matriz
     WHERE 
         TO_CHAR(data_leit_prev, 'MM.YYYY') = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
         AND agente <> ''
-    GROUP BY agente, nome_agente,supervisor, seccional, regional
+    GROUP BY agente, nome_agente, supervisor, seccional, regional
     HAVING 
         COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao::date = CURRENT_DATE) = 0
         AND COUNT(*) FILTER (WHERE concluido <> 'CONCLUIDO') > 0;
@@ -158,15 +160,14 @@ calculo_intervalos AS (
 }
 
 // ─── incompletedServices ────────────────────────────────────────────────────────
-async function incompletedServices(state = 'pi',) {
+async function incompletedServices(state = 'pi') {
     const query = `
     WITH servicos_detalhados AS (
-    -- 1. Buscamos todos os registros: concluídos hoje (para tempo) e pendentes (para contagem)
+    -- 1. Buscamos todos os registros: incluídos hoje e pendentes
     SELECT 
         agente, nome_agente, seccional, regional, concluido, data_conclusao, data_leit_prev, supervisor,
-        -- Extraímos a hora do timestamp para cálculos matemáticos
+        instalacao, unidade_leitura, -- Adicionado para permitir o agrupamento JSON
         data_conclusao::time as hora_fim_time,
-        -- Buscamos a hora do serviço anterior do mesmo agente no mesmo dia
         LAG(data_conclusao::time) OVER (
             PARTITION BY agente, data_conclusao::date
             ORDER BY data_conclusao ASC
@@ -180,41 +181,39 @@ async function incompletedServices(state = 'pi',) {
       )
     ),
     calculo_intervalos AS (
-        -- 2. Aplicamos suas regras de negócio para os tempos
+        -- 2. Aplicamos as regras de negócio para os tempos
         SELECT 
             *,
             CASE 
                 WHEN concluido <> 'CONCLUIDO' THEN INTERVAL '0'
-                -- REGRA: Primeiro serviço do dia = 60 segundos
                 WHEN hora_fim_anterior IS NULL THEN INTERVAL '60 seconds'
-                -- REGRA: Hora Atual - Hora Anterior
                 ELSE (hora_fim_time - hora_fim_anterior)
             END as diff_servico
         FROM servicos_detalhados
     )
-    -- 3. Agrupamento final com contagens e métricas de tempo
+    -- 3. Agrupamento final com contagens, métricas e listas JSON
     SELECT 
         agente, 
         nome_agente, 
         seccional, 
         regional,
         supervisor,
-        -- Contagens solicitadas
         COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao::date = CURRENT_DATE) AS total_conc,
         COUNT(*) FILTER (WHERE concluido = 'PENDENTE') AS total_pend,
-        -- Horários de Início e Fim (Baseado no primeiro e último concluído)
         TO_CHAR(MIN(hora_fim_time) FILTER (WHERE concluido = 'CONCLUIDO'), 'HH24:MI:SS') as hora_inicio,
         TO_CHAR(MAX(hora_fim_time) FILTER (WHERE concluido = 'CONCLUIDO'), 'HH24:MI:SS') as hora_fim,
-        -- Cálculos de Intervalo
         TO_CHAR(SUM(diff_servico), 'HH24:MI:SS') as tempo_total,
-        TO_CHAR(SUM(CASE WHEN diff_servico > INTERVAL '20 minutes' THEN diff_servico ELSE INTERVAL '0' END), 'HH24:MI:SS') as tempo_pausas
+        TO_CHAR(SUM(CASE WHEN diff_servico > INTERVAL '20 minutes' THEN diff_servico ELSE INTERVAL '0' END), 'HH24:MI:SS') as tempo_pausas,
+        
+        -- NOVAS COLUNAS EM JSON
+        COALESCE(json_agg(instalacao) FILTER (WHERE concluido = 'PENDENTE'), '[]') as instalacoes_pendentes,
+        COALESCE(json_agg(DISTINCT unidade_leitura) FILTER (WHERE concluido = 'PENDENTE'), '[]') as unidades_leitura
+        
     FROM calculo_intervalos
     WHERE TO_CHAR(data_leit_prev, 'MM.YYYY') = TO_CHAR(CURRENT_DATE, 'MM.YYYY')
-    GROUP BY agente, nome_agente,supervisor, seccional, regional
+    GROUP BY agente, nome_agente, supervisor, seccional, regional
     HAVING 
-        -- Filtro: Teve pelo menos 1 concluído hoje
         COUNT(*) FILTER (WHERE concluido = 'CONCLUIDO' AND data_conclusao::date = CURRENT_DATE) > 10
-        -- Filtro: Tem mais de 10 pendentes
         AND COUNT(*) FILTER (WHERE concluido = 'PENDENTE') > 10;
   `;
 

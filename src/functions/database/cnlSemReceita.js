@@ -6,7 +6,7 @@ async function e02Json(state = 'pi', region = 'all', dateinit = today(), dateend
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
-           status_ds, data_conclusao, latitude, longitude
+           status_ds, data_conclusao, latitude, longitude, data_leit_prev
     FROM matriz
     WHERE data_conclusao::date
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
@@ -21,6 +21,7 @@ async function e02Json(state = 'pi', region = 'all', dateinit = today(), dateend
         const dt = new Date(r.data_conclusao);
         r.data_conclusao = dt.toLocaleDateString('pt-BR');
         r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+        r.data_leit_prev = new Date(r.data_leit_prev).toLocaleDateString('pt-BR');
         return r;
     });
 }
@@ -30,7 +31,7 @@ async function c16Json(state = 'pi', region = 'all', dateinit = today(), dateend
     const params = [dateinit, dateend];
     let query = `
     SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
-           status_ds, data_conclusao, latitude, longitude
+           status_ds, data_conclusao, latitude, longitude, data_leit_prev
     FROM matriz
     WHERE data_conclusao::date
       BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
@@ -45,6 +46,7 @@ async function c16Json(state = 'pi', region = 'all', dateinit = today(), dateend
         const dt = new Date(r.data_conclusao);
         r.data_conclusao = dt.toLocaleDateString('pt-BR');
         r.hora_conclusao = dt.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+        r.data_leit_prev = new Date(r.data_leit_prev).toLocaleDateString('pt-BR');
         return r;
     });
 }

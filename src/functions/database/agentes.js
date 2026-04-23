@@ -587,6 +587,7 @@ async function pre_create_pending_justify({
     tipo,
     unidade_leitura,
     foto,
+    instalacao = JSON.stringify([]),
     created_at = new Date(),
     updated_at = new Date()
 }) {
@@ -599,6 +600,7 @@ async function pre_create_pending_justify({
             quantidade INTEGER NOT NULL,
             tipo TEXT,
             unidade_leitura TEXT,
+            instalacao JSONB,
             motivo TEXT,
             observacao TEXT,
             foto TEXT,
@@ -613,13 +615,14 @@ async function pre_create_pending_justify({
     // Adicionar colunas se não existirem (para tabelas antigas)
     await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => { });
     await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => { });
+    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS instalacao JSONB`).catch(() => { });
 
     const insertQuery = `
-        INSERT INTO justify_pending (autor, quantidade, tipo, unidade_leitura, foto, estado, status, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, 'pendente', $7, $8)
+        INSERT INTO justify_pending (autor, quantidade, tipo, unidade_leitura, instalacao, foto, estado, status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 'pendente', $8, $9)
         RETURNING *;
     `;
-    const { rows } = await pool.query(insertQuery, [autor.toLowerCase(), quantidade, tipo, unidade_leitura, foto, state.toLowerCase(), created_at, updated_at]);
+    const { rows } = await pool.query(insertQuery, [autor.toLowerCase(), quantidade, tipo, unidade_leitura, JSON.stringify(instalacao ), foto, state.toLowerCase(), created_at, updated_at]);
     return rows[0];
 }
 
@@ -1045,20 +1048,27 @@ async function createSecurityReportTable() {
             observacao TEXT,
             latitude TEXT,
             longitude TEXT,
+            estado TEXT,
             created_at TIMESTAMP DEFAULT NOW()
         )
     `);
+
+    // Add estado column if it doesn't exist (for existing tables)
+    await cenos_pool.query(`
+        ALTER TABLE security_report 
+        ADD COLUMN IF NOT EXISTS estado TEXT;
+    `).catch(() => { });
 }
 
 async function create_security_report(data) {
     await createSecurityReportTable();
-    const { autor, motivo, observacao, latitude, longitude } = data;
+    const { autor, motivo, observacao, latitude, longitude, estado } = data;
     const query = `
-        INSERT INTO security_report (autor, motivo, observacao, latitude, longitude)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO security_report (autor, motivo, observacao, latitude, longitude, estado)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *
     `;
-    const { rows } = await cenos_pool.query(query, [autor, motivo, observacao, latitude, longitude]);
+    const { rows } = await cenos_pool.query(query, [autor, motivo, observacao, latitude, longitude, estado]);
     return rows[0];
 }
 

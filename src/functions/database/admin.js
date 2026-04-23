@@ -548,7 +548,7 @@ async function get_justify_admin({ instalacao, tipo, data_leit_prev, estado, pag
     return filteredRows.slice(offsetVal, offsetVal + limitVal).map(r => {
         const agentData = result.find(a => a.id?.toString().toUpperCase() === r.author?.toString().toUpperCase());
         if (!agentData) return r;
-        return { ...r, ...agentData };
+        return { ...agentData, ...r };
     });
 }
 
@@ -643,8 +643,8 @@ async function get_pending_justifies_admin({ state = 'pi', autor, status = 'pend
     return filteredRows.slice(offsetVal, offsetVal + limitVal).map(r => {
         const agent = result.find(a => a.id?.toString().toUpperCase() === r.autor?.toString().toUpperCase());
         return {
-            ...r,
-            ...agent
+            ...agent,
+            ...r
         }
     });
 }
@@ -754,8 +754,8 @@ async function get_daily_reports_admin({ autor, data, limit = 9999, page = 1, in
     return filteredRows.slice(offsetVal, offsetVal + limitVal).map(r => {
         const agent = result.find(a => a.id?.toString().toUpperCase() === r.autor?.toString().toUpperCase());
         return {
-            ...r,
-            ...agent
+            ...agent,
+            ...r
         };
     });
 }

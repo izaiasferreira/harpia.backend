@@ -2071,6 +2071,478 @@ Lista inventário de equipamentos dos agentes.
 
 ---
 
+## Training Projects
+
+**Autenticação:** Bearer token (`/training/*`)
+
+---
+
+### `POST /training`
+
+Cria um novo projeto de treinamento.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:**
+```json
+{
+    "name": "Treinamento de Agentes",
+    "description": "Curso para novos agentes"
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `name` | string | **Sim** | Nome do projeto |
+| `description` | string | Não | Descrição do projeto |
+
+**Response 201:**
+```json
+{
+    "id": 1,
+    "user_id": 1,
+    "name": "Treinamento de Agentes",
+    "description": "Curso para novos agentes",
+    "created_at": "2026-04-22T00:00:00.000Z",
+    "updated_at": "2026-04-22T00:00:00.000Z"
+}
+```
+
+**Erros:**
+- `400` — Nome é obrigatório
+- `401` — Token inválido
+
+---
+
+### `GET /training`
+
+Lista projetos de treinamento do usuário logado com paginação.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:**
+
+| Campo | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `page` | number | `1` | Página |
+| `limit` | number | `20` | Itens por página |
+
+**Response 200:**
+```json
+{
+    "data": [
+        {
+            "id": 1,
+            "user_id": 1,
+            "name": "Treinamento de Agentes",
+            "description": "Curso para novos agentes",
+            "created_at": "2026-04-22T00:00:00.000Z",
+            "updated_at": "2026-04-22T00:00:00.000Z"
+        }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1
+}
+```
+
+---
+
+### `GET /training/:id`
+
+Busca um projeto de treinamento pelo ID.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**URL Params:**
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `id` | number | ID do projeto |
+
+**Response 200:** Objeto do projeto.
+
+**Erros:**
+- `404` — Projeto não encontrado
+
+---
+
+### `PUT /training/:id`
+
+Atualiza um projeto de treinamento pelo ID.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**URL Params:**
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `id` | number | ID do projeto |
+
+**Body:**
+```json
+{
+    "name": "Nome atualizado",
+    "description": "Descrição atualizada"
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `name` | string | Não | Novo nome |
+| `description` | string | Não | Nova descrição |
+
+**Response 200:** Objeto do projeto atualizado.
+
+**Erros:**
+- `404` — Projeto não encontrado
+
+---
+
+### `DELETE /training/:id`
+
+Deleta um projeto de treinamento pelo ID.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**URL Params:**
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `id` | number | ID do projeto |
+
+**Response 200:**
+```json
+{
+    "success": true,
+    "deleted": {
+        "id": 1,
+        "user_id": 1,
+        "name": "Treinamento de Agentes",
+        "description": "Curso para novos agentes",
+        "created_at": "2026-04-22T00:00:00.000Z",
+        "updated_at": "2026-04-22T00:00:00.000Z"
+    }
+}
+```
+
+**Erros:**
+- `404` — Projeto não encontrado
+
+---
+
+---
+
+## Message Templates
+
+**Autenticação:** Bearer token (`/admin/message_templates/*`)
+
+---
+
+### `POST /admin/message_templates`
+
+Cria um novo modelo de mensagem para o Telegram.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:**
+```json
+{
+    "name": "Falta de veículo",
+    "text": "Olá, identificamos que você está sem veículo para a rota de hoje.",
+    "file": "https://example.com/image.jpg",
+    "webAppButtonText": "Abrir Mapa",
+    "webAppButtonUrl": "https://meu-mini-app.com"
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `name` | string | **Sim** | Nome identificador do modelo |
+| `text` | string | Não* | Conteúdo da mensagem (Texto) |
+| `file` | string | Não* | URL da imagem ou arquivo |
+| `webAppButtonText` | string | Não | Texto para o botão de Mini App |
+| `webAppButtonUrl` | string | Não | URL do Mini App |
+
+> \* É obrigatório o envio de ao menos um dos dois: `text` ou `file`.
+
+**Response 201:**
+```json
+{
+    "id": 1,
+    "name": "Falta de veículo",
+    "text": "Olá, identificamos que você...",
+    "file": "https://example.com/image.jpg",
+    "web_app_button_text": "Abrir Mapa",
+    "web_app_button_url": "https://meu-mini-app.com",
+    "created_at": "2026-04-23T12:00:00.000Z",
+    "updated_at": "2026-04-23T12:00:00.000Z"
+}
+```
+
+---
+
+### `GET /admin/message_templates`
+
+Lista modelos de mensagem com paginação e busca.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:**
+
+| Campo | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `search` | string | — | Busca por nome ou texto |
+| `page` | number | `1` | Página |
+| `limit` | number | `9999` | Itens por página |
+
+**Response 200:**
+```json
+{
+    "data": [...],
+    "total": 10,
+    "page": 1,
+    "limit": 9999,
+    "totalPages": 1
+}
+```
+
+---
+
+### `PUT /admin/message_templates/:id`
+
+Atualiza um modelo de mensagem pelo ID.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**URL Params:**
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `id` | number | ID do modelo |
+
+**Body:**
+```json
+{
+    "name": "Nome atualizado",
+    "text": "Texto atualizado",
+    "file": "https://nova-imagem.jpg"
+}
+```
+
+**Response 200:** Objeto do modelo atualizado.
+
+---
+
+### `DELETE /admin/message_templates/:id`
+
+Deleta um modelo de mensagem pelo ID.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**URL Params:**
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `id` | number | ID do modelo |
+
+**Response 200:**
+```json
+{
+    "success": true,
+    "deleted": { "id": 1, ... }
+}
+```
+
+---
+
+---
+
+## Admin Security Reports
+
+**Autenticação:** Bearer token (`/admin/security_reports/*`)
+
+---
+
+### `GET /admin/security_reports`
+
+Lista relatórios de segurança com filtros por estado, busca e limite temporal de 3 meses.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:**
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `estado` | string | Filtro por estado (`pi`, `ma`) |
+| `search` | string | Busca por autor, motivo ou observação |
+| `page` | number | Página (padrão: 1) |
+| `limit` | number | Limite por página (padrão: 9999) |
+
+**Response 200:**
+```json
+{
+    "data": [
+        {
+            "id": 1,
+            "autor": "T12345",
+            "motivo": "Área de risco",
+            "observacao": "Pessoas suspeitas",
+            "latitude": "-5.089",
+            "longitude": "-42.801",
+            "estado": "pi",
+            "created_at": "2026-04-23T10:00:00.000Z",
+            "nome": "NOME DO AGENTE",
+            "gestor": "NOME DO GESTOR",
+            ...
+        }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 9999,
+    "totalPages": 1
+}
+```
+
+---
+
+### `POST /admin/security_reports`
+
+Cria um novo relatório de segurança manualmente via admin.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:**
+```json
+{
+    "autor": "T12345",
+    "motivo": "Área de risco",
+    "observacao": "Detalhes adicionais",
+    "latitude": "-5.089",
+    "longitude": "-42.801",
+    "estado": "pi"
+}
+```
+
+**Response 201:** Objeto do relatório criado.
+
+---
+
+### `DELETE /admin/security_reports/:id`
+
+Deleta um relatório de segurança pelo ID.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response 200:**
+```json
+{
+    "success": true,
+    "deleted": { "id": 1, ... }
+}
+```
+
+---
+
+---
+
+## Gerenciador de Treinamentos (Interactive Training)
+
+**Autenticação:** Bearer token (`/training/*`)
+
+---
+
+### `POST /training`
+
+Cria um novo projeto de treinamento.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:**
+```json
+{
+    "name": "Treinamento Exemplo",
+    "description": "Descrição detalhada do treinamento"
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `name` | string | **Sim** | Nome do projeto |
+| `description` | string | Não | Descrição do projeto |
+
+**Response 201:** Objeto do projeto criado.
+
+---
+
+### `GET /training`
+
+Lista os projetos de treinamento do usuário autenticado.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:**
+| Campo | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `page` | number | `1` | Página |
+| `limit` | number | `20` | Itens por página |
+
+**Response 200:**
+```json
+{
+    "data": [...],
+    "total": 5,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1
+}
+```
+
+---
+
+### `GET /training/:id`
+
+Busca os detalhes de um projeto pelo ID.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response 200:** Objeto do projeto.
+
+---
+
+### `PUT /training/:id`
+
+Atualiza um projeto existente.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:**
+```json
+{
+    "name": "Novo Nome",
+    "description": "Nova descrição"
+}
+```
+
+**Response 200:** Objeto atualizado.
+
+---
+
+### `DELETE /training/:id`
+
+Remove um projeto pelo ID.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response 200:**
+```json
+{
+    "success": true,
+    "deleted": { "id": 1, ... }
+}
+```
+
+---
+
 ## CORS
 
 O CORS é configurado via `CORS_ORIGINS` no `.env`:

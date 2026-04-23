@@ -248,8 +248,6 @@ router.get('/agent_data', async (req, res) => {
     }
 });
 
-
-
 router.get('/custom_links', async (req, res) => {
     try {
         const state = req.colaborador.estado || 'pi';
@@ -584,7 +582,8 @@ router.post('/security_report', async (req, res) => {
             motivo,
             observacao,
             latitude,
-            longitude
+            longitude,
+            estado: req.colaborador.estado || 'pi'
         });
 
         res.status(201).json(result);
