@@ -691,7 +691,7 @@ async function get_pending_justify_by_id({ id, estado = 'pi' }) {
     return rows[0] || null;
 }
 
-async function get_pending_justifies({ state = 'pi', autor, status = 'pendente', page = 1, limit = 20 }) {
+async function get_pending_justifies({ autor, status = 'pendente', page = 1, limit = 20 }) {
     const pool = cenos_pool;
 
     const createTableQuery = `

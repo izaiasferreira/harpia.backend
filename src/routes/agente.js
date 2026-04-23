@@ -50,13 +50,22 @@ router.get('/agent_dashboard', async (req, res) => {
         const today_date = req.query.date || today();
 
         // Buscar dados reais em paralelo
-        const [result, pending, licacao_nova_c12_rows, fast_c12_rows, first_c12_rows, weekly_cnl_stats] = await Promise.all([
+        const [
+            result,
+            pending,
+            licacao_nova_c12_rows,
+            fast_c12_rows,
+            first_c12_rows,
+            weekly_cnl_stats,
+            pending_justifies
+        ] = await Promise.all([
             getLeiturasForAgent({ state, id, date: today_date, limit: 99999 }),
             getLeiturasPendingForAgent({ state, id, date: today_date, limit: 99999 }),
             licacaoNovaC12ForAgent({ state, id, date: today_date }),
             fastC12ForAgent({ state, id, date: today_date }),
             firstC12ForAgent({ state, id, date: today_date }),
-            getWeeklyCNLStats({ state, id, date: today_date })
+            getWeeklyCNLStats({ state, id, date: today_date }),
+            get_pending_justifies({ autor: id, status: 'pendente', page: 1, limit: 100 })
         ]);
         const licacao_nova_c12 = licacao_nova_c12_rows.length || 0;
         const fast_c12 = fast_c12_rows.length || 0;
@@ -115,7 +124,8 @@ router.get('/agent_dashboard', async (req, res) => {
                 perdas,
                 percent_cnl,
                 quant_c12,
-                quant_c12_out_hour
+                quant_c12_out_hour,
+                pending_justifies
             }
         });
         res.json(layout);

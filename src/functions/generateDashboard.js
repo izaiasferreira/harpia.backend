@@ -3,7 +3,7 @@ function getAssetsLink(fileName) {
     const assetsLink = process.env.PUBLIC_BASE_URL + '/files/assets/' + fileName;
     return assetsLink;
 }
-function generateDashboard({ state, id, today_date, stats }) {
+function generateDashboard({ state, id, stats }) {
 
     let banners = [
         {
@@ -221,29 +221,15 @@ function generateDashboard({ state, id, today_date, stats }) {
         },
     ];
 
-    //caso o id não comece com letra, adicionar um alerta
-    if (!id.match(/^[a-zA-Z]/)) {
-        widgets.unshift({
-            id: 'alert_1',
-            type: 'alertCard',
-            size: { colSpan: 3, rowSpan: 1 },
-            data: {
-                title: "Atenção",
-                message: "Identificamos que seu cadastro está incorreto. Feche essa página e digite /cadastro para se cadastrar novamente.",
-                severity: "warning"
-            },
-        });
-    }
-
-    if (['F26469341', 'T30088', 'T54295'].includes(id)) {
+    if (stats.pending_justifies.length > 0) {
         widgets.unshift({
             id: 'alert_2',
             type: 'alertCard',
             size: { colSpan: 3, rowSpan: 1 },
             data: {
-                title: "OBRIGADO!",
-                message: "Seu comentário de melhoria na pesquisa de satisfação foi ouvido e aprovado! Já estamos trabalhando nisso. Agradecemos a sua sugestão!",
-                severity: "success"
+                title: "ATENÇÃO!",
+                message: "Você possui pendências a justificar. Por favor, acesse o menu lateral e clique em 'Justificar Pendências'.",
+                severity: "warning"
             },
         });
     }
