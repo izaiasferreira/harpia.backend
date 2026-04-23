@@ -1602,6 +1602,48 @@ Cria ou atualiza registro de inventário (sempre atualiza o mesmo registro).
 
 ---
 
+### Security Report
+
+**Autenticação:** Telegram Auth (middleware `telegramAuth`)
+
+---
+
+#### `POST /agent/security_report`
+Registra ocorrências de segurança ou problemas em rota com coordenadas geográficas.
+
+**Body:**
+```json
+{
+    "motivo": "Acesso negado / Área de risco",
+    "observacao": "Presença de pessoas suspeitas na via",
+    "latitude": "-5.08921",
+    "longitude": "-42.8016"
+}
+```
+
+**Campos:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `motivo` | string | Sim | Título/tipo da ocorrência |
+| `observacao` | string | Não | Detalhes adicionais |
+| `latitude` | string | Não | Coordenada latitude |
+| `longitude` | string | Não | Coordenada longitude |
+
+**Retorno (sucesso):**
+```json
+{
+    "id": 1,
+    "autor": "T12345",
+    "motivo": "Acesso negado / Área de risco",
+    "observacao": "Presença de pessoas suspeitas na via",
+    "latitude": "-5.08921",
+    "longitude": "-42.8016",
+    "created_at": "2026-04-22T21:40:00.000Z"
+}
+```
+
+---
+
 ### Upload (MinIO/S3)
 
 **Autenticação:** Token simples (`?token=API_TOKEN`)

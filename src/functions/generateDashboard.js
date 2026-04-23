@@ -60,7 +60,7 @@ function generateDashboard({ state, id, today_date, stats }) {
                 icon: 'AlertTriangle',
                 color: 'text-red-500 bg-red-50/10'
             },
-            action: { type: 'link', url: '/services?filter=all' }
+            action: { type: 'link', url: '/justify-pending' }
         },
         {
             id: 'stat_perdas',

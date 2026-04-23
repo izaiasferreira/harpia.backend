@@ -54,7 +54,8 @@ const {
     get_daily_report_today,
     delete_daily_report,
     get_inventory_by_agent,
-    save_inventory
+    save_inventory,
+    create_security_report
 } = require('./database/agentes');
 const { lastUpdate } = require('./database/status');
 
@@ -103,5 +104,6 @@ module.exports = {
     get_daily_report_today,
     delete_daily_report,
     get_inventory_by_agent,
-    save_inventory
+    save_inventory,
+    create_security_report
 };

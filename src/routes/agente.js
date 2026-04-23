@@ -25,7 +25,8 @@ const {
     get_daily_reports,
     get_daily_report_today,
     get_inventory_by_agent,
-    save_inventory
+    save_inventory,
+    create_security_report
 } = require('../functions/postgresFunctions');
 const { minioClient, CONFIG, ensureBucketExists, getFileUrl, compressImage } = require('../functions/minio');
 const { telegramAuth } = require('../middlewares/telegramAuth');
@@ -555,6 +556,30 @@ router.post('/inventory', async (req, res) => {
         res.status(201).json(result);
     } catch (err) {
         console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/security_report', async (req, res) => {
+    try {
+        const autor = req.colaborador.id;
+        const { motivo, observacao, latitude, longitude } = req.body;
+
+        if (!motivo) {
+            return res.status(400).json({ error: 'Motivo é obrigatório' });
+        }
+
+        const result = await create_security_report({
+            autor,
+            motivo,
+            observacao,
+            latitude,
+            longitude
+        });
+
+        res.status(201).json(result);
+    } catch (err) {
+        console.error('Erro ao criar reporte de segurança:', err);
         res.status(500).json({ error: err.message });
     }
 });

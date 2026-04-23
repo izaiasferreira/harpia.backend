@@ -1034,6 +1034,34 @@ async function save_inventory({
     return { ...rows[0], action: 'created' };
 }
 
+// ─── security_report ───────────────────────────────────────────────────────────
+
+async function createSecurityReportTable() {
+    await cenos_pool.query(`
+        CREATE TABLE IF NOT EXISTS security_report (
+            id SERIAL PRIMARY KEY,
+            autor TEXT NOT NULL,
+            motivo TEXT NOT NULL,
+            observacao TEXT,
+            latitude TEXT,
+            longitude TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    `);
+}
+
+async function create_security_report(data) {
+    await createSecurityReportTable();
+    const { autor, motivo, observacao, latitude, longitude } = data;
+    const query = `
+        INSERT INTO security_report (autor, motivo, observacao, latitude, longitude)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING *
+    `;
+    const { rows } = await cenos_pool.query(query, [autor, motivo, observacao, latitude, longitude]);
+    return rows[0];
+}
+
 module.exports = {
     getLeiturasForAgent,
     getLeiturasPendingForAgent,
@@ -1058,5 +1086,6 @@ module.exports = {
     get_daily_report_today,
     delete_daily_report,
     get_inventory_by_agent,
-    save_inventory
+    save_inventory,
+    create_security_report
 };
