@@ -22,11 +22,11 @@ const veiculo = {
 
 const getUserAllowedStatePools = (user) => {
     if (!user) return [];
-    
+
     const isMainAdmin = userIsAdmin(user);
     const userFilters = user?.permissions?.map(p => p.filters).flat() || [];
     const statesFilters = userFilters.filter(f => f.type === 'estado').map(f => f.value.toLowerCase());
-    
+
     const available = [];
     if (isMainAdmin || statesFilters.includes('pi')) available.push({ state: 'pi', pool: pi_pool });
     if (isMainAdmin || statesFilters.includes('ma')) available.push({ state: 'ma', pool: ma_pool });
@@ -158,7 +158,7 @@ async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, 
     if (filterUser && !userIsAdmin(user)) {
         rowsACC = rowsACC.filter(r => {
             // console.log(filterUser.type);
-           return r[filterUser.type] === filterUser.value
+            return r[filterUser.type] === filterUser.value
         });
     }
 
@@ -177,7 +177,7 @@ async function get_user_agent_options({ estado }) {
     const query = `SELECT DISTINCT "GESTOR IMEDIATO" FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL`;
     const { rows } = await estado === 'pi' ? await pi_pool.query(query) : await ma_pool.query(query);
     result.gestores = rows.map(r => r['GESTOR IMEDIATO']);
-    
+
 
     const query2 = `SELECT DISTINCT uac FROM localidades WHERE uac IS NOT NULL`;
     const { rows: rows2 } = await estado === 'pi' ? await pi_pool.query(query2) : await ma_pool.query(query2);
@@ -190,7 +190,7 @@ async function get_user_agent_options({ estado }) {
     const query4 = `SELECT DISTINCT "Cargo" FROM colaboradores WHERE "Cargo" IS NOT NULL`;
     const { rows: rows4 } = await estado === 'pi' ? await pi_pool.query(query4) : await ma_pool.query(query4);
     result.cargos = rows4.map(r => r['Cargo']);
-    
+
     return result;
 }
 
@@ -247,7 +247,7 @@ async function send_message_to_agent({ id, text, file, webAppButtonText, webAppB
 
         formData.append('mediaType', mediaType);
         formData.append('media', new Blob([file.buffer]), file.originalname);
-        
+
         payload = formData;
         contentType = undefined; // Deixa o axios definir o boundary
     } else {
@@ -335,7 +335,7 @@ async function delete_user_agent_admin({ id, user, deleteLogin = false }) {
 
     try {
         await target.pool.query(`DELETE FROM colaboradores WHERE "ID" = $1`, [id?.toUpperCase()]);
-        
+
         if (deleteLogin) {
             await cenos_pool.query(`DELETE FROM login WHERE id = $1`, [id?.toUpperCase()]);
         }
@@ -411,7 +411,7 @@ async function get_inventory_admin({ user, page = 1, limit = 9999, search }) {
     }
 
     query += ` ORDER BY agente, created_at DESC`;
-    
+
     const { rows } = await pool.query(query, params);
 
     // Obtém todos os agentes autorizados uma única vez
@@ -420,7 +420,7 @@ async function get_inventory_admin({ user, page = 1, limit = 9999, search }) {
     let filteredRows = rows.map(r => {
         const agentData = allowedAgentsRes.find(a => a.id?.toString().toUpperCase() === r.agente?.toString().toUpperCase());
         if (!agentData) return null;
-        
+
         // Acopla dados do agente ao registro do inventário
         return { ...r, ...agentData };
     }).filter(Boolean);
@@ -428,7 +428,7 @@ async function get_inventory_admin({ user, page = 1, limit = 9999, search }) {
     // Busca Global em todas as propriedades do objeto (ID, Nome, IMEI, Regional, etc)
     if (search) {
         const s = search.toLowerCase();
-        filteredRows = filteredRows.filter(r => 
+        filteredRows = filteredRows.filter(r =>
             Object.values(r).some(v => String(v || '').toLowerCase().includes(s))
         );
     }
@@ -519,23 +519,25 @@ async function get_justify_admin({ instalacao, tipo, data_leit_prev, estado, pag
     }
 
     query += ` ORDER BY created_at DESC`;
-    
+
     // Buscamos um set maior para possibilitar filtragem por hierarquia em memória
     const { rows } = await pool.query(query, params);
-    
-    const allowedAgents = (await get_users_agents_admin({ user }) || []).map(a => a.id?.toString().toUpperCase());
 
-    
+    const result = (await get_users_agents_admin({ user }) || [])
+
+    const allowedAgents = result.map(a => a.id?.toString().toUpperCase());
+
+
 
     let filteredRows = rows;
     if (search) {
         const s = search.toLowerCase();
-        filteredRows = rows.filter(r => 
+        filteredRows = rows.filter(r =>
             Object.values(r).some(v => String(v || '').toLowerCase().includes(s))
         );
     }
     if (!userIsAdmin(user)) {
-        filteredRows = filteredRows.filter(r => 
+        filteredRows = filteredRows.filter(r =>
             allowedAgents.includes(r.autor?.toString().toUpperCase())
         );
     }
@@ -543,7 +545,11 @@ async function get_justify_admin({ instalacao, tipo, data_leit_prev, estado, pag
     // Paginação em memória
     const limitVal = parseInt(limit) || 9999;
     const offsetVal = (parseInt(page) - 1) * limitVal;
-    return filteredRows.slice(offsetVal, offsetVal + limitVal);
+    return filteredRows.slice(offsetVal, offsetVal + limitVal).map(r => {
+        const agentData = result.find(a => a.id?.toString().toUpperCase() === r.author?.toString().toUpperCase());
+        if (!agentData) return r;
+        return { ...r, ...agentData };
+    });
 }
 
 async function save_justify_admin(data) {
@@ -614,7 +620,7 @@ async function get_pending_justifies_admin({ state = 'pi', autor, status = 'pend
     }
 
     query += ` ORDER BY created_at DESC`;
-    
+
     const { rows } = await pool.query(query, params);
 
     const result = (await get_users_agents_admin({ user }) || []);
@@ -626,7 +632,7 @@ async function get_pending_justifies_admin({ state = 'pi', autor, status = 'pend
     // Busca Global
     if (search) {
         const s = search.toLowerCase();
-        filteredRows = filteredRows.filter(r => 
+        filteredRows = filteredRows.filter(r =>
             Object.values(r).some(v => String(v || '').toLowerCase().includes(s))
         );
     }
@@ -713,7 +719,7 @@ async function get_daily_reports_admin({ autor, data, limit = 9999, page = 1, in
         params.push(estado.toLowerCase());
         paramIndex++;
     }
-    
+
     if (search) {
         query += ` AND (autor ILIKE $${paramIndex} OR motivo ILIKE $${paramIndex} OR observacao ILIKE $${paramIndex})`;
         params.push(`%${search}%`);
@@ -733,12 +739,12 @@ async function get_daily_reports_admin({ autor, data, limit = 9999, page = 1, in
     // Busca Global
     if (search) {
         const s = search.toLowerCase();
-        filteredRows = filteredRows.filter(r => 
+        filteredRows = filteredRows.filter(r =>
             Object.values(r).some(v => String(v || '').toLowerCase().includes(s))
         );
     }
 
-    
+
 
     if (includeAll) return filteredRows;
 
