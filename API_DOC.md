@@ -1100,9 +1100,37 @@ Retorna uma lista de strings com os motivos únicos de justificativas.
 ---
 
 #### `GET /admin/justify_pending`
-Lista justificativas de pendências com filtros.
+Lista justificativas de pendências com filtros. Os registros são automaticamente cruzados com a base de colaboradores para incluir dados do agente.
 
 **Query Parameters:** `autor`, `status`, `estado`, `page`, `limit`, `search`.
+
+**Response 200:**
+```json
+[
+  {
+    "id": "W23041858",
+    "autor": "w23041858",
+    "quantidade": 16,
+    "tipo": "PENDÊNCIAS DE LEITURA",
+    "unidade_leitura": "NÃO INFORMADA",
+    "motivo": null,
+    "observacao": null,
+    "foto": null,
+    "estado": "pi",
+    "status": "pendente",
+    "created_at": "2026-04-22T22:13:30.419Z",
+    "updated_at": "2026-04-22T22:13:30.420Z",
+    "nome": "WYLLAME RODRIGUES BEZERRA",
+    "matricula": "22598",
+    "gestor": "CLEMILTON DE FRANCA FEITOSA",
+    "regional": "METROPOLITANA",
+    "seccional": "UAC TERESINA",
+    "setor": "LEITURA",
+    "cargo": "AGENTE COMERCIAL A PÉ",
+    "telegram_id": null
+  }
+]
+```
 
 ---
 
@@ -1112,16 +1140,74 @@ Atualiza uma justificativa de pendência e a marca como `respondido`.
 ---
 
 #### `GET /admin/daily_report`
-Lista diários de bordo dos agentes com filtros.
+Lista diários de bordo dos agentes com filtros. Os registros são automaticamente cruzados com a base de colaboradores para incluir dados do agente.
 
 **Query Parameters:** `autor`, `data`, `motivo`, `estado`, `page`, `limit`, `search`.
+
+**Response 200:**
+```json
+[
+  {
+    "id": "T19954",
+    "autor": "t19954",
+    "nota": 3,
+    "motivo": "Outro",
+    "observacao": "Tempo chuvoso ",
+    "estado": "pi",
+    "data_report": "2026-04-22T03:00:00.000Z",
+    "created_at": "2026-04-22T09:37:04.529Z",
+    "updated_at": "2026-04-22T09:37:04.529Z",
+    "foto": null,
+    "nome": "FRANCISCO JOSE DE SOUSA",
+    "matricula": "7363",
+    "gestor": "MARIANA SILVA DE CARVALHO",
+    "regional": "METROPOLITANA",
+    "seccional": "UAC AGUA BRANCA",
+    "setor": "LEITURA",
+    "cargo": "AGENTE COMERCIAL MOTOCICLISTA",
+    "telegram_id": "6132324642"
+  }
+]
+```
 
 ---
 
 #### `GET /admin/inventory`
-Lista inventário de equipamentos.
+Lista inventário de equipamentos. Os registros são automaticamente cruzados com a base de colaboradores para incluir dados do agente.
 
 **Query Parameters:** `page`, `limit`, `search`.
+
+**Response 200:**
+```json
+[
+  {
+    "id": "A38131513",
+    "agente": "a38131513",
+    "pda_imei_1": "350915 068781 058",
+    "pda_imei_2": "895510 954600 714",
+    "pda_numero_serie": "RX8W70586RL",
+    "pda_marca": "SAMSUNG",
+    "pda_modelo": "SM-A047M",
+    "pda_numero_chip": "(86) 99430-2349",
+    "pda_versao_android": "14.0",
+    "pda_versao_bluetooth": null,
+    "impressora_numero_serie": "XXRBN230200960",
+    "impressora_modelo": "ZQ521",
+    "impressora_marca": "ZEBRA",
+    "estado": "pi",
+    "created_at": "2026-04-15T17:17:54.941Z",
+    "updated_at": "2026-04-15T17:18:09.281Z",
+    "nome": "ALYSSON JARDEL DA COSTA SILVA",
+    "matricula": "21601",
+    "gestor": "CLAUDIO EDSON FERREIRA",
+    "regional": "NORTE",
+    "seccional": "SÃO LUÍS",
+    "setor": "NEGOCIAÇÃO",
+    "cargo": "AGENTE COMERCIAL MOTOCICLISTA",
+    "telegram_id": "7427046285"
+  }
+]
+```
 
 #### `POST /admin/inventory`
 Cria registro de inventário.
@@ -1707,6 +1793,34 @@ Retorna listas de opções únicas para filtros e cadastros (gestores, cargos, r
   "seccionais": ["UAC TERESINA", "UAC TIMON"]
 }
 ```
+
+---
+
+## Logica de Permissões e Filtros (Agentes)
+
+O sistema utiliza uma hierarquia de segurança de múltiplas camadas para garantir o isolamento de dados entre diferentes estados e níveis hierárquicos:
+
+### 1. Isolamento por Estado (Pool Level)
+Diferente de sistemas tradicionais, a API identifica em quais bancos de dados (`pi_pool`, `ma_pool`) o usuário tem permissão para tocar. 
+- Se o usuário tem permissão apenas para `pi`, a consulta ao banco do Maranhão sequer é iniciada.
+- Administradores globais podem acessar todos os pools simultaneamente.
+
+### 2. Filtros de Gestão Dinâmicos
+Após a autorização do estado, o sistema aplica filtros de escopo baseados no perfil do usuário:
+- **Regional**: Se o usuário for um gerente regional, o sistema filtra os resultados para mostrar apenas agentes daquela regional específica.
+- **Gestor**: Se o usuário for um coordenador, verá apenas os agentes que respondem diretamente a ele.
+- **Regra de Prioridade**: O sistema prioriza os filtros gravados na permissão do usuário sobre os parâmetros de busca manuais (exceto para `Admin`).
+
+### 3. Busca Unificada (Cross-Pool Search)
+Ao realizar uma busca por texto, o sistema executa um processo em duas etapas:
+1. **Login Search**: Busca IDs correspondentes no banco central (`cenos_pool`).
+2. **State Search**: Busca por nome ou ID no banco do estado, incluindo os matches encontrados na etapa anterior. Isso permite encontrar agentes pelo seu identificador único em qualquer base.
+
+### 4. Processamento em Memória
+Para garantir a integridade dos dados e consistência na ordenação entre diferentes estados:
+- Os dados são agregados e mapeados no servidor.
+- Campos como `setor` e `cargo` são normalizados.
+- A **ordenação e paginação** ocorrem em memória, garantindo que a lista alfabética seja contínua, mesmo que os dados venham de bancos de dados fisicamente separados.
 
 ---
 

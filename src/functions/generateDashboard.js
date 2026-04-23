@@ -290,7 +290,7 @@ async function generateDashboardAdmin({ user, stats }) {
             },
         },
         {
-            id: 'chart-reports-week',
+            id: 'chart-reports-state',
             type: 'chartCard',
             size: { colSpan: 1, rowSpan: 2 },
             data: {

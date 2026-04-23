@@ -68,7 +68,7 @@ app.use('/public', publicRouter)
 app.use('/api', consultasRouter)
 
 // Agent Default Auth (sem telegram auth)
-app.use('/agent', agentDefaultAuthRouter)
+app.use('/api', agentDefaultAuthRouter)
 
 
 

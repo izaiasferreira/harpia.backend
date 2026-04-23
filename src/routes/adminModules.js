@@ -55,7 +55,7 @@ router.get('/dashboard', verifyToken(), async (req, res) => {
                 justify,
                 justify_pending,
                 daily_report,
-                users_agents
+                users_agents: users_agents?.filter(a => a.telegram_id != null && a.telegram_id !== "")
             }
         })
         res.json(result);
@@ -65,21 +65,6 @@ router.get('/dashboard', verifyToken(), async (req, res) => {
     }
 });
 
-// users_agents result example
-// [
-// {
-//     "id": "T47384",
-//     "telegram_id": "7136458344",
-//     "estado": "pi",
-//     "Nome": "MAURICIO PINTO RODRIGUES",
-//     "seccional": "UAC TERESINA",
-//     "regional": "METROPOLITANA",
-//     "setor": "COBRANÇA",
-//     "cargo": "AGENTE COMERCIAL MOTOCICLISTA",
-//     "gestor": "DIOGO VICTOR SOARES MOURA",
-//     "matricula": "017865"
-// }
-// ]
 router.get('/users_agents', verifyToken(), verifyModule('users_agents'), async (req, res) => {
     try {
         const { page, limit, search, regional, seccional, gestor, estado } = req.query;
@@ -203,9 +188,11 @@ router.put('/search_in/:id', verifyToken(), verifyModule('update_search_in'), as
 router.get('/justify', verifyToken(), verifyModule('justify'), async (req, res) => {
     try {
         const { instalacao, tipo, data_leit_prev, estado, page, limit, search } = req.query;
-        const result = await get_justify_admin({ instalacao, tipo, data_leit_prev, estado, page, limit, search });
+        const user = req.user;
+        const result = await get_justify_admin({ instalacao, tipo, data_leit_prev, estado, page, limit, search, user });
         res.json(result);
     } catch (error) {
+        console.log(error)
         res.status(500).json({ error: error.message });
     }
 });
