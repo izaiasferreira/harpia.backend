@@ -56,7 +56,12 @@ const AVAILABLE_MODULES = [
     // Relatórios de Segurança
     { id: 'security_reports', name: 'Consultar Relatórios de Segurança' },
     { id: 'create_security_report', name: 'Criar Relatório de Segurança' },
-    { id: 'delete_security_report', name: 'Deletar Relatório de Segurança' }
+    { id: 'delete_security_report', name: 'Deletar Relatório de Segurança' },
+    // Formulários Dinâmicos
+    { id: 'forms', name: 'Consultar Formulários' },
+    { id: 'create_form', name: 'Criar Formulário' },
+    { id: 'update_form', name: 'Atualizar Formulário' },
+    { id: 'delete_form', name: 'Deletar Formulário' }
 ];
 
 async function listModules() {

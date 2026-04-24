@@ -29,7 +29,10 @@ async function updateTrainingFlow(id, flowData) {
         WHERE id = $2
         RETURNING id, name, flow_data, updated_at
     `;
-    const { rows } = await pool.query(query, [flowData, id]);
+    const { rows } = await pool.query(query, [
+        typeof flowData === 'object' ? JSON.stringify(flowData) : flowData, 
+        id
+    ]);
     return rows[0] || null;
 }
 

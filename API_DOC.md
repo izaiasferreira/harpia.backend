@@ -2543,6 +2543,342 @@ Remove um projeto pelo ID.
 
 ---
 
+### `PUT /admin/training/:id/flow`
+
+Atualiza o fluxo interativo do treinamento (nós e arestas).
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:**
+```json
+{
+    "flow_data": {
+        "nodes": [...],
+        "edges": [...]
+    }
+}
+```
+
+---
+
+### `GET /public/training/:id`
+
+Rota pública para visualização do treinamento (sem autenticação).
+
+**Response 200:** Objeto do projeto (incluindo `flow_data`).
+
+---
+
+---
+
+## Formulários Dinâmicos
+
+**Autenticação:** Bearer token (`/admin/forms/*`) + módulo `forms`
+**Rotas públicas:** `/public/form/*` (sem autenticação)
+
+---
+
+### `POST /admin/forms`
+
+Cria um novo formulário dinâmico.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:**
+```json
+{
+    "title": "Pesquisa de Satisfação",
+    "description": "Pesquisa com clientes",
+    "coverUrl": "https://exemplo.com/capa.jpg",
+    "settings": { "primaryColor": "#007bff", "theme": "light" },
+    "structure": [
+        {
+            "title": "Página 1",
+            "elements": [
+                {
+                    "id": "pergunta_1",
+                    "type": "question",
+                    "field_type": "text",
+                    "label": "Qual seu nome?",
+                    "required": true
+                },
+                {
+                    "id": "pergunta_2",
+                    "type": "question",
+                    "field_type": "star_rating",
+                    "label": "Avalie nosso atendimento",
+                    "required": true
+                },
+                {
+                    "id": "pergunta_3",
+                    "type": "question",
+                    "field_type": "multiple_choice",
+                    "label": "Quais serviços utilizou?",
+                    "required": false,
+                    "options": ["Instalação", "Manutenção", "Suporte"]
+                }
+            ]
+        }
+    ]
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `title` | string | **Sim** | Título do formulário |
+| `description` | string | Não | Descrição |
+| `coverUrl` | string | Não | URL da imagem de capa |
+| `settings` | object | Não | Configurações de tema (cores, etc) |
+| `structure` | array | **Sim** | Array de páginas com elementos |
+
+**Estrutura do `structure`:**
+- `title`: título da página
+- `elements`: array de elementos
+  - `id`: identificador único
+  - `type`: `question` ou `content_card`
+  - `field_type`: `text`, `long_text`, `number`, `dropdown`, `multiple_choice`, `radio`, `image`, `document`, `star_rating`
+  - `label`: rótulo do campo
+  - `required`: boolean
+  - `options`: array de opções (para dropdown/radio/multiple_choice)
+
+**Response 201:**
+```json
+{
+    "id": 1,
+    "user_id": 1,
+    "title": "Pesquisa de Satisfação",
+    "description": "Pesquisa com clientes",
+    "cover_url": "https://exemplo.com/capa.jpg",
+    "is_active": false,
+    "settings": { "primaryColor": "#007bff" },
+    "structure": [...],
+    "created_at": "2026-04-24T00:00:00.000Z",
+    "updated_at": "2026-04-24T00:00:00.000Z"
+}
+```
+
+---
+
+### `GET /admin/forms`
+
+Lista formulários do usuário autenticado.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:**
+| Campo | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `page` | number | `1` | Página |
+| `limit` | number | `20` | Itens por página |
+
+**Response 200:**
+```json
+{
+    "data": [...],
+    "total": 5,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1
+}
+```
+
+---
+
+### `GET /admin/forms/:id`
+
+Busca um formulário pelo ID.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response 200:** Objeto do formulário completo.
+
+---
+
+### `PUT /admin/forms/:id`
+
+Atualiza um formulário existente.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:**
+```json
+{
+    "title": "Novo título",
+    "isActive": true,
+    "structure": [...]
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `title` | string | Novo título |
+| `description` | string | Nova descrição |
+| `coverUrl` | string | Nova URL de capa |
+| `isActive` | boolean | Ativar/desativar formulário |
+| `settings` | object | Novas configurações |
+| `structure` | array | Nova estrutura |
+
+**Response 200:** Objeto atualizado.
+
+---
+
+### `DELETE /admin/forms/:id`
+
+Deleta um formulário.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response 200:**
+```json
+{
+    "success": true,
+    "deleted": { "id": 1, ... }
+}
+```
+
+---
+
+### `GET /admin/forms/:id/responses`
+
+Lista respostas de um formulário.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:** `page`, `limit`
+
+**Response 200:**
+```json
+{
+    "data": [
+        {
+            "id": 1,
+            "form_id": 1,
+            "answers": { "pergunta_1": "João", "pergunta_2": "5" },
+            "submitted_at": "2026-04-24T10:00:00.000Z",
+            "metadata": { "ip": "192.168.1.1", "userAgent": "..." }
+        }
+    ],
+    "total": 10,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1
+}
+```
+
+---
+
+### `GET /admin/forms/:id/stats`
+
+Retorna estatísticas agregadas das respostas para gráficos.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response 200:**
+```json
+{
+    "totalResponses": 10,
+    "byField": {
+        "pergunta_1": {
+            "label": "Qual seu nome?",
+            "fieldType": "text",
+            "type": "question",
+            "total": 10
+        },
+        "pergunta_2": {
+            "label": "Avalie nosso atendimento",
+            "fieldType": "star_rating",
+            "type": "question",
+            "total": 10,
+            "sum": 45,
+            "average": "4.50"
+        },
+        "pergunta_3": {
+            "label": "Quais serviços utilizou?",
+            "fieldType": "multiple_choice",
+            "type": "question",
+            "total": 10,
+            "options": {
+                "Instalação": 5,
+                "Manutenção": 3,
+                "Suporte": 2
+            }
+        }
+    }
+}
+```
+
+---
+
+### `GET /admin/forms/:id/export`
+
+Exporta respostas em CSV.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:** `format` (padrão: `csv`)
+
+**Response:** Arquivo CSV com BOM UTF-8.
+
+---
+
+### `POST /public/form/submit/:id`
+
+Submete uma resposta pública (sem autenticação).
+
+**Body:**
+```json
+{
+    "answers": {
+        "pergunta_1": "João",
+        "pergunta_2": "5",
+        "pergunta_3": ["Instalação", "Suporte"]
+    }
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `answers` | object | **Sim** | Respostas keyed pelo ID do campo |
+
+**Response 201:**
+```json
+{
+    "success": true,
+    "response": {
+        "id": 1,
+        "form_id": 1,
+        "answers": { ... },
+        "submitted_at": "2026-04-24T10:00:00.000Z",
+        "metadata": { "ip": "...", "userAgent": "..." }
+    }
+}
+```
+
+**Erros:**
+- `400` — Formulário não está ativo
+- `400` — Campos obrigatórios não preenchidos
+
+---
+
+### `GET /public/form/:id`
+
+Busca dados públicos de um formulário (para pré-visualização).
+
+**Response 200:**
+```json
+{
+    "id": 1,
+    "title": "Pesquisa de Satisfação",
+    "description": "Pesquisa com clientes",
+    "coverUrl": "https://exemplo.com/capa.jpg",
+    "isActive": true,
+    "settings": { ... },
+    "structure": [...]
+}
+```
+
+---
+
 ## CORS
 
 O CORS é configurado via `CORS_ORIGINS` no `.env`:

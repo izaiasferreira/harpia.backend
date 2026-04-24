@@ -43,23 +43,6 @@ router.get('/', verifyToken(), verifyModule('training_projects'), async (req, re
     }
 });
 
-// Rota pública para visualização (sem token)
-router.get('/public/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const project = await getTrainingProjectById(parseInt(id, 10));
-
-        if (!project) {
-            return res.status(404).json({ error: 'Projeto não encontrado' });
-        }
-
-        res.json(project);
-    } catch (error) {
-        console.error('Erro ao buscar projeto público:', error);
-        res.status(500).json({ error: 'Erro interno ao buscar projeto' });
-    }
-});
-
 router.get('/:id', verifyToken(), verifyModule('training_projects'), async (req, res) => {
     try {
         const { id } = req.params;

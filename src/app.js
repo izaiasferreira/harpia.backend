@@ -60,6 +60,7 @@ const uploadRouter = require('./routes/upload')
 const trainingProjectsRouter = require('./routes/trainingProjects')
 const adminMessageTemplatesRouter = require('./routes/adminMessageTemplates')
 const adminSecurityReportsRouter = require('./routes/adminSecurityReports')
+const formsRouter = require('./routes/forms')
 
 // Rotas de arquivos e upload (MinIO)
 app.use('/', uploadRouter);
@@ -98,6 +99,9 @@ app.use('/admin/training', trainingProjectsRouter)
 
 // Admin Message Templates (/admin/message_templates/*)
 app.use('/admin/message_templates', adminMessageTemplatesRouter)
+
+// Formulários Dinâmicos (/admin/forms/*)
+app.use('/admin/forms', formsRouter)
 
 
 // Tratamento de erros limpo para o CORS (evita sujar o log com stack trace inteiro)

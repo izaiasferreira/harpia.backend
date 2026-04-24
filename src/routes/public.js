@@ -13,6 +13,8 @@ function checkToken(req, res) {
 }
 
 const { getCalendarForAgent } = require('../functions/postgresFunctions');
+const { getFormById, submitForm } = require('../functions/database/forms');
+const { getTrainingProjectById } = require('../functions/database/trainingProjects');
 
 const publicLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -20,7 +22,7 @@ const publicLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Muitas requisições. Tente novamente em 1 minuto.' },
-    validate: { xForwardedForHeader: false }
+    validate: { trustProxy: false }
 });
 
 router.get('/health', publicLimiter, (req, res) => {
@@ -78,6 +80,92 @@ const crypto = require('crypto');
 require('dotenv').config();
 
 const { pi_pool, cenos_pool } = require('../db');
+// ─── Training ───────────────────────────────────────────────────────────────
+
+router.get('/training/:id', publicLimiter, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const project = await getTrainingProjectById(parseInt(id, 10));
+
+        if (!project) {
+            return res.status(404).json({ error: 'Projeto não encontrado' });
+        }
+
+        res.json(project);
+    } catch (error) {
+        console.error('Erro ao buscar projeto público:', error);
+        res.status(500).json({ error: 'Erro interno ao buscar projeto' });
+    }
+});
+
+// ─── Forms ──────────────────────────────────────────────────────────────────
+
+router.get('/form/:id', publicLimiter, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const form = await getFormById(parseInt(id, 10));
+
+        if (!form) {
+            return res.status(404).json({ error: 'Formulário não encontrado' });
+        }
+
+        res.json({
+            id: form.id,
+            title: form.title,
+            description: form.description,
+            coverUrl: form.cover_url,
+            isActive: form.is_active,
+            settings: form.settings,
+            structure: form.structure
+        });
+    } catch (error) {
+        console.error('Erro ao buscar formulário público:', error);
+        res.status(500).json({ error: 'Erro interno ao buscar formulário' });
+    }
+});
+
+router.post('/form/submit/:id', publicLimiter, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { answers } = req.body;
+
+        if (!answers || typeof answers !== 'object') {
+            return res.status(400).json({ error: 'Answers é obrigatório' });
+        }
+
+        const form = await getFormById(parseInt(id, 10));
+        if (!form) {
+            return res.status(404).json({ error: 'Formulário não encontrado' });
+        }
+
+        if (!form.is_active) {
+            return res.status(400).json({ error: 'Formulário não está ativo' });
+        }
+
+        const metadata = {
+            ip: req.ip || req.connection.remoteAddress,
+            userAgent: req.headers['user-agent'] || ''
+        };
+
+        const response = await submitForm({
+            formId: parseInt(id, 10),
+            answers,
+            metadata
+        });
+
+        res.status(201).json({
+            success: true,
+            response
+        });
+    } catch (error) {
+        console.error('Erro ao submeter formulário:', error);
+        if (error.message.includes('obrigatório')) {
+            return res.status(400).json({ error: error.message });
+        }
+        res.status(500).json({ error: 'Erro interno ao submeter formulário' });
+    }
+});
+
 router.get('/generate_token', async (req, res) => {
     try {
         if (!checkToken(req, res)) return;
