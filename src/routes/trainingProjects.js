@@ -99,13 +99,13 @@ router.put('/:id/flow', verifyToken(), verifyModule('update_training_project'), 
         const { flow_data } = req.body;
 
         if (!flow_data) {
-            return res.status(400).json({ error: 'Dados do fluxo s„o obrigatÛrios' });
+            return res.status(400).json({ error: 'Dados do fluxo s√£o obrigat√≥rios' });
         }
 
         const project = await updateTrainingFlow(parseInt(id, 10), flow_data);
 
         if (!project) {
-            return res.status(404).json({ error: 'Projeto n„o encontrado' });
+            return res.status(404).json({ error: 'Projeto n√£o encontrado' });
         }
 
         res.json(project);
