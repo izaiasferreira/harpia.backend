@@ -13,6 +13,9 @@
    - Cobrir casos happy path e erros
    - Usar padrão: `test('descricao', async () => { ... })`
 
+3. **Garantir Tabelas**
+   - Sempre chamar a função de criação da tabela (ex: `await createTable()`) no início de cada função de busca ou criação no banco de dados para evitar erros de relação inexistente.
+
 ### Ao modificar código existente:
 - Atualizar documentação afetada
 - Adicionar/atualizar testes relevantes

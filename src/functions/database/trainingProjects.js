@@ -7,10 +7,30 @@ async function createTrainingProjectsTable() {
             user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
             name TEXT NOT NULL,
             description TEXT,
+            flow_data JSONB,
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         )
     `);
+
+    // Add flow_data column if it doesn't exist
+    await cenos_pool.query(`
+        ALTER TABLE training_projects 
+        ADD COLUMN IF NOT EXISTS flow_data JSONB;
+    `).catch(() => { });
+}
+
+async function updateTrainingFlow(id, flowData) {
+    await createTrainingProjectsTable();
+    const pool = cenos_pool;
+    const query = `
+        UPDATE training_projects
+        SET flow_data = $1, updated_at = NOW()
+        WHERE id = $2
+        RETURNING id, name, flow_data, updated_at
+    `;
+    const { rows } = await pool.query(query, [flowData, id]);
+    return rows[0] || null;
 }
 
 async function createTrainingProject({ userId, name, description }) {
@@ -27,9 +47,10 @@ async function createTrainingProject({ userId, name, description }) {
 }
 
 async function getTrainingProjectById(id) {
+    await createTrainingProjectsTable();
     const pool = cenos_pool;
     const query = `
-        SELECT id, user_id, name, description, created_at, updated_at
+        SELECT id, user_id, name, description, flow_data, created_at, updated_at
         FROM training_projects
         WHERE id = $1
     `;
@@ -38,6 +59,7 @@ async function getTrainingProjectById(id) {
 }
 
 async function listTrainingProjects(userId, page = 1, limit = 20) {
+    await createTrainingProjectsTable();
     const pool = cenos_pool;
     const offset = (page - 1) * limit;
 
@@ -66,6 +88,7 @@ async function listTrainingProjects(userId, page = 1, limit = 20) {
 }
 
 async function updateTrainingProject(id, { name, description }) {
+    await createTrainingProjectsTable();
     const pool = cenos_pool;
     const updates = [];
     const params = [];
@@ -98,6 +121,7 @@ async function updateTrainingProject(id, { name, description }) {
 }
 
 async function deleteTrainingProject(id) {
+    await createTrainingProjectsTable();
     const pool = cenos_pool;
     const query = `
         DELETE FROM training_projects
@@ -114,5 +138,6 @@ module.exports = {
     getTrainingProjectById,
     listTrainingProjects,
     updateTrainingProject,
-    deleteTrainingProject
+    deleteTrainingProject,
+    updateTrainingFlow
 };

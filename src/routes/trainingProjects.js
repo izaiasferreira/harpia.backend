@@ -1,15 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken } = require('../middlewares/jwtAuth');
+const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const {
     createTrainingProject,
     getTrainingProjectById,
     listTrainingProjects,
     updateTrainingProject,
-    deleteTrainingProject
+    deleteTrainingProject,
+    updateTrainingFlow
 } = require('../functions/database/trainingProjects');
 
-router.post('/', verifyToken, async (req, res) => {
+router.post('/', verifyToken(), verifyModule('create_training_project'), async (req, res) => {
     try {
         const { name, description } = req.body;
         if (!name) {
@@ -29,7 +30,7 @@ router.post('/', verifyToken, async (req, res) => {
     }
 });
 
-router.get('/', verifyToken, async (req, res) => {
+router.get('/', verifyToken(), verifyModule('training_projects'), async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1;
         const limit = parseInt(req.query.limit, 10) || 20;
@@ -42,7 +43,7 @@ router.get('/', verifyToken, async (req, res) => {
     }
 });
 
-router.get('/:id', verifyToken, async (req, res) => {
+router.get('/:id', verifyToken(), verifyModule('training_projects'), async (req, res) => {
     try {
         const { id } = req.params;
         const project = await getTrainingProjectById(parseInt(id, 10));
@@ -58,7 +59,7 @@ router.get('/:id', verifyToken, async (req, res) => {
     }
 });
 
-router.put('/:id', verifyToken, async (req, res) => {
+router.put('/:id', verifyToken(), verifyModule('update_training_project'), async (req, res) => {
     try {
         const { id } = req.params;
         const { name, description } = req.body;
@@ -76,7 +77,7 @@ router.put('/:id', verifyToken, async (req, res) => {
     }
 });
 
-router.delete('/:id', verifyToken, async (req, res) => {
+router.delete('/:id', verifyToken(), verifyModule('delete_training_project'), async (req, res) => {
     try {
         const { id } = req.params;
         const deleted = await deleteTrainingProject(parseInt(id, 10));
@@ -89,6 +90,28 @@ router.delete('/:id', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('Erro ao deletar projeto:', error);
         res.status(500).json({ error: 'Erro interno ao deletar projeto' });
+    }
+});
+
+router.put('/:id/flow', verifyToken(), verifyModule('update_training_project'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { flow_data } = req.body;
+
+        if (!flow_data) {
+            return res.status(400).json({ error: 'Dados do fluxo são obrigatórios' });
+        }
+
+        const project = await updateTrainingFlow(parseInt(id, 10), flow_data);
+
+        if (!project) {
+            return res.status(404).json({ error: 'Projeto não encontrado' });
+        }
+
+        res.json(project);
+    } catch (error) {
+        console.error('Erro ao atualizar fluxo do projeto:', error);
+        res.status(500).json({ error: 'Erro interno ao atualizar fluxo' });
     }
 });
 

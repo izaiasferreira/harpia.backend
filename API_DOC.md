@@ -2447,11 +2447,11 @@ Deleta um relatório de segurança pelo ID.
 
 ## Gerenciador de Treinamentos (Interactive Training)
 
-**Autenticação:** Bearer token (`/training/*`)
+**Autenticação:** Bearer token (`/admin/training/*`)
 
 ---
 
-### `POST /training`
+### `POST /admin/training`
 
 Cria um novo projeto de treinamento.
 
@@ -2474,7 +2474,7 @@ Cria um novo projeto de treinamento.
 
 ---
 
-### `GET /training`
+### `GET /admin/training`
 
 Lista os projetos de treinamento do usuário autenticado.
 
@@ -2499,7 +2499,7 @@ Lista os projetos de treinamento do usuário autenticado.
 
 ---
 
-### `GET /training/:id`
+### `GET /admin/training/:id`
 
 Busca os detalhes de um projeto pelo ID.
 
@@ -2509,7 +2509,7 @@ Busca os detalhes de um projeto pelo ID.
 
 ---
 
-### `PUT /training/:id`
+### `PUT /admin/training/:id`
 
 Atualiza um projeto existente.
 
@@ -2527,7 +2527,7 @@ Atualiza um projeto existente.
 
 ---
 
-### `DELETE /training/:id`
+### `DELETE /admin/training/:id`
 
 Remove um projeto pelo ID.
 
