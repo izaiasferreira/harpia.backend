@@ -141,6 +141,18 @@ async function updateForm(id, { title, description, coverUrl, isActive, settings
     return rows[0] || null;
 }
 
+async function checkFormResponse(formId, respondentId) {
+    await createFormsTable();
+    const pool = cenos_pool;
+    const query = `
+        SELECT id FROM form_responses 
+        WHERE form_id = $1 AND answers->>'respondent_id' = $2
+        LIMIT 1
+    `;
+    const { rows } = await pool.query(query, [formId, String(respondentId)]);
+    return rows.length > 0;
+}
+
 async function deleteForm(id) {
     await createFormsTable();
     const pool = cenos_pool;
@@ -156,7 +168,7 @@ async function submitForm({ formId, answers, metadata }) {
     try {
         await client.query('BEGIN');
 
-        const checkQuery = `SELECT id, structure FROM forms WHERE id = $1 AND is_active = true`;
+        const checkQuery = `SELECT id, structure, settings FROM forms WHERE id = $1 AND is_active = true`;
         const checkResult = await client.query(checkQuery, [formId]);
         
         if (checkResult.rows.length === 0) {
@@ -164,6 +176,21 @@ async function submitForm({ formId, answers, metadata }) {
         }
 
         const form = checkResult.rows[0];
+
+        // Se o formulário limitar a uma resposta por usuário
+        const respondentId = answers.respondent_id;
+        if (form.settings?.limitToOneResponse && respondentId) {
+            const duplicateCheck = await client.query(
+                `SELECT id FROM form_responses 
+                 WHERE form_id = $1 AND answers->>'respondent_id' = $2`,
+                [formId, String(respondentId)]
+            );
+            
+            if (duplicateCheck.rows.length > 0) {
+                throw new Error('Você já enviou uma resposta para este formulário');
+            }
+        }
+
         const errors = validateFormStructure(form.structure, answers);
         if (errors.length > 0) {
             throw new Error(errors.join('; '));
@@ -382,5 +409,6 @@ module.exports = {
     getFormResponses,
     getFormStats,
     exportFormResponsesToCsv,
-    validateFormStructure
+    validateFormStructure,
+    checkFormResponse
 };

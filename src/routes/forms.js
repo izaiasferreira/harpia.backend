@@ -62,11 +62,14 @@ router.get('/', verifyToken(), verifyModule('forms'), async (req, res) => {
 router.get('/:id', verifyToken(), verifyModule('forms'), async (req, res) => {
     try {
         const { id } = req.params;
-        const form = await getFormById(parseInt(id, 10));
+        let form = await getFormById(parseInt(id, 10));
 
         if (!form) {
             return res.status(404).json({ error: 'Formulário não encontrado' });
         }
+
+        form.isActive = form.is_active;
+        delete form.is_active;
 
         res.json(form);
     } catch (error) {

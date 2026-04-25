@@ -13,7 +13,7 @@ function checkToken(req, res) {
 }
 
 const { getCalendarForAgent } = require('../functions/postgresFunctions');
-const { getFormById, submitForm } = require('../functions/database/forms');
+const { getFormById, submitForm, checkFormResponse } = require('../functions/database/forms');
 const { getTrainingProjectById } = require('../functions/database/trainingProjects');
 
 const publicLimiter = rateLimit({
@@ -22,6 +22,16 @@ const publicLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Muitas requisições. Tente novamente em 1 minuto.' },
+    validate: { trustProxy: false }
+});
+
+// Limiter mais agressivo para verificações e submissões
+const strictPublicLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Muitas tentativas. Tente novamente em 1 minuto.' },
     validate: { trustProxy: false }
 });
 
@@ -121,6 +131,23 @@ router.get('/form/:id', publicLimiter, async (req, res) => {
     } catch (error) {
         console.error('Erro ao buscar formulário público:', error);
         res.status(500).json({ error: 'Erro interno ao buscar formulário' });
+    }
+});
+
+router.get('/form/:id/check', strictPublicLimiter, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { respondentId } = req.query;
+
+        if (!respondentId) {
+            return res.status(400).json({ error: 'respondentId é obrigatório' });
+        }
+
+        const alreadyResponded = await checkFormResponse(parseInt(id, 10), respondentId);
+        res.json({ alreadyResponded });
+    } catch (error) {
+        console.error('Erro ao verificar resposta:', error);
+        res.status(500).json({ error: 'Erro interno ao verificar resposta' });
     }
 });
 
