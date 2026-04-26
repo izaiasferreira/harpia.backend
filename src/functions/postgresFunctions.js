@@ -55,7 +55,10 @@ const {
     delete_daily_report,
     get_inventory_by_agent,
     save_inventory,
-    create_security_report
+    create_security_report,
+    getUserData,
+    updateProfilePic,
+    addBadgeToProfile
 } = require('./database/agentes');
 const { lastUpdate } = require('./database/status');
 
@@ -105,5 +108,8 @@ module.exports = {
     delete_daily_report,
     get_inventory_by_agent,
     save_inventory,
-    create_security_report
+    create_security_report,
+    getUserData,
+    updateProfilePic,
+    addBadgeToProfile
 };

@@ -1,6 +1,132 @@
 const { pi_pool, ma_pool, localizacoes_pi_pool, cenos_pool } = require('../../db');
 const { today } = require('../../utils/dates');
 const { fastC12ForAgent, firstC12ForAgent } = require('./c12');
+const { listBadges } = require('../badges');
+
+async function createProfilesTable() {
+    const query = `
+        CREATE TABLE IF NOT EXISTS profiles (
+            id VARCHAR(50) PRIMARY KEY,
+            "profilePicUrl" VARCHAR(255),
+            badges JSONB DEFAULT '[]'::jsonb
+        );
+    `;
+    await cenos_pool.query(query);
+}
+
+async function getUserData({ id, state }) {
+    await createProfilesTable();
+
+    let login = {};
+    let colaborador = {};
+    let profileData = {};
+
+    const { rows: loginMatches } = await cenos_pool.query(
+        `SELECT * FROM login WHERE lower(id) = $1`,
+        [id.toLowerCase()]
+    );
+
+    if (loginMatches.length > 0) {
+        login = loginMatches[0];
+    }
+
+    const pool_state = state === 'pi' ? pi_pool : ma_pool;
+
+    const { rows: colaboradorMatches } = await pool_state.query(
+        `SELECT * FROM colaboradores WHERE lower("ID") = $1`,
+        [id.toLowerCase()]
+    );
+
+    if (colaboradorMatches.length > 0) {
+        colaborador = colaboradorMatches[0];
+
+        colaborador.gestor = colaborador['GESTOR IMEDIATO'];
+        colaborador.matricula = `${parseInt(colaborador['MAT'])}`;
+        colaborador.nome = colaborador['Nome'];
+        colaborador.id = (colaborador['ID']).toUpperCase();
+        colaborador.estado = state;
+        colaborador.cargo = colaborador['Cargo'];
+
+        delete colaborador['GESTOR IMEDIATO'];
+        delete colaborador['MAT'];
+        delete colaborador['Nome'];
+        delete colaborador['ID'];
+        delete colaborador['Cargo'];
+    }
+
+    const { rows: profileMatches } = await cenos_pool.query(
+        `SELECT * FROM profiles WHERE lower(id) = $1`,
+        [id.toLowerCase()]
+    );
+
+    if (profileMatches.length > 0) {
+        profileData = profileMatches[0];
+    }
+    
+    // Mapeia os IDs dos badges gravados para obter os objetos completos
+    if (profileData.badges && profileData.badges.length > 0) {
+        const availableBadges = await listBadges();
+        const mappedBadges = profileData.badges
+            .map(bId => availableBadges.find(ab => String(ab.id) === String(bId)))
+            .filter(Boolean); // Remove nulos
+        profileData.badges = mappedBadges;
+    } else {
+        profileData.badges = [];
+    }
+
+    
+
+    return {
+        ...colaborador,
+        ...login,
+        ...profileData
+    };
+}
+
+async function addBadgeToProfile(id, badgeId) {
+    await createProfilesTable();
+    
+    const getQuery = `SELECT badges FROM profiles WHERE id = $1`;
+    const { rows } = await cenos_pool.query(getQuery, [id]);
+    
+    let currentBadges = [];
+    if (rows.length > 0) {
+        currentBadges = rows[0].badges || [];
+    } else {
+        await cenos_pool.query(
+            `INSERT INTO profiles (id, "profilePicUrl", badges) VALUES ($1, NULL, '[]'::jsonb)`,
+            [id]
+        );
+    }
+
+    // badgeId convertido pra inteiro
+    const numericBadgeId = parseInt(badgeId);
+
+    if (!currentBadges.includes(numericBadgeId)) {
+        currentBadges.push(numericBadgeId);
+        await cenos_pool.query(
+            `UPDATE profiles SET badges = $1 WHERE id = $2`,
+            [JSON.stringify(currentBadges), id]
+        );
+    }
+    
+    return currentBadges;
+}
+
+async function updateProfilePic(id, imageUrl) {
+    await createProfilesTable();
+
+    // Upsert para inserir se nao existir
+    const query = `
+        INSERT INTO profiles (id, "profilePicUrl", badges)
+        VALUES ($1, $2, '[]'::jsonb)
+        ON CONFLICT (id)
+        DO UPDATE SET "profilePicUrl" = EXCLUDED."profilePicUrl"
+        RETURNING *;
+    `;
+    const { rows } = await cenos_pool.query(query, [id, imageUrl]);
+    return rows[0];
+}
 
 /**
  * Verifica quais instalações têm justificativas respondidas
@@ -8,9 +134,9 @@ const { fastC12ForAgent, firstC12ForAgent } = require('./c12');
  */
 async function checkJustifiedByInstallations(installations, estado = 'pi') {
     const pool = cenos_pool;
-    
+
     if (!installations || installations.length === 0) return {};
-    
+
     // Garante que a tabela existe
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS justificativas (
@@ -29,7 +155,7 @@ async function checkJustifiedByInstallations(installations, estado = 'pi') {
         );
     `;
     await pool.query(createTableQuery);
-    
+
     // Busca justificativas respondidas para essas instalações
     const placeholders = installations.map((_, i) => `$${i + 1}`).join(', ');
     const query = `
@@ -39,9 +165,9 @@ async function checkJustifiedByInstallations(installations, estado = 'pi') {
         AND estado = $${installations.length + 1}
     `;
     const params = [...installations.map(i => i.trim()), estado.toLowerCase()];
-    
+
     const { rows } = await pool.query(query, params);
-    
+
     // Cria mapa de justificativas
     const justified = {};
     installations.forEach(inst => {
@@ -50,7 +176,7 @@ async function checkJustifiedByInstallations(installations, estado = 'pi') {
     rows.forEach(row => {
         justified[row.instalacao.trim()] = true;
     });
-    
+
     return justified;
 }
 
@@ -622,7 +748,7 @@ async function pre_create_pending_justify({
         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pendente', $8, $9)
         RETURNING *;
     `;
-    const { rows } = await pool.query(insertQuery, [autor.toLowerCase(), quantidade, tipo, unidade_leitura, JSON.stringify(instalacao ), foto, state.toLowerCase(), created_at, updated_at]);
+    const { rows } = await pool.query(insertQuery, [autor.toLowerCase(), quantidade, tipo, unidade_leitura, JSON.stringify(instalacao), foto, state.toLowerCase(), created_at, updated_at]);
     return rows[0];
 }
 
@@ -1097,5 +1223,8 @@ module.exports = {
     delete_daily_report,
     get_inventory_by_agent,
     save_inventory,
-    create_security_report
+    create_security_report,
+    getUserData,
+    updateProfilePic,
+    addBadgeToProfile
 };

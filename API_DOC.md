@@ -182,6 +182,118 @@ Retorna os dados do colaborador autenticado (matrícula e estado).
 
 ---
 
+#### `GET /agent/profile`
+Retorna o perfil do agente autenticado com suas estatísticas, metas de desempenho e emblemas (gamificação).
+
+**Retorno (sucesso):**
+```json
+{
+    "user": {
+        "name": "Izaias da Silva Ferreira",
+        "role": "LEITURISTA A PÉ",
+        "location": "REGIONAL METROPOLITANA",
+        "photo": "https://api.izi.tec.br/files/assets/profile.png",
+        "stats": {
+            "level": 4.5,
+            "completionRate": 85,
+            "fastResponses": 134,
+            "points": 4350
+        }
+    },
+    "goals": [
+        { "id": 1, "title": "Não ultrapassar mais de 110% de CNL", "completed": true },
+        { "id": 2, "title": "Ter 80% do CNL indevidos justificado", "completed": true }
+    ],
+    "badges": [
+        {
+            "id": 2,
+            "title": "Roterizador Master",
+            "description": "Completou o treinamento de Roteirização",
+            "earned": true,
+            "imageUrl": "https://api.izi.tec.br/files/assets/emblema3.png"
+        }
+    ]
+}
+```
+
+---
+
+#### `GET /agent/ceneduc`
+Retorna o layout, capas (cursos em destaque) e trilhas de treinamento da plataforma CenEduc.
+
+**Retorno (sucesso):**
+```json
+{
+    "layout": { "columns": 3, "gap": 16, "baseRowHeight": 165 },
+    "cover": [
+        {
+            "id": "cover_1",
+            "title": "Bem-vindo(a)",
+            "subtitle": "Sua nova plataforma de aprendizado",
+            "description": "Aqui você encontra tudo o que precisa para se desenvolver profissionalmente. Explore nossos cursos e trilhas de aprendizado.",
+            "metaHeader": ["Mais Acessados", "INTERATIVO", "2026"],
+            "category": "Bem-vindo(a), boas vindas",
+            "image": "https://api.izi.tec.br/files/assets/cover2.png",
+            "action": { "type": "link", "url": "/ceneduc" }
+        }
+    ],
+    "trains": [
+        {
+            "type": "slider",
+            "title": "Cursos de Aperfeiçoamento",
+            "items": [
+                {
+                    "id": "course_1",
+                    "data": {
+                        "title": "Erro de leitura",
+                        "subtitle": "Dicas de como eviter erros",
+                        "cover": "https://api.izi.tec.br/files/assets/cover3.png",
+                        "description": "Neste curso você aprenderá a evitar erros de leitura no seu dia a dia.",
+                        "metaHeader": ["Recomendado", "QUALIDADE", "2026"],
+                        "category": "Leitura, Qualidade",
+                        "completed": true,
+                        "link": "/f/1"
+                    }
+                }
+            ]
+        }
+    ]
+}
+```
+
+---
+
+#### `POST /agent/profile/upload`
+Atualiza a foto de perfil do agente na base de dados (suporta form-data ou base64 json).
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `photo` | file / base64 | Imagem enviada para atualização do perfil do usuário |
+
+**Retorno (sucesso):** Objeto com os dados do usuário, incluindo a chave `user.photo` com a nova URL pública.
+
+---
+
+#### `GET /agent/badge`
+Atribui um novo emblema (badge) para o agente autenticado.
+
+**Query Params:**
+
+| Param | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `badge` | string/num | Sim | ID numérico do emblema a ser associado |
+
+**Retorno (sucesso):**
+```json
+{
+    "success": true,
+    "badges": [1, 2, 3]
+}
+```
+
+---
+
+
 #### `GET /agent/get_justify`
 Consulta justificativas de erros do agente com dados da matriz.
 

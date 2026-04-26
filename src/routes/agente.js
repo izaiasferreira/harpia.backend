@@ -26,7 +26,10 @@ const {
     get_daily_report_today,
     get_inventory_by_agent,
     save_inventory,
-    create_security_report
+    create_security_report,
+    getUserData,
+    updateProfilePic,
+    addBadgeToProfile
 } = require('../functions/postgresFunctions');
 const { minioClient, CONFIG, ensureBucketExists, getFileUrl, compressImage } = require('../functions/minio');
 const { telegramAuth } = require('../middlewares/telegramAuth');
@@ -34,6 +37,7 @@ const { today, parse_date } = require('../utils/dates');
 const multer = require('multer');
 const { generateDashboard } = require('../functions/generateDashboard');
 const { generateCustomLinks } = require('../functions/generateCustomLinks');
+const { listBadges } = require('../functions/badges');
 
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -42,6 +46,219 @@ const upload = multer({
 });
 
 router.use(telegramAuth);
+
+router.get('/profile', async (req, res) => {
+    const user = req.colaborador
+    const userData = await getUserData({ id: user.id, state: user.estado });
+    return res.json({
+        user: {
+            name: userData.nome,
+            role: userData.cargo,
+            location: userData.regional,
+            photo: userData.profilePicUrl || "https://api.izi.tec.br/files/assets/profile.png",
+            stats: {
+                level: 1.5
+            }
+        },
+        goals: [
+            { id: 1, title: 'Não ultrapassar mais de 110% de CNL', completed: false },
+            { id: 2, title: 'Ter 80% do CNL indevidos justificado', completed: false },
+            { id: 3, title: 'Ter 0 perdas por troca de apontamento', completed: false },
+            { id: 4, title: 'Ter 90% de perdas justificadas', completed: false },
+            { id: 5, title: 'Ao menos 1 reporte de segurança por etapa', completed: false },
+            { id: 6, title: 'Fazer checklist de segurança 1 vez por semana', completed: false },
+            { id: 7, title: 'Ter 80% do diário de bordo respondido', completed: false },
+            { id: 8, title: 'Ter inventário atualizado pelo menos 1 vez ao mês', completed: false },
+            { id: 9, title: 'Ter 1 erro de leitura a cada 5000 leituras', completed: false }
+        ],
+        badges: Array.isArray(userData.badges) ? userData.badges : []
+    });
+})
+
+router.post('/profile/upload', upload.single('photo'), async (req, res) => {
+    try {
+        const user = req.colaborador;
+        let photoBuffer;
+        let mimeType = 'image/jpeg';
+        let extension = 'jpg';
+
+        if (req.file) {
+            photoBuffer = req.file.buffer;
+            mimeType = req.file.mimetype;
+            extension = mimeType.split('/')[1] || 'jpg';
+        } else if (req.body.photo) {
+            const matches = req.body.photo.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+            if (matches && matches.length === 3) {
+                mimeType = matches[1];
+                photoBuffer = Buffer.from(matches[2], 'base64');
+                extension = mimeType.split('/')[1] || 'jpg';
+            } else {
+                photoBuffer = Buffer.from(req.body.photo, 'base64');
+            }
+        } else {
+            return res.status(400).json({ error: 'Nenhuma foto enviada' });
+        }
+
+        // Upload para o Minio
+        await ensureBucketExists();
+        const fileName = `profiles/${user.id}_${new Date().getTime()}.jpg`;
+
+        // Comprime a imagem
+        const compressedData = await compressImage(photoBuffer, mimeType);
+
+        await minioClient.putObject(
+            CONFIG.bucket,
+            fileName,
+            compressedData,
+            { 'Content-Type': mimeType }
+        );
+
+        const fileUrl = getFileUrl(fileName);
+
+        // Atualiza no banco de dados
+        await updateProfilePic(user.id, fileUrl);
+
+        const userData = await getUserData({ id: user.id, state: user.estado });
+        return res.json({
+            user: {
+                name: userData.nome,
+                role: userData.cargo,
+                location: userData.regional,
+                photo: fileUrl || "https://api.izi.tec.br/files/assets/profile.png",
+                stats: {
+                    level: 1.5
+                }
+            },
+            goals: [
+                { id: 1, title: 'Não ultrapassar mais de 110% de CNL', completed: false },
+                { id: 2, title: 'Ter 80% do CNL indevidos justificado', completed: false },
+                { id: 3, title: 'Ter 0 perdas por troca de apontamento', completed: false },
+                { id: 4, title: 'Ter 90% de perdas justificadas', completed: false },
+                { id: 5, title: 'Ao menos 1 reporte de segurança por etapa', completed: false },
+                { id: 6, title: 'Fazer checklist de segurança 1 vez por semana', completed: false },
+                { id: 7, title: 'Ter 80% do diário de bordo respondido', completed: false },
+                { id: 8, title: 'Ter inventário atualizado pelo menos 1 vez ao mês', completed: false },
+                { id: 9, title: 'Ter 1 erro de leitura a cada 5000 leituras', completed: false }
+            ],
+            badges: Array.isArray(userData.badges) ? userData.badges : []
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/badge', async (req, res) => {
+    try {
+        const user = req.colaborador;
+        const badgeId = req.query.badge;
+
+        if (!badgeId) {
+            return res.status(400).json({ error: 'Parâmetro badge é obrigatório' });
+        }
+
+        const updatedBadges = await addBadgeToProfile(user.id, badgeId);
+
+        return res.json({
+            success: true,
+            badges: updatedBadges
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/ceneduc', async (req, res) => {
+    return res.json({
+        layout: { columns: 3, gap: 16, baseRowHeight: 165 },
+        cover: [
+            {
+                id: 'cover_1',
+                title: 'Bem-vindo(a)',
+                subtitle: 'Sua nova plataforma de aprendizado',
+                description: 'Aqui você encontra tudo o que precisa para se desenvolver profissionalmente. Explore nossos cursos e trilhas de aprendizado.',
+                metaHeader: ["Mais Acessados", "INTERATIVO", "2026"],
+                category: "Bem-vindo(a), boas vindas",
+                image: 'https://api.izi.tec.br/files/assets/cover2.png',
+                action: { type: 'link', url: '/ceneduc' },
+            },
+            {
+                id: 'cover_2',
+                title: 'Remanejamento',
+                subtitle: 'Você sabe abrir?',
+                description: 'Neste treinamento interativo voce aprenderá como abrir uma nota de remanejamento de uma instalação.',
+                metaHeader: ["Popular", "PROCEDIMENTO", "2026"],
+                category: "Treinamento, Campo",
+                image: 'https://api.izi.tec.br/files/assets/cover1.png',
+                action: { type: 'link', url: '/f/1' },
+            }
+        ],
+        trains: [
+            {
+                type: 'slider',
+                title: 'Cursos de Aperfeiçoamento',
+                items: [
+                    {
+                        id: 'course_1',
+                        data: {
+                            title: 'Erro de leitura',
+                            subtitle: 'Dicas de como eviter erros',
+                            cover: 'https://api.izi.tec.br/files/assets/cover3.png',
+                            description: 'Neste curso você aprenderá a evitar erros de leitura no seu dia a dia. Evite reciclagens e problemas graves no faturamento.',
+                            metaHeader: ["Recomendado", "QUALIDADE", "2026"],
+                            category: "Leitura, Qualidade",
+                            completed: true,
+                            link: '/f/1',
+                        }
+                    },
+                    {
+                        id: 'course_2',
+                        data: {
+                            title: 'Notas de Remanejamento',
+                            subtitle: 'Saiba como abrir',
+                            cover: 'https://api.izi.tec.br/files/assets/cover1.png',
+                            description: 'Neste treinamento interativo voce aprenderá como abrir uma nota de remanejamento de uma instalação.',
+                            metaHeader: ["Essencial", "PROCEDIMENTO", "2026"],
+                            category: "Treinamento, Campo",
+                            link: '/f/1',
+                        }
+                    },
+                    {
+                        id: 'course_3',
+                        data: {
+                            title: 'Notas de Desligamento',
+                            subtitle: 'Saiba como abrir',
+                            cover: 'https://api.izi.tec.br/files/assets/cover5.png',
+                            description: 'Neste treinamento interativo voce aprenderá como abrir uma nota de desligamento de uma instalação.',
+                            metaHeader: ["Novo", "PROCEDIMENTO", "2026"],
+                            category: "Treinamento, Campo",
+                            link: '/f/3',
+                        }
+                    }
+                ]
+            },
+            {
+                type: 'banner',
+                title: 'Segurança e Procedimentos',
+                items: [
+                    {
+                        id: 'course_4',
+                        data: {
+                            title: 'EPI e EPC Essenciais',
+                            subtitle: 'Padrão Rigoroso de Segurança Ceneged',
+                            cover: 'https://api.izi.tec.br/files/assets/cover4.png',
+                            description: 'Neste curso, você aprenderá todo o manuseio de EPI/EPC e as melhores práticas para conservação.',
+                            metaHeader: ["Obrigatório", "SEGURANÇA", "2026"],
+                            category: "Segurança, Campo",
+                            link: '/f/4',
+                        }
+                    }
+                ]
+            }
+        ]
+    });
+})
 
 router.get('/agent_dashboard', async (req, res) => {
     try {
@@ -104,7 +321,7 @@ router.get('/agent_dashboard', async (req, res) => {
         const quant_c12 = result.filter(r => r.ntlei === 'C12').length || 0;
         const quant_c12_out_hour = result.filter(r => r.ntlei === 'C12' && parseInt(r.hora_conclusao.split(':')[0]) < 8).length || 0;
 
-        
+
         const layout = generateDashboard({
             state,
             id,
@@ -143,18 +360,18 @@ router.get('/agent_services', async (req, res) => {
         const state = req.colaborador.estado || 'pi';
         const id = req.colaborador.id;
         const result = await getLeiturasForAgent({ state, id, date: today_date, page: page || 1, filter: atual_filter });
-        
+
         // Verificar justificativas
         const data = Array.isArray(result) ? result : result?.data || [];
         if (data.length > 0) {
             const installations = data.map(r => r.instalacao);
             const justified = await checkJustifiedByInstallations(installations, state);
-            
+
             const resultWithJustified = (Array.isArray(result) ? result : data).map(r => ({
                 ...r,
                 justificado: !!justified[r.instalacao]
             }));
-            
+
             if (Array.isArray(result)) {
                 res.json(resultWithJustified);
             } else {
@@ -162,7 +379,7 @@ router.get('/agent_services', async (req, res) => {
             }
             return;
         }
-        
+
         res.json(result);
     } catch (err) {
         console.log(err);
@@ -200,18 +417,18 @@ router.get('/predicted', async (req, res) => {
         const state = req.colaborador.estado || 'pi';
         const id = req.colaborador.id;
         const results = await get_predicted({ state, id, status, page, limit });
-        
+
         // Verificar justificativas
         const data = Array.isArray(results) ? results : results?.data || [];
         if (data.length > 0) {
             const installations = data.map(r => r.instalacao);
             const justified = await checkJustifiedByInstallations(installations, state);
-            
+
             const resultWithJustified = (Array.isArray(results) ? results : data).map(r => ({
                 ...r,
                 justificado: !!justified[r.instalacao]
             }));
-            
+
             if (Array.isArray(results)) {
                 res.json(resultWithJustified);
             } else {
@@ -219,7 +436,7 @@ router.get('/predicted', async (req, res) => {
             }
             return;
         }
-        
+
         res.json(results);
     } catch (err) {
         console.log(err);
@@ -539,7 +756,7 @@ router.post('/inventory', async (req, res) => {
 
         const faltantes = required.filter(o => !o.valor || o.valor.trim() === '');
         if (faltantes.length > 0) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 error: 'Campos obrigatórios não preenchidos',
                 campos: faltantes.map(f => f.nome)
             });
