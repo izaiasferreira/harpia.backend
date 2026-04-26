@@ -252,7 +252,7 @@ router.get('/custom_links', async (req, res) => {
     try {
         const state = req.colaborador.estado || 'pi';
         const id = req.colaborador.id;
-        const links = generateCustomLinks({ state, id });
+        const links = generateCustomLinks({ state, id, user: req.colaborador });
         return res.json(links);
     } catch (err) {
         res.status(500).json({ error: err.message });

@@ -1,6 +1,6 @@
 const { link } = require("../routes/agente");
 
-function generateCustomLinks({ state, id }) {
+function generateCustomLinks({ state, id, user }) {
 
     const links = [
         {
@@ -50,11 +50,32 @@ function generateCustomLinks({ state, id }) {
         }
     ]
 
-    const links_filtered = links.filter(link => link.states.includes(state));
+    let links_filtered = links.filter(link => link.states.includes(state));
 
     links_filtered.forEach(link => {
         link.url = link.url.replace('${id}', id);
     });
+
+    if (user.id === 'T38876') {
+        links_filtered.unshift({
+            "id": "ceneduc-app",
+            "label": "Ceneduc",
+            "description": "Cursos",
+            "url": `/ceneduc`,
+            "emoji": "BookOpen",
+            "color": "text-red-600",
+            "states": ['pi', 'ma']
+        });
+        links_filtered.unshift({
+            "id": "profile-app",
+            "label": "Perfil",
+            "description": "Meu perfil",
+            "url": `/profile`,
+            "emoji": "User",
+            "color": "text-green-600",
+            "states": ['pi', 'ma']
+        });
+    }
 
     return links_filtered
 }
