@@ -15,7 +15,6 @@ const {
     get_justify,
     update_justify,
     delete_justify,
-    get_instalations_matriz,
     getWeeklyCNLStats,
     checkJustifiedByInstallations,
     respond_pending_justify,
@@ -29,7 +28,9 @@ const {
     create_security_report,
     getUserData,
     updateProfilePic,
-    addBadgeToProfile
+    addBadgeToProfile,
+    get_security_reports,
+    get_instalations_matriz
 } = require('../functions/postgresFunctions');
 const { minioClient, CONFIG, ensureBucketExists, getFileUrl, compressImage } = require('../functions/minio');
 const { telegramAuth } = require('../middlewares/telegramAuth');
@@ -37,7 +38,7 @@ const { today, parse_date } = require('../utils/dates');
 const multer = require('multer');
 const { generateDashboard } = require('../functions/generateDashboard');
 const { generateCustomLinks } = require('../functions/generateCustomLinks');
-const { listBadges } = require('../functions/badges');
+const { get_instalation_matriz } = require('../functions/database/commom');
 
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -45,9 +46,9 @@ const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-router.use(telegramAuth);
 
-router.get('/profile', async (req, res) => {
+
+router.get('/profile', telegramAuth, async (req, res) => {
     const user = req.colaborador
     const userData = await getUserData({ id: user.id, state: user.estado });
     return res.json({
@@ -75,7 +76,7 @@ router.get('/profile', async (req, res) => {
     });
 })
 
-router.post('/profile/upload', upload.single('photo'), async (req, res) => {
+router.post('/profile/upload', telegramAuth, upload.single('photo'), async (req, res) => {
     try {
         const user = req.colaborador;
         let photoBuffer;
@@ -148,7 +149,7 @@ router.post('/profile/upload', upload.single('photo'), async (req, res) => {
     }
 });
 
-router.get('/badge', async (req, res) => {
+router.get('/badge', telegramAuth, async (req, res) => {
     try {
         const user = req.colaborador;
         const badgeId = req.query.badge;
@@ -169,7 +170,7 @@ router.get('/badge', async (req, res) => {
     }
 });
 
-router.get('/ceneduc', async (req, res) => {
+router.get('/ceneduc', telegramAuth, async (req, res) => {
     return res.json({
         layout: { columns: 3, gap: 16, baseRowHeight: 165 },
         cover: [
@@ -260,7 +261,7 @@ router.get('/ceneduc', async (req, res) => {
     });
 })
 
-router.get('/agent_dashboard', async (req, res) => {
+router.get('/agent_dashboard', telegramAuth, async (req, res) => {
     try {
         const state = req.colaborador.estado || 'pi';
         const id = req.colaborador.id;
@@ -352,7 +353,7 @@ router.get('/agent_dashboard', async (req, res) => {
     }
 });
 
-router.get('/agent_services', async (req, res) => {
+router.get('/agent_services', telegramAuth, async (req, res) => {
     try {
         const { page, date, filter } = req.query;
         const atual_filter = filter || 'all';
@@ -387,7 +388,7 @@ router.get('/agent_services', async (req, res) => {
     }
 });
 
-router.post('/search_in', async (req, res) => {
+router.post('/search_in', telegramAuth, async (req, res) => {
     try {
         const { type, queries } = req.body;
         const state = req.colaborador.estado || 'pi';
@@ -411,7 +412,7 @@ router.post('/search_in', async (req, res) => {
     }
 });
 
-router.get('/predicted', async (req, res) => {
+router.get('/predicted', telegramAuth, async (req, res) => {
     try {
         const { status, page, limit } = req.query;
         const state = req.colaborador.estado || 'pi';
@@ -444,7 +445,7 @@ router.get('/predicted', async (req, res) => {
     }
 });
 
-router.get('/last_update_agent', async (req, res) => {
+router.get('/last_update_agent', telegramAuth, async (req, res) => {
     try {
         const state = req.colaborador.estado || 'pi';
         const result = await lastUpdate(state);
@@ -454,7 +455,7 @@ router.get('/last_update_agent', async (req, res) => {
     }
 });
 
-router.get('/agent_data', async (req, res) => {
+router.get('/agent_data', telegramAuth, async (req, res) => {
     try {
         res.json({
             id: req.colaborador.id,
@@ -465,7 +466,7 @@ router.get('/agent_data', async (req, res) => {
     }
 });
 
-router.get('/custom_links', async (req, res) => {
+router.get('/custom_links', telegramAuth, async (req, res) => {
     try {
         const state = req.colaborador.estado || 'pi';
         const id = req.colaborador.id;
@@ -476,20 +477,26 @@ router.get('/custom_links', async (req, res) => {
     }
 });
 
-router.get('/get_justify', async (req, res) => {
+router.get('/get_justify', telegramAuth, async (req, res) => {
     try {
         const { tipo, instalacao, data_leit_prev } = req.query;
         const estado = req.colaborador.estado;
         const results = await get_justify({ estado, tipo, instalacao, data_leit_prev });
 
-        var instalation_data = await get_instalations_matriz({ estado, instalacao, data_leit_prev });
+        var instalation_data = await get_instalation_matriz({
+            estado,
+            instalacao: [instalacao.trim()],
+            data_leit_prev
+        });
+
+
+        if (!instalation_data.length) return res.status(404).json({ error: 'Instalação não encontrada' });
+
+        instalation_data = instalation_data[0];
         delete instalation_data['tipo'];
 
-        console.log(instalation_data);
-
-
-
         const has_justified = results.hasOwnProperty('id');
+
         res.json({ ...instalation_data, ...results, has_justified });
     } catch (err) {
         console.log(err);
@@ -497,7 +504,7 @@ router.get('/get_justify', async (req, res) => {
     }
 });
 
-router.post('/create_justify', async (req, res) => {
+router.post('/create_justify', telegramAuth, async (req, res) => {
     try {
         const {
             instalacao,
@@ -535,7 +542,7 @@ router.post('/create_justify', async (req, res) => {
     }
 });
 
-router.put('/update_justify', async (req, res) => {
+router.put('/update_justify', telegramAuth, async (req, res) => {
     try {
         const { id, ...fields } = req.body;
         if (!id) {
@@ -553,7 +560,7 @@ router.put('/update_justify', async (req, res) => {
     }
 });
 
-router.delete('/delete_justify/:id', async (req, res) => {
+router.delete('/delete_justify/:id', telegramAuth, async (req, res) => {
     try {
         const { id } = req.params;
         const estado = req.colaborador.estado || 'pi';
@@ -569,7 +576,7 @@ router.delete('/delete_justify/:id', async (req, res) => {
 });
 
 // justify_pending - responder justificativa pré-criada
-router.put('/justify_pending/:id/respond', async (req, res) => {
+router.put('/justify_pending/:id/respond', telegramAuth, async (req, res) => {
     try {
         const { id } = req.params;
         const estado = req.colaborador.estado || 'pi';
@@ -600,7 +607,7 @@ router.put('/justify_pending/:id/respond', async (req, res) => {
 });
 
 // justify_pending - consultar por ID
-router.get('/justify_pending/:id', async (req, res) => {
+router.get('/justify_pending/:id', telegramAuth, async (req, res) => {
     try {
         const { id } = req.params;
         const estado = req.colaborador.estado || 'pi';
@@ -617,7 +624,7 @@ router.get('/justify_pending/:id', async (req, res) => {
 });
 
 // justify_pending - listar justificativas (por autor e/ou status)
-router.get('/justify_pending', async (req, res) => {
+router.get('/justify_pending', telegramAuth, async (req, res) => {
     try {
         const estado = req.colaborador.estado || 'pi';
         const autor = req.query.autor || req.colaborador.id;
@@ -634,7 +641,7 @@ router.get('/justify_pending', async (req, res) => {
 });
 
 // daily_report - criar reporte diário (1 por dia)
-router.post('/daily_report', async (req, res) => {
+router.post('/daily_report', telegramAuth, async (req, res) => {
     try {
         const estado = req.colaborador.estado || 'pi';
         const autor = req.colaborador.id;
@@ -672,7 +679,7 @@ router.post('/daily_report', async (req, res) => {
 });
 
 // daily_report - listar reportes (por autor e/ou data)
-router.get('/daily_report', async (req, res) => {
+router.get('/daily_report', telegramAuth, async (req, res) => {
     try {
         const estado = req.colaborador.estado || 'pi';
         const autor = req.query.autor || req.colaborador.id;
@@ -690,7 +697,7 @@ router.get('/daily_report', async (req, res) => {
 });
 
 // daily_report - verificar se já existe reporte hoje
-router.get('/daily_report/check_today', async (req, res) => {
+router.get('/daily_report/check_today', telegramAuth, async (req, res) => {
     try {
         const estado = req.colaborador.estado || 'pi';
         const autor = req.colaborador.id;
@@ -704,7 +711,7 @@ router.get('/daily_report/check_today', async (req, res) => {
 });
 
 
-router.get('/inventory', async (req, res) => {
+router.get('/inventory', telegramAuth, async (req, res) => {
     try {
         const estado = req.colaborador.estado || 'pi';
         const agente = req.query.agente || req.colaborador.id;
@@ -721,7 +728,7 @@ router.get('/inventory', async (req, res) => {
 });
 
 
-router.post('/inventory', async (req, res) => {
+router.post('/inventory', telegramAuth, async (req, res) => {
     try {
         const estado = req.colaborador.estado || 'pi';
         const {
@@ -785,7 +792,7 @@ router.post('/inventory', async (req, res) => {
     }
 });
 
-router.post('/security_report', async (req, res) => {
+router.post('/security_report', telegramAuth, async (req, res) => {
     try {
         const autor = req.colaborador.id;
         const { motivo, observacao, latitude, longitude } = req.body;
@@ -810,7 +817,23 @@ router.post('/security_report', async (req, res) => {
     }
 });
 
-router.post('/upload_agent', upload.single('file'), async (req, res) => {
+router.get('/security_report', telegramAuth, async (req, res) => {
+    try {
+        const user = req.colaborador;
+
+
+        const result = await get_security_reports({
+            user
+        });
+
+        res.status(201).json(result);
+    } catch (err) {
+        console.error('Erro ao criar reporte de segurança:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/upload_agent', telegramAuth, upload.single('file'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'Nenhum arquivo enviado' });

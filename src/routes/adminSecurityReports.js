@@ -17,6 +17,7 @@ router.get('/', verifyToken(), verifyModule('security_reports'), async (req, res
             limit,
             search
         });
+        console.log(result);
         res.json(result);
     } catch (error) {
         console.error(error);

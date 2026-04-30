@@ -41,7 +41,6 @@ const {
     get_justify,
     update_justify,
     delete_justify,
-    get_instalations_matriz,
     getWeeklyCNLStats,
     checkJustifiedByInstallations,
     pre_create_pending_justify,
@@ -56,6 +55,7 @@ const {
     get_inventory_by_agent,
     save_inventory,
     create_security_report,
+    get_security_reports,
     getUserData,
     updateProfilePic,
     addBadgeToProfile
@@ -89,7 +89,6 @@ module.exports = {
     getAgentTelegramId,
     lastUpdate,
     get_instalations,
-    get_instalations_matriz,
     get_predicted,
     save_justify,
     get_justify,
@@ -109,6 +108,7 @@ module.exports = {
     get_inventory_by_agent,
     save_inventory,
     create_security_report,
+    get_security_reports,
     getUserData,
     updateProfilePic,
     addBadgeToProfile

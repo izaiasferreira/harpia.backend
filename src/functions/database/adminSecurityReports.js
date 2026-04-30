@@ -81,7 +81,7 @@ async function get_security_reports_admin({ user, estado, page = 1, limit = 9999
         if (!r.estado && agent) {
             r.estado = agent.estado;
         }
-        return { ...r, ...agent };
+        return { ...agent, ...r };
     });
 
     // Caso o registro não tenha estado e não conseguimos inferir, e o usuário não for admin global,

@@ -2,6 +2,7 @@ const { pi_pool, ma_pool, localizacoes_pi_pool, cenos_pool } = require('../../db
 const { today } = require('../../utils/dates');
 const { fastC12ForAgent, firstC12ForAgent } = require('./c12');
 const { listBadges } = require('../badges');
+const { get_instalation_matriz, getPoolByState } = require('./commom');
 
 async function createProfilesTable() {
     const query = `
@@ -62,7 +63,7 @@ async function getUserData({ id, state }) {
     if (profileMatches.length > 0) {
         profileData = profileMatches[0];
     }
-    
+
     // Mapeia os IDs dos badges gravados para obter os objetos completos
     if (profileData.badges && profileData.badges.length > 0) {
         const availableBadges = await listBadges();
@@ -74,7 +75,7 @@ async function getUserData({ id, state }) {
         profileData.badges = [];
     }
 
-    
+
 
     return {
         ...colaborador,
@@ -85,10 +86,10 @@ async function getUserData({ id, state }) {
 
 async function addBadgeToProfile(id, badgeId) {
     await createProfilesTable();
-    
+
     const getQuery = `SELECT badges FROM profiles WHERE id = $1`;
     const { rows } = await cenos_pool.query(getQuery, [id]);
-    
+
     let currentBadges = [];
     if (rows.length > 0) {
         currentBadges = rows[0].badges || [];
@@ -109,7 +110,7 @@ async function addBadgeToProfile(id, badgeId) {
             [JSON.stringify(currentBadges), id]
         );
     }
-    
+
     return currentBadges;
 }
 
@@ -223,14 +224,37 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
     if (filter === 'all') {
         const query_all = `
             SELECT 
-                instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,
-                tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
-            FROM matriz
-            WHERE agente IN ($1, $2)
-            AND data_conclusao >= TO_DATE($3, 'DD/MM/YYYY')
-            AND data_conclusao < TO_DATE($3, 'DD/MM/YYYY') + interval '1 day'
-            ORDER BY data_conclusao ASC
-            LIMIT $4 OFFSET $5;`;
+                m.instalacao, m.etapa, m.ntlei, m.data_conclusao, m.data_leit_prev, m.agente,
+                m.tem_perda, m.perda_prevista_mensal, m.nome_agente, m.seccional, m.regional, m.unidade_leitura,
+                
+                -- Lógica para Latitude: se for 0 ou null, busca o histórico da instalação
+                COALESCE(
+                    NULLIF(m.latitude, 0), 
+                    (SELECT sub.latitude FROM matriz sub 
+                    WHERE sub.instalacao = m.instalacao 
+                    AND sub.latitude <> 0 AND sub.latitude IS NOT NULL 
+                    AND sub.data_conclusao < m.data_conclusao 
+                    ORDER BY sub.data_conclusao DESC LIMIT 1)
+                ) as latitude,
+                
+                -- Lógica para Longitude: se for 0 ou null, busca o histórico da instalação
+                COALESCE(
+                    NULLIF(m.longitude, 0), 
+                    (SELECT sub.longitude FROM matriz sub 
+                    WHERE sub.instalacao = m.instalacao 
+                    AND sub.longitude <> 0 AND sub.longitude IS NOT NULL 
+                    AND sub.data_conclusao < m.data_conclusao 
+                    ORDER BY sub.data_conclusao DESC LIMIT 1)
+                ) as longitude
+
+            FROM matriz m
+            WHERE m.agente IN ($1, $2)
+            AND m.data_conclusao >= TO_DATE($3, 'DD/MM/YYYY')
+            AND m.data_conclusao < TO_DATE($3, 'DD/MM/YYYY') + interval '1 day'
+            ORDER BY m.data_conclusao ASC
+            LIMIT $4 OFFSET $5;
+        `;
+
 
         const { rows } = state === 'pi'
             ? await pi_pool.query(query_all, params)
@@ -347,8 +371,12 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
         if (rows.length === 0) return [];
         result.push(...rows);
     }
+    const locations = await get_instalation_matriz({ estado: state, instalacao: result.map(r => r.instalacao) })
 
     return result.map(r => {
+        const data = locations.find(l => l.instalacao === r.instalacao);
+        r.latitude = data?.latitude;
+        r.longitude = data?.longitude;
         r.data_leit_prev = new Date(r.data_leit_prev).toLocaleDateString('pt-BR');
         return r
     });
@@ -378,14 +406,26 @@ async function getLeiturasPendingForAgent({ state = 'pi', id, date = today(), pa
 }
 
 // ─── getCalendarForAgent ──────────────────────────────────────────────────────
-async function getCalendarForAgent({ state = 'pi' }) {
-    const query = `
-    SELECT 
-        *
-    FROM etapas
-    `;
-    const { rows } = state === 'pi' ? await pi_pool.query(query) : await ma_pool.query(query);
-    return rows;
+async function getCalendarForAgent({ state = 'pi', month = new Date().getMonth() + 1 }) {
+    const pool = getPoolByState(state);
+    const monthStr = parseInt(month);
+
+    const query = state == 'ma'
+        ? `SELECT * FROM etapas`
+        : `SELECT * FROM calendario_anual WHERE "DATA" LIKE '${monthStr}/%'`;
+
+
+    const { rows } = await pool.query(query);
+    if (state == 'pi') {
+        return rows.map(r => ({
+            etapa: r.ETAPA,
+            data: new Date(r.DATA).toLocaleDateString('pt-BR')
+        }));
+    }
+    return rows.map(r => ({
+        etapa: r.etapa,
+        data: r.data
+    }));
 }
 
 // ─── getAgentTelegramId ───────────────────────────────────────────────────────
@@ -423,31 +463,7 @@ async function get_instalations({ state, query = [], type }) {
     }
 }
 
-async function get_instalation_matriz({ estado, instalacao, data_leit_prev }) {
-    if (!instalacao || !data_leit_prev) return {};
 
-    const activeState = (estado || 'pi').toLowerCase();
-    const pool = activeState === 'ma' ? ma_pool : pi_pool;
-
-    const sql = `
-        SELECT * FROM matriz
-        WHERE TRIM(instalacao) = TRIM($1)
-        AND data_leit_prev::date = TO_DATE($2, 'DD/MM/YYYY')
-    `;
-
-    const values = [instalacao, data_leit_prev];
-
-    try {
-        const { rows } = await pool.query(sql, values);
-        if (rows.length === 0) {
-            return {};
-        }
-        return rows[0];
-    } catch (err) {
-        console.error('Erro em get_instalations_matriz:', err);
-        throw err;
-    }
-}
 
 // ─── get_predicted ─────────────────────────────────────────────────────────────
 async function get_predicted({ state = 'pi', id, status = 'PENDENTE', page = 1, limit = 100 }) {
@@ -1198,12 +1214,44 @@ async function create_security_report(data) {
     return rows[0];
 }
 
+async function get_security_reports({ user }) {
+    const { id, estado } = user;
+    await createSecurityReportTable();
+    const leituras = await getLeiturasForAgent({ id, state: estado, page: 1, limit: 1000000 });
+
+
+    let uls_prefix = []
+    for (const leitura of leituras) {
+        uls_prefix.push(leitura.unidade_leitura.slice(0, 4))
+    }
+    uls_prefix = [...new Set(uls_prefix)]
+
+
+    const pool_state = getPoolByState(estado)
+
+    let locals = []
+    for (const prefix of uls_prefix) {
+        // console.log(prefix.slice(0, 2))
+        const { rows } = await pool_state.query(
+            `SELECT * FROM localidades WHERE ul = $1`,
+            [prefix.slice(0, 2)]
+        );
+        locals.push(rows)
+    }
+
+    // console.log(locals.flat())
+
+    return {};
+
+
+
+}
+
 module.exports = {
     getLeiturasForAgent,
     getLeiturasPendingForAgent,
     getCalendarForAgent,
     getAgentTelegramId,
-    get_instalations_matriz: get_instalation_matriz,
     get_instalations,
     get_predicted,
     save_justify,
@@ -1226,5 +1274,6 @@ module.exports = {
     create_security_report,
     getUserData,
     updateProfilePic,
-    addBadgeToProfile
+    addBadgeToProfile,
+    get_security_reports
 };
