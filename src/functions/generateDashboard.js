@@ -17,16 +17,13 @@ function generateDashboard({ state, id, stats }) {
         {
             imageUrl: getAssetsLink('banner5.png'),
             action: { type: 'link', url: '' }
+        },
+        {
+            imageUrl: getAssetsLink('banner6.png'),
+            action: { type: 'link', url: '/search' }
         }
     ]
 
-
-    if (state === 'pi') {
-        banners.push({
-            imageUrl: getAssetsLink('banner6.png'),
-            action: { type: 'link', url: '/search' }
-        })
-    }
 
     let widgets = [
         {
