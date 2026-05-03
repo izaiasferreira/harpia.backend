@@ -32,25 +32,29 @@ async function get_instalation_matriz({ estado, instalacao = [] }) {
                 ORDER BY sub.data_conclusao DESC LIMIT 1)
             ) as longitude,
 
-            -- Histórico dos últimos 3 meses (excluindo o registro atual)
-            (
-                SELECT jsonb_agg(h.ntlei)
+            -- Histórico dos últimos 4 registros válidos (incluindo o atual se válido)
+            COALESCE((
+                SELECT jsonb_agg(h.row)
                 FROM (
-                    SELECT ntlei 
+                    SELECT jsonb_build_object(
+                        'ntlei', h.ntlei, 
+                        'data_conclusao', TO_CHAR(h.data_conclusao, 'DD/MM/YYYY')
+                    ) as row
                     FROM matriz h 
                     WHERE h.instalacao = m.instalacao 
-                    AND h.data_conclusao < m.data_conclusao
+                    AND h.ntlei <> 'SEM APONTAMENTO'
+                    AND h.data_conclusao <= m.data_conclusao
                     ORDER BY h.data_conclusao DESC 
-                    LIMIT 3
+                    LIMIT 4
                 ) h
-            ) as ntlei_historico
+            ), '[]'::jsonb) as ntlei_historico
 
         FROM matriz m
         WHERE TRIM(m.instalacao) = ANY($1)
         -- O ORDER BY deve começar obrigatoriamente pela coluna do DISTINCT ON
         ORDER BY TRIM(m.instalacao), m.data_conclusao DESC;
     `;
-
+    
     const values = [instalacao.map(i => i.trim())];
 
     try {

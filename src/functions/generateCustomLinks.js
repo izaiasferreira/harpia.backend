@@ -19,7 +19,7 @@ function generateCustomLinks({ state, id, user }) {
             "url": `/search`,
             "emoji": "MapPinned",
             "color": "text-green-600",
-            "states": ['pi']
+            "states": ['pi', 'ma']
         },
         {
             "id": "inventario-app",

@@ -182,6 +182,70 @@ Retorna os dados do colaborador autenticado (matrícula e estado).
 
 ---
 
+#### `GET /agent/predicted`
+Retorna a lista de instalações com perdas previstas para o agente autenticado.
+
+**Query Params:**
+
+| Param | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `status` | string | `PENDENTE` | Status da conclusão (`PENDENTE` ou `CONCLUIDO`) |
+| `page` | number | 1 | Página |
+| `limit` | number | 100 | Limite de resultados |
+
+**Retorno:** Array de objetos contendo dados da matriz e coordenadas (lat_cad, long_cad, etc.).
+
+---
+
+#### `POST /agent/search_in`
+Realiza uma busca em lote por instalações, medidores ou conta-contrato.
+
+**Body:**
+```json
+{
+    "type": "instalacao",
+    "queries": ["123456", "789012"]
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `type` | string | **Sim** | Tipo de busca (`instalacao`, `medidor`, `contacontrato`) |
+| `queries` | array | **Sim** | Lista de strings para busca (máximo 10) |
+
+**Retorno:** Array de objetos com os dados das instalações encontradas.
+
+---
+
+#### `GET /agent/instalation_details`
+Retorna detalhes específicos de uma instalação com base na matriz.
+
+**Query Params:**
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `instalacao` | string | Sim | Número da instalação |
+
+**Response 200**
+```json
+{
+    "instalacao": "123456",
+    "unidade_leitura": "TH09B011",
+    "tipo": "OB",
+    "status_ds": "LIGADO",
+    "etapa": "09",
+    "cidade": "TERESINA",
+    "seccional": "UAC TERESINA",
+    "regional": "METROPOLITANA",
+    "latitude": null,
+    "longitude": null,
+    "ntlei_historico": ["C12", "C12"],
+    "estado": "pi"
+}
+```
+
+---
+
 #### `GET /agent/profile`
 Retorna o perfil do agente autenticado com suas estatísticas, metas de desempenho e emblemas (gamificação).
 

@@ -412,6 +412,44 @@ router.post('/search_in', telegramAuth, async (req, res) => {
     }
 });
 
+router.get('/instalation_details', telegramAuth, async (req, res) => {
+    try {
+        const { instalacao } = req.query;
+        const estado = req?.colaborador?.estado || 'pi';
+
+        if (!instalacao) {
+            res.status(400).json({ error: 'Instalação não fornecida' });
+            return;
+        }
+
+        const results = await get_instalation_matriz({ estado, instalacao: [instalacao] });
+        if (results.length === 0) {
+            res.status(404).json({ error: 'Instalação não encontrada' });
+            return;
+        }
+        let result = {
+            "instalacao": results[0].instalacao,
+            "unidade_leitura": results[0].unidade_leitura,
+            "tipo": results[0].tipo,
+            "status_ds": results[0].status_ds == 'LG' ? 'LIGADO' : 'DESLIGADO',
+            "etapa": results[0].etapa,
+            "cidade": results[0].cidade,
+            "seccional": results[0].seccional,
+            "regional": results[0].regional,
+            "latitude": null,
+            "longitude": null,
+            "ntlei_historico": results[0].ntlei_historico || [],
+            "estado": estado
+        }
+
+        console.log(result, estado);
+        res.json({...result});
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.get('/predicted', telegramAuth, async (req, res) => {
     try {
         const { status, page, limit } = req.query;

@@ -802,9 +802,56 @@ async function get_instalations_admin({ query = [], type }) {
         FROM dados_instalacoes 
         WHERE ${column} IN (${placeholders})
     `;
+
+    const sql_state = `SELECT DISTINCT ON (${column}) * 
+        FROM matriz 
+        WHERE ${column} IN (${placeholders})
+        AND LEFT(ntlei, 1) = 'A'
+        AND latitude <> 0 AND latitude IS NOT NULL
+        AND longitude <> 0 AND longitude IS NOT NULL
+        ORDER BY ${column}, data_conclusao DESC
+    `;
+
     try {
-        const { rows } = await localizacoes_pi_pool.query(sql, query);
-        return rows;
+        const [resLocals, resMatrizPi, resMatrizMa] = await Promise.all([
+            localizacoes_pi_pool.query(sql, query),
+            pi_pool.query(sql_state, query),
+            ma_pool.query(sql_state, query)
+        ]);
+
+        const locals = resLocals.rows;
+        const matriz = [...resMatrizPi.rows?.map(row => ({ ...row, estado: 'pi' })), ...resMatrizMa.rows?.map(row => ({ ...row, estado: 'ma' }))];
+
+        const resultsMap = [];
+
+        matriz.forEach(m => {
+            const data = locals.find(l => l['instalacao'] === m['instalacao']);
+            if (!data) {
+                resultsMap.push(
+                    {
+                        instalacao: m['instalacao'],
+                        conta_contrato: null,
+                        medidor: null,
+                        md_vizinho: null,
+                        unid_leit: null,
+                        status: m['status_ds'] === 'LG' ? 'LIGADO' : 'DESLIGADO',
+                        endereco: null,
+                        nome_cliente: null,
+                        lat_cad: null,
+                        long_cad: null,
+                        lat_leitura: m['latitude'],
+                        long_leitura: m['longitude'],
+                        lat_lig: null,
+                        lon_lig: null
+                    }
+                )
+                return;
+            }
+            resultsMap.push({ ...data, lat_leitura: m['latitude'], long_leitura: m['longitude'] });
+        });
+        
+        // console.log(resultsMap);
+        return resultsMap;
     } catch (err) {
         console.error('Erro em get_instalations:', err);
         throw err;

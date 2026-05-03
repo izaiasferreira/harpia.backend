@@ -444,19 +444,86 @@ async function getAgentTelegramId({ state = 'pi', id }) {
 async function get_instalations({ state, query = [], type }) {
     if (!query || query.length === 0) return [];
 
+    const pool = getPoolByState(state);
+
     let column = 'instalacao';
     if (type === 'medidor') column = 'medidor';
     if (type === 'contacontrato') column = 'conta_contrato';
 
     const placeholders = query.map((_, i) => `$${i + 1}`).join(',');
-    const sql = `
+    const sql_loc = `
         SELECT * 
         FROM dados_instalacoes 
         WHERE ${column} IN (${placeholders})
     `;
+    const sql_state = `SELECT DISTINCT ON (${column}) *
+    FROM matriz m
+        WHERE ${column} IN (${placeholders})
+        AND LEFT(ntlei, 1) = 'A'
+        AND (latitude <> 0 OR longitude <> 0)
+        ORDER BY ${column}, data_conclusao DESC
+    `;
+
+    const sql_state_not_find = `SELECT DISTINCT ON (${column}) *
+    FROM matriz m
+        WHERE ${column} IN (${placeholders})
+        ORDER BY ${column}, data_conclusao DESC
+    `;
+
     try {
-        const { rows } = await localizacoes_pi_pool.query(sql, query);
-        return rows;
+        const [resLocals, resMatriz, resMatrizNotFind] = await Promise.all([
+            state == 'pi' ? localizacoes_pi_pool.query(sql_loc, query) : Promise.resolve({ rows: [] }),
+            pool.query(sql_state, query),
+            pool.query(sql_state_not_find, query)
+        ]);
+
+        const locals = resLocals.rows;
+        const matriz = resMatrizNotFind?.rows?.map(ins => {
+            const data = resMatriz.rows.find(l => l['instalacao'] === ins['instalacao']);
+            if (data) {
+                return data;
+            }
+            return ins
+        });
+
+        const resultsMap = [];
+
+        matriz.forEach(m => {
+            const data_loc = locals.find(l => l['instalacao'] === m['instalacao']);
+
+            if (!data_loc) {
+                resultsMap.push(
+                    {
+                        instalacao: m['instalacao'],
+                        conta_contrato: "SEM DADOS",
+                        medidor: "SEM DADOS",
+                        md_vizinho: "SEM DADOS",
+                        unid_leit: "SEM DADOS",
+                        status: m['status_ds'] === 'LG' ? 'LIGADO' : 'DESLIGADO',
+                        endereco: "SEM DADOS",
+                        nome_cliente: "SEM DADOS",
+                        lat_cad: null,
+                        long_cad: null,
+                        lat_leitura: m['latitude'],
+                        long_leitura: m['longitude'],
+                        lat_lig: null,
+                        lon_lig: null,
+                        ntlei_historico: m['ntlei_historico']
+                    }
+                )
+                return;
+            }
+            resultsMap.push({
+                ...data_loc,
+                lat_leitura: m['latitude'],
+                long_leitura: m['longitude'],
+                ntlei_historico: m['ntlei_historico']
+            });
+        });
+
+        // console.log(resultsMap)
+
+        return resultsMap;
     } catch (err) {
         console.error('Erro em get_instalations:', err);
         throw err;
