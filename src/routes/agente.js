@@ -58,11 +58,11 @@ router.get('/profile', telegramAuth, async (req, res) => {
             location: userData.regional,
             photo: userData.profilePicUrl || "https://api.izi.tec.br/files/assets/profile.png",
             stats: {
-                level: 1.5
+                level: 0
             }
         },
         goals: [
-            { id: 1, title: 'Não ultrapassar mais de 110% de CNL', completed: false },
+            { id: 1, title: 'Não ultrapassar a meta de CNL', completed: false },
             { id: 2, title: 'Ter 80% do CNL indevidos justificado', completed: false },
             { id: 3, title: 'Ter 0 perdas por troca de apontamento', completed: false },
             { id: 4, title: 'Ter 90% de perdas justificadas', completed: false },
@@ -127,11 +127,11 @@ router.post('/profile/upload', telegramAuth, upload.single('photo'), async (req,
                 location: userData.regional,
                 photo: fileUrl || "https://api.izi.tec.br/files/assets/profile.png",
                 stats: {
-                    level: 1.5
+                    level: 0
                 }
             },
             goals: [
-                { id: 1, title: 'Não ultrapassar mais de 110% de CNL', completed: false },
+                { id: 1, title: 'Não ultrapassar a meta de CNL', completed: false },
                 { id: 2, title: 'Ter 80% do CNL indevidos justificado', completed: false },
                 { id: 3, title: 'Ter 0 perdas por troca de apontamento', completed: false },
                 { id: 4, title: 'Ter 90% de perdas justificadas', completed: false },
@@ -186,13 +186,13 @@ router.get('/ceneduc', telegramAuth, async (req, res) => {
             },
             {
                 id: 'cover_2',
-                title: 'Remanejamento',
-                subtitle: 'Você sabe abrir?',
-                description: 'Neste treinamento interativo voce aprenderá como abrir uma nota de remanejamento de uma instalação.',
-                metaHeader: ["Popular", "PROCEDIMENTO", "2026"],
-                category: "Treinamento, Campo",
-                image: 'https://api.izi.tec.br/files/assets/cover1.png',
-                action: { type: 'link', url: '/f/1' },
+                title: 'Teste de Atenção',
+                subtitle: 'Reflita bem antes de agir!',
+                description: 'Teste sua atenção e agilidade mental.',
+                metaHeader: ["Popular", "AVALIAÇÃO", "2026"],
+                category: "Leitura, Atenção",
+                image: 'https://api.izi.tec.br/files/assets/cover3.png',
+                action: { type: 'link', url: '/f/2' },
             }
         ],
         trains: [
@@ -203,60 +203,60 @@ router.get('/ceneduc', telegramAuth, async (req, res) => {
                     {
                         id: 'course_1',
                         data: {
-                            title: 'Erro de leitura',
-                            subtitle: 'Dicas de como eviter erros',
+                            title: 'Teste de atenção',
+                            subtitle: 'Reflita bem antes de agir!',
                             cover: 'https://api.izi.tec.br/files/assets/cover3.png',
-                            description: 'Neste curso você aprenderá a evitar erros de leitura no seu dia a dia. Evite reciclagens e problemas graves no faturamento.',
-                            metaHeader: ["Recomendado", "QUALIDADE", "2026"],
-                            category: "Leitura, Qualidade",
-                            completed: true,
-                            link: '/f/1',
+                            description: 'Teste sua atenção e agilidade mental.',
+                            metaHeader: ["Popular", "AVALIAÇÃO", "2026"],
+                            category: "Leitura, Atenção",
+                            // completed: true,
+                            link: `/f/2?id=${req.colaborador.id}`,
                         }
                     },
-                    {
-                        id: 'course_2',
-                        data: {
-                            title: 'Notas de Remanejamento',
-                            subtitle: 'Saiba como abrir',
-                            cover: 'https://api.izi.tec.br/files/assets/cover1.png',
-                            description: 'Neste treinamento interativo voce aprenderá como abrir uma nota de remanejamento de uma instalação.',
-                            metaHeader: ["Essencial", "PROCEDIMENTO", "2026"],
-                            category: "Treinamento, Campo",
-                            link: '/f/1',
-                        }
-                    },
-                    {
-                        id: 'course_3',
-                        data: {
-                            title: 'Notas de Desligamento',
-                            subtitle: 'Saiba como abrir',
-                            cover: 'https://api.izi.tec.br/files/assets/cover5.png',
-                            description: 'Neste treinamento interativo voce aprenderá como abrir uma nota de desligamento de uma instalação.',
-                            metaHeader: ["Novo", "PROCEDIMENTO", "2026"],
-                            category: "Treinamento, Campo",
-                            link: '/f/3',
-                        }
-                    }
+                    // {
+                    //     id: 'course_2',
+                    //     data: {
+                    //         title: 'Notas de Remanejamento',
+                    //         subtitle: 'Saiba como abrir',
+                    //         cover: 'https://api.izi.tec.br/files/assets/cover1.png',
+                    //         description: 'Neste treinamento interativo voce aprenderá como abrir uma nota de remanejamento de uma instalação.',
+                    //         metaHeader: ["Essencial", "PROCEDIMENTO", "2026"],
+                    //         category: "Treinamento, Campo",
+                    //         link: '/f/1',
+                    //     }
+                    // },
+                    // {
+                    //     id: 'course_3',
+                    //     data: {
+                    //         title: 'Notas de Desligamento',
+                    //         subtitle: 'Saiba como abrir',
+                    //         cover: 'https://api.izi.tec.br/files/assets/cover5.png',
+                    //         description: 'Neste treinamento interativo voce aprenderá como abrir uma nota de desligamento de uma instalação.',
+                    //         metaHeader: ["Novo", "PROCEDIMENTO", "2026"],
+                    //         category: "Treinamento, Campo",
+                    //         link: '/f/3',
+                    //     }
+                    // }
                 ]
             },
-            {
-                type: 'banner',
-                title: 'Segurança e Procedimentos',
-                items: [
-                    {
-                        id: 'course_4',
-                        data: {
-                            title: 'EPI e EPC Essenciais',
-                            subtitle: 'Padrão Rigoroso de Segurança Ceneged',
-                            cover: 'https://api.izi.tec.br/files/assets/cover4.png',
-                            description: 'Neste curso, você aprenderá todo o manuseio de EPI/EPC e as melhores práticas para conservação.',
-                            metaHeader: ["Obrigatório", "SEGURANÇA", "2026"],
-                            category: "Segurança, Campo",
-                            link: '/f/4',
-                        }
-                    }
-                ]
-            }
+            // {
+            //     type: 'banner',
+            //     title: 'Segurança e Procedimentos',
+            //     items: [
+            //         {
+            //             id: 'course_4',
+            //             data: {
+            //                 title: 'EPI e EPC Essenciais',
+            //                 subtitle: 'Padrão Rigoroso de Segurança Ceneged',
+            //                 cover: 'https://api.izi.tec.br/files/assets/cover4.png',
+            //                 description: 'Neste curso, você aprenderá todo o manuseio de EPI/EPC e as melhores práticas para conservação.',
+            //                 metaHeader: ["Obrigatório", "SEGURANÇA", "2026"],
+            //                 category: "Segurança, Campo",
+            //                 link: '/f/4',
+            //             }
+            //         }
+            //     ]
+            // }
         ]
     });
 })

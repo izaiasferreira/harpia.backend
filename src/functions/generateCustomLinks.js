@@ -4,6 +4,24 @@ function generateCustomLinks({ state, id, user }) {
 
     const links = [
         {
+            "id": "profile-app",
+            "label": "Perfil",
+            "description": "Meu perfil",
+            "url": `/profile`,
+            "emoji": "User",
+            "color": "text-green-600",
+            "states": ['pi', 'ma']
+        },
+        {
+            "id": "ceneduc-app",
+            "label": "Ceneduc",
+            "description": "Cursos",
+            "url": `/ceneduc`,
+            "emoji": "BookOpen",
+            "color": "text-red-600",
+            "states": ['pi', 'ma']
+        },
+        {
             "id": "servicos-app",
             "label": "Serviços",
             "description": "Meus serviços atribuídos",
@@ -48,6 +66,7 @@ function generateCustomLinks({ state, id, user }) {
             "color": "text-red-600",
             "states": ['pi', 'ma']
         }
+        
     ]
 
     let links_filtered = links.filter(link => link.states.includes(state));
@@ -57,24 +76,8 @@ function generateCustomLinks({ state, id, user }) {
     });
 
     if (user.id === 'T38876') {
-        links_filtered.unshift({
-            "id": "ceneduc-app",
-            "label": "Ceneduc",
-            "description": "Cursos",
-            "url": `/ceneduc`,
-            "emoji": "BookOpen",
-            "color": "text-red-600",
-            "states": ['pi', 'ma']
-        });
-        links_filtered.unshift({
-            "id": "profile-app",
-            "label": "Perfil",
-            "description": "Meu perfil",
-            "url": `/profile`,
-            "emoji": "User",
-            "color": "text-green-600",
-            "states": ['pi', 'ma']
-        });
+        links_filtered.unshift();
+        links_filtered.unshift();
     }
 
     return links_filtered
