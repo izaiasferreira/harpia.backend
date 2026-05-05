@@ -243,7 +243,7 @@ function generateDashboard({ state, id, stats }) {
 
 
 async function generateDashboardAdmin({ user, stats }) {
-
+    // console.log(user)
     const widgets = [
         {
             id: 'total-users',
@@ -256,7 +256,7 @@ async function generateDashboardAdmin({ user, stats }) {
                 icon: 'users',
                 color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
             },
-            action: { type: 'link', url: '/control/users' },
+            action: { type: 'link', url: '/control/agents' },
         },
         {
             id: 'chart-reports-week',
@@ -271,8 +271,7 @@ async function generateDashboardAdmin({ user, stats }) {
                     { label: 'Leitura', value: stats.users_agents?.filter(u => u.setor === 'LEITURA').length },
                 ],
             },
-        },
-        {
+        }, {
             id: 'chart-reports-state',
             type: 'chartCard',
             size: { colSpan: 1, rowSpan: 2 },
@@ -323,20 +322,7 @@ async function generateDashboardAdmin({ user, stats }) {
                 color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
             },
             action: { type: 'link', url: '/control/daily-reports' },
-        },
-        {
-            id: 'branches-count',
-            type: 'statCard',
-            size: { colSpan: 1, rowSpan: 1 },
-            data: {
-                title: 'Filiais Ativas',
-                value: '6',
-                subtitle: 'PI e MA',
-                icon: 'map-pin',
-                color: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
-            },
-            action: { type: 'link', url: '/control/branches' },
-        },
+        }
     ]
 
     return {

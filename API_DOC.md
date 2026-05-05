@@ -1820,6 +1820,27 @@ Registra ocorrências de segurança ou problemas em rota com coordenadas geográ
 
 ---
 
+#### `GET /agent/security_report`
+Retorna uma lista de riscos de segurança mapeados para a localidade e etapa atual do agente.
+
+**Retorno (sucesso - 201):**
+```json
+{
+    "risks_list": [
+        "Área de alto risco - Presença de meliantes",
+        "Cão bravo na rua X"
+    ],
+    "points": [
+        { "motivo": "string", "observacao": "string", "latitude": "string", "longitude": "string", "created_at": "string" }
+    ]
+}
+```
+
+**Descrição:**
+O sistema identifica automaticamente as localidades e etapas atendidas pelo agente no dia através de sua carga de trabalho e retorna os riscos cadastrados no banco de dados correspondentes.
+
+---
+
 ### Upload (MinIO/S3)
 
 **Autenticação:** Token simples (`?token=API_TOKEN`)

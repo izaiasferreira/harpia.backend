@@ -13,6 +13,15 @@ function generateCustomLinks({ state, id, user }) {
             "states": ['pi', 'ma']
         },
         {
+            "id": "security-report-app",
+            "label": "Reportes de segurança",
+            "description": "Consulte perigos na rota",
+            "url": `/security-reports`,
+            "emoji": "Shield",
+            "color": "text-red-600",
+            "states": ['pi']
+        },
+        {
             "id": "ceneduc-app",
             "label": "Ceneduc",
             "description": "Cursos",

@@ -385,22 +385,21 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
 
 // ─── getLeiturasPendingForAgent ───────────────────────────────────────────────
 async function getLeiturasPendingForAgent({ state = 'pi', id, date = today(), page = 1, limit = 20 }) {
-    const first_month_day = `01.${date.slice(3, 10)}`;
+    const first_month_day = (`01.${date.slice(3, 10)}`).replaceAll('/', '.');
+
 
     const query_all = `
             SELECT 
                 instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,
-                tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
+                tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude, unidade_leitura
             FROM matriz
             WHERE agente IN ($1, $2)
             and concluido = 'CONCLUIDO'
             AND data_leit_prev >= TO_DATE($3, 'DD.MM.YYYY')
-            AND data_leit_prev < TO_DATE($3, 'DD.MM.YYYY') + interval '1 day'
-            LIMIT $4 OFFSET $5;`;
+            AND data_leit_prev < TO_DATE($4, 'DD.MM.YYYY') + interval '1 day'
+            LIMIT $5 OFFSET $6;`;
 
-    const { rows } = state === 'pi'
-        ? await pi_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), first_month_day, limit, (page - 1) * limit])
-        : await ma_pool.query(query_all, [id.toUpperCase(), id.toLowerCase(), first_month_day, limit, (page - 1) * limit]);
+    const { rows } = await getPoolByState(state).query(query_all, [id.toUpperCase(), id.toLowerCase(), first_month_day, date, limit, (page - 1) * limit]);
     if (rows.length === 0) return [];
     return rows;
 }
@@ -1281,12 +1280,24 @@ async function create_security_report(data) {
     return rows[0];
 }
 
+async function get_security_report_points({ user }) {
+    await createSecurityReportTable();
+    const query = `
+        SELECT * FROM security_report WHERE estado = $1;
+    `;
+    const { rows } = await cenos_pool.query(query, [user.estado]);
+    return rows;
+}
+
 async function get_security_reports({ user }) {
     const { id, estado } = user;
+    let result = {
+        risks_list: [],
+        points: []
+    }
     await createSecurityReportTable();
-    const leituras = await getLeiturasForAgent({ id, state: estado, page: 1, limit: 1000000 });
-
-
+    const leituras = await getLeiturasPendingForAgent({ id, state: estado, page: 1, limit: 1000000 });
+    console.log(leituras)
     let uls_prefix = []
     for (const leitura of leituras) {
         uls_prefix.push(leitura.unidade_leitura.slice(0, 4))
@@ -1297,18 +1308,34 @@ async function get_security_reports({ user }) {
     const pool_state = getPoolByState(estado)
 
     let locals = []
+    let steps = []
     for (const prefix of uls_prefix) {
-        // console.log(prefix.slice(0, 2))
         const { rows } = await pool_state.query(
             `SELECT * FROM localidades WHERE ul = $1`,
             [prefix.slice(0, 2)]
         );
-        locals.push(rows)
+        locals.push(...rows)
+        steps.push(prefix.slice(2, 4))
+    }
+    result.points = (await get_security_report_points({ user })).filter(point => point.motivo !== "Sem Risco")?.map(point => ({
+        motivo: point.motivo,
+        observacao: point.observacao,
+        latitude: point.latitude,
+        longitude: point.longitude,
+        created_at: point.created_at
+    }))
+    if (locals.length > 0) {
+        const { rows } = await cenos_pool.query(
+            `SELECT * FROM mapa_seguranca WHERE localidade IN (${locals.map(l => `'${l.municipio}'`).join(', ')})`,
+        );
+        const risks = rows.filter(risk => [...new Set(steps.map(s => parseInt(s)))].includes(parseInt(risk.etapa)))
+
+        result.risks_list = risks.map(risk => risk.risco)
+
+        return result
     }
 
-    // console.log(locals.flat())
-
-    return {};
+    return result;
 
 
 

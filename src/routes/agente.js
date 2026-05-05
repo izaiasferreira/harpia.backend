@@ -864,6 +864,8 @@ router.get('/security_report', telegramAuth, async (req, res) => {
             user
         });
 
+        console.log(result)
+
         res.status(201).json(result);
     } catch (err) {
         console.error('Erro ao criar reporte de segurança:', err);

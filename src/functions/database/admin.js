@@ -512,11 +512,6 @@ async function get_justify_admin({ instalacao, tipo, data_leit_prev, estado, pag
         params.push(estado.toLowerCase());
         paramIndex++;
     }
-    if (search) {
-        query += ` AND (instalacao ILIKE $${paramIndex} OR tipo ILIKE $${paramIndex} OR motivo ILIKE $${paramIndex} OR justificativa ILIKE $${paramIndex} OR author ILIKE $${paramIndex})`;
-        params.push(`%${search}%`);
-        paramIndex++;
-    }
 
     query += ` ORDER BY created_at DESC`;
 
@@ -524,32 +519,31 @@ async function get_justify_admin({ instalacao, tipo, data_leit_prev, estado, pag
     const { rows } = await pool.query(query, params);
 
     const result = (await get_users_agents_admin({ user }) || [])
-
     const allowedAgents = result.map(a => a.id?.toString().toUpperCase());
 
+    // Filtra e enriquece os dados antes da busca global
+    let enrichedRows = rows
+        .filter(r => {
+            if (userIsAdmin(user)) return true;
+            return allowedAgents.includes(r.autor?.toString().toUpperCase());
+        })
+        .map(r => {
+            const agentData = result.find(a => a.id?.toString().toUpperCase() === r.autor?.toString().toUpperCase());
+            return { ...agentData, ...r };
+        });
 
-
-    let filteredRows = rows;
+    // Busca Global em todas as propriedades do objeto resultante
     if (search) {
         const s = search.toLowerCase();
-        filteredRows = rows.filter(r =>
+        enrichedRows = enrichedRows.filter(r =>
             Object.values(r).some(v => String(v || '').toLowerCase().includes(s))
-        );
-    }
-    if (!userIsAdmin(user)) {
-        filteredRows = filteredRows.filter(r =>
-            allowedAgents.includes(r.autor?.toString().toUpperCase())
         );
     }
 
     // Paginação em memória
     const limitVal = parseInt(limit) || 9999;
     const offsetVal = (parseInt(page) - 1) * limitVal;
-    return filteredRows.slice(offsetVal, offsetVal + limitVal).map(r => {
-        const agentData = result.find(a => a.id?.toString().toUpperCase() === r.author?.toString().toUpperCase());
-        if (!agentData) return r;
-        return { ...agentData, ...r };
-    });
+    return enrichedRows.slice(offsetVal, offsetVal + limitVal);
 }
 
 async function save_justify_admin(data) {
@@ -588,7 +582,7 @@ async function get_justify_pending_types() {
     return rows.map(r => r.tipo);
 }
 
-async function get_pending_justifies_admin({ state = 'pi', autor, status = 'pendente', page = 1, limit = 9999, user, search }) {
+async function get_pending_justifies_admin({ state, autor, status = 'pendente', page = 1, limit = 9999, user, search }) {
     const allowedPools = getUserAllowedStatePools(user).map(p => p.state);
     const pool = cenos_pool;
 
@@ -596,9 +590,17 @@ async function get_pending_justifies_admin({ state = 'pi', autor, status = 'pend
     const params = [];
     let paramIndex = 1;
 
+    // Se o usuário não for admin principal, ele só pode ver estados permitidos
     if (!userIsAdmin(user)) {
         query += ` AND estado = ANY($${paramIndex})`;
         params.push(allowedPools);
+        paramIndex++;
+    }
+
+    // Filtro por estado explícito (vindo da query param)
+    if (state) {
+        query += ` AND estado = $${paramIndex}`;
+        params.push(state.toLowerCase());
         paramIndex++;
     }
 
@@ -613,26 +615,29 @@ async function get_pending_justifies_admin({ state = 'pi', autor, status = 'pend
         paramIndex++;
     }
 
-    if (search) {
-        query += ` AND (autor ILIKE $${paramIndex} OR unidade_leitura ILIKE $${paramIndex} OR tipo ILIKE $${paramIndex})`;
-        params.push(`%${search}%`);
-        paramIndex++;
-    }
-
     query += ` ORDER BY created_at DESC`;
 
     const { rows } = await pool.query(query, params);
 
+    // Obtém todos os agentes autorizados uma única vez (sem filtro de search aqui para podermos cruzar dados)
     const result = (await get_users_agents_admin({ user }) || []);
-
     const allowedAgents = result.map(a => a.id?.toString().toUpperCase());
 
-    let filteredRows = rows.filter(r => allowedAgents.includes(r.autor?.toString().toUpperCase()));
+    // Filtra apenas registros de agentes que o usuário tem permissão de ver
+    let enrichedRows = rows
+        .filter(r => allowedAgents.includes(r.autor?.toString().toUpperCase()))
+        .map(r => {
+            const agent = result.find(a => a.id?.toString().toUpperCase() === r.autor?.toString().toUpperCase());
+            return {
+                ...agent,
+                ...r
+            };
+        });
 
-    // Busca Global
+    // Busca Global em todas as propriedades do objeto (ID, Nome, Unidade, Tipo, Gestor, etc)
     if (search) {
         const s = search.toLowerCase();
-        filteredRows = filteredRows.filter(r =>
+        enrichedRows = enrichedRows.filter(r =>
             Object.values(r).some(v => String(v || '').toLowerCase().includes(s))
         );
     }
@@ -640,13 +645,7 @@ async function get_pending_justifies_admin({ state = 'pi', autor, status = 'pend
     // Paginação em memória
     const limitVal = parseInt(limit) || 9999;
     const offsetVal = (parseInt(page) - 1) * limitVal;
-    return filteredRows.slice(offsetVal, offsetVal + limitVal).map(r => {
-        const agent = result.find(a => a.id?.toString().toUpperCase() === r.autor?.toString().toUpperCase());
-        return {
-            ...agent,
-            ...r
-        }
-    });
+    return enrichedRows.slice(offsetVal, offsetVal + limitVal);
 }
 
 async function create_pending_justify_admin(data) {
@@ -720,44 +719,38 @@ async function get_daily_reports_admin({ autor, data, limit = 9999, page = 1, in
         paramIndex++;
     }
 
-    if (search) {
-        query += ` AND (autor ILIKE $${paramIndex} OR motivo ILIKE $${paramIndex} OR observacao ILIKE $${paramIndex})`;
-        params.push(`%${search}%`);
-        paramIndex++;
-    }
-
     query += ` ORDER BY created_at DESC`;
 
     const { rows } = await pool.query(query, params);
 
     const result = await get_users_agents_admin({ user }) || [];
-
     const allowedAgents = result.map(a => a.id?.toString().toUpperCase());
 
-    let filteredRows = rows.filter(r => allowedAgents.includes(r.autor?.toString().toUpperCase()));
+    // Filtra e enriquece os dados antes da busca global
+    let enrichedRows = rows
+        .filter(r => allowedAgents.includes(r.autor?.toString().toUpperCase()))
+        .map(r => {
+            const agent = result.find(a => a.id?.toString().toUpperCase() === r.autor?.toString().toUpperCase());
+            return {
+                ...agent,
+                ...r
+            };
+        });
 
-    // Busca Global
+    // Busca Global em todas as propriedades do objeto resultante
     if (search) {
         const s = search.toLowerCase();
-        filteredRows = filteredRows.filter(r =>
+        enrichedRows = enrichedRows.filter(r =>
             Object.values(r).some(v => String(v || '').toLowerCase().includes(s))
         );
     }
 
-
-
-    if (includeAll) return filteredRows;
+    if (includeAll) return enrichedRows;
 
     // Paginação em memória
     const limitVal = parseInt(limit) || 9999;
     const offsetVal = (parseInt(page) - 1) * limitVal;
-    return filteredRows.slice(offsetVal, offsetVal + limitVal).map(r => {
-        const agent = result.find(a => a.id?.toString().toUpperCase() === r.autor?.toString().toUpperCase());
-        return {
-            ...agent,
-            ...r
-        };
-    });
+    return enrichedRows.slice(offsetVal, offsetVal + limitVal);
 }
 
 async function create_daily_report_admin(data) {
