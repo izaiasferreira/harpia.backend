@@ -215,11 +215,13 @@ async function create_user_agent_admin({ id, matricula, nome, estado, gestor, ca
     }
 }
 
-async function send_message_to_agent({ id, text, file, webAppButtonText, webAppButtonUrl, options, user }) {
-    const userData = await get_users_agents_admin({ user, ids: [id] });
-    if (!userData.length) return { error: 'Usuário não encontrado' };
-
-    const agent = userData[0];
+async function send_message_to_agent({ id, agent: providedAgent, text, file, webAppButtonText, webAppButtonUrl, options, user }) {
+    let agent = providedAgent;
+    if (!agent) {
+        const userData = await get_users_agents_admin({ user, ids: [id] });
+        if (!userData.length) return { error: 'Usuário não encontrado' };
+        agent = userData[0];
+    }
     if (!agent.telegram_id) return { error: 'Este agente não possui Telegram ID vinculado' };
 
     const allowedPools = getUserAllowedStatePools(user);
@@ -306,7 +308,7 @@ async function send_message_to_agent({ id, text, file, webAppButtonText, webAppB
             VALUES ($1, $2, $3, $4, $5, $6)
         `;
         const logParams = [
-            id?.toUpperCase(),
+            agent.id?.toUpperCase(),
             user.matricula || user.id || 'ADMIN',
             text || null,
             typeof file === 'string' ? file : (file?.originalname || null),
@@ -319,6 +321,34 @@ async function send_message_to_agent({ id, text, file, webAppButtonText, webAppB
     }
 
     return result;
+}
+
+async function send_bulk_message_to_agents({ ids, text, file, webAppButtonText, webAppButtonUrl, options, user }) {
+    if (!Array.isArray(ids)) throw new Error('O campo ids deve ser um array');
+
+    const agents = await get_users_agents_admin({ user, ids });
+    const results = [];
+
+    for (const id of ids) {
+        const agent = agents.find(a => a.id.toUpperCase() === id.toUpperCase());
+        if (!agent) {
+            results.push({ id, error: 'Usuário não encontrado ou sem permissão' });
+            continue;
+        }
+
+        const res = await send_message_to_agent({ 
+            agent, 
+            text, 
+            file, 
+            webAppButtonText, 
+            webAppButtonUrl, 
+            options, 
+            user 
+        });
+        results.push({ id, ...res });
+    }
+
+    return results;
 }
 
 async function delete_user_agent_admin({ id, user, deleteLogin = false }) {
@@ -874,6 +904,7 @@ module.exports = {
     update_user_agent_admin,
     delete_user_agent_admin,
     send_message_to_agent,
+    send_bulk_message_to_agents,
     get_justify_types_admin,
     get_justify_pending_types,
     get_user_agent_options

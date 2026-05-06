@@ -46,7 +46,7 @@ async function getUserData({ id, state }) {
         colaborador.nome = colaborador['Nome'];
         colaborador.id = (colaborador['ID']).toUpperCase();
         colaborador.estado = state;
-        colaborador.cargo = colaborador['Cargo'];
+        colaborador.cargo = colaborador['Cargo'] || 'Sem cargo';
 
         delete colaborador['GESTOR IMEDIATO'];
         delete colaborador['MAT'];

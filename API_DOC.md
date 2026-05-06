@@ -1316,6 +1316,57 @@ Remove um colaborador do banco de dados.
 
 ---
 
+#### `GET /admin/users_agents/profile`
+Retorna o perfil de um colaborador (agente) com estatísticas, metas e emblemas.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:**
+
+| Param | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `id` | string | Sim | ID/MAT do agente |
+
+**Retorno (sucesso):**
+```json
+{
+    "user": {
+        "name": "MAURICIO PINTO RODRIGUES",
+        "role": "AGENTE COMERCIAL MOTOCICLISTA",
+        "location": "METROPOLITANA",
+        "photo": "https://api.izi.tec.br/files/assets/profile.png",
+        "stats": {
+            "level": 0
+        },
+        "summary": [
+            { "title": "Pendências", "value": 0 },
+            { "title": "Concluídos", "value": 0 },
+            { "title": "Perdas Geradas", "value": 0 },
+            { "title": "Perdas Recuperadas", "value": 0 },
+            { "title": "CNL Percentual", "value": 0 },
+            { "title": "CNL Quantidade", "value": 0 },
+            { "title": "Último Inventário", "value": 0 },
+            { "title": "Último Diário de Bordo", "value": 0 }
+        ]
+    },
+    "goals": [
+        { "id": 1, "title": "Não ultrapassar a meta de CNL", "completed": false },
+        { "id": 2, "title": "Ter 80% do CNL indevidos justificado", "completed": false },
+        { "id": 3, "title": "Ter 0 perdas por troca de apontamento", "completed": false },
+        { "id": 4, "title": "Ter 90% de perdas justificadas", "completed": false },
+        { "id": 5, "title": "Ao menos 1 reporte de segurança por etapa", "completed": false },
+        { "id": 6, "title": "Fazer checklist de segurança 1 vez por semana", "completed": false },
+        { "id": 7, "title": "Ter 80% do diário de bordo respondido", "completed": false },
+        { "id": 8, "title": "Ter inventário atualizado pelo menos 1 vez ao mês", "completed": false },
+        { "id": 9, "title": "Ter 1 erro de leitura a cada 5000 leituras", "completed": false }
+    ],
+    "badges": []
+}
+```
+
+> O campo `badges` retorna os emblemas atribuídos ao agente. A `photo` usa uma imagem padrão caso o agente não possua uma foto cadastrada.
+
+---
 
 ### Branches
 
@@ -2318,6 +2369,32 @@ Envia uma mensagem (texto, mídia via URL ou upload de arquivo) para o Telegram 
   "message": "Mensagem enviada com sucesso",
   "telegramResponse": { ... }
 }
+```
+
+---
+
+## POST /admin/send_bulk_message_user_agent
+
+Envia mensagens em massa para múltiplos agentes simultaneamente. Funciona de forma idêntica ao envio individual, mas aceita um array de IDs.
+
+**Autenticação:** Bearer token + módulo `send_message_user_agent`
+
+**Body (JSON ou Multipart):**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `ids` | array / string | Sim | Array de IDs (matrículas) dos agentes. Se for Multipart, enviar como string JSON: `["T123", "T456"]` |
+| `text` | string | Não* | Texto da mensagem |
+| `file` | string/file | Não* | URL ou Arquivo binário |
+| `webAppButtonText`| string | Não | Texto do botão do Mini App |
+| `webAppButtonUrl` | string | Não | URL do Mini App |
+
+**Response 200:**
+Array de objetos contendo o status de envio para cada ID:
+```json
+[
+  { "id": "T123", "message": "Mensagem enviada com sucesso", "telegramResponse": { ... } },
+  { "id": "T456", "error": "Este agente não possui Telegram ID vinculado" }
+]
 ```
 
 ---

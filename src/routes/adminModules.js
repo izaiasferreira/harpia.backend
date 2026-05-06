@@ -27,10 +27,12 @@ const {
     update_user_agent_admin,
     delete_user_agent_admin,
     send_message_to_agent,
+    send_bulk_message_to_agents,
     get_justify_types_admin,
     get_user_agent_options
 } = require('../functions/database/admin');
 const { listModules } = require('../functions/modules');
+const { getUserData } = require('../functions/postgresFunctions');
 
 
 
@@ -76,6 +78,46 @@ router.get('/users_agents', verifyToken(), verifyModule('users_agents'), async (
         res.status(500).json({ error: error.message });
     }
 });
+
+router.get('/users_agents/profile', verifyToken(), verifyModule('users_agents'), async (req, res) => {
+    const { id } = req.query;
+    const user = req.user;
+    console.log(user);
+    const userData = await getUserData({ id: id, state: user.estado });
+    return res.json({
+        user: {
+            name: `${userData.id} -  ${userData.nome}`,
+            role: userData.cargo,
+            location: userData.regional,
+            photo: userData.profilePicUrl || "https://api.izi.tec.br/files/assets/profile.png",
+            stats: {
+                level: userData.level
+            },
+            summary: [
+                { title: 'Pendências', value: 0 },
+                { title: 'Concluídos', value: 0 },
+                { title: 'Perdas Geradas', value: 0 },
+                { title: 'Perdas Recuperadas', value: 0 },
+                { title: 'CNL Percentual', value: 0 },
+                { title: 'CNL Quantidade', value: 0 },
+                { title: 'Último Inventário', value: 0 },
+                { title: 'Último Diário de Bordo', value: 0 }
+            ]
+        },
+        goals: [
+            { id: 1, title: 'Não ultrapassar a meta de CNL', completed: false },
+            { id: 2, title: 'Ter 80% do CNL indevidos justificado', completed: false },
+            { id: 3, title: 'Ter 0 perdas por troca de apontamento', completed: false },
+            { id: 4, title: 'Ter 90% de perdas justificadas', completed: false },
+            { id: 5, title: 'Ao menos 1 reporte de segurança por etapa', completed: false },
+            { id: 6, title: 'Fazer checklist de segurança 1 vez por semana', completed: false },
+            { id: 7, title: 'Ter 80% do diário de bordo respondido', completed: false },
+            { id: 8, title: 'Ter inventário atualizado pelo menos 1 vez ao mês', completed: false },
+            { id: 9, title: 'Ter 1 erro de leitura a cada 5000 leituras', completed: false }
+        ],
+        badges: Array.isArray(userData.badges) ? userData.badges : []
+    });
+})
 
 router.get('/users_agents/options', verifyToken(), verifyModule('users_agents'), async (req, res) => {
     try {
@@ -156,6 +198,31 @@ router.post('/send_message_user_agent', verifyToken(), verifyModule('send_messag
             user 
         });
         res.json(result);
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post('/send_bulk_message_user_agent', verifyToken(), verifyModule('send_message_user_agent'), upload.single('file'), async (req, res) => {
+    try {
+        const { ids, text, file: fileUrl, webAppButtonText, webAppButtonUrl, options } = req.body;
+        const file = req.file; // From multer
+        const user = req.user;
+
+        // ids can come as a stringified array if sent via multipart/form-data
+        const parsedIds = typeof ids === 'string' ? JSON.parse(ids) : ids;
+
+        const results = await send_bulk_message_to_agents({ 
+            ids: parsedIds, 
+            text, 
+            file: file || fileUrl, 
+            webAppButtonText, 
+            webAppButtonUrl, 
+            options, 
+            user 
+        });
+        res.json(results);
     } catch (error) {
         console.log(error)
         res.status(500).json({ error: error.message });
