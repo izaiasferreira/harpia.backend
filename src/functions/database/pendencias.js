@@ -69,7 +69,7 @@ async function pendenciasJson(state = 'pi', region = 'all') {
 }
 
 // ─── notStartServices ──────────────────────────────────────────────────────────
-async function notStartServices(state = 'pi',) {
+async function notStartServices(state = 'pi') {
     const query = `
     SELECT 
     agente, 
@@ -96,7 +96,7 @@ async function notStartServices(state = 'pi',) {
 }
 
 // ─── completedServices ────────────────────────────────────────────────────────
-async function completedServices(state = 'pi',) {
+async function completedServices(state = 'pi') {
     const query = `
     WITH servicos_detalhados AS (
     -- 1. Buscamos todos os registros: concluídos hoje (para tempo) e pendentes (para contagem)
@@ -206,8 +206,8 @@ async function incompletedServices(state = 'pi') {
         TO_CHAR(SUM(CASE WHEN diff_servico > INTERVAL '20 minutes' THEN diff_servico ELSE INTERVAL '0' END), 'HH24:MI:SS') as tempo_pausas,
         
         -- NOVAS COLUNAS EM JSON
-        COALESCE(json_agg(instalacao) FILTER (WHERE concluido = 'PENDENTE'), '[]') as instalacoes_pendentes,
-        COALESCE(json_agg(DISTINCT unidade_leitura) FILTER (WHERE concluido = 'PENDENTE'), '[]') as unidades_leitura
+        COALESCE(jsonb_agg(DISTINCT instalacao) FILTER (WHERE concluido = 'PENDENTE'), '[]') as instalacoes,
+        COALESCE(jsonb_agg(DISTINCT unidade_leitura) FILTER (WHERE concluido = 'PENDENTE'), '[]') as unidades_leitura
         
     FROM calculo_intervalos
     WHERE TO_CHAR(data_leit_prev, 'MM.YYYY') = TO_CHAR(CURRENT_DATE, 'MM.YYYY')

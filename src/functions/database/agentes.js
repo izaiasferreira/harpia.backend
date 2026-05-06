@@ -1297,7 +1297,6 @@ async function get_security_reports({ user }) {
     }
     await createSecurityReportTable();
     const leituras = await getLeiturasPendingForAgent({ id, state: estado, page: 1, limit: 1000000 });
-    console.log(leituras)
     let uls_prefix = []
     for (const leitura of leituras) {
         uls_prefix.push(leitura.unidade_leitura.slice(0, 4))
@@ -1341,6 +1340,110 @@ async function get_security_reports({ user }) {
 
 }
 
+// ─── security_check ─────────────────────────────────────────────────────────────
+
+async function save_security_check({
+    state = 'pi',
+    autor,
+    latitude,
+    longitude,
+    created_at = new Date(),
+    updated_at = new Date()
+}) {
+    const pool = cenos_pool;
+
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS security_check (
+            id SERIAL PRIMARY KEY,
+            autor TEXT NOT NULL,
+            latitude TEXT,
+            longitude TEXT,
+            estado TEXT DEFAULT 'pi',
+            data_check DATE DEFAULT CURRENT_DATE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+    await pool.query(createTableQuery);
+
+    const existingQuery = `
+        SELECT id FROM security_check 
+        WHERE LOWER(autor) = LOWER($1) AND DATE(created_at) = CURRENT_DATE;
+    `;
+    const existing = await pool.query(existingQuery, [autor.toLowerCase()]);
+    if (existing.rows.length > 0) {
+        throw new Error('Já existe uma confirmação de segurança para hoje');
+    }
+
+    const insertQuery = `
+        INSERT INTO security_check (autor, latitude, longitude, estado, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *;
+    `;
+    const { rows } = await pool.query(insertQuery, [autor.toLowerCase(), latitude, longitude, state.toLowerCase(), created_at, updated_at]);
+    return rows[0];
+}
+
+async function get_security_checks({ state = 'pi', autor, data, limit = 10 }) {
+    const pool = cenos_pool;
+
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS security_check (
+            id SERIAL PRIMARY KEY,
+            autor TEXT NOT NULL,
+            latitude TEXT,
+            longitude TEXT,
+            estado TEXT DEFAULT 'pi',
+            data_check DATE DEFAULT CURRENT_DATE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+    await pool.query(createTableQuery);
+
+    let query = `SELECT * FROM security_check WHERE 1=1`;
+    const params = [];
+
+    if (autor) {
+        params.push(autor.trim().toLowerCase());
+        query += ` AND LOWER(autor) = $${params.length}`;
+    }
+    if (data) {
+        params.push(data.trim());
+        query += ` AND DATE(created_at) = TO_DATE($${params.length}, 'YYYY-MM-DD')`;
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT ${parseInt(limit) || 10}`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
+async function get_security_check_today({ state = 'pi', autor }) {
+    const pool = cenos_pool;
+
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS security_check (
+            id SERIAL PRIMARY KEY,
+            autor TEXT NOT NULL,
+            latitude TEXT,
+            longitude TEXT,
+            estado TEXT DEFAULT 'pi',
+            data_check DATE DEFAULT CURRENT_DATE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+    await pool.query(createTableQuery);
+
+    const query = `
+        SELECT * FROM security_check 
+        WHERE LOWER(autor) = LOWER($1) AND DATE(created_at) = CURRENT_DATE;
+    `;
+    const { rows } = await pool.query(query, [autor.toLowerCase()]);
+    return rows[0] || null;
+}
+
 module.exports = {
     getLeiturasForAgent,
     getLeiturasPendingForAgent,
@@ -1369,5 +1472,8 @@ module.exports = {
     getUserData,
     updateProfilePic,
     addBadgeToProfile,
-    get_security_reports
+    get_security_reports,
+    save_security_check,
+    get_security_checks,
+    get_security_check_today
 };

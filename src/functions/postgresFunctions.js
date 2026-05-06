@@ -58,7 +58,10 @@ const {
     get_security_reports,
     getUserData,
     updateProfilePic,
-    addBadgeToProfile
+    addBadgeToProfile,
+    save_security_check,
+    get_security_checks,
+    get_security_check_today
 } = require('./database/agentes');
 const { lastUpdate } = require('./database/status');
 
@@ -111,5 +114,8 @@ module.exports = {
     get_security_reports,
     getUserData,
     updateProfilePic,
-    addBadgeToProfile
+    addBadgeToProfile,
+    save_security_check,
+    get_security_checks,
+    get_security_check_today
 };

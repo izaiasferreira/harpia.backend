@@ -742,6 +742,180 @@ Deleta um reporte diário pelo ID.
 
 ---
 
+### Security Check
+
+**Autenticação:** Telegram Auth (middleware `telegramAuth`)
+
+Similar ao reporte diário, a confirmação de segurança só pode ser realizada uma vez por dia por agente.
+
+---
+
+#### `POST /agent/security_check`
+Cria uma confirmação de segurança (check) diária.
+
+**Body:**
+```json
+{
+    "latitude": "-5.0912",
+    "longitude": "-42.8021"
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `latitude` | string | Latitude do agente no momento do check (opcional) |
+| `longitude` | string | Longitude do agente no momento do check (opcional) |
+
+**Retorno (sucesso):**
+```json
+{
+    "id": 1,
+    "autor": "ag001",
+    "latitude": "-5.0912",
+    "longitude": "-42.8021",
+    "estado": "pi",
+    "data_check": "2026-05-06",
+    "created_at": "2026-05-06T10:00:00.000Z",
+    "updated_at": "2026-05-06T10:00:00.000Z"
+}
+```
+
+**Erros:**
+- `500` — Já existe uma confirmação de segurança para hoje
+
+---
+
+#### `GET /agent/security_check`
+Lista as confirmações de segurança.
+
+**Query Params:**
+
+| Param | Tipo | Descrição |
+|---|---|---|
+| `autor` | string | (opcional) Filtrar por matrícula do autor |
+| `data` | string | (opcional) Filtrar por data (YYYY-MM-DD) |
+| `limit` | number | (opcional) Limite de resultados (padrão: 10) |
+
+**Retorno:** Array de confirmações.
+
+---
+
+#### `GET /agent/security_check/check_today`
+Verifica se o agente já realizou a confirmação de segurança hoje.
+
+**Retorno (sucesso):**
+```json
+{
+    "hasCheckToday": true,
+    "data": { "id": 1, "autor": "...", ... }
+}
+```
+
+---
+
+### Security Report
+
+**Autenticação:** Telegram Auth (middleware `telegramAuth`)
+
+---
+
+#### `POST /agent/security_report`
+Registra um reporte de risco de segurança em um ponto geográfico.
+
+**Body:**
+```json
+{
+    "motivo": "Cão bravo",
+    "observacao": "Pitbull solto na calçada",
+    "latitude": "-5.0912",
+    "longitude": "-42.8021"
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `motivo` | string | **Sim** | Motivo do risco |
+| `observacao` | string | Não | Detalhes adicionais |
+| `latitude` | string | Não | Latitude |
+| `longitude` | string | Não | Longitude |
+
+**Retorno (sucesso):** Objeto do reporte criado.
+
+---
+
+#### `GET /agent/security_report`
+Recupera os riscos de segurança mapeados para as unidades de leitura atuais do agente e os pontos reportados.
+
+**Retorno (sucesso):**
+```json
+{
+    "risks_list": ["Risco de assalto", "Área de alagamento"],
+    "points": [
+        {
+            "motivo": "Cão bravo",
+            "observacao": "Pitbull solto...",
+            "latitude": "-5.0912",
+            "longitude": "-42.8021",
+            "created_at": "2026-05-06T10:00:00.000Z"
+        }
+    ]
+}
+```
+
+---
+
+### Upload de Arquivos
+
+Endpoints para upload de imagens e documentos para o MinIO.
+
+---
+
+#### `POST /agent/upload_agent`
+Upload de arquivo realizado pelo agente (ex: foto de identificação, comprovantes).
+
+**Headers:** `X-Telegram-Init-Data`
+
+**Body:** `form-data`
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `file` | file | **Sim** | Arquivo (imagem ou PDF) |
+
+**Retorno (sucesso):**
+```json
+{
+    "success": true,
+    "fileName": "agents/123/123456789-ag001-xyz.jpg",
+    "url": "https://api.izi.tec.br/file/agents/123/...",
+    "size": 45000,
+    "originalSize": 120000,
+    "compression": "62%",
+    "mimetype": "image/jpeg"
+}
+```
+
+---
+
+#### `POST /admin/upload`
+Upload de arquivo realizado por administradores.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:** `form-data`
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `file` | file | **Sim** | Arquivo (imagem ou PDF) |
+
+**Retorno (sucesso):** Similar ao `upload_agent`, mas salvo na pasta `admins/`.
+
+---
+
+#### `GET /file/:path`
+Recupera um arquivo do bucket padrão.
+
+**Exemplo:** `GET /file/agents/123/foto.jpg`
+
+---
+
 ### Revalidação
 
 **Autenticação:** Token simples (`?token=API_TOKEN`)

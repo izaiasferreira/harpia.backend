@@ -69,6 +69,60 @@ router.post('/upload', upload.single('file'), verifyToken(), async (req, res) =>
 });
 
 /**
+ * POST /admin/upload
+ * Upload de arquivo para administradores (igual ao upload_agent)
+ */
+router.post('/admin/upload', upload.single('file'), verifyToken(), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+        }
+
+        // Tipos permitidos
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+        if (!allowedTypes.includes(req.file.mimetype)) {
+            return res.status(400).json({ error: 'Tipo de arquivo não permitido' });
+        }
+
+        await ensureBucketExists();
+
+        // Gera nome único baseado no ID do admin
+        const timestamp = Date.now();
+        const ext = req.file.originalname.split('.').pop();
+        const adminId = req.user.id;
+        const fileName = `${timestamp}-${adminId}-${Math.random().toString(36).substring(7)}.${ext}`;
+        const fullPath = `admins/${adminId}/${fileName}`;
+
+        // Comprime imagem se necessário
+        let fileBuffer = req.file.buffer;
+        let originalSize = fileBuffer.length;
+
+        if (['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(req.file.mimetype)) {
+            fileBuffer = await compressImage(fileBuffer, req.file.mimetype);
+        }
+
+        // Upload para o MinIO
+        await minioClient.putObject(CONFIG.bucket, fullPath, fileBuffer);
+
+        res.json({
+            success: true,
+            fileName: fullPath,
+            url: getFileUrl(fullPath),
+            size: fileBuffer.length,
+            originalSize: originalSize,
+            compression: originalSize !== fileBuffer.length 
+                ? Math.round((1 - fileBuffer.length / originalSize) * 100) + '%' 
+                : null,
+            mimetype: req.file.mimetype
+        });
+
+    } catch (err) {
+        console.error('Erro no upload admin:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
  * GET /file/:path
  * Serve arquivos do bucket padrão (como imagem pública)
  */

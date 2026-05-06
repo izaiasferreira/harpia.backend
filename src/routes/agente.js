@@ -30,7 +30,10 @@ const {
     updateProfilePic,
     addBadgeToProfile,
     get_security_reports,
-    get_instalations_matriz
+    get_instalations_matriz,
+    save_security_check,
+    get_security_checks,
+    get_security_check_today
 } = require('../functions/postgresFunctions');
 const { minioClient, CONFIG, ensureBucketExists, getFileUrl, compressImage } = require('../functions/minio');
 const { telegramAuth } = require('../middlewares/telegramAuth');
@@ -851,6 +854,69 @@ router.post('/security_report', telegramAuth, async (req, res) => {
         res.status(201).json(result);
     } catch (err) {
         console.error('Erro ao criar reporte de segurança:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// security_check - confirmação de check (1 por dia)
+router.post('/security_check', telegramAuth, async (req, res) => {
+    try {
+        const autor = req.colaborador.id;
+        const estado = req.colaborador.estado || 'pi';
+        const { latitude, longitude } = req.body;
+
+        const result = await save_security_check({
+            autor,
+            latitude,
+            longitude,
+            state: estado
+        });
+
+        res.status(201).json(result);
+    } catch (err) {
+        console.error('Erro ao salvar confirmação de segurança:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// security_check - listar confirmações
+router.get('/security_check', telegramAuth, async (req, res) => {
+    try {
+        const autor = req.query.autor || req.colaborador.id;
+        const estado = req.colaborador.estado || 'pi';
+        const { data, limit } = req.query;
+
+        const result = await get_security_checks({
+            state: estado,
+            autor,
+            data,
+            limit
+        });
+
+        res.json(result);
+    } catch (err) {
+        console.error('Erro ao buscar confirmações de segurança:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// security_check - verificar se já existe confirmação hoje
+router.get('/security_check/check_today', telegramAuth, async (req, res) => {
+    try {
+        const autor = req.colaborador.id;
+        const estado = req.colaborador.estado || 'pi';
+
+        const result = await get_security_check_today({
+            state: estado,
+            autor
+        });
+
+        res.json({
+            hasCheckToday: !!result,
+            data: result
+        });
+    } catch (err) {
+        console.error('Erro ao verificar confirmação de segurança de hoje:', err);
         res.status(500).json({ error: err.message });
     }
 });
