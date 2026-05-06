@@ -10,6 +10,10 @@ function parse_date(date) {
         const [y, m, d] = date.split('-');
         return `${d}.${m}.${y}`;
     }
+
+    if (date.includes('.') && date.length >= 10) {
+        return date;
+    }
     
     // Tratamento genérico para outras datas passadas (usando UTC para não retroceder ao dia passado pelo Fuso -3)
     const d = new Date(date);

@@ -32,7 +32,22 @@ const {
     get_user_agent_options
 } = require('../functions/database/admin');
 const { listModules } = require('../functions/modules');
-const { getUserData } = require('../functions/postgresFunctions');
+const {
+    getUserData,
+    getLeiturasForAgent,
+    checkJustifiedByInstallations,
+    getLeiturasPendingForAgent,
+    licacaoNovaC12ForAgent,
+    fastC12ForAgent,
+    firstC12ForAgent,
+    getWeeklyCNLStats,
+    get_pending_justifies,
+} = require('../functions/postgresFunctions');
+
+const {
+    parse_date,
+    today
+} = require('../utils/dates');
 
 
 
@@ -82,8 +97,15 @@ router.get('/users_agents', verifyToken(), verifyModule('users_agents'), async (
 router.get('/users_agents/profile', verifyToken(), verifyModule('users_agents'), async (req, res) => {
     const { id } = req.query;
     const user = req.user;
-    console.log(user);
-    const userData = await getUserData({ id: id, state: user.estado });
+    const [ userData, pending, completed, pending_justifies ] = await Promise.all([
+        getUserData({ id: id, state: user.estado }),
+        getLeiturasForAgent({ state: user.estado, id, date: today(), limit: 99999 }),
+        getLeiturasPendingForAgent({ state: user.estado, id, date: today(), limit: 99999 }),
+        get_pending_justifies({ autor: id, status: 'pendente', page: 1, limit: 100 })
+    ])
+    const cnl = completed?.filter(r => !r.ntlei.startsWith('A') && !['B09', 'B10', 'B15'].includes(r.ntlei)).length || 0;
+    const perdas = completed?.filter(r => r.tem_perda === "PERDA" && parseInt(r.perda_prevista_mensal) > 0).reduce((acc, r) => acc + parseInt(r.perda_prevista_mensal), 0) || 0;
+
     return res.json({
         user: {
             name: `${userData.id} -  ${userData.nome}`,
@@ -94,14 +116,12 @@ router.get('/users_agents/profile', verifyToken(), verifyModule('users_agents'),
                 level: userData.level
             },
             summary: [
-                { title: 'Pendências', value: 0 },
-                { title: 'Concluídos', value: 0 },
-                { title: 'Perdas Geradas', value: 0 },
-                { title: 'Perdas Recuperadas', value: 0 },
-                { title: 'CNL Percentual', value: 0 },
-                { title: 'CNL Quantidade', value: 0 },
-                { title: 'Último Inventário', value: 0 },
-                { title: 'Último Diário de Bordo', value: 0 }
+                { title: 'Pendências', value: pending?.length || 0 },
+                { title: 'Concluídos', value: completed?.length || 0 },
+                { title: 'CNL Percentual', value: `${((cnl / (completed?.length || 0)) * 100).toFixed(2)}%` },
+                { title: 'CNL Quantidade', value: cnl },
+                { title: 'Perdas geradas', value: perdas },
+                { title: 'Justificativas Pendentes', value: pending_justifies?.length || 0 },
             ]
         },
         goals: [
@@ -118,6 +138,52 @@ router.get('/users_agents/profile', verifyToken(), verifyModule('users_agents'),
         badges: Array.isArray(userData.badges) ? userData.badges : []
     });
 })
+
+router.get('/users_agents/services', verifyToken(), verifyModule('users_agents'), async (req, res) => {
+    try {
+        const { id, page, date, filter, search } = req.query;
+        if (!id) return res.status(400).json({ error: 'Parâmetro id é obrigatório' });
+
+        const user = req.user;
+        const atual_filter = filter || 'all';
+
+        // Tratar data: se já está em DD.MM.YYYY, usar direto; senão usar parse_date
+        let today_date = parse_date(date);
+
+        const state = user.estado || 'pi';
+
+        const result = await getLeiturasForAgent({
+            state,
+            id,
+            date: today_date,
+            page: page || 1,
+            filter: atual_filter,
+            search: search || ''
+        });
+
+        const data = Array.isArray(result) ? result : result?.data || [];
+        if (data.length > 0) {
+            const installations = data.map(r => r.instalacao);
+            const justified = await checkJustifiedByInstallations(installations, state);
+
+            const resultWithJustified = (Array.isArray(result) ? result : data).map(r => ({
+                ...r,
+                justificado: !!justified[r.instalacao]
+            }));
+
+            if (Array.isArray(result)) {
+                return res.json(resultWithJustified);
+            } else {
+                return res.json({ ...result, data: resultWithJustified });
+            }
+        }
+
+        res.json(result);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 router.get('/users_agents/options', verifyToken(), verifyModule('users_agents'), async (req, res) => {
     try {
@@ -188,14 +254,14 @@ router.post('/send_message_user_agent', verifyToken(), verifyModule('send_messag
         const { id, text, file: fileUrl, webAppButtonText, webAppButtonUrl, options } = req.body;
         const file = req.file; // From multer
         const user = req.user;
-        const result = await send_message_to_agent({ 
-            id, 
-            text, 
-            file: file || fileUrl, 
-            webAppButtonText, 
-            webAppButtonUrl, 
-            options, 
-            user 
+        const result = await send_message_to_agent({
+            id,
+            text,
+            file: file || fileUrl,
+            webAppButtonText,
+            webAppButtonUrl,
+            options,
+            user
         });
         res.json(result);
     } catch (error) {
@@ -213,14 +279,14 @@ router.post('/send_bulk_message_user_agent', verifyToken(), verifyModule('send_m
         // ids can come as a stringified array if sent via multipart/form-data
         const parsedIds = typeof ids === 'string' ? JSON.parse(ids) : ids;
 
-        const results = await send_bulk_message_to_agents({ 
-            ids: parsedIds, 
-            text, 
-            file: file || fileUrl, 
-            webAppButtonText, 
-            webAppButtonUrl, 
-            options, 
-            user 
+        const results = await send_bulk_message_to_agents({
+            ids: parsedIds,
+            text,
+            file: file || fileUrl,
+            webAppButtonText,
+            webAppButtonUrl,
+            options,
+            user
         });
         res.json(results);
     } catch (error) {

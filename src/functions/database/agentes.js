@@ -27,11 +27,12 @@ async function getUserData({ id, state }) {
         [id.toLowerCase()]
     );
 
+
     if (loginMatches.length > 0) {
         login = loginMatches[0];
     }
 
-    const pool_state = state === 'pi' ? pi_pool : ma_pool;
+    const pool_state = getPoolByState(state);
 
     const { rows: colaboradorMatches } = await pool_state.query(
         `SELECT * FROM colaboradores WHERE lower("ID") = $1`,
@@ -74,8 +75,6 @@ async function getUserData({ id, state }) {
     } else {
         profileData.badges = [];
     }
-
-
 
     return {
         ...colaborador,
@@ -213,15 +212,34 @@ function orderLeituras(rows) {
 }
 
 // ─── getLeiturasForAgent ───────────────────────────────────────────────────────
-async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1, limit = 20, filter = 'all' }) {
+async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1, limit = 20, filter = 'all', search = '' }) {
     const result = [];
-    let params = [id.toUpperCase(), id.toLowerCase(), date, limit, (page - 1) * limit]
+    let params = [id.toUpperCase(), id.toLowerCase(), date, limit, (page - 1) * limit];
+    
+    // Adicionar parâmetro de busca se fornecido
+    const hasSearch = search && search.trim() !== '';
+    const searchPattern = hasSearch ? `%${search.trim().toLowerCase()}%` : null;
 
     if (filter === 'pending') {
         return getLeiturasPendingForAgent({ state, id, date, page, limit });
     }
 
     if (filter === 'all') {
+        let searchClause = '';
+        let finalParams = [...params];
+        
+        if (hasSearch) {
+            searchClause = `AND (
+                LOWER(m.instalacao) LIKE $6 OR
+                LOWER(m.regional) LIKE $6 OR
+                LOWER(m.seccional) LIKE $6 OR
+                LOWER(m.nome_agente) LIKE $6 OR
+                LOWER(m.supervisor) LIKE $6 OR
+                LOWER(m.tem_perda) LIKE $6
+            )`;
+            finalParams.push(searchPattern);
+        }
+        
         const query_all = `
             SELECT 
                 m.instalacao, m.etapa, m.ntlei, m.data_conclusao, m.data_leit_prev, m.agente,
@@ -229,7 +247,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
                 
                 -- Lógica para Latitude: se for 0 ou null, busca o histórico da instalação
                 COALESCE(
-                    NULLIF(m.latitude, 0), 
+                    NULLIF(m.latitude,0), 
                     (SELECT sub.latitude FROM matriz sub 
                     WHERE sub.instalacao = m.instalacao 
                     AND sub.latitude <> 0 AND sub.latitude IS NOT NULL 
@@ -239,7 +257,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
                 
                 -- Lógica para Longitude: se for 0 ou null, busca o histórico da instalação
                 COALESCE(
-                    NULLIF(m.longitude, 0), 
+                    NULLIF(m.longitude,0), 
                     (SELECT sub.longitude FROM matriz sub 
                     WHERE sub.instalacao = m.instalacao 
                     AND sub.longitude <> 0 AND sub.longitude IS NOT NULL 
@@ -251,23 +269,38 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
             WHERE m.agente IN ($1, $2)
             AND m.data_conclusao >= TO_DATE($3, 'DD/MM/YYYY')
             AND m.data_conclusao < TO_DATE($3, 'DD/MM/YYYY') + interval '1 day'
+            ${searchClause}
             ORDER BY m.data_conclusao ASC
             LIMIT $4 OFFSET $5;
         `;
-
-
+        
         const { rows } = state === 'pi'
-            ? await pi_pool.query(query_all, params)
-            : await ma_pool.query(query_all, params);
+            ? await pi_pool.query(query_all, finalParams)
+            : await ma_pool.query(query_all, finalParams);
         if (rows.length === 0) return [];
         result.push(...orderLeituras(rows));
     }
 
     if (filter === 'cnl') {
+        let searchClause = '';
+        let finalParams = [...params];
+        
+        if (hasSearch) {
+            searchClause = `AND (
+                LOWER(instalacao) LIKE $6 OR
+                LOWER(regional) LIKE $6 OR
+                LOWER(seccional) LIKE $6 OR
+                LOWER(nome_agente) LIKE $6 OR
+                LOWER(supervisor) LIKE $6 OR
+                LOWER(tem_perda) LIKE $6
+            )`;
+            finalParams.push(searchPattern);
+        }
+        
         const query_all = `
             WITH historico_completo AS (
                 SELECT 
-                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, concluido, agente, tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
+                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, concluido, agente, tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude, regional, seccional, supervisor
                 FROM matriz
                 WHERE agente IN ($1, $2)
                 AND ntlei NOT LIKE 'A%'
@@ -277,6 +310,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
             )
             SELECT *
             FROM historico_completo
+            ${searchClause}
             LIMIT $4 OFFSET $5`;
 
         const { rows } = state === 'pi'
@@ -287,10 +321,25 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
     }
 
     if (filter === 'c12') {
+        let searchClause = '';
+        let finalParams = [...params];
+        
+        if (hasSearch) {
+            searchClause = `AND (
+                LOWER(instalacao) LIKE $6 OR
+                LOWER(regional) LIKE $6 OR
+                LOWER(seccional) LIKE $6 OR
+                LOWER(nome_agente) LIKE $6 OR
+                LOWER(supervisor) LIKE $6 OR
+                LOWER(tem_perda) LIKE $6
+            )`;
+            finalParams.push(searchPattern);
+        }
+        
         const query_all = `
             WITH historico_completo AS (
                 SELECT 
-                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude
+                    instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude, regional, seccional, supervisor
                 FROM matriz
                 WHERE agente IN ($1, $2)
                 AND ntlei = 'C12'
@@ -299,6 +348,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
             )
             SELECT *
             FROM historico_completo
+            ${searchClause}
             LIMIT $4 OFFSET $5`;
 
         const { rows } = state === 'pi' ? await pi_pool.query(query_all, params) : await ma_pool.query(query_all, params);

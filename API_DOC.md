@@ -1368,6 +1368,45 @@ Retorna o perfil de um colaborador (agente) com estatísticas, metas e emblemas.
 
 ---
 
+#### `GET /admin/users_agents/services`
+Lista os serviços/leituras de um colaborador (agente) com verificação de justificativas.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:**
+
+| Param | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `id` | string | Sim | ID/MAT do agente |
+| `date` | string | Não | Data (formato DD.MM.YYYY, padrão: hoje) |
+| `page` | number | Não | Página (padrão: 1) |
+| `filter` | string | Não | Filtro de serviços (`all`, `pending`, etc.) |
+
+**Retorno (sucesso):**
+```json
+[
+    {
+        "instalacao": "123456",
+        "unidade_leitura": "TH09B011",
+        "tipo": "OB",
+        "concluido": "PENDENTE",
+        "status_ds": "LG",
+        "agente": "T19596",
+        "etapa": "09",
+        "cidade": "TERESINA",
+        "seccional": "UAC TERESINA",
+        "regional": "METROPOLITANA",
+        "ntlei": "SEM APONTAMENTO",
+        "data_leit_prev": "2026-04-15T03:00:00.000Z",
+        "justificado": false
+    }
+]
+```
+
+> O campo `justificado` indica se a instalação já possui justificativa criada para a data de leitura prevista.
+
+---
+
 ### Branches
 
 ### Branches
