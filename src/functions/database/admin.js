@@ -906,6 +906,7 @@ module.exports = {
     send_message_to_agent,
     send_bulk_message_to_agents,
     get_justify_types_admin,
-    get_justify_pending_types,
-    get_user_agent_options
+     get_justify_pending_types,
+      get_user_agent_options,
+      getUserAllowedStatePools,
 };

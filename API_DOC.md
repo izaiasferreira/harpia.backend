@@ -1407,6 +1407,47 @@ Lista os serviços/leituras de um colaborador (agente) com verificação de just
 
 ---
 
+#### `GET /admin/services`
+Lista os serviços/leituras de forma geral (sem precisar especificar agente), com busca textual em todas as colunas e suporte a múltiplos estados (bancos). Também indica se cada serviço foi justificado.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:**
+
+| Param | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `date` | string | Não | Data (formato DD.MM.YYYY, padrão: hoje) |
+| `page` | number | Não | Página (padrão: 1) |
+| `search` | string | Não | Busca textual em: instalacao, regional, seccional, nome_agente, supervisor, ntlei, tem_perda |
+
+**Retorno (sucesso):**
+```json
+[
+    {
+        "instalacao": "123456",
+        "etapa": "09",
+        "ntlei": "C12",
+        "data_conclusao": "2026-05-06T10:00:00.000Z",
+        "data_leit_prev": "2026-05-06T03:00:00.000Z",
+        "agente": "T19596",
+        "tem_perda": "PERDA",
+        "perda_prevista_mensal": "49",
+        "nome_agente": "NOME DO AGENTE",
+        "seccional": "UAC TERESINA",
+        "regional": "METROPOLITANA",
+        "unidade_leitura": "TH09B011",
+        "supervisor": "GESTOR IMEDIATO",
+        "latitude": -5.08921,
+        "longitude": -42.8016,
+        "justificado": false
+    }
+]
+```
+
+> O campo `justificado` indica se a instalação já possui justificativa criada para a data de leitura prevista.
+
+---
+
 ### Branches
 
 ### Branches

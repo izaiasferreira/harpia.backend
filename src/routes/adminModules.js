@@ -29,25 +29,23 @@ const {
     send_message_to_agent,
     send_bulk_message_to_agents,
     get_justify_types_admin,
-    get_user_agent_options
+    get_user_agent_options,
+    getUserAllowedStatePools
 } = require('../functions/database/admin');
 const { listModules } = require('../functions/modules');
 const {
     getUserData,
     getLeiturasForAgent,
     checkJustifiedByInstallations,
+    parse_date,
+    today,
     getLeiturasPendingForAgent,
-    licacaoNovaC12ForAgent,
-    fastC12ForAgent,
-    firstC12ForAgent,
-    getWeeklyCNLStats,
-    get_pending_justifies,
+    get_pending_justifies
 } = require('../functions/postgresFunctions');
 
 const {
-    parse_date,
-    today
-} = require('../utils/dates');
+    getLeiturasGeral
+} = require('../functions/database/getLeiturasGeral');
 
 
 
@@ -97,10 +95,10 @@ router.get('/users_agents', verifyToken(), verifyModule('users_agents'), async (
 router.get('/users_agents/profile', verifyToken(), verifyModule('users_agents'), async (req, res) => {
     const { id } = req.query;
     const user = req.user;
-    const [ userData, pending, completed, pending_justifies ] = await Promise.all([
+    const [userData, pending, completed, pending_justifies] = await Promise.all([
         getUserData({ id: id, state: user.estado }),
-        getLeiturasForAgent({ state: user.estado, id, date: today(), limit: 99999 }),
-        getLeiturasPendingForAgent({ state: user.estado, id, date: today(), limit: 99999 }),
+        getLeiturasForAgent({ state: user.estado, id, limit: 99999 }),
+        getLeiturasPendingForAgent({ state: user.estado, id, limit: 99999 }),
         get_pending_justifies({ autor: id, status: 'pendente', page: 1, limit: 100 })
     ])
     const cnl = completed?.filter(r => !r.ntlei.startsWith('A') && !['B09', 'B10', 'B15'].includes(r.ntlei)).length || 0;
@@ -177,6 +175,41 @@ router.get('/users_agents/services', verifyToken(), verifyModule('users_agents')
                 return res.json({ ...result, data: resultWithJustified });
             }
         }
+
+        res.json(result);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/services', verifyToken(), verifyModule('users_agents'), async (req, res) => {
+    try {
+        const { page, date, search } = req.query;
+        const user = req.user;
+
+        // Buscar estados permitidos para o usuário (todos se for admin)
+        const allowedPools = getUserAllowedStatePools(user);
+        const states = allowedPools.map(p => p.state);
+
+        // Tratar data: se já está em DD.MM.YYYY, usar direto; senão usar parse_date
+        let today_date;
+        if (date) {
+            if (date.includes('.') && date.length >= 10) {
+                today_date = date;
+            } else {
+                today_date = parse_date(date);
+            }
+        } else {
+            today_date = today();
+        }
+
+        const result = await getLeiturasGeral({
+            states,
+            date: today_date,
+            page: page || 1,
+            search: search || ''
+        });
 
         res.json(result);
     } catch (err) {
