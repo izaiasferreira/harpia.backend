@@ -216,18 +216,18 @@ router.get('/ceneduc', telegramAuth, async (req, res) => {
                             link: `/f/2?id=${req.colaborador.id}`,
                         }
                     },
-                    // {
-                    //     id: 'course_2',
-                    //     data: {
-                    //         title: 'Notas de Remanejamento',
-                    //         subtitle: 'Saiba como abrir',
-                    //         cover: 'https://api.izi.tec.br/files/assets/cover1.png',
-                    //         description: 'Neste treinamento interativo voce aprenderá como abrir uma nota de remanejamento de uma instalação.',
-                    //         metaHeader: ["Essencial", "PROCEDIMENTO", "2026"],
-                    //         category: "Treinamento, Campo",
-                    //         link: '/f/1',
-                    //     }
-                    // },
+                    {
+                        id: 'course_2',
+                        data: {
+                            title: 'Notas de Desligamento',
+                            subtitle: 'Saiba como abrir',
+                            cover: 'https://api.izi.tec.br/files/assets/cover5.png',
+                            description: 'Neste treinamento interativo voce aprenderá como abrir uma nota de desligamento de uma instalação.',
+                            metaHeader: ["Essencial", "PROCEDIMENTO", "2026"],
+                            category: "Treinamento, Campo",
+                            link: '/training/view/3',
+                        }
+                    },
                     // {
                     //     id: 'course_3',
                     //     data: {
