@@ -39,8 +39,7 @@ const {
     checkJustifiedByInstallations,
     parse_date,
     today,
-    getLeiturasPendingForAgent,
-    get_pending_justifies
+    perdas
 } = require('../functions/postgresFunctions');
 
 const {
@@ -125,7 +124,6 @@ router.get('/users_agents/profile', verifyToken(), verifyModule('users_agents'),
         goals: [
             { id: 1, title: 'Não ultrapassar a meta de CNL', completed: false },
             { id: 2, title: 'Ter 80% do CNL indevidos justificado', completed: false },
-            { id: 3, title: 'Ter 0 perdas por troca de apontamento', completed: false },
             { id: 4, title: 'Ter 90% de perdas justificadas', completed: false },
             { id: 5, title: 'Ao menos 1 reporte de segurança por etapa', completed: false },
             { id: 6, title: 'Fazer checklist de segurança 1 vez por semana', completed: false },
@@ -212,6 +210,52 @@ router.get('/services', verifyToken(), verifyModule('users_agents'), async (req,
         });
 
         res.json(result);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/perdas', verifyToken(), verifyModule('perdas'), async (req, res) => {
+    try {
+        const { dateinit, dateend, search } = req.query;
+        const user = req.user;
+        
+        // Buscar estados permitidos para o usuário
+        const allowedPools = getUserAllowedStatePools(user);
+        const states = allowedPools.map(p => p.state);
+        
+        // Processar datas
+        const todayStr = today();
+        const init = dateinit ? (dateinit.includes('.') ? dateinit : parse_date(dateinit)) : todayStr;
+        const end = dateend ? (dateend.includes('.') ? dateend : parse_date(dateend)) : todayStr;
+        
+        // Buscar perdas em todos os estados permitidos
+        let allPerdas = [];
+        for (const state of states) {
+            try {
+                const result = await perdas(state, 'all', init, end);
+                allPerdas = allPerdas.concat(result);
+            } catch (err) {
+                console.log(`Error querying perdas for state ${state}:`, err.message);
+            }
+        }
+        
+        // Filtrar por busca textual se fornecido
+        if (search && search.trim() !== '') {
+            const searchLower = search.toLowerCase();
+            allPerdas = allPerdas.filter(p => 
+                (p.instalacao && p.instalacao.toLowerCase().includes(searchLower)) ||
+                (p.regional && p.regional.toLowerCase().includes(searchLower)) ||
+                (p.seccional && p.seccional.toLowerCase().includes(searchLower)) ||
+                (p.nome_agente && p.nome_agente.toLowerCase().includes(searchLower)) ||
+                (p.supervisor && p.supervisor.toLowerCase().includes(searchLower)) ||
+                (p.ntlei && p.ntlei.toLowerCase().includes(searchLower)) ||
+                (p.tem_perda && p.tem_perda.toLowerCase().includes(searchLower))
+            );
+        }
+        
+        res.json(allPerdas);
     } catch (err) {
         console.log(err);
         res.status(500).json({ error: err.message });

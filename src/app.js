@@ -100,6 +100,10 @@ app.use('/admin/training', trainingProjectsRouter)
 // Admin Message Templates (/admin/message_templates/*)
 app.use('/admin/message_templates', adminMessageTemplatesRouter)
 
+// Admin Badges (/admin/badge/*)
+const adminBadgesRouter = require('./routes/adminBadges')
+app.use('/admin/badge', adminBadgesRouter)
+
 // Formulários Dinâmicos (/admin/forms/*)
 app.use('/admin/forms', formsRouter)
 

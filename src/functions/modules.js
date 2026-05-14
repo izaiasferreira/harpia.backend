@@ -61,7 +61,12 @@ const AVAILABLE_MODULES = [
     { id: 'forms', name: 'Consultar Formulários' },
     { id: 'create_form', name: 'Criar Formulário' },
     { id: 'update_form', name: 'Atualizar Formulário' },
-    { id: 'delete_form', name: 'Deletar Formulário' }
+    { id: 'delete_form', name: 'Deletar Formulário' },
+    // Badges
+    { id: 'badges', name: 'Consultar Badges' },
+    { id: 'create_badge', name: 'Criar Badge' },
+    { id: 'update_badge', name: 'Atualizar Badge' },
+    { id: 'delete_badge', name: 'Deletar Badge' }
 ];
 
 async function listModules() {

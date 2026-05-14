@@ -20,23 +20,43 @@ API para gestão de leituras, agentes e monitoria de serviços dos estados do Pi
 
 ```
 src/
-├── index.js                 # Entry point — inicia o servidor HTTP
-├── app.js                   # Express app — middlewares globais e montagem de routers
-├── db.js                    # Pools de conexão PostgreSQL (pi, ma, localizacoes_pi)
-├── redis.js                 # Cliente Redis (logs)
+├── index.js                            # Entry point — inicia o servidor HTTP
+├── app.js                              # Express app — middlewares globais e montagem de routers
+├── db.js                               # Pools de conexão PostgreSQL (pi, ma, localizacoes_pi, cenos)
+├── redis.js                            # Cliente Redis (logs)
 ├── routes/
-│   ├── public.js            # Rotas públicas (sem autenticação)
-│   ├── consultas.js         # Consultas gerais (token simples)
-│   ├── agente.js            # Rotas para o app do agente (Telegram auth)
-│   └── logs.js              # Interface de logs Redis (auth por senha)
+│   ├── public.js                       # Rotas públicas (/public/*)
+│   ├── consultas.js                    # Consultas gerais (/api/*, token simples)
+│   ├── agentDefaultAuth.js             # Rotas agente sem Telegram auth (/api/*)
+│   ├── agente.js                       # Rotas do app do agente (/agent/*, Telegram auth)
+│   ├── adminModules.js                 # Admin dashboard, search_in, justify, etc. (/admin/*)
+│   ├── adminUsers.js                   # CRUD de usuários (/admin/user/*)
+│   ├── adminBranches.js                # CRUD de filiais (/admin/branch/*)
+│   ├── adminPermissions.js             # CRUD de permissões (/admin/permission/*)
+│   ├── adminSecurityReports.js         # Relatórios de segurança (/admin/security_reports/*)
+│   ├── adminMessageTemplates.js        # Modelos de mensagem (/admin/message_templates/*)
+│   ├── adminBadges.js                  # CRUD de badges (/admin/badge/*)
+│   ├── trainingProjects.js             # Treinamentos (/admin/training/*)
+│   ├── forms.js                        # Formulários dinâmicos (/admin/forms/*)
+│   └── upload.js                       # Upload de arquivos MinIO/S3 (/*)
 ├── middlewares/
-│   ├── logMiddleware.js     # Registra todas as requisições no Redis
-│   └── telegramAuth.js      # Valida initData ou token manual do Telegram
+│   ├── logMiddleware.js                # Registra todas as requisições no Redis
+│   ├── telegramAuth.js                 # Valida initData ou token manual do Telegram
+│   ├── auth.js                         # Auth de logs via header Authorization
+│   ├── jwtAuth.js                      # Auth JWT Bearer para admin
+│   └── permissions.js                  # Verificação de módulos/permissoes
 ├── functions/
-│   ├── postgresFunctions.js # Todas as queries SQL
-│   └── requestsFunctions.js # Integração WhatsApp (Cattalk)
+│   ├── postgresFunctions.js            # Todas as queries SQL
+│   ├── requestsFunctions.js            # Integração WhatsApp (Cattalk)
+│   ├── badges.js                       # Lógica de emblemas/gamificação
+│   ├── database/                       # Scripts de criação de tabelas
+│   ├── generateDashboard.js            # Geração de dashboard
+│   ├── generateCustomLinks.js          # Links customizados
+│   ├── middlewares.js                  # Middlewares reutilizáveis
+│   ├── minio.js                        # Cliente MinIO/S3
+│   └── modules.js                      # Definição de módulos disponíveis
 └── utils/
-    └── dates.js             # Funções de data no formato DD.MM.YYYY
+    └── dates.js                        # Funções de data no formato DD.MM.YYYY
 ```
 
 ---
@@ -92,8 +112,11 @@ curl "http://localhost:3040/api/logs/data" -H "Authorization: SENHA"
 
 ## Endpoints
 
-> **Nota:** Todos os endpoints estão disponíveis com ou sem prefixo `/api`.
-> Ex: `/pendencias` e `/api/pendencias` retornam o mesmo resultado.
+> **Nota:** A API possui múltiplos prefixos de rota conforme a funcionalidade:
+> - `/api/*` — Consultas gerais e rotas de agente sem auth Telegram
+> - `/agent/*` — Rotas do app agente (auth Telegram)
+> - `/public/*` — Rotas públicas (sem autenticação)
+> - `/admin/*` — Rotas administrativas (auth JWT Bearer)
 
 ---
 
@@ -122,6 +145,11 @@ Redireciona para o dashboard geral embarcado no Metabase (dashboard ID 4).
 
 - **Autenticação:** Nenhuma
 - **Retorno:** Redirect `302` para URL JWT-assinada do Metabase
+
+---
+
+#### `GET /public/generate_token`
+Gera um token de acesso temporário (uso interno).
 
 ---
 
@@ -167,18 +195,37 @@ Retorna agentes com conclusão parcial de serviços.
 
 ---
 
-#### `GET /agent/telegram_id`
-#### `GET /agent/dashboard`
-#### `GET /agent/statistics`
-#### `GET /agent/statistics_more`
-#### `GET /agent/services`
-#### `GET /agent/data`
+#### `GET /api/agent_telegram_id`
+Retorna o `telegram_id` de um agente pela matrícula.
+
+**Query Params:** `token`, `state`, `id` (matrícula)
+
+**Retorno:**
+```json
+{ "telegram_id": "7136458344" }
+```
+
+---
+
+#### `POST /api/justification_codes`
+Retorna códigos de justificativa para um agente.
+
+**Query Params:** `token`, `state`, `id` (matrícula)
+
+---
+
+#### `GET /agent/agent_dashboard`
+#### `GET /agent/agent_services`
+#### `GET /agent/agent_data`
 Retorna os dados do colaborador autenticado (matrícula e estado).
 
 **Retorno:**
 ```json
 { "id": "MATRICULA", "estado": "pi" }
 ```
+
+#### `GET /agent/last_update_agent`
+#### `GET /agent/custom_links`
 
 ---
 
@@ -413,7 +460,7 @@ Consulta justificativas de erros do agente com dados da matriz.
 
 ---
 
-#### `POST /create_justify`
+#### `POST /agent/create_justify`
 Cria uma nova justificativa. Bloqueia duplicatas (mesma instalação + data).
 
 **Body:**
@@ -447,7 +494,7 @@ Cria uma nova justificativa. Bloqueia duplicatas (mesma instalação + data).
 
 ---
 
-#### `PUT /update_justify`
+#### `PUT /agent/update_justify`
 Atualiza uma justificativa existente pelo ID.
 
 **Body:**
@@ -480,7 +527,7 @@ Atualiza uma justificativa existente pelo ID.
 
 ---
 
-#### `DELETE /delete_justify/:id`
+#### `DELETE /agent/delete_justify/:id`
 Deleta uma justificativa pelo ID.
 
 **URL Params:**
@@ -508,7 +555,7 @@ Deleta uma justificativa pelo ID.
 
 ---
 
-#### `POST /justify_pending`
+#### `POST /agent/justify_pending`
 Pré-cria uma justificativa de pendências do dia.
 
 **Body:**
@@ -578,7 +625,7 @@ Consulta uma justificativa de pendências pelo ID.
 
 ---
 
-#### `PUT /justify_pending/:id/respond`
+#### `PUT /agent/justify_pending/:id/respond`
 Responde uma justificativa de pendências pré-criada.
 
 **URL Params:**
@@ -629,7 +676,7 @@ Lista justificativas de pendências por autor e/ou status.
 
 ---
 
-#### `DELETE /justify_pending/:id`
+#### `DELETE /agent/justify_pending/:id`
 Deleta uma justificativa de pendências pelo ID.
 
 **URL Params:**
@@ -657,7 +704,7 @@ Deleta uma justificativa de pendências pelo ID.
 
 ---
 
-#### `POST /daily_report`
+#### `POST /agent/daily_report`
 Cria um reporte diário de performance (1 por dia).
 
 **Body:**
@@ -720,7 +767,7 @@ Verifica se já existe um reporte diário para hoje.
 
 ---
 
-#### `DELETE /daily_report/:id`
+#### `DELETE /agent/daily_report/:id`
 Deleta um reporte diário pelo ID.
 
 **URL Params:**
@@ -909,16 +956,18 @@ Upload de arquivo realizado por administradores.
 
 ---
 
-#### `GET /file/:path`
-Recupera um arquivo do bucket padrão.
+#### `GET /files/:bucket/:path(*)`
+Recupera um arquivo do bucket especificado no MinIO.
 
-**Exemplo:** `GET /file/agents/123/foto.jpg`
+**Exemplo:** `GET /files/api-banco-dev/agents/123/foto.jpg`
 
 ---
 
 ### Revalidação
 
 **Autenticação:** Token simples (`?token=API_TOKEN`)
+
+> ⚠️ **Nota:** As rotas de revalidação e webhooks existem no código-fonte mas não estão montadas atualmente no `app.js`. Estão documentadas para referência.
 
 ---
 
@@ -961,6 +1010,8 @@ Recebe notificações de perda recuperada e envia mensagem para o WhatsApp.
 ### Logs (`/api/*`)
 
 **Autenticação:** Header `Authorization: LOGS_PASSWORD`
+
+> ⚠️ **Nota:** As rotas de log existem no código-fonte mas não estão montadas atualmente no `app.js`. Estão documentadas para referência.
 
 > Requisições para rotas de log não são registradas no Redis para evitar recursão.
 
@@ -1114,21 +1165,58 @@ curl http://localhost:3040/admin/user/me \
 |----|----|-----------|
 | `search_in` | Busca Instalação | Busca de instalações |
 | `update_search_in` | Atualizar Busca Instalação | Editar dados de busca |
-| `justify` | Consultar Justificativa | Visualizar justificativas de instalação |
+| `justify` | Consultar Justificativa de Instalação | Visualizar justificativas de instalação |
 | `create_justify` | Criar Justificativa | Criar novas justificativas |
 | `update_justify` | Atualizar Justificativa | Editar justificativas existentes |
 | `delete_justify` | Deletar Justificativa | Remover justificativas |
-| `justify_pending` | Consultar Pendências | Visualizar justificativas de pendências |
-| `daily_report` | Consultar Diário | Visualizar diários de bordo |
+| `justify_pending` | Consultar Justificativas de Pendências | Visualizar justificativas de pendências |
+| `create_justify_pending` | Criar Justificativa de Pendência | Criar justificativa de pendência |
+| `update_justify_pending` | Atualizar Justificativa de Pendência | Editar justificativa de pendência |
+| `delete_justify_pending` | Deletar Justificativa de Pendência | Remover justificativa de pendência |
+| `daily_report` | Consultar Diário de Bordo | Visualizar diários de bordo |
+| `create_daily_report` | Criar Diário de Bordo | Criar novo diário de bordo |
+| `update_daily_report` | Atualizar Diário de Bordo | Editar diário de bordo |
+| `delete_daily_report` | Deletar Diário de Bordo | Remover diário de bordo |
 | `inventory` | Inventário | Gerenciar inventário de equipamentos |
+| `create_inventory` | Criar Inventário | Criar registro de inventário |
+| `update_inventory` | Atualizar Inventário | Editar registro de inventário |
+| `delete_inventory` | Deletar Inventário | Remover registro de inventário |
 | `users` | Usuários | Gerenciar usuários do sistema |
+| `create_user` | Criar Usuário | Cadastrar novo usuário |
+| `update_user` | Atualizar Usuário | Editar dados de usuário |
+| `delete_user` | Deletar Usuário | Remover/Desativar usuário |
 | `branches` | Filiais | Gerenciar filiais/regionais |
+| `create_branch` | Criar Filial | Cadastrar nova filial |
+| `update_branch` | Atualizar Filial | Editar filial |
+| `delete_branch` | Deletar Filial | Remover filial |
 | `permissions` | Permissões | Gerenciar níveis de acesso |
+| `create_permission` | Criar Permissão | Criar nova permissão |
+| `update_permission` | Atualizar Permissão | Editar permissão |
+| `delete_permission` | Deletar Permissão | Remover permissão |
 | `users_agents` | Consultar Agentes | Visualizar lista de agentes/colaboradores |
 | `create_user_agent` | Criar Agente | Cadastrar novo agente no banco estadual |
 | `update_user_agent` | Atualizar Agente | Editar dados de um agente existente |
 | `delete_user_agent` | Deletar Agente | Remover/Desativar um agente |
-| `send_message_to_agent` | Enviar Mensagem | Enviar mensagem via Telegram para o agente |
+| `send_message_user_agent` | Enviar Mensagem | Enviar mensagem via Telegram para o agente |
+| `training_projects` | Projetos de Treinamento | Visualizar projetos de treinamento |
+| `create_training_project` | Criar Projeto de Treinamento | Criar novo projeto |
+| `update_training_project` | Atualizar Projeto de Treinamento | Editar projeto |
+| `delete_training_project` | Deletar Projeto de Treinamento | Remover projeto |
+| `message_templates` | Modelos de Mensagem | Visualizar modelos de mensagem |
+| `create_message_template` | Criar Modelo de Mensagem | Criar novo modelo |
+| `update_message_template` | Atualizar Modelo de Mensagem | Editar modelo |
+| `delete_message_template` | Deletar Modelo de Mensagem | Remover modelo |
+| `security_reports` | Relatórios de Segurança | Visualizar relatórios de segurança |
+| `create_security_report` | Criar Relatório de Segurança | Criar novo relatório |
+| `delete_security_report` | Deletar Relatório de Segurança | Remover relatório |
+| `forms` | Formulários Dinâmicos | Visualizar formulários |
+| `create_form` | Criar Formulário | Criar novo formulário |
+| `update_form` | Atualizar Formulário | Editar formulário |
+| `delete_form` | Deletar Formulário | Remover formulário |
+| `badges` | Consultar Badges | Visualizar lista de badges |
+| `create_badge` | Criar Badge | Criar novo badge |
+| `update_badge` | Atualizar Badge | Editar badge existente |
+| `delete_badge` | Deletar Badge | Remover badge |
 
 ### Verificação de Módulo
 
@@ -1228,6 +1316,18 @@ Detalhes de usuário com módulos e permissões.
 
 #### `PUT /admin/user/users/:id`
 Atualiza usuário (apenas COMPANY_ADMIN).
+
+---
+
+#### `PUT /admin/user/users/:id/password`
+Altera a senha de um usuário.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:**
+```json
+{ "senha": "nova_senha123" }
+```
 
 ---
 
@@ -1448,7 +1548,44 @@ Lista os serviços/leituras de forma geral (sem precisar especificar agente), co
 
 ---
 
-### Branches
+#### `GET /admin/perdas`
+Lista todas as perdas com suporte a múltiplos estados (bancos), filtro de data unificado e busca textual.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:**
+
+| Param | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `dateinit` | string | Não | Data inicial (formato DD.MM.YYYY, padrão: hoje) |
+| `dateend` | string | Não | Data final (formato DD.MM.YYYY, padrão: hoje) |
+| `search` | string | Não | Busca textual em: instalacao, regional, seccional, nome_agente, supervisor, ntlei, tem_perda |
+
+**Retorno (sucesso):**
+```json
+[
+    {
+        "instalacao": "123456",
+        "etapa": "09",
+        "ntlei": "C12",
+        "data_conclusao": "2026-05-06T10:00:00.000Z",
+        "data_leit_prev": "2026-05-06T03:00:00.000Z",
+        "agente": "T19596",
+        "tem_perda": "PERDA",
+        "perda_prevista_mensal": "49",
+        "nome_agente": "NOME DO AGENTE",
+        "seccional": "UAC TERESINA",
+        "regional": "METROPOLITANA",
+        "unidade_leitura": "TH09B011",
+        "supervisor": "GESTOR IMEDIATO",
+        "justificado": false
+    }
+]
+```
+
+> O campo `justificado` indica se a instalação já possui justificativa.
+
+---
 
 ### Branches
 
@@ -1556,6 +1693,13 @@ Lista todos os módulos disponíveis no sistema (apenas para `COMPANY_ADMIN`).
 
 ---
 
+#### `PUT /admin/search_in/:id`
+Atualiza dados de uma instalação específica. (Funcionalidade em desenvolvimento)
+
+**Headers:** `Authorization: Bearer <token>`
+
+---
+
 #### `POST /admin/search_in`
 Busca informações detalhadas de instalações (PI/MA).
 
@@ -1577,8 +1721,16 @@ Lista justificativas de instalações com filtros.
 #### `GET /admin/justify/types`
 Retorna uma lista de strings com os motivos únicos de justificativas.
 
+---
+
+#### `POST /admin/justify`
+Cria uma nova justificativa via admin.
+
+**Headers:** `Authorization: Bearer <token>`
 
 ---
+
+#### `GET /admin/justify_pending`
 
 #### `GET /admin/justify_pending`
 Lista justificativas de pendências com filtros. Os registros são automaticamente cruzados com a base de colaboradores para incluir dados do agente.
@@ -1615,8 +1767,22 @@ Lista justificativas de pendências com filtros. Os registros são automaticamen
 
 ---
 
+#### `POST /admin/justify_pending`
+Cria uma justificativa de pendência via admin.
+
+**Headers:** `Authorization: Bearer <token>`
+
+---
+
 #### `PUT /admin/justify_pending/:id`
 Atualiza uma justificativa de pendência e a marca como `respondido`.
+
+---
+
+#### `DELETE /admin/justify_pending/:id`
+Deleta uma justificativa de pendência.
+
+**Headers:** `Authorization: Bearer <token>`
 
 ---
 
@@ -1624,6 +1790,27 @@ Atualiza uma justificativa de pendência e a marca como `respondido`.
 Lista diários de bordo dos agentes com filtros. Os registros são automaticamente cruzados com a base de colaboradores para incluir dados do agente.
 
 **Query Parameters:** `autor`, `data`, `motivo`, `estado`, `page`, `limit`, `search`.
+
+---
+
+#### `POST /admin/daily_report`
+Cria um novo diário de bordo via admin.
+
+**Headers:** `Authorization: Bearer <token>`
+
+---
+
+#### `PUT /admin/daily_report/:id`
+Atualiza um diário de bordo via admin.
+
+**Headers:** `Authorization: Bearer <token>`
+
+---
+
+#### `DELETE /admin/daily_report/:id`
+Deleta um diário de bordo via admin.
+
+**Headers:** `Authorization: Bearer <token>`
 
 **Response 200:**
 ```json
@@ -1693,7 +1880,111 @@ Lista inventário de equipamentos. Os registros são automaticamente cruzados co
 #### `POST /admin/inventory`
 Cria registro de inventário.
 
+**Headers:** `Authorization: Bearer <token>`
+
+---
+
+#### `PUT /admin/inventory/:id`
+Atualiza um registro de inventário.
+
+**Headers:** `Authorization: Bearer <token>`
+
+---
+
+#### `DELETE /admin/inventory/:id`
+Deleta um registro de inventário.
+
+**Headers:** `Authorization: Bearer <token>`
+
+---
+
+### Badges
+
+**Autenticação:** Bearer token (`/admin/badge/*`)
+
+---
+
+#### `GET /admin/badge`
+Lista todos os badges disponíveis.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response 200:**
+```json
+[
+    {
+        "id": 1,
+        "title": "Limpador de Rota",
+        "description": "Completou o treinamento de abertura de notas de Desligamento",
+        "earned": true,
+        "imageUrl": "https://api.izi.tec.br/files/assets/emblema1.png"
+    }
+]
+```
+
+---
+
+#### `GET /admin/badge/:id`
+Retorna detalhes de um badge específico.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response 200:** Objeto completo do badge.
+
+---
+
+#### `POST /admin/badge`
+Cria um novo badge.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `title` | string | **Sim** | Título do badge |
+| `description` | string | Não | Descrição do badge |
+| `image_url` | string | Não | URL da imagem do badge |
+
+**Response 201:** Objeto do badge criado.
+
+---
+
+#### `PUT /admin/badge/:id`
+Atualiza um badge existente.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:**
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `title` | string | Novo título |
+| `description` | string | Nova descrição |
+| `image_url` | string | Nova URL da imagem |
+
+**Response 200:** Objeto do badge atualizado.
+
+**Erros:**
+- `404` — Badge não encontrado
+
+---
+
+#### `DELETE /admin/badge/:id`
+Remove um badge.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response 200:**
+```json
+{ "success": true, "deleted": { "id": 1, "title": "...", ... } }
+```
+
+**Erros:**
+- `404` — Badge não encontrado
+
+---
+
 **Body Sample:**
+
 ```json
 {
     "agente": "L83649894",
@@ -2003,7 +2294,7 @@ Todas as requisições (exceto `/api/logs*` e `/logs*`) são registradas automat
 
 ---
 
-#### `GET /api/inventory`
+#### `GET /agent/inventory`
 Retorna o último registro de inventário do agente.
 
 **Query Params:**
@@ -2039,7 +2330,7 @@ Retorna o último registro de inventário do agente.
 
 ---
 
-#### `POST /inventory`
+#### `POST /agent/inventory`
 Cria ou atualiza registro de inventário (sempre atualiza o mesmo registro).
 
 **Body:**
@@ -2193,7 +2484,7 @@ Faz upload de arquivo para o MinIO/S3.
 
 ---
 
-#### `POST /admin/upload/upload`
+#### `POST /admin/upload`
 Upload de arquivo (imagem ou PDF) com compressão.
 
 **Headers:** `Authorization: Bearer <token>`
@@ -2885,11 +3176,13 @@ Deleta um modelo de mensagem pelo ID.
 
 ---
 
-## Admin Security Reports
+### Admin Security Reports
 
 **Autenticação:** Bearer token (`/admin/security_reports/*`)
 
 ---
+
+#### `GET /admin/security_reports`
 
 ### `GET /admin/security_reports`
 
@@ -3385,6 +3678,17 @@ Submete uma resposta pública (sem autenticação).
 **Erros:**
 - `400` — Formulário não está ativo
 - `400` — Campos obrigatórios não preenchidos
+
+---
+
+### `GET /public/form/:id/check`
+
+Verifica se um formulário está ativo e disponível para resposta.
+
+**Response 200:**
+```json
+{ "isActive": true, "title": "Pesquisa de Satisfação" }
+```
 
 ---
 
