@@ -36,6 +36,7 @@ src/
 │   ├── adminSecurityReports.js         # Relatórios de segurança (/admin/security_reports/*)
 │   ├── adminMessageTemplates.js        # Modelos de mensagem (/admin/message_templates/*)
 │   ├── adminBadges.js                  # CRUD de badges (/admin/badge/*)
+│   ├── adminCeneduc.js                 # CRUD de cards CenEduc (/admin/ceneduc/*)
 │   ├── trainingProjects.js             # Treinamentos (/admin/training/*)
 │   ├── forms.js                        # Formulários dinâmicos (/admin/forms/*)
 │   └── upload.js                       # Upload de arquivos MinIO/S3 (/*)
@@ -331,6 +332,9 @@ Retorna o perfil do agente autenticado com suas estatísticas, metas de desempen
 
 #### `GET /agent/ceneduc`
 Retorna o layout, capas (cursos em destaque) e trilhas de treinamento da plataforma CenEduc.
+Os cards são filtrados automaticamente: apenas cards com `state` igual ao estado do usuário ou com `state` vazio/null são retornados.
+
+**Autenticação:** Telegram Auth
 
 **Retorno (sucesso):**
 ```json
@@ -341,7 +345,7 @@ Retorna o layout, capas (cursos em destaque) e trilhas de treinamento da platafo
             "id": "cover_1",
             "title": "Bem-vindo(a)",
             "subtitle": "Sua nova plataforma de aprendizado",
-            "description": "Aqui você encontra tudo o que precisa para se desenvolver profissionalmente. Explore nossos cursos e trilhas de aprendizado.",
+            "description": "Aqui você encontra tudo o que precisa para se desenvolver profissionalmente.",
             "metaHeader": ["Mais Acessados", "INTERATIVO", "2026"],
             "category": "Bem-vindo(a), boas vindas",
             "image": "https://api.izi.tec.br/files/assets/cover2.png",
@@ -357,12 +361,11 @@ Retorna o layout, capas (cursos em destaque) e trilhas de treinamento da platafo
                     "id": "course_1",
                     "data": {
                         "title": "Erro de leitura",
-                        "subtitle": "Dicas de como eviter erros",
+                        "subtitle": "Dicas de como evitar erros",
                         "cover": "https://api.izi.tec.br/files/assets/cover3.png",
                         "description": "Neste curso você aprenderá a evitar erros de leitura no seu dia a dia.",
                         "metaHeader": ["Recomendado", "QUALIDADE", "2026"],
                         "category": "Leitura, Qualidade",
-                        "completed": true,
                         "link": "/f/1"
                     }
                 }
@@ -371,6 +374,11 @@ Retorna o layout, capas (cursos em destaque) e trilhas de treinamento da platafo
     ]
 }
 ```
+
+> Os dados são gerenciados via admin em `POST /admin/ceneduc`, `PUT /admin/ceneduc/:id`, `DELETE /admin/ceneduc/:id`.
+>
+> **Links dinâmicos:** O placeholder `{id}` nos links é substituído automaticamente pela matrícula do agente logado.
+> Ex: no `data` do card colocar `"link": "/f/2?id={id}"` → o agente receberá `/f/2?id=12345`.
 
 ---
 
@@ -1217,6 +1225,10 @@ curl http://localhost:3040/admin/user/me \
 | `create_badge` | Criar Badge | Criar novo badge |
 | `update_badge` | Atualizar Badge | Editar badge existente |
 | `delete_badge` | Deletar Badge | Remover badge |
+| `ceneduc` | Consultar Cards CenEduc | Visualizar cards da plataforma CenEduc |
+| `create_ceneduc` | Criar Card CenEduc | Criar novo card na plataforma |
+| `update_ceneduc` | Atualizar Card CenEduc | Editar card existente |
+| `delete_ceneduc` | Deletar Card CenEduc | Remover card |
 
 ### Verificação de Módulo
 
@@ -1983,17 +1995,286 @@ Remove um badge.
 
 ---
 
-**Body Sample:**
+### Cards CenEduc
+
+**Autenticação:** Bearer token (`/admin/ceneduc/*`)
+
+> **Orientação para o frontend (Admin):**  
+> A página do CenEduc é montada como um **lego de cards**. Cada card criado via `/admin/ceneduc` é uma peça que se encaixa na estrutura final `{ layout, cover[], trains[] }`.
+>
+> **Regras de montagem:**
+> - Cards com `card_type: "cover"` → viram itens do array `cover[]`
+> - Cards com `card_type: "train_item"` → são agrupados pelo `group_title` dentro de `trains[]`
+> - A ordem é definida por `sort_order` (crescente)
+> - Cards com `state` específico só aparecem para usuários daquele estado; `state: null` ou vazio aparece para todos
+>
+> **Exemplo de montagem:**
+> ```
+> 1 cover (sort_order: 1)  → cover[0]
+> 1 cover (sort_order: 2)  → cover[1]
+> 2 train_items (group_title:"Cursos", sort_order:1)  → trains[0].items[0] e trains[0].items[1]
+> 1 train_item  (group_title:"Segurança", sort_order:2) → trains[1].items[0]
+> ```
+
+---
+
+#### `GET /admin/ceneduc`
+Lista todos os cards. Suporta filtro opcional por `state`.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Query Params:**
+| Param | Tipo | Descrição |
+|---|---|---|
+| `state` | string | Filtrar por estado (`pi`, `ma`) |
+
+**Response 200:**
+```json
+[
+    {
+        "id": 1,
+        "card_type": "cover",
+        "section": null,
+        "group_title": null,
+        "state": null,
+        "sort_order": 0,
+        "active": true,
+        "data": {
+            "title": "Bem-vindo(a)",
+            "subtitle": "Sua nova plataforma",
+            "description": "Descrição aqui",
+            "metaHeader": ["Mais Acessados", "INTERATIVO", "2026"],
+            "category": "Boas vindas",
+            "image": "https://.../cover2.png",
+            "action": { "type": "link", "url": "/ceneduc" }
+        },
+        "created_at": "...",
+        "updated_at": "..."
+    },
+    {
+        "id": 2,
+        "card_type": "train_item",
+        "section": "slider",
+        "group_title": "Cursos de Aperfeiçoamento",
+        "state": "pi",
+        "sort_order": 1,
+        "active": true,
+        "data": {
+            "title": "Teste de atenção",
+            "subtitle": "Reflita bem antes de agir!",
+            "cover": "https://.../cover3.png",
+            "description": "Teste sua atenção e agilidade mental.",
+            "metaHeader": ["Popular", "AVALIAÇÃO", "2026"],
+            "category": "Leitura, Atenção",
+            "link": "/f/2"
+        },
+        "created_at": "...",
+        "updated_at": "..."
+    }
+]
+```
+
+---
+
+#### `GET /admin/ceneduc/:id`
+Retorna um card específico.
+
+**Headers:** `Authorization: Bearer <token>`
+
+---
+
+#### `POST /admin/ceneduc`
+Cria um novo card (peça do lego).
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `card_type` | string | **Sim** | `"cover"` ou `"train_item"` |
+| `section` | string | Não | `"slider"` ou `"banner"` (só para train_item) |
+| `group_title` | string | Sim (p/ train_item) | Nome do grupo — agrupa train_items em uma mesma trilha |
+| `state` | string | Não | `"pi"`, `"ma"` ou omitir/null para aparecer em ambos |
+| `sort_order` | number | Não | Ordem de exibição (0, 1, 2…) |
+| `data` | object | Não | Conteúdo do card (ver campos abaixo) |
+
+**Campos do `data` para `cover`:**
+```json
+{
+    "title": "Bem-vindo(a)",
+    "subtitle": "Sua nova plataforma de aprendizado",
+    "description": "Texto descritivo...",
+    "image": "https://.../cover.png",
+    "metaHeader": ["Tag1", "Tag2", "2026"],
+    "category": "Categoria, Sub",
+    "action": { "type": "link", "url": "/caminho" }
+}
+```
+
+**Campos do `data` para `train_item`:**
+```json
+{
+    "title": "Nome do curso",
+    "subtitle": "Subtítulo",
+    "cover": "https://.../curso.png",
+    "description": "Descrição do curso",
+    "metaHeader": ["Tag1", "Tag2", "2026"],
+    "category": "Categoria, Sub",
+    "link": "/url-do-curso"
+}
+```
+
+**Response 201:** Objeto do card criado.
+
+---
+
+#### `PUT /admin/ceneduc/:id`
+Atualiza um card.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:** Mesmos campos opcionais de `POST`.
+
+**Response 200:** Objeto do card atualizado.
+
+---
+
+#### `DELETE /admin/ceneduc/:id`
+Remove um card.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response 200:**
+```json
+{ "success": true, "deleted": { "id": 1, "card_type": "cover", ... } }
+```
+
+**Erros:**
+- `404` — Card não encontrado
+
+---
+
+### 📐 Como a estrutura é montada (para o frontend)
+
+O endpoint `GET /agent/ceneduc` retorna a estrutura final pronta para renderização:
 
 ```json
 {
-    "agente": "L83649894",
-    "pda_imei_1": "353101...",
-    "pda_marca": "SAMSUNG",
-    "pda_modelo": "SM-A057M",
-    "impressora_marca": "ZEBRA"
+    "layout": { "columns": 3, "gap": 16, "baseRowHeight": 165 },
+    "cover": [
+        {
+            "id": "cover_1",
+            "title": "Bem-vindo(a)",
+            "subtitle": "Sua nova plataforma",
+            "description": "Explore nossos cursos.",
+            "metaHeader": ["Mais Acessados", "INTERATIVO", "2026"],
+            "category": "Bem-vindo(a), boas vindas",
+            "image": "https://.../cover2.png",
+            "action": { "type": "link", "url": "/ceneduc" }
+        }
+    ],
+    "trains": [
+        {
+            "type": "slider",
+            "title": "Cursos de Aperfeiçoamento",
+            "items": [
+                {
+                    "id": "course_1",
+                    "data": {
+                        "title": "Teste de atenção",
+                        "subtitle": "Reflita bem antes de agir!",
+                        "cover": "https://.../cover3.png",
+                        "description": "Teste sua atenção.",
+                        "metaHeader": ["Popular", "AVALIAÇÃO", "2026"],
+                        "category": "Leitura, Atenção",
+                        "link": "/f/2?id=MATRICULA"
+                    }
+                }
+            ]
+        }
+    ]
 }
 ```
+
+**Regras de montagem pelo backend:**
+1. `cover` → itens `card_type: "cover"` ordenados por `sort_order`
+2. `trains` → itens `card_type: "train_item"` agrupados por `group_title`; cada grupo vira um objeto `{ type, title, items[] }`
+3. `type` do train é o campo `section` do card (`"slider"` ou `"banner"`)
+4. Filtro automático: só cards com `state = estado_do_usuario` ou `state IS NULL`
+
+---
+
+### Badge em Cards CenEduc
+
+Cada card Ceneduc pode ter um `badge_id` associado na coluna própria (`ceneduc_cards.badge_id`). O badge é concedido ao agente quando ele completa o recurso vinculado ao card (treinamento ou formulário).
+
+Os cards podem vincular-se a um recurso externo através dos campos `resource_type` e `resource_id` no JSONB `data`:
+
+```json
+{
+  "resource_type": "training",
+  "resource_id": 1,
+  "badge_id": 1,
+  ...
+}
+```
+
+---
+
+### `POST /agent/ceneduc/complete/:id`
+
+Marca a conclusão de um card Ceneduc e concede o badge configurado. A validação é feita no servidor: só concede o badge se o recurso vinculado (treinamento ou formulário) tiver sido realmente completado pelo agente.
+
+**Autenticação:** `telegramAuth` (middleware)
+
+**URL Params:**
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `id` | number | ID do card Ceneduc |
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "agentId": "T12345",
+  "cardId": 1,
+  "badgeId": 1,
+  "badges": [1, 2, 3]
+}
+```
+
+**Erros:**
+- `400` — Card não encontrado / Card não possui badge / Recurso não completado
+
+---
+
+### `GET /agent/ceneduc/check/:id`
+
+Verifica se o recurso vinculado a um card Ceneduc foi completado pelo agente.
+
+**Autenticação:** `telegramAuth` (middleware)
+
+**Response 200:**
+```json
+{
+  "completed": true
+}
+```
+
+---
+
+### Tabela `agent_training_completions`
+
+Criada automaticamente para rastrear conclusões de treinamentos por agente. Usada internamente pelos endpoints de conclusão para verificar se um agente realmente completou um treinamento antes de conceder badges vinculados a cards Ceneduc.
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `id` | SERIAL PK | |
+| `training_id` | INTEGER | FK para training_projects |
+| `agent_id` | VARCHAR(50) | ID do agente |
+| `created_at` | TIMESTAMP | Quando completou |
+
+Constraint `UNIQUE(training_id, agent_id)` impede duplicatas.
 
 ---
 
@@ -3290,6 +3571,7 @@ Cria um novo projeto de treinamento.
 |---|---|---|---|
 | `name` | string | **Sim** | Nome do projeto |
 | `description` | string | Não | Descrição do projeto |
+| `badge_id` | number | Não | ID do badge atribuído ao concluir o treinamento |
 
 **Response 201:** Objeto do projeto criado.
 
@@ -3340,9 +3622,16 @@ Atualiza um projeto existente.
 ```json
 {
     "name": "Novo Nome",
-    "description": "Nova descrição"
+    "description": "Nova descrição",
+    "badge_id": 1
 }
 ```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `name` | string | Novo nome |
+| `description` | string | Nova descrição |
+| `badge_id` | number | ID do badge atribuído ao concluir |
 
 **Response 200:** Objeto atualizado.
 
@@ -3379,6 +3668,63 @@ Atualiza o fluxo interativo do treinamento (nós e arestas).
     }
 }
 ```
+
+---
+
+### `POST /admin/training/:id/complete`
+
+Marca um treinamento como concluído para um agente e atribui o badge associado.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Body:**
+```json
+{
+    "agent_id": "agente123"
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `agent_id` | string | **Sim** | ID do agente que concluiu o treinamento |
+
+**Response 200:**
+```json
+{
+    "success": true,
+    "agentId": "agente123",
+    "trainingId": 1,
+    "badgeId": 1,
+    "badges": ["limpador_de_rota", "explorador"]
+}
+```
+
+**Erros:**
+- `400` — Treinamento não encontrado
+- `400` — Treinamento não possui badge associada
+
+---
+
+### `POST /agent/training/:id/complete` (Agent-facing)
+
+Endpoint público com autenticação via Telegram para o próprio agente marcar o treinamento como concluído e receber o badge.
+
+**Autenticação:** `telegramAuth` (middleware)
+
+**Response 200:**
+```json
+{
+    "success": true,
+    "agentId": "agente123",
+    "trainingId": 1,
+    "badgeId": 1,
+    "badges": ["limpador_de_rota", "explorador"]
+}
+```
+
+**Erros:**
+- `400` — Treinamento não encontrado
+- `400` — Treinamento não possui badge associada
 
 ---
 
@@ -3451,6 +3797,7 @@ Cria um novo formulário dinâmico.
 | `coverUrl` | string | Não | URL da imagem de capa |
 | `settings` | object | Não | Configurações de tema (cores, etc) |
 | `structure` | array | **Sim** | Array de páginas com elementos |
+| `badge_id` | number | Não | ID do badge atribuído ao responder (auto-assignment) |
 
 **Estrutura do `structure`:**
 - `title`: título da página
@@ -3538,6 +3885,7 @@ Atualiza um formulário existente.
 | `isActive` | boolean | Ativar/desativar formulário |
 | `settings` | object | Novas configurações |
 | `structure` | array | Nova estrutura |
+| `badge_id` | number | ID do badge atribuído ao responder |
 
 **Response 200:** Objeto atualizado.
 
@@ -3652,7 +4000,8 @@ Submete uma resposta pública (sem autenticação).
     "answers": {
         "pergunta_1": "João",
         "pergunta_2": "5",
-        "pergunta_3": ["Instalação", "Suporte"]
+        "pergunta_3": ["Instalação", "Suporte"],
+        "respondent_id": "agente123"
     }
 }
 ```
@@ -3660,6 +4009,7 @@ Submete uma resposta pública (sem autenticação).
 | Campo | Tipo | Obrigatório | Descrição |
 |---|---|---|---|
 | `answers` | object | **Sim** | Respostas keyed pelo ID do campo |
+| `answers.respondent_id` | string | Não | ID do agente respondente (necessário para auto-assignment de badge) |
 
 **Response 201:**
 ```json
@@ -3674,6 +4024,8 @@ Submete uma resposta pública (sem autenticação).
     }
 }
 ```
+
+> **Auto-assignment de Badge:** Se o formulário tiver `badge_id` configurado e `answers.respondent_id` for enviado, o badge é automaticamente atribuído ao agente após a submissão bem-sucedida.
 
 **Erros:**
 - `400` — Formulário não está ativo

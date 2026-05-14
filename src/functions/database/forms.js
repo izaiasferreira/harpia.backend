@@ -1,4 +1,5 @@
 const { cenos_pool } = require('../../db');
+const { addBadgeToProfile } = require('./agentes');
 
 async function createFormsTable() {
     await cenos_pool.query(`
@@ -9,6 +10,7 @@ async function createFormsTable() {
             description TEXT,
             cover_url TEXT,
             is_active BOOLEAN DEFAULT false,
+            badge_id INTEGER,
             settings JSONB DEFAULT '{}',
             structure JSONB NOT NULL DEFAULT '[]',
             created_at TIMESTAMP DEFAULT NOW(),
@@ -33,15 +35,19 @@ async function createFormsTable() {
     await cenos_pool.query(`
         CREATE INDEX IF NOT EXISTS idx_form_responses_submitted_at ON form_responses(submitted_at)
     `);
+
+    await cenos_pool.query(`
+        ALTER TABLE forms ADD COLUMN IF NOT EXISTS badge_id INTEGER;
+    `).catch(() => {});
 }
 
-async function createForm({ userId, title, description, coverUrl, settings, structure }) {
+async function createForm({ userId, title, description, coverUrl, settings, structure, badge_id }) {
     await createFormsTable();
     const pool = cenos_pool;
 
     const query = `
-        INSERT INTO forms (user_id, title, description, cover_url, settings, structure)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO forms (user_id, title, description, cover_url, badge_id, settings, structure)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
     `;
     const { rows } = await pool.query(query, [
@@ -49,6 +55,7 @@ async function createForm({ userId, title, description, coverUrl, settings, stru
         title,
         description || null,
         coverUrl || null,
+        badge_id || null,
         typeof settings === 'object' ? JSON.stringify(settings) : (settings || '{}'),
         typeof structure === 'object' ? JSON.stringify(structure) : (structure || '[]')
     ]);
@@ -89,7 +96,7 @@ async function listForms(userId, page = 1, limit = 20) {
     };
 }
 
-async function updateForm(id, { title, description, coverUrl, isActive, settings, structure }) {
+async function updateForm(id, { title, description, coverUrl, isActive, settings, structure, badge_id }) {
     await createFormsTable();
     const pool = cenos_pool;
     const updates = [];
@@ -114,6 +121,11 @@ async function updateForm(id, { title, description, coverUrl, isActive, settings
     if (typeof isActive === 'boolean') {
         updates.push(`is_active = $${paramIndex}`);
         params.push(isActive);
+        paramIndex++;
+    }
+    if (badge_id !== undefined) {
+        updates.push(`badge_id = $${paramIndex}`);
+        params.push(badge_id);
         paramIndex++;
     }
     if (settings !== undefined) {
@@ -168,7 +180,7 @@ async function submitForm({ formId, answers, metadata }) {
     try {
         await client.query('BEGIN');
 
-        const checkQuery = `SELECT id, structure, settings FROM forms WHERE id = $1 AND is_active = true`;
+        const checkQuery = `SELECT id, structure, settings, badge_id FROM forms WHERE id = $1 AND is_active = true`;
         const checkResult = await client.query(checkQuery, [formId]);
         
         if (checkResult.rows.length === 0) {
@@ -208,6 +220,16 @@ async function submitForm({ formId, answers, metadata }) {
         ]);
 
         await client.query('COMMIT');
+
+        // Após submit bem-sucedido, atribui badge se configurado
+        if (form.badge_id && respondentId) {
+            try {
+                await addBadgeToProfile(String(respondentId), form.badge_id);
+            } catch (badgeErr) {
+                console.error('Erro ao atribuir badge após submit do formulário:', badgeErr.message);
+            }
+        }
+
         return rows[0];
     } catch (error) {
         await client.query('ROLLBACK');

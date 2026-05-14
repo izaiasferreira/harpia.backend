@@ -104,6 +104,10 @@ app.use('/admin/message_templates', adminMessageTemplatesRouter)
 const adminBadgesRouter = require('./routes/adminBadges')
 app.use('/admin/badge', adminBadgesRouter)
 
+// Admin Ceneduc (/admin/ceneduc/*)
+const adminCeneducRouter = require('./routes/adminCeneduc')
+app.use('/admin/ceneduc', adminCeneducRouter)
+
 // Formulários Dinâmicos (/admin/forms/*)
 app.use('/admin/forms', formsRouter)
 

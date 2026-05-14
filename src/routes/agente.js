@@ -42,6 +42,8 @@ const multer = require('multer');
 const { generateDashboard } = require('../functions/generateDashboard');
 const { generateCustomLinks } = require('../functions/generateCustomLinks');
 const { get_instalation_matriz } = require('../functions/database/commom');
+const { getCeneducForAgent, completeCeneducCard, checkCeneducCardResourceCompleted, recordTrainingCompletion } = require('../functions/database/ceneduc');
+const { completeTrainingAndAssignBadge } = require('../functions/database/trainingProjects');
 
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -174,94 +176,41 @@ router.get('/badge', telegramAuth, async (req, res) => {
 });
 
 router.get('/ceneduc', telegramAuth, async (req, res) => {
-    return res.json({
-        layout: { columns: 3, gap: 16, baseRowHeight: 165 },
-        cover: [
-            {
-                id: 'cover_1',
-                title: 'Bem-vindo(a)',
-                subtitle: 'Sua nova plataforma de aprendizado',
-                description: 'Aqui você encontra tudo o que precisa para se desenvolver profissionalmente. Explore nossos cursos e trilhas de aprendizado.',
-                metaHeader: ["Mais Acessados", "INTERATIVO", "2026"],
-                category: "Bem-vindo(a), boas vindas",
-                image: 'https://api.izi.tec.br/files/assets/cover2.png',
-                action: { type: 'link', url: '/ceneduc' },
-            },
-            {
-                id: 'cover_2',
-                title: 'Teste de Atenção',
-                subtitle: 'Reflita bem antes de agir!',
-                description: 'Teste sua atenção e agilidade mental.',
-                metaHeader: ["Popular", "AVALIAÇÃO", "2026"],
-                category: "Leitura, Atenção",
-                image: 'https://api.izi.tec.br/files/assets/cover3.png',
-                action: { type: 'link', url: '/f/2' },
-            }
-        ],
-        trains: [
-            {
-                type: 'slider',
-                title: 'Cursos de Aperfeiçoamento',
-                items: [
-                    {
-                        id: 'course_1',
-                        data: {
-                            title: 'Teste de atenção',
-                            subtitle: 'Reflita bem antes de agir!',
-                            cover: 'https://api.izi.tec.br/files/assets/cover3.png',
-                            description: 'Teste sua atenção e agilidade mental.',
-                            metaHeader: ["Popular", "AVALIAÇÃO", "2026"],
-                            category: "Leitura, Atenção",
-                            // completed: true,
-                            link: `/f/2?id=${req.colaborador.id}`,
-                        }
-                    },
-                    {
-                        id: 'course_2',
-                        data: {
-                            title: 'Notas de Desligamento',
-                            subtitle: 'Saiba como abrir',
-                            cover: 'https://api.izi.tec.br/files/assets/cover5.png',
-                            description: 'Neste treinamento interativo voce aprenderá como abrir uma nota de desligamento de uma instalação.',
-                            metaHeader: ["Essencial", "PROCEDIMENTO", "2026"],
-                            category: "Treinamento, Campo",
-                            link: '/training/view/3',
-                        }
-                    },
-                    // {
-                    //     id: 'course_3',
-                    //     data: {
-                    //         title: 'Notas de Desligamento',
-                    //         subtitle: 'Saiba como abrir',
-                    //         cover: 'https://api.izi.tec.br/files/assets/cover5.png',
-                    //         description: 'Neste treinamento interativo voce aprenderá como abrir uma nota de desligamento de uma instalação.',
-                    //         metaHeader: ["Novo", "PROCEDIMENTO", "2026"],
-                    //         category: "Treinamento, Campo",
-                    //         link: '/f/3',
-                    //     }
-                    // }
-                ]
-            },
-            // {
-            //     type: 'banner',
-            //     title: 'Segurança e Procedimentos',
-            //     items: [
-            //         {
-            //             id: 'course_4',
-            //             data: {
-            //                 title: 'EPI e EPC Essenciais',
-            //                 subtitle: 'Padrão Rigoroso de Segurança Ceneged',
-            //                 cover: 'https://api.izi.tec.br/files/assets/cover4.png',
-            //                 description: 'Neste curso, você aprenderá todo o manuseio de EPI/EPC e as melhores práticas para conservação.',
-            //                 metaHeader: ["Obrigatório", "SEGURANÇA", "2026"],
-            //                 category: "Segurança, Campo",
-            //                 link: '/f/4',
-            //             }
-            //         }
-            //     ]
-            // }
-        ]
-    });
+    try {
+        const state = req.colaborador.estado || null;
+        const id = req.colaborador.id;
+        const result = await getCeneducForAgent(state, id);
+        res.json(result);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+})
+
+router.post('/ceneduc/complete/:id', telegramAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const agentId = req.colaborador.id;
+
+        const result = await completeCeneducCard(parseInt(id, 10), agentId);
+        res.json(result);
+    } catch (err) {
+        console.log(err);
+        res.status(400).json({ error: err.message });
+    }
+})
+
+router.get('/ceneduc/check/:id', telegramAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const agentId = req.colaborador.id;
+
+        const completed = await checkCeneducCardResourceCompleted(parseInt(id, 10), agentId);
+        res.json({ completed });
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
 })
 
 router.get('/agent_dashboard', telegramAuth, async (req, res) => {
@@ -983,5 +932,23 @@ router.post('/upload_agent', telegramAuth, upload.single('file'), async (req, re
     }
 });
 
+router.post('/training/:id/complete', telegramAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const agentId = req.colaborador.id;
+
+        const result = await completeTrainingAndAssignBadge(parseInt(id, 10), agentId);
+
+        await recordTrainingCompletion(parseInt(id, 10), agentId).catch(() => {});
+
+        res.json(result);
+    } catch (error) {
+        console.error('Erro ao completar treinamento:', error);
+        if (error.message.includes('não encontrado') || error.message.includes('não possui badge')) {
+            return res.status(400).json({ error: error.message });
+        }
+        res.status(500).json({ error: 'Erro interno ao completar treinamento' });
+    }
+});
 
 module.exports = router;

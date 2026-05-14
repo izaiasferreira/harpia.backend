@@ -14,7 +14,7 @@ const {
 
 router.post('/', verifyToken(), verifyModule('create_form'), async (req, res) => {
     try {
-        const { title, description, coverUrl, settings, structure } = req.body;
+        const { title, description, coverUrl, settings, structure, badge_id } = req.body;
 
         console.log(req.body);
         
@@ -28,7 +28,8 @@ router.post('/', verifyToken(), verifyModule('create_form'), async (req, res) =>
             description,
             coverUrl,
             settings,
-            structure
+            structure,
+            badge_id
         });
 
         res.status(201).json(form);
@@ -81,7 +82,7 @@ router.get('/:id', verifyToken(), verifyModule('forms'), async (req, res) => {
 router.put('/:id', verifyToken(), verifyModule('update_form'), async (req, res) => {
     try {
         const { id } = req.params;
-        const { title, description, coverUrl, isActive, settings, structure } = req.body;
+        const { title, description, coverUrl, isActive, settings, structure, badge_id } = req.body;
 
         console.log(req.body);
 
@@ -91,7 +92,8 @@ router.put('/:id', verifyToken(), verifyModule('update_form'), async (req, res) 
             coverUrl,
             isActive,
             settings,
-            structure
+            structure,
+            badge_id
         });
 
         if (!form) {

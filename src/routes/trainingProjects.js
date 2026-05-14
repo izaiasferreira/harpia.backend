@@ -7,12 +7,13 @@ const {
     listTrainingProjects,
     updateTrainingProject,
     deleteTrainingProject,
-    updateTrainingFlow
+    updateTrainingFlow,
+    completeTrainingAndAssignBadge
 } = require('../functions/database/trainingProjects');
 
 router.post('/', verifyToken(), verifyModule('create_training_project'), async (req, res) => {
     try {
-        const { name, description } = req.body;
+        const { name, description, badge_id } = req.body;
         if (!name) {
             return res.status(400).json({ error: 'Nome é obrigatório' });
         }
@@ -20,7 +21,8 @@ router.post('/', verifyToken(), verifyModule('create_training_project'), async (
         const project = await createTrainingProject({
             userId: req.user.id,
             name,
-            description
+            description,
+            badge_id
         });
 
         res.status(201).json(project);
@@ -62,9 +64,9 @@ router.get('/:id', verifyToken(), verifyModule('training_projects'), async (req,
 router.put('/:id', verifyToken(), verifyModule('update_training_project'), async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, description } = req.body;
+        const { name, description, badge_id } = req.body;
 
-        const project = await updateTrainingProject(parseInt(id, 10), { name, description });
+        const project = await updateTrainingProject(parseInt(id, 10), { name, description, badge_id });
 
         if (!project) {
             return res.status(404).json({ error: 'Projeto não encontrado' });
@@ -90,6 +92,26 @@ router.delete('/:id', verifyToken(), verifyModule('delete_training_project'), as
     } catch (error) {
         console.error('Erro ao deletar projeto:', error);
         res.status(500).json({ error: 'Erro interno ao deletar projeto' });
+    }
+});
+
+router.post('/:id/complete', verifyToken(), verifyModule('update_training_project'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { agent_id } = req.body;
+
+        if (!agent_id) {
+            return res.status(400).json({ error: 'agent_id é obrigatório' });
+        }
+
+        const result = await completeTrainingAndAssignBadge(parseInt(id, 10), agent_id);
+        res.json(result);
+    } catch (error) {
+        console.error('Erro ao completar treinamento:', error);
+        if (error.message.includes('não encontrado') || error.message.includes('não possui badge')) {
+            return res.status(400).json({ error: error.message });
+        }
+        res.status(500).json({ error: 'Erro interno ao completar treinamento' });
     }
 });
 

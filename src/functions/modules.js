@@ -66,7 +66,12 @@ const AVAILABLE_MODULES = [
     { id: 'badges', name: 'Consultar Badges' },
     { id: 'create_badge', name: 'Criar Badge' },
     { id: 'update_badge', name: 'Atualizar Badge' },
-    { id: 'delete_badge', name: 'Deletar Badge' }
+    { id: 'delete_badge', name: 'Deletar Badge' },
+    // Ceneduc Cards
+    { id: 'ceneduc', name: 'Consultar Cards CenEduc' },
+    { id: 'create_ceneduc', name: 'Criar Card CenEduc' },
+    { id: 'update_ceneduc', name: 'Atualizar Card CenEduc' },
+    { id: 'delete_ceneduc', name: 'Deletar Card CenEduc' }
 ];
 
 async function listModules() {
