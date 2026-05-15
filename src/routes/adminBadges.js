@@ -42,6 +42,7 @@ router.post('/', verifyToken(), verifyModule('create_badge'), async (req, res) =
         const badge = await createBadge({ title, description, image_url });
         res.status(201).json(badge);
     } catch (error) {
+        console.error('[POST /admin/badge] Erro:', error.message, error.stack);
         res.status(500).json({ error: error.message });
     }
 });

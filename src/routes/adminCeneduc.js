@@ -63,6 +63,7 @@ router.post('/', verifyToken(), verifyModule('create_ceneduc'), async (req, res)
 });
 
 router.put('/:id', verifyToken(), verifyModule('update_ceneduc'), async (req, res) => {
+    console.log(req.body)
     try {
         const { id } = req.params;
         const { card_type, section, group_title, state, sort_order, active, badge_id, data } = req.body;

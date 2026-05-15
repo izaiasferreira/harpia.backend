@@ -16,6 +16,21 @@ API para gestão de leituras, agentes e monitoria de serviços dos estados do Pi
 
 ---
 
+## Configuração (Environment Variables)
+
+Variáveis necessárias para o funcionamento pleno da API:
+
+| Variável | Descrição | Exemplo |
+|---|---|---|
+| `LLM_PROVIDER` | Provedor de IA (`openai` ou `gemini`) | `gemini` |
+| `LLM_MODEL` | Modelo de IA específico | `gemini-2.0-flash` ou `gpt-4o-mini` |
+| `OPENAI_API_KEY` | Chave da API OpenAI (se provider for openai) | `sk-...` |
+| `GEMINI_API_KEY` | Chave da API Gemini (se provider for gemini) | `AIza...` |
+| `PORT` | Porta do servidor | `3040` |
+| `JWT_SECRET` | Segredo para assinatura de tokens Admin | `minha_chave_secreta` |
+
+---
+
 ## Arquitetura
 
 ```
@@ -39,18 +54,16 @@ src/
 │   ├── adminCeneduc.js                 # CRUD de cards CenEduc (/admin/ceneduc/*)
 │   ├── trainingProjects.js             # Treinamentos (/admin/training/*)
 │   ├── forms.js                        # Formulários dinâmicos (/admin/forms/*)
+│   ├── formChat.js                     # Chat IA para formulários (/admin/forms/:id/chat)
 │   └── upload.js                       # Upload de arquivos MinIO/S3 (/*)
-├── middlewares/
-│   ├── logMiddleware.js                # Registra todas as requisições no Redis
-│   ├── telegramAuth.js                 # Valida initData ou token manual do Telegram
-│   ├── auth.js                         # Auth de logs via header Authorization
-│   ├── jwtAuth.js                      # Auth JWT Bearer para admin
-│   └── permissions.js                  # Verificação de módulos/permissoes
+├── llm/                                # Módulo LLM (Modular)
+│   ├── index.js                        # Factory de providers
+│   ├── providers/                      # OpenAI, Gemini, etc.
+│   └── prompts/                        # System prompts (formBuilder, etc.)
 ├── functions/
 │   ├── postgresFunctions.js            # Todas as queries SQL
-│   ├── requestsFunctions.js            # Integração WhatsApp (Cattalk)
-│   ├── badges.js                       # Lógica de emblemas/gamificação
-│   ├── database/                       # Scripts de criação de tabelas
+│   ├── database/                       # Scripts de criação de tabelas e funções DB
+│   │   └── formChat.js                 # Lógica de mensagens do chat IA
 │   ├── generateDashboard.js            # Geração de dashboard
 │   ├── generateCustomLinks.js          # Links customizados
 │   ├── middlewares.js                  # Middlewares reutilizáveis
@@ -3790,13 +3803,75 @@ Cria um novo formulário dinâmico.
 }
 ```
 
-| Campo | Tipo | Obrigatório | Descrição |
-|---|---|---|---|
-| `title` | string | **Sim** | Título do formulário |
-| `description` | string | Não | Descrição |
-| `coverUrl` | string | Não | URL da imagem de capa |
-| `settings` | object | Não | Configurações de tema (cores, etc) |
 | `structure` | array | **Sim** | Array de páginas com elementos |
+
+---
+
+### Form Chat (Assistente IA)
+
+Endpoints para interação com o assistente IA no Construtor de Formulários.
+
+#### `GET /admin/forms/:id/chat`
+Retorna o histórico de mensagens da conversa sobre um formulário específico.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo necessário:** `forms`
+
+**Response 200:**
+```json
+[
+    {
+        "role": "user",
+        "content": "Crie um formulário de avaliação",
+        "created_at": "2026-05-14T15:00:00Z"
+    },
+    {
+        "role": "assistant",
+        "content": "Claro! Aqui está uma proposta...",
+        "created_at": "2026-05-14T15:00:05Z"
+    }
+]
+```
+
+---
+
+#### `POST /admin/forms/:id/chat`
+Envia uma mensagem para a IA e recebe uma resposta, opcionalmente com uma nova estrutura sugerida para o formulário.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo necessário:** `forms`
+
+**Body:**
+```json
+{
+    "message": "Adicione um campo de nota de 1 a 10",
+    "currentStructure": { ... }
+}
+```
+
+**Response 200:**
+```json
+{
+    "text": "Entendido. Adicionei um campo de avaliação numérica de 1 a 10 ao formulário.",
+    "parsedStructure": {
+        "title": "...",
+        "structure": [ ... ]
+    }
+}
+```
+
+---
+
+#### `DELETE /admin/forms/:id/chat`
+Limpa todo o histórico de conversas de um formulário.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo necessário:** `forms`
+
+**Response 200:**
+```json
+{ "success": true }
+```
 | `badge_id` | number | Não | ID do badge atribuído ao responder (auto-assignment) |
 
 **Estrutura do `structure`:**

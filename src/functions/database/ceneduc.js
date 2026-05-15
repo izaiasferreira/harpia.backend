@@ -140,6 +140,24 @@ function interpolateId(value, id) {
     return value;
 }
 
+/**
+ * Resolves the navigation link for a card.
+ * Priority: explicit link > derived from resource_type+resource_id > ''
+ */
+function resolveLink(data, userId) {
+    const explicitLink = data.link ? String(data.link).trim() : '';
+    if (explicitLink) {
+        return userId ? interpolateId(explicitLink, userId) : explicitLink;
+    }
+    // Derive from resource
+    const { resource_type, resource_id } = data;
+    if (resource_type && resource_id) {
+        if (resource_type === 'form') return `/f/${resource_id}`;
+        if (resource_type === 'training') return `/training/view/${resource_id}`;
+    }
+    return '';
+}
+
 async function getCeneducForAgent(state, userId) {
     const cards = await listCeneducCards({ state, activeOnly: true });
 
@@ -150,6 +168,7 @@ async function getCeneducForAgent(state, userId) {
         const d = card.data || {};
 
         if (card.card_type === 'cover') {
+            const coverLink = resolveLink(d, userId);
             cover.push({
                 id: `cover_${card.id}`,
                 cardId: card.id,
@@ -159,7 +178,8 @@ async function getCeneducForAgent(state, userId) {
                 metaHeader: d.metaHeader || [],
                 category: d.category || '',
                 image: d.image || '',
-                action: userId ? interpolateId(d.action, userId) : d.action || null,
+                link: coverLink,
+                action: coverLink ? { type: 'link', url: coverLink } : (userId ? interpolateId(d.action, userId) : d.action || null),
                 badge_id: card.badge_id || null,
                 resource_type: d.resource_type || null,
                 resource_id: d.resource_id || null,
@@ -184,7 +204,7 @@ async function getCeneducForAgent(state, userId) {
                     description: d.description || '',
                     metaHeader: d.metaHeader || [],
                     category: d.category || '',
-                    link: userId ? interpolateId(d.link, userId) : d.link || '',
+                    link: resolveLink(d, userId),
                     badge_id: card.badge_id || null,
                     resource_type: d.resource_type || null,
                     resource_id: d.resource_id || null,

@@ -111,6 +111,10 @@ app.use('/admin/ceneduc', adminCeneducRouter)
 // Formulários Dinâmicos (/admin/forms/*)
 app.use('/admin/forms', formsRouter)
 
+// Chat com IA para formulários (/admin/forms/:id/chat)
+const formChatRouter = require('./routes/formChat')
+app.use('/admin/forms', formChatRouter)
+
 
 // Tratamento de erros limpo para o CORS (evita sujar o log com stack trace inteiro)
 app.use((err, req, res, next) => {
