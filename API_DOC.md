@@ -4149,10 +4149,28 @@ Submete uma resposta pública (sem autenticação).
 }
 ```
 
-| Campo | Tipo | Obrigatório | Descrição |
-|---|---|---|---|
 | `answers` | object | **Sim** | Respostas keyed pelo ID do campo |
 | `answers.respondent_id` | string | Não | ID do agente respondente (necessário para auto-assignment de badge) |
+
+---
+
+#### `DELETE /admin/forms/responses/:id`
+Remove uma resposta específica de um formulário.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `delete_form_response`
+
+**Retorno:**
+```json
+{
+  "success": true,
+  "deleted": {
+    "id": 1,
+    "form_id": 10,
+    "answers": { ... }
+  }
+}
+```
 
 **Response 201:**
 ```json
@@ -4231,3 +4249,9 @@ O CORS é configurado via `CORS_ORIGINS` no `.env`:
 - Formulários e Treinamentos agora utilizam um layout **Full-Screen** (distraction-free).
 - A barra de navegação superior fica oculta por padrão e é revelada através de um *pull-handle* (arrastar/hover no topo).
 - Implementado botão "Voltar" customizado que respeita o contexto de abertura (WebApp/Nativo).
+
+### 3. Otimização de Conclusão (CenEduc)
+- O status de conclusão de um card no CenEduc agora é dinâmico: se o usuário já possui a badge vinculada ao card, o card é marcado automaticamente como "Concluído" na listagem.
+
+### 4. Gestão de Respostas (Formulários)
+- Adicionado módulo `delete_form_response` que permite a exclusão seletiva de respostas de formulários via painel administrativo.

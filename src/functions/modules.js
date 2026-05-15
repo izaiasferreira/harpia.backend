@@ -62,6 +62,7 @@ const AVAILABLE_MODULES = [
     { id: 'create_form', name: 'Criar Formulário' },
     { id: 'update_form', name: 'Atualizar Formulário' },
     { id: 'delete_form', name: 'Deletar Formulário' },
+    { id: 'delete_form_response', name: 'Deletar Resposta de Formulário' },
     // Badges
     { id: 'badges', name: 'Consultar Badges' },
     { id: 'create_badge', name: 'Criar Badge' },

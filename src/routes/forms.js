@@ -9,7 +9,8 @@ const {
     deleteForm,
     getFormResponses,
     getFormStats,
-    exportFormResponsesToCsv
+    exportFormResponsesToCsv,
+    deleteFormResponse
 } = require('../functions/database/forms');
 
 router.post('/', verifyToken(), verifyModule('create_form'), async (req, res) => {
@@ -174,6 +175,22 @@ router.get('/:id/export', verifyToken(), verifyModule('forms'), async (req, res)
     } catch (error) {
         console.error('Erro ao exportar respostas:', error);
         res.status(500).json({ error: 'Erro interno ao exportar respostas' });
+    }
+});
+
+router.delete('/responses/:id', verifyToken(), verifyModule('delete_form_response'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deleted = await deleteFormResponse(parseInt(id, 10));
+
+        if (!deleted) {
+            return res.status(404).json({ error: 'Resposta não encontrada' });
+        }
+
+        res.json({ success: true, deleted });
+    } catch (error) {
+        console.error('Erro ao deletar resposta:', error);
+        res.status(500).json({ error: 'Erro interno ao deletar resposta' });
     }
 });
 

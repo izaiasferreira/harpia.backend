@@ -428,6 +428,15 @@ async function exportFormResponsesToCsv(formId) {
     };
 }
 
+async function deleteFormResponse(id) {
+    await createFormsTable();
+    const { rows } = await cenos_pool.query(
+        'DELETE FROM form_responses WHERE id = $1 RETURNING *',
+        [id]
+    );
+    return rows[0] || null;
+}
+
 module.exports = {
     createFormsTable,
     createForm,
@@ -440,5 +449,6 @@ module.exports = {
     getFormStats,
     exportFormResponsesToCsv,
     validateFormStructure,
-    checkFormResponse
+    checkFormResponse,
+    deleteFormResponse
 };

@@ -160,12 +160,27 @@ function resolveLink(data, userId) {
 
 async function getCeneducForAgent(state, userId) {
     const cards = await listCeneducCards({ state, activeOnly: true });
+    
+    // Busca as badges do usuário para marcar cards como completados
+    let userBadges = [];
+    if (userId) {
+        const { getUserData } = require('./agentes');
+        const userData = await getUserData({ id: userId, state });
+        userBadges = userData?.badges || [];
+    }
+
+    const userBadgeIds = userBadges.map(b => String(b.id || b));
 
     const cover = [];
     const trainMap = {};
 
     for (const card of cards) {
         const d = card.data || {};
+        
+        // Verifica se o card está completo:
+        // 1. Já possui flag completed no data
+        // 2. O usuário possui a badge vinculada ao card
+        const isCompleted = !!d.completed || (card.badge_id && userBadgeIds.includes(String(card.badge_id)));
 
         if (card.card_type === 'cover') {
             const coverLink = resolveLink(d, userId);
@@ -183,7 +198,7 @@ async function getCeneducForAgent(state, userId) {
                 badge_id: card.badge_id || null,
                 resource_type: d.resource_type || null,
                 resource_id: d.resource_id || null,
-                completed: !!d.completed
+                completed: isCompleted
             });
         } else if (card.card_type === 'train_item') {
             const key = card.group_title || 'Sem Grupo';
@@ -208,7 +223,7 @@ async function getCeneducForAgent(state, userId) {
                     badge_id: card.badge_id || null,
                     resource_type: d.resource_type || null,
                     resource_id: d.resource_id || null,
-                    completed: !!d.completed
+                    completed: isCompleted
                 }
             });
         }
@@ -299,6 +314,17 @@ async function completeCeneducCard(cardId, agentId) {
 async function checkCeneducCardResourceCompleted(cardId, agentId) {
     const card = await getCeneducCardById(cardId);
     if (!card) return false;
+
+    // Se o usuário já tem a badge vinculada ao card, consideramos completo
+    if (card.badge_id) {
+        const { getUserData } = require('./agentes');
+        const userData = await getUserData({ id: agentId, state: card.state });
+        const userBadges = userData?.badges || [];
+        const userBadgeIds = userBadges.map(b => String(b.id || b));
+        if (userBadgeIds.includes(String(card.badge_id))) {
+            return true;
+        }
+    }
 
     const d = card.data || {};
     const resourceType = d.resource_type;
