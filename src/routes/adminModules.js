@@ -39,7 +39,9 @@ const {
     checkJustifiedByInstallations,
     parse_date,
     today,
-    perdas
+    perdas,
+    getLeiturasPendingForAgent,
+    get_pending_justifies
 } = require('../functions/postgresFunctions');
 
 const {

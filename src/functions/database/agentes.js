@@ -113,6 +113,29 @@ async function addBadgeToProfile(id, badgeId) {
     return currentBadges;
 }
 
+async function removeBadgeFromProfile(id, badgeId) {
+    await createProfilesTable();
+
+    const getQuery = `SELECT badges FROM profiles WHERE id = $1`;
+    const { rows } = await cenos_pool.query(getQuery, [id]);
+
+    if (rows.length === 0) return [];
+
+    let currentBadges = rows[0].badges || [];
+    const numericBadgeId = parseInt(badgeId);
+
+    if (currentBadges.includes(numericBadgeId)) {
+        const updatedBadges = currentBadges.filter(bId => bId !== numericBadgeId);
+        await cenos_pool.query(
+            `UPDATE profiles SET badges = $1 WHERE id = $2`,
+            [JSON.stringify(updatedBadges), id]
+        );
+        return updatedBadges;
+    }
+
+    return currentBadges;
+}
+
 async function updateProfilePic(id, imageUrl) {
     await createProfilesTable();
 
@@ -1522,6 +1545,7 @@ module.exports = {
     getUserData,
     updateProfilePic,
     addBadgeToProfile,
+    removeBadgeFromProfile,
     get_security_reports,
     save_security_check,
     get_security_checks,

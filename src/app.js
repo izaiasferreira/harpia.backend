@@ -104,6 +104,10 @@ app.use('/admin/message_templates', adminMessageTemplatesRouter)
 const adminBadgesRouter = require('./routes/adminBadges')
 app.use('/admin/badge', adminBadgesRouter)
 
+// Admin User Badges (/admin/user-badges/*)
+const adminUserBadgesRouter = require('./routes/adminUserBadges')
+app.use('/admin/user-badges', adminUserBadgesRouter)
+
 // Admin Ceneduc (/admin/ceneduc/*)
 const adminCeneducRouter = require('./routes/adminCeneduc')
 app.use('/admin/ceneduc', adminCeneducRouter)
