@@ -1,5 +1,6 @@
 const { cenos_pool } = require('../../db');
 const { addBadgeToProfile } = require('./agentes');
+const { assignBadgesFromLinkedCeneducCards } = require('./ceneduc');
 
 async function createTrainingProjectsTable() {
     await cenos_pool.query(`
@@ -158,12 +159,16 @@ async function completeTrainingAndAssignBadge(trainingId, agentId) {
     }
 
     const training = rows[0];
+    let updatedBadges = null;
 
-    if (!training.badge_id) {
-        throw new Error('Este treinamento não possui badge associada');
+    // 1. Badge direta do treinamento
+    if (training.badge_id) {
+        updatedBadges = await addBadgeToProfile(String(agentId), training.badge_id);
     }
 
-    const updatedBadges = await addBadgeToProfile(String(agentId), training.badge_id);
+    // 2. Badges de cards do CenEduc que apontam para este treinamento
+    await assignBadgesFromLinkedCeneducCards('training', trainingId, agentId);
+
     return { success: true, agentId, trainingId: training.id, badgeId: training.badge_id, badges: updatedBadges };
 }
 

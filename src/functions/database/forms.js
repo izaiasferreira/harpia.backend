@@ -1,5 +1,6 @@
 const { cenos_pool } = require('../../db');
 const { addBadgeToProfile } = require('./agentes');
+const { assignBadgesFromLinkedCeneducCards } = require('./ceneduc');
 
 async function createFormsTable() {
     await cenos_pool.query(`
@@ -222,9 +223,16 @@ async function submitForm({ formId, answers, metadata }) {
         await client.query('COMMIT');
 
         // Após submit bem-sucedido, atribui badge se configurado
-        if (form.badge_id && respondentId) {
+        if (respondentId) {
             try {
-                await addBadgeToProfile(String(respondentId), form.badge_id);
+                // 1. Badge direta do formulário
+                if (form.badge_id) {
+                    await addBadgeToProfile(String(respondentId), form.badge_id);
+                }
+                
+                // 2. Badges de cards do CenEduc que apontam para este formulário
+                await assignBadgesFromLinkedCeneducCards('form', formId, respondentId);
+                
             } catch (badgeErr) {
                 console.error('Erro ao atribuir badge após submit do formulário:', badgeErr.message);
             }

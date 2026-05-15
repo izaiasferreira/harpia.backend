@@ -425,7 +425,23 @@ Atribui um novo emblema (badge) para o agente autenticado.
 
 ---
 
+#### `POST /agent/training/:id/complete`
+Registra a conclusão de um treinamento pelo agente. Este endpoint executa a lógica de atribuição automática de badges configuradas no projeto de treinamento e também as badges vinculadas em cards do CenEduc que apontam para este recurso.
 
+**Headers:** `X-Telegram-Init-Data`
+
+**Retorno:**
+```json
+{
+  "success": true,
+  "agentId": "T12345",
+  "trainingId": 1,
+  "badgeId": 10,
+  "badges": [10, 11]
+}
+```
+
+---
 #### `GET /agent/get_justify`
 Consulta justificativas de erros do agente com dados da matriz.
 
@@ -1490,6 +1506,58 @@ Retorna o perfil de um colaborador (agente) com estatísticas, metas e emblemas.
 ```
 
 > O campo `badges` retorna os emblemas atribuídos ao agente. A `photo` usa uma imagem padrão caso o agente não possua uma foto cadastrada.
+
+---
+
+#### `POST /admin/user-badges/:id/add`
+Atribui um emblema (badge) manualmente ao perfil de um colaborador.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `update_user`
+
+**Body:**
+```json
+{ "badgeId": 123 }
+```
+
+---
+
+#### `POST /admin/user-badges/:id/remove`
+Remove um emblema (badge) do perfil de um colaborador.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `update_user`
+
+**Body:**
+```json
+{ "badgeId": 123 }
+```
+
+---
+
+#### `POST /admin/user-badges/:id/add`
+Atribui um emblema (badge) manualmente ao perfil de um colaborador.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `update_user`
+
+**Body:**
+```json
+{ "badgeId": 123 }
+```
+
+---
+
+#### `POST /admin/user-badges/:id/remove`
+Remove um emblema (badge) do perfil de um colaborador.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `update_user`
+
+**Body:**
+```json
+{ "badgeId": 123 }
+```
 
 ---
 
@@ -4147,3 +4215,19 @@ O CORS é configurado via `CORS_ORIGINS` no `.env`:
 - Subdomínios são automaticamente aceitos (ex.: `izi.tec.br` aceita `app.izi.tec.br`)
 - Requisições sem `Origin` (curl, server-to-server) são sempre aceitas
 - Bloqueios CORS geram log: `[CORS BLOQUEADO] IP | HOST | ORIGIN` e retornam `403`
+
+---
+
+## Notas Técnicas Recentes
+
+### 1. Sistema de Gamificação (Badges)
+- **Atribuição Automática**: Ao concluir um formulário ou treinamento, o sistema agora verifica automaticamente:
+  - Se o recurso (Form/Training) possui um `badge_id`.
+  - Se existe algum card no **CenEduc** vinculado a este recurso que possua um `badge_id`.
+- Ambos são atribuídos ao perfil do agente simultaneamente.
+- **Gestão Admin**: Adicionado módulo para administradores adicionarem ou removerem badges manualmente via painel de perfil do agente.
+
+### 2. Navegação Imersiva (CenEduc Player)
+- Formulários e Treinamentos agora utilizam um layout **Full-Screen** (distraction-free).
+- A barra de navegação superior fica oculta por padrão e é revelada através de um *pull-handle* (arrastar/hover no topo).
+- Implementado botão "Voltar" customizado que respeita o contexto de abertura (WebApp/Nativo).

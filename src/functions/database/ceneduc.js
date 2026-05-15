@@ -318,6 +318,38 @@ async function checkCeneducCardResourceCompleted(cardId, agentId) {
     return false;
 }
 
+/**
+ * Procura todos os cards do Ceneduc que apontam para este recurso
+ * e atribui as badges aos perfis dos agentes.
+ */
+async function assignBadgesFromLinkedCeneducCards(resourceType, resourceId, agentId) {
+    const { addBadgeToProfile } = require('./agentes');
+    
+    // Busca cards ativos que possuem badge_id e apontam para este recurso
+    const query = `
+        SELECT badge_id 
+        FROM ceneduc_cards 
+        WHERE active = true 
+          AND badge_id IS NOT NULL 
+          AND data->>'resource_type' = $1 
+          AND data->>'resource_id' = $2
+    `;
+    
+    try {
+        const { rows } = await cenos_pool.query(query, [resourceType, String(resourceId)]);
+        
+        for (const card of rows) {
+            if (card.badge_id) {
+                await addBadgeToProfile(String(agentId), card.badge_id).catch(err => {
+                    console.error(`Erro ao atribuir badge ${card.badge_id} via Ceneduc Card:`, err.message);
+                });
+            }
+        }
+    } catch (err) {
+        console.error('Erro ao buscar cards do Ceneduc para atribuição de badge:', err.message);
+    }
+}
+
 module.exports = {
     createCeneducCardsTable,
     listCeneducCards,
@@ -329,5 +361,6 @@ module.exports = {
     completeCeneducCard,
     checkCeneducCardResourceCompleted,
     recordTrainingCompletion,
-    checkTrainingCompletion
+    checkTrainingCompletion,
+    assignBadgesFromLinkedCeneducCards
 };
