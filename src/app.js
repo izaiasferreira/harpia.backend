@@ -119,6 +119,10 @@ app.use('/admin/forms', formsRouter)
 const formChatRouter = require('./routes/formChat')
 app.use('/admin/forms', formChatRouter)
 
+// Chat com IA para treinamentos (/admin/training/:id/chat)
+const trainingChatRouter = require('./routes/trainingChat')
+app.use('/admin/training', trainingChatRouter)
+
 
 // Tratamento de erros limpo para o CORS (evita sujar o log com stack trace inteiro)
 app.use((err, req, res, next) => {
