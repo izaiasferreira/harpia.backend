@@ -52,7 +52,7 @@ src/
 │   ├── adminMessageTemplates.js        # Modelos de mensagem (/admin/message_templates/*)
 │   ├── adminBadges.js                  # CRUD de badges (/admin/badge/*)
 │   ├── adminCeneduc.js                 # CRUD de cards CenEduc (/admin/ceneduc/*)
-│   ├── trainingProjects.js             # Treinamentos (/admin/training/*)
+│   ├── trainingProjects.js             # Interativos (/admin/training/*)
 │   ├── forms.js                        # Formulários dinâmicos (/admin/forms/*)
 │   ├── formChat.js                     # Chat IA para formulários (/admin/forms/:id/chat)
 │   └── upload.js                       # Upload de arquivos MinIO/S3 (/*)
@@ -3413,6 +3413,198 @@ Deleta um projeto de treinamento pelo ID.
 
 ---
 
+### Training Chat (Assistente IA)
+
+Endpoints para interação com o assistente IA no Editor de Treinamentos Interativos.
+
+#### `GET /training/:id/chat`
+
+Retorna o histórico de mensagens da conversa sobre um treinamento específico.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo necessário:** `trainings`
+
+**Response 200:**
+```json
+[
+    {
+        "id": 1,
+        "role": "user",
+        "content": "Adicione um slide sobre normas de segurança",
+        "created_at": "2026-05-14T15:00:00Z"
+    },
+    {
+        "id": 2,
+        "role": "assistant",
+        "content": "Pronto! Slide de normas de segurança adicionado.",
+        "created_at": "2026-05-14T15:00:05Z"
+    }
+]
+```
+
+**Erros:**
+- `401` — Token inválido
+
+---
+
+#### `POST /training/:id/chat`
+
+Envia uma mensagem para a IA (modo não-streaming) e recebe uma resposta com a estrutura atualizada do fluxo.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo necessário:** `trainings`
+
+**Body:**
+```json
+{
+    "message": "Crie um slide de introdução",
+    "currentFlowData": { "nodes": [], "edges": [] },
+    "selectedNodeIds": ["node_1", "node_2"]
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `message` | string | **Sim** | Mensagem do usuário |
+| `currentFlowData` | object | Não | Estado atual do fluxo (nodes + edges) |
+| `selectedNodeIds` | array[string] | Não | IDs dos slides selecionados no editor |
+
+**Response 200:**
+```json
+{
+    "message": {
+        "id": 3,
+        "role": "assistant",
+        "content": "Slide de introdução criado com hotspots padrão.",
+        "created_at": "2026-05-14T15:00:05Z"
+    },
+    "parsedStructure": {
+        "nodes": [...],
+        "edges": [...]
+    }
+}
+```
+
+**Erros:**
+- `400` — Mensagem é obrigatória
+- `401` — Token inválido
+
+---
+
+#### `POST /training/:id/chat/llm`
+
+Proxy síncrono para o LLM. O frontend gerencia o loop do agente e a execução das ferramentas localmente no estado do React. Este endpoint apenas recebe o histórico de mensagens e retorna a resposta do LLM (texto + tool calls).
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo necessário:** `trainings`
+
+**Body:**
+```json
+{
+    "messages": [
+        { "role": "system", "content": "System prompt..." },
+        { "role": "user", "content": "Padronize os slides" }
+    ]
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `messages` | array | **Sim** | Array de mensagens no formato OpenAI (role + content) |
+
+**Response 200 (com tool calls):**
+```json
+{
+    "content": "",
+    "toolCalls": [
+        {
+            "id": "call_abc123",
+            "type": "function",
+            "function": {
+                "name": "list_nodes",
+                "arguments": "{}"
+            }
+        }
+    ]
+}
+```
+
+**Response 200 (resposta textual):**
+```json
+{
+    "content": "Pronto! 3 slides foram padronizados.",
+    "toolCalls": null
+}
+```
+
+**Ferramentas disponíveis (executadas pelo frontend):**
+
+| Ferramenta | Descrição |
+|---|---|
+| `list_nodes` | Lista todos os slides (id + título) |
+| `get_node` | Obtém dados completos de um slide (hotspots, tooltips) |
+| `get_selected_node` | Obtém dados do slide selecionado pelo usuário |
+| `find_nodes_by_text` | Busca slides pelo título |
+| `highlight_nodes` | Destaca slides no editor visual |
+| `update_node` | Atualiza dados de um slide (merge parcial) |
+
+**Erros:**
+- `400` — Messages é obrigatório
+- `401` — Token inválido
+
+---
+
+#### `POST /training/:id/chat/messages`
+
+Salva uma mensagem no histórico da conversa.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo necessário:** `trainings`
+
+**Body:**
+```json
+{
+    "role": "user",
+    "content": "Minha mensagem"
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `role` | string | **Sim** | `user` ou `assistant` |
+| `content` | string | **Sim** | Conteúdo da mensagem |
+
+**Response 200:**
+```json
+{
+    "id": 1,
+    "role": "user",
+    "content": "Minha mensagem",
+    "created_at": "2026-05-14T15:00:00Z"
+}
+```
+
+**Erros:**
+- `400` — role e content são obrigatórios
+- `401` — Token inválido
+
+---
+
+#### `DELETE /training/:id/chat`
+
+Limpa todo o histórico de conversas de um treinamento.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo necessário:** `trainings`
+
+**Response 200:**
+```json
+{ "success": true }
+```
+
+**Erros:**
+- `401` — Token inválido
+
 ---
 
 ## Message Templates
@@ -3628,7 +3820,7 @@ Deleta um relatório de segurança pelo ID.
 
 ---
 
-## Gerenciador de Treinamentos (Interactive Training)
+## Gerenciador de Interativos (Interactive Training)
 
 **Autenticação:** Bearer token (`/admin/training/*`)
 
@@ -4246,7 +4438,7 @@ O CORS é configurado via `CORS_ORIGINS` no `.env`:
 - **Gestão Admin**: Adicionado módulo para administradores adicionarem ou removerem badges manualmente via painel de perfil do agente.
 
 ### 2. Navegação Imersiva (CenEduc Player)
-- Formulários e Treinamentos agora utilizam um layout **Full-Screen** (distraction-free).
+- Formulários e Interativos agora utilizam um layout **Full-Screen** (distraction-free).
 - A barra de navegação superior fica oculta por padrão e é revelada através de um *pull-handle* (arrastar/hover no topo).
 - Implementado botão "Voltar" customizado que respeita o contexto de abertura (WebApp/Nativo).
 

@@ -66,12 +66,27 @@ async function sendChatMessage(formId, userMessage, currentFormStructure) {
 
     // Try to extract JSON from response
     let parsedStructure = null;
-    const jsonMatch = llmResponse.match(/```json\n?([\s\S]*?)\n?```/);
-    if (jsonMatch) {
+
+    // Try code block first (most reliable)
+    const codeBlockMatch = llmResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (codeBlockMatch) {
         try {
-            parsedStructure = JSON.parse(jsonMatch[1]);
+            parsedStructure = JSON.parse(codeBlockMatch[1].trim());
         } catch (e) {
-            // JSON malformed, just return text
+            console.error("Erro ao fazer parse do JSON (Forms) dentro do bloco de código:", e);
+        }
+    }
+
+    // Fallback to raw braces
+    if (!parsedStructure) {
+        const firstBrace = llmResponse.indexOf('{');
+        const lastBrace = llmResponse.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            try {
+                parsedStructure = JSON.parse(llmResponse.substring(firstBrace, lastBrace + 1));
+            } catch (e) {
+                console.error("Erro ao fazer parse do JSON bruto (Forms):", e);
+            }
         }
     }
 
