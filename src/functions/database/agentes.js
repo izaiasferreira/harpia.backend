@@ -467,7 +467,7 @@ async function getLeiturasPendingForAgent({ state = 'pi', id, date = today(), pa
                 tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude, unidade_leitura
             FROM matriz
             WHERE agente IN ($1, $2)
-            and concluido = 'CONCLUIDO'
+            and concluido <> 'CONCLUIDO'
             AND data_leit_prev >= TO_DATE($3, 'DD.MM.YYYY')
             AND data_leit_prev < TO_DATE($4, 'DD.MM.YYYY') + interval '1 day'
             LIMIT $5 OFFSET $6;`;
