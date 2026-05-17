@@ -56,6 +56,7 @@ src/
 │   ├── forms.js                        # Formulários dinâmicos (/admin/forms/*)
 │   ├── formChat.js                     # Chat IA para formulários (/admin/forms/:id/chat)
 │   ├── adminAppPins.js                 # PINs para login app nativo/web (/admin/agent/*)
+│   ├── adminTracking.js                # Monitoramento: GPS, velocidade, quedas (/admin/tracking/*)
 │   └── upload.js                       # Upload de arquivos MinIO/S3 (/*)
 ├── llm/                                # Módulo LLM (Modular)
 │   ├── index.js                        # Factory de providers
@@ -64,7 +65,9 @@ src/
 ├── functions/
 │   ├── postgresFunctions.js            # Todas as queries SQL
 │   ├── database/                       # Scripts de criação de tabelas e funções DB
-│   │   └── formChat.js                 # Lógica de mensagens do chat IA
+│   │   ├── formChat.js                 # Lógica de mensagens do chat IA
+│   │   ├── appPins.js                  # PINs para login app nativo
+│   │   └── tracking.js                 # Tabelas e queries de monitoramento
 │   ├── generateDashboard.js            # Geração de dashboard
 │   ├── generateCustomLinks.js          # Links customizados
 │   ├── middlewares.js                  # Middlewares reutilizáveis
@@ -175,6 +178,7 @@ curl "http://localhost:3040/api/logs/data" -H "Authorization: SENHA"
 > - `/public/*` — Rotas públicas (sem autenticação ou rate-limited)
 > - `/admin/*` — Rotas administrativas (auth JWT Bearer)
 > - `/admin/agent/*` — Gestão de PINs para app nativo (auth JWT + módulo `app_pins`)
+> - `/admin/tracking/*` — Monitoramento: GPS, velocidade, quedas, alertas (auth JWT + módulo `tracking`)
 
 ---
 
@@ -4611,4 +4615,209 @@ Renova um token próximo da expiração (últimos 7 dias).
 **Response 200 (sem renovação necessária):**
 ```json
 { "message": "Token ainda válido, renovação não necessária" }
+```
+
+---
+
+### 7. Monitoramento em Tempo Real (Tracking)
+
+Sistema de monitoramento de agentes em campo: localização GPS em tempo real, detecção de velocidade, detecção de queda e alertas de proximidade.
+
+**Autenticação agente:** Header `X-Telegram-Init-Data` (token PIN ou initData Telegram)
+**Autenticação admin:** Bearer token + módulo `tracking`
+
+**Coleta de dados no app (frontend):**
+- **Nativo (APK)**: Usa `@capacitor-community/background-geolocation` com Foreground Service. O GPS continua coletando mesmo com o app em background. Notificação persistente: "Cenos - Rastreamento ativo". `distanceFilter: 10m`.
+- **Web/Telegram**: Usa `navigator.geolocation.watchPosition`. Tracking pausa quando a aba fica oculta (`document.hidden`) e retoma quando visível.
+- **Sync**: Dados são armazenados no IndexedDB e sincronizados em batch a cada 5 minutos via `POST /agent/tracking/sync`.
+- **Velocidade**: Alerta local + registro quando > 80 km/h.
+- **Queda**: Detectada via acelerômetro (> 3g + imobilidade). Countdown de 15s antes de confirmar.
+- **Proximidade**: Alerta sonoro/vibração quando < 100m de um SecurityReport.
+
+---
+
+#### Tabelas
+
+| Tabela | Descrição |
+|--------|-----------|
+| `tracking_points` | Pontos GPS do trajeto (agent_id, lat, lng, speed, accuracy, recorded_at) |
+| `speed_violations` | Infrações de velocidade > 80km/h (agent_id, lat, lng, speed, speed_limit, recorded_at) |
+| `fall_incidents` | Incidentes de queda detectados (agent_id, lat, lng, status, recorded_at) |
+| `agent_alerts_log` | Log de auditoria de todos os alertas recebidos (agent_id, alert_type, lat, lng, details, recorded_at) |
+
+---
+
+#### `POST /agent/tracking/sync`
+Recebe batch de dados de monitoramento do app do agente. Usado pelo syncQueue quando há rede.
+
+**Headers:** `X-Telegram-Init-Data: <token>`
+
+**Body:**
+```json
+{
+  "points": [
+    { "lat": -5.089, "lng": -42.801, "speed": 12.5, "accuracy": 8, "timestamp": 1716000000000 }
+  ],
+  "violations": [
+    { "lat": -5.089, "lng": -42.801, "speed": 92.3, "speedLimit": 80, "timestamp": 1716000000000 }
+  ],
+  "incidents": [
+    { "lat": -5.089, "lng": -42.801, "timestamp": 1716000000000 }
+  ],
+  "alerts": [
+    { "type": "proximity_warning", "lat": -5.089, "lng": -42.801, "timestamp": 1716000000000, "details": { "reportId": 42, "distance": 85 } }
+  ]
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "synced": { "points": 1, "violations": 1, "incidents": 1, "alerts": 1 }
+}
+```
+
+**Tipos de alerta (alert_type):**
+| Tipo | Descrição |
+|------|-----------|
+| `proximity_warning` | Agente recebeu alerta de segurança (< 100m de risco reportado) |
+| `speed_violation` | Agente ultrapassou 80km/h |
+| `fall_detected` | Queda detectada pelo acelerômetro |
+| `fall_confirmed` | Queda confirmada (agente não cancelou em 15s) |
+| `fall_cancelled` | Agente cancelou o alerta de queda (falso positivo) |
+
+---
+
+#### `GET /admin/tracking/agents`
+Lista agentes com última posição conhecida.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `tracking`
+
+**Response 200:**
+```json
+[
+  {
+    "agent_id": "T60702",
+    "latitude": -5.089,
+    "longitude": -42.801,
+    "speed": 12.5,
+    "accuracy": 8,
+    "recorded_at": "2026-05-17T16:00:00.000Z"
+  }
+]
+```
+
+---
+
+#### `GET /admin/tracking/agent/:id/trail`
+Trajeto de um agente (filtro por data).
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `tracking`
+
+**Query params:** `from` (ISO date), `to` (ISO date)
+
+**Response 200:**
+```json
+[
+  { "latitude": -5.089, "longitude": -42.801, "speed": 12.5, "accuracy": 8, "recorded_at": "2026-05-17T16:00:00.000Z" }
+]
+```
+
+---
+
+#### `GET /admin/tracking/speed_violations`
+Lista infrações de velocidade.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `tracking`
+
+**Query params:** `agent_id`, `from`, `to`
+
+**Response 200:**
+```json
+[
+  {
+    "id": 1,
+    "agent_id": "T60702",
+    "latitude": -5.089,
+    "longitude": -42.801,
+    "speed": 92.3,
+    "speed_limit": 80,
+    "recorded_at": "2026-05-17T16:00:00.000Z",
+    "agent_estado": "pi"
+  }
+]
+```
+
+---
+
+#### `GET /admin/tracking/fall_incidents`
+Lista incidentes de queda.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `tracking`
+
+**Query params:** `status` (pending|confirmed|false_positive), `agent_id`, `from`
+
+**Response 200:**
+```json
+[
+  {
+    "id": 1,
+    "agent_id": "T60702",
+    "latitude": -5.089,
+    "longitude": -42.801,
+    "status": "pending",
+    "recorded_at": "2026-05-17T16:00:00.000Z",
+    "confirmed_at": null,
+    "notes": null,
+    "agent_estado": "pi"
+  }
+]
+```
+
+---
+
+#### `PUT /admin/tracking/fall_incidents/:id`
+Validar ou rejeitar um incidente de queda.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `tracking`
+
+**Body:**
+```json
+{ "status": "confirmed", "notes": "Agente confirmou queda por telefone" }
+```
+
+**Status válidos:** `confirmed`, `false_positive`
+
+**Response 200:** Retorna o incidente atualizado.
+
+---
+
+#### `GET /admin/tracking/alerts`
+Log de auditoria de alertas recebidos pelos agentes.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `tracking`
+
+**Query params:** `agent_id`, `type`, `from`, `to`
+
+**Response 200:**
+```json
+[
+  {
+    "id": 1,
+    "agent_id": "T60702",
+    "alert_type": "proximity_warning",
+    "latitude": -5.089,
+    "longitude": -42.801,
+    "details": { "reportId": 42, "distance": 85, "motivo": "Poste com risco" },
+    "recorded_at": "2026-05-17T16:00:00.000Z",
+    "agent_estado": "pi"
+  }
+]
 ```

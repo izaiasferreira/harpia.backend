@@ -33,7 +33,7 @@ app.use(cors({
                 // Match exato ou subdomínio (ex: app.izi.tec.br aceita api.izi.tec.br)
                 if (hostname === o) return true;
                 if (hostname.endsWith('.' + o)) return true;
-                // Paraizi.tec.br aceitar app.izi.tec.br e api.izi.tec.br
+                // Para izi.tec.br aceitar app.izi.tec.br e api.izi.tec.br
                 if (hostname.endsWith(o)) return true;
             } catch { return false; }
         });
@@ -122,6 +122,10 @@ app.use('/admin/forms', formChatRouter)
 
 // App PINs (/admin/agent/*)
 app.use('/admin/agent', adminAppPinsRouter)
+
+// Tracking (/admin/tracking/*)
+const adminTrackingRouter = require('./routes/adminTracking')
+app.use('/admin/tracking', adminTrackingRouter)
 
 
 

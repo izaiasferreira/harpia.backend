@@ -72,7 +72,13 @@ const AVAILABLE_MODULES = [
     { id: 'ceneduc', name: 'Consultar Cards CenEduc' },
     { id: 'create_ceneduc', name: 'Criar Card CenEduc' },
     { id: 'update_ceneduc', name: 'Atualizar Card CenEduc' },
-    { id: 'delete_ceneduc', name: 'Deletar Card CenEduc' }
+    { id: 'delete_ceneduc', name: 'Deletar Card CenEduc' },
+    // Monitoramento (Tracking)
+    { id: 'tracking', name: 'Monitoramento de Agentes' },
+    // Consulta de Serviços
+    { id: 'services_consult', name: 'Consulta Global de Serviços' },
+    // PINs App Nativo
+    { id: 'app_pins', name: 'PINs App Nativo' }
 ];
 
 async function listModules() {
