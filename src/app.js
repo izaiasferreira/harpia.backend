@@ -60,6 +60,7 @@ const uploadRouter = require('./routes/upload')
 const trainingProjectsRouter = require('./routes/trainingProjects')
 const adminMessageTemplatesRouter = require('./routes/adminMessageTemplates')
 const adminSecurityReportsRouter = require('./routes/adminSecurityReports')
+const adminAppPinsRouter = require('./routes/adminAppPins')
 const formsRouter = require('./routes/forms')
 
 // Rotas de arquivos e upload (MinIO)
@@ -118,6 +119,9 @@ app.use('/admin/forms', formsRouter)
 // Chat com IA para formulários (/admin/forms/:id/chat)
 const formChatRouter = require('./routes/formChat')
 app.use('/admin/forms', formChatRouter)
+
+// App PINs (/admin/agent/*)
+app.use('/admin/agent', adminAppPinsRouter)
 
 
 

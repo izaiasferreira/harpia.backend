@@ -4447,3 +4447,9 @@ O CORS √© configurado via `CORS_ORIGINS` no `.env`:
 
 ### 4. Gest√£o de Respostas (Formul√°rios)
 - Adicionado m√≥dulo `delete_form_response` que permite a exclus√£o seletiva de respostas de formul√°rios via painel administrativo.
+
+### 5. API de Treinamentos (Container Queries)
+- Tooltips agora usam Container Queries (cqw, cqh) nativamente.
+- O campo low_data armazena e entrega o modelo unificado de renderizaÁ„o de slides e ·reas clic·veis.
+- O TrainingPlayer pode ser simulado em tempo real em formato embedded no admin.
+

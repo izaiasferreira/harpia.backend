@@ -15,6 +15,7 @@ function checkToken(req, res) {
 const { getCalendarForAgent } = require('../functions/postgresFunctions');
 const { getFormById, submitForm, checkFormResponse } = require('../functions/database/forms');
 const { getTrainingProjectById } = require('../functions/database/trainingProjects');
+const { ensureAppPinsTable, findAgentById, findValidPin, markPinAsUsed } = require('../functions/database/appPins');
 
 const publicLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -234,6 +235,118 @@ router.get('/generate_token', async (req, res) => {
     } catch (err) {
         console.log(err);
         res.status(500).json({ error: err.message });
+    }
+});
+
+// --- Autenticação App Nativo (Matrícula + PIN) ---
+
+const appLoginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' }
+});
+
+router.post('/app_login', appLoginLimiter, async (req, res) => {
+    try {
+        const { matricula, pin } = req.body;
+
+        if (!matricula || !pin) {
+            return res.status(400).json({ error: 'Matrícula e PIN são obrigatórios' });
+        }
+
+        const agent = await findAgentById(matricula);
+        if (!agent) {
+            return res.status(401).json({ error: 'Matrícula não encontrada' });
+        }
+
+        await ensureAppPinsTable();
+
+        const validPin = await findValidPin(agent.id, String(pin).trim());
+        if (!validPin) {
+            return res.status(401).json({ error: 'PIN inválido ou expirado' });
+        }
+
+        await markPinAsUsed(validPin.id);
+
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+        await cenos_pool.query(`
+            CREATE TABLE IF NOT EXISTS telegram_tokens (
+                id SERIAL PRIMARY KEY,
+                token VARCHAR(255) NOT NULL UNIQUE,
+                telegram_user_id BIGINT NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_used_at TIMESTAMP
+            )
+        `);
+
+        await cenos_pool.query(
+            'INSERT INTO telegram_tokens (token, telegram_user_id, expires_at) VALUES ($1, $2, $3)',
+            [token, agent.telegram_id || 0, expiresAt]
+        );
+
+        res.json({
+            token,
+            expires_at: expiresAt.toISOString(),
+            agent: {
+                id: agent.id,
+                estado: agent.estado,
+                nome: agent.nome
+            }
+        });
+    } catch (err) {
+        console.error('[APP_LOGIN] Erro:', err);
+        res.status(500).json({ error: 'Erro interno no login' });
+    }
+});
+
+router.post('/app_refresh_token', async (req, res) => {
+    try {
+        const currentToken = req.headers['x-telegram-init-data'];
+
+        if (!currentToken || currentToken.includes('hash=')) {
+            return res.status(400).json({ error: 'Token inválido para refresh' });
+        }
+
+        const { rows } = await cenos_pool.query(
+            'SELECT telegram_user_id, expires_at FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
+            [currentToken]
+        );
+
+        if (rows.length === 0) {
+            return res.status(401).json({ error: 'Token expirado ou inválido' });
+        }
+
+        const { telegram_user_id, expires_at } = rows[0];
+        const daysUntilExpiry = (new Date(expires_at) - Date.now()) / (1000 * 60 * 60 * 24);
+
+        if (daysUntilExpiry > 7) {
+            return res.json({ token: currentToken, expires_at: expires_at, refreshed: false });
+        }
+
+        const newToken = crypto.randomBytes(32).toString('hex');
+        const newExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+        await cenos_pool.query(
+            'INSERT INTO telegram_tokens (token, telegram_user_id, expires_at) VALUES ($1, $2, $3)',
+            [newToken, telegram_user_id, newExpiresAt]
+        );
+
+        await cenos_pool.query(
+            'DELETE FROM telegram_tokens WHERE token = $1',
+            [currentToken]
+        );
+
+        res.json({
+            token: newToken,
+            expires_at: newExpiresAt.toISOString(),
+            refreshed: true
+        });
+    } catch (err) {
+        console.error('[APP_REFRESH] Erro:', err);
+        res.status(500).json({ error: 'Erro interno no refresh' });
     }
 });
 
