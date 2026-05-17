@@ -15,8 +15,8 @@ async function ensureAppPinsTable() {
 
 async function findAgentById(agentId) {
     const { rows } = await cenos_pool.query(
-        'SELECT id, estado, telegram_id FROM login WHERE id = $1',
-        [String(agentId).trim()]
+        'SELECT id, estado, telegram_id FROM login WHERE lower(id) = $1',
+        [String(agentId).trim().toLowerCase()]
     );
     if (rows.length === 0) return null;
 
