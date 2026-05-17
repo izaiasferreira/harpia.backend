@@ -55,6 +55,7 @@ src/
 │   ├── trainingProjects.js             # Interativos (/admin/training/*)
 │   ├── forms.js                        # Formulários dinâmicos (/admin/forms/*)
 │   ├── formChat.js                     # Chat IA para formulários (/admin/forms/:id/chat)
+│   ├── adminAppPins.js                 # PINs para login app nativo/web (/admin/agent/*)
 │   └── upload.js                       # Upload de arquivos MinIO/S3 (/*)
 ├── llm/                                # Módulo LLM (Modular)
 │   ├── index.js                        # Factory de providers
@@ -77,7 +78,7 @@ src/
 
 ## Autenticação
 
-A API possui 3 modos de autenticação:
+A API possui 4 modos de autenticação:
 
 ### 1. Token Simples (Query Param)
 
@@ -114,7 +115,49 @@ O middleware verifica o hash HMAC-SHA256 e, após autenticado, busca o colaborad
 
 ---
 
-### 3. Auth de Logs (Header Authorization)
+### 3. Autenticação por PIN (App Nativo / Web Standalone)
+
+Usado para login fora do Telegram — app Android (Capacitor) ou acesso web direto.
+
+**Fluxo:**
+1. Admin gera um PIN de 6 dígitos para o agente via `POST /admin/agent/generate_app_pin`
+2. Agente faz login com matrícula + PIN via `POST /public/app_login`
+3. Backend retorna um token de 30 dias
+4. Token é enviado no header `X-Telegram-Init-Data` (mesmo header do Telegram)
+
+```bash
+# Login
+curl -X POST "http://localhost:3040/public/app_login" \
+     -H "Content-Type: application/json" \
+     -d '{"matricula": "T60702", "pin": "123456"}'
+
+# Resposta
+{
+  "token": "abc123...",
+  "expires_at": "2026-06-16T15:00:00.000Z",
+  "agent": { "id": "T60702", "estado": "pi", "nome": "João Silva" }
+}
+
+# Uso nas rotas do agente
+curl "http://localhost:3040/agent/agent_data" \
+     -H "X-Telegram-Init-Data: abc123..."
+```
+
+**Middleware `telegramAuth` — resolução do token:**
+- Se o header contém `hash=` → valida como initData do Telegram (HMAC-SHA256)
+- Se não contém `hash=` → busca na tabela `telegram_tokens`:
+  - Se o registro tem `agent_id` → busca colaborador direto pelo ID (login por PIN)
+  - Se não tem `agent_id` → busca por `telegram_user_id` → `telegram_id` na tabela `login`
+
+**PIN:**
+- 6 dígitos numéricos
+- Uso único (marcado como `used_at` após login)
+- Expira em 24 horas
+- PINs anteriores são invalidados ao gerar um novo
+
+---
+
+### 4. Auth de Logs (Header Authorization)
 
 Usado nas rotas `/api/logs/*`. A senha é definida em `LOGS_PASSWORD`.
 
@@ -128,9 +171,10 @@ curl "http://localhost:3040/api/logs/data" -H "Authorization: SENHA"
 
 > **Nota:** A API possui múltiplos prefixos de rota conforme a funcionalidade:
 > - `/api/*` — Consultas gerais e rotas de agente sem auth Telegram
-> - `/agent/*` — Rotas do app agente (auth Telegram)
-> - `/public/*` — Rotas públicas (sem autenticação)
+> - `/agent/*` — Rotas do app agente (auth Telegram ou token PIN)
+> - `/public/*` — Rotas públicas (sem autenticação ou rate-limited)
 > - `/admin/*` — Rotas administrativas (auth JWT Bearer)
+> - `/admin/agent/*` — Gestão de PINs para app nativo (auth JWT + módulo `app_pins`)
 
 ---
 
@@ -4450,6 +4494,121 @@ O CORS é configurado via `CORS_ORIGINS` no `.env`:
 
 ### 5. API de Treinamentos (Container Queries)
 - Tooltips agora usam Container Queries (cqw, cqh) nativamente.
-- O campo low_data armazena e entrega o modelo unificado de renderiza��o de slides e �reas clic�veis.
+- O campo low_data armazena e entrega o modelo unificado de renderiza��o de slides e �reas clic�veis.
 - O TrainingPlayer pode ser simulado em tempo real em formato embedded no admin.
 
+---
+
+### 6. App Nativo / Web Standalone — PINs e Login
+
+**Autenticação:** Bearer token (`/admin/agent/*`) + módulo `app_pins`
+
+#### `POST /admin/agent/generate_app_pin`
+Gera um PIN de 6 dígitos para um agente fazer login no app nativo ou web standalone.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `app_pins`
+
+**Body:**
+```json
+{ "agent_id": "T60702" }
+```
+
+**Response 200:**
+```json
+{
+  "pin": "482917",
+  "agent": { "id": "T60702", "nome": "João Silva", "estado": "pi" },
+  "expires_at": "2026-05-18T15:00:00.000Z"
+}
+```
+
+**Regras:**
+- PIN de 6 dígitos, uso único, expira em 24h
+- Gerar novo PIN invalida PINs anteriores não usados do mesmo agente
+
+---
+
+#### `GET /admin/agent/app_pins`
+Lista os últimos 50 PINs gerados.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `app_pins`
+
+**Response 200:**
+```json
+[
+  {
+    "id": 1,
+    "agent_id": "T60702",
+    "pin": "482917",
+    "expires_at": "2026-05-18T15:00:00.000Z",
+    "created_at": "2026-05-17T15:00:00.000Z",
+    "used_at": null,
+    "agent_nome": "João Silva",
+    "agent_estado": "pi"
+  }
+]
+```
+
+---
+
+#### `DELETE /admin/agent/app_pins/:id`
+Remove um PIN.
+
+**Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `app_pins`
+
+**Response 200:**
+```json
+{ "success": true }
+```
+
+---
+
+#### `POST /public/app_login`
+Login do agente no app nativo ou web standalone usando matrícula + PIN.
+
+**Rate Limit:** 10 tentativas por 15 minutos por IP.
+
+**Body:**
+```json
+{ "matricula": "T60702", "pin": "482917" }
+```
+
+**Response 200:**
+```json
+{
+  "token": "a1b2c3d4e5f6...",
+  "expires_at": "2026-06-16T15:00:00.000Z",
+  "agent": { "id": "T60702", "estado": "pi", "nome": "João Silva" }
+}
+```
+
+**Erros:**
+| Status | Erro |
+|--------|------|
+| 400 | Matrícula e PIN são obrigatórios |
+| 401 | Matrícula não encontrada |
+| 401 | PIN inválido ou expirado |
+| 429 | Muitas tentativas de login |
+
+---
+
+#### `POST /public/app_refresh_token`
+Renova um token próximo da expiração (últimos 7 dias).
+
+**Headers:** `X-Telegram-Init-Data: <token_atual>`
+
+**Response 200:**
+```json
+{
+  "token": "novo_token...",
+  "expires_at": "2026-07-16T15:00:00.000Z"
+}
+```
+
+**Response 200 (sem renovação necessária):**
+```json
+{ "message": "Token ainda válido, renovação não necessária" }
+```

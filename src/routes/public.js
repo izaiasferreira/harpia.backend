@@ -243,7 +243,8 @@ router.get('/generate_token', async (req, res) => {
 const appLoginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
-    message: { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' }
+    message: { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' },
+    validate: { trustProxy: false }
 });
 
 router.post('/app_login', appLoginLimiter, async (req, res) => {
@@ -283,8 +284,8 @@ router.post('/app_login', appLoginLimiter, async (req, res) => {
         `);
 
         await cenos_pool.query(
-            'INSERT INTO telegram_tokens (token, telegram_user_id, expires_at) VALUES ($1, $2, $3)',
-            [token, agent.telegram_id || 0, expiresAt]
+            'INSERT INTO telegram_tokens (token, telegram_user_id, agent_id, expires_at) VALUES ($1, $2, $3, $4)',
+            [token, agent.telegram_id || 0, agent.id, expiresAt]
         );
 
         res.json({

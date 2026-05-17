@@ -14,6 +14,7 @@ async function ensureTelegramTokensTable() {
                 id SERIAL PRIMARY KEY,
                 token VARCHAR(255) NOT NULL UNIQUE,
                 telegram_user_id BIGINT NOT NULL,
+                agent_id VARCHAR(50),
                 expires_at TIMESTAMP NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_used_at TIMESTAMP
@@ -23,9 +24,14 @@ async function ensureTelegramTokensTable() {
         await cenos_pool.query(`
             CREATE INDEX IF NOT EXISTS idx_telegram_tokens_token ON telegram_tokens(token)
         `);
-        
+
         await cenos_pool.query(`
             CREATE INDEX IF NOT EXISTS idx_telegram_tokens_user_id ON telegram_tokens(telegram_user_id)
+        `);
+
+        // Adicionar coluna agent_id se não existir
+        await cenos_pool.query(`
+            ALTER TABLE telegram_tokens ADD COLUMN IF NOT EXISTS agent_id VARCHAR(50)
         `);
         
         console.log('[TELEGRAM] Tabela telegram_tokens verificada/criada');
@@ -91,16 +97,36 @@ async function telegramAuth(req, res, next) {
             }
         } else {
             await ensureTelegramTokensTable();
-            
+
             const { rows } = await cenos_pool.query(
-                'SELECT telegram_user_id FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
+                'SELECT telegram_user_id, agent_id FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
                 [initData]
             );
-            
+
             if (rows.length === 0) {
                 return res.status(403).json({ error: 'Token expirado ou inválido' });
             }
-            
+
+            // Se tem agent_id (login por PIN), busca direto pelo ID
+            if (rows[0].agent_id) {
+                const { rows: agentRows } = await cenos_pool.query(
+                    'SELECT id, estado FROM login WHERE id = $1',
+                    [rows[0].agent_id]
+                );
+
+                if (agentRows.length === 0) {
+                    return res.status(403).json({ error: 'Usuário não autorizado' });
+                }
+
+                req.colaborador = {
+                    id: agentRows[0].id,
+                    estado: agentRows[0].estado,
+                    telegramId: String(rows[0].telegram_user_id)
+                };
+
+                return next();
+            }
+
             telegramId = rows[0].telegram_user_id;
         }
         
