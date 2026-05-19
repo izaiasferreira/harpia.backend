@@ -26,7 +26,15 @@ router.post('/upload', upload.single('file'), verifyToken(), async (req, res) =>
         }
 
         // Tipos permitidos
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+        const allowedTypes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf',
+            'application/msword', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel', 
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/zip', 'application/x-zip-compressed',
+            'application/x-rar-compressed', 'application/vnd.rar'
+        ];
         if (!allowedTypes.includes(req.file.mimetype)) {
             return res.status(400).json({ error: 'Tipo de arquivo não permitido' });
         }
@@ -79,7 +87,15 @@ router.post('/admin/upload', upload.single('file'), verifyToken(), async (req, r
         }
 
         // Tipos permitidos
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+        const allowedTypes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf',
+            'application/msword', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel', 
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/zip', 'application/x-zip-compressed',
+            'application/x-rar-compressed', 'application/vnd.rar'
+        ];
         if (!allowedTypes.includes(req.file.mimetype)) {
             return res.status(400).json({ error: 'Tipo de arquivo não permitido' });
         }
@@ -139,7 +155,13 @@ router.get('/file/:path(*)', async (req, res) => {
             'png': 'image/png',
             'gif': 'image/gif',
             'webp': 'image/webp',
-            'pdf': 'application/pdf'
+            'pdf': 'application/pdf',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'zip': 'application/zip',
+            'rar': 'application/vnd.rar'
         };
         
         const contentType = contentTypes[ext] || 'application/octet-stream';
@@ -170,7 +192,13 @@ router.get('/files/:bucket/:path(*)', async (req, res) => {
             'png': 'image/png',
             'gif': 'image/gif',
             'webp': 'image/webp',
-            'pdf': 'application/pdf'
+            'pdf': 'application/pdf',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'zip': 'application/zip',
+            'rar': 'application/vnd.rar'
         };
         
         const contentType = contentTypes[ext] || 'application/octet-stream';
