@@ -28,6 +28,8 @@ async function ensureServiceNotesTables() {
             title VARCHAR(255) NOT NULL,
             description TEXT,
             coordinates VARCHAR(100),
+            latitude DOUBLE PRECISION,
+            longitude DOUBLE PRECISION,
             address TEXT,
             status VARCHAR(50) NOT NULL DEFAULT 'PENDENTE' CHECK (status IN ('PENDENTE', 'CONCLUIDO')),
             assigned_to VARCHAR(50),
@@ -54,6 +56,25 @@ async function ensureServiceNotesTables() {
         CREATE INDEX IF NOT EXISTS idx_service_notes_status ON service_notes(status);
         CREATE INDEX IF NOT EXISTS idx_marker_categories_group ON marker_categories(group_id);
     `);
+
+    // Migração de banco: adiciona latitude/longitude se não existirem
+    await cenos_pool.query(`
+        ALTER TABLE service_notes ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+        ALTER TABLE service_notes ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+    `);
+
+    // Migra registros legados: copia de coordinates para latitude/longitude
+    const { rows } = await cenos_pool.query("SELECT id, coordinates FROM service_notes WHERE coordinates IS NOT NULL AND (latitude IS NULL OR longitude IS NULL)");
+    for (const row of rows) {
+        const parts = String(row.coordinates).split(',');
+        if (parts.length === 2) {
+            const lat = parseFloat(parts[0].trim());
+            const lng = parseFloat(parts[1].trim());
+            if (!isNaN(lat) && !isNaN(lng)) {
+                await cenos_pool.query("UPDATE service_notes SET latitude = $1, longitude = $2 WHERE id = $3", [lat, lng, row.id]);
+            }
+        }
+    }
 }
 
 function validateCoordinates(coord) {
@@ -177,30 +198,61 @@ async function getServiceNoteById(id) {
     return rows[0] || null;
 }
 
-async function createServiceNote({ group_id, title, description, coordinates, address, marker_category_id, custom_fields }) {
+async function createServiceNote({ group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, custom_fields }) {
     await ensureServiceNotesTables();
-    const validCoords = validateCoordinates(coordinates);
+    let latVal = latitude !== undefined ? parseFloat(latitude) : null;
+    let lngVal = longitude !== undefined ? parseFloat(longitude) : null;
+    let coordVal = coordinates;
+
+    if (coordinates && (latVal === null || lngVal === null)) {
+        const parts = String(coordinates).split(',');
+        if (parts.length === 2) {
+            latVal = parseFloat(parts[0].trim());
+            lngVal = parseFloat(parts[1].trim());
+        }
+    } else if (latVal !== null && lngVal !== null && !coordinates) {
+        coordVal = `${latVal},${lngVal}`;
+    }
+
     const { rows } = await cenos_pool.query(
-        `INSERT INTO service_notes (group_id, title, description, coordinates, address, marker_category_id, custom_fields)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [group_id, title, description || null, validCoords || null, address || null, marker_category_id || null, custom_fields ? JSON.stringify(custom_fields) : null]
+        `INSERT INTO service_notes (group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, custom_fields)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        [group_id, title, description || null, coordVal || null, latVal, lngVal, address || null, marker_category_id || null, custom_fields ? JSON.stringify(custom_fields) : null]
     );
     return rows[0];
 }
 
 async function updateServiceNote(id, fields) {
     await ensureServiceNotesTables();
-    const allowed = ['title', 'description', 'coordinates', 'address', 'marker_category_id', 'status'];
+    const allowed = ['title', 'description', 'coordinates', 'latitude', 'longitude', 'address', 'marker_category_id', 'status'];
     const updates = [];
     const params = [];
     let idx = 1;
+
+    let latVal = fields.latitude !== undefined ? parseFloat(fields.latitude) : undefined;
+    let lngVal = fields.longitude !== undefined ? parseFloat(fields.longitude) : undefined;
+    let coordVal = fields.coordinates;
+
+    if (fields.coordinates !== undefined && fields.latitude === undefined) {
+        const parts = String(fields.coordinates).split(',');
+        if (parts.length === 2) {
+            latVal = parseFloat(parts[0].trim());
+            lngVal = parseFloat(parts[1].trim());
+        }
+    } else if (latVal !== undefined && lngVal !== undefined && fields.coordinates === undefined) {
+        coordVal = `${latVal},${lngVal}`;
+    }
+
     for (const key of allowed) {
-        if (fields[key] !== undefined) {
+        if (fields[key] !== undefined || (key === 'latitude' && latVal !== undefined) || (key === 'longitude' && lngVal !== undefined)) {
+            updates.push(`${key} = $${idx}`);
             if (key === 'coordinates') {
-                updates.push(`coordinates = $${idx}`);
-                params.push(validateCoordinates(fields[key]) || null);
+                params.push(coordVal || null);
+            } else if (key === 'latitude') {
+                params.push(latVal !== undefined ? latVal : null);
+            } else if (key === 'longitude') {
+                params.push(lngVal !== undefined ? lngVal : null);
             } else {
-                updates.push(`${key} = $${idx}`);
                 params.push(fields[key]);
             }
             idx++;
@@ -308,10 +360,24 @@ async function bulkInsertServiceNotes(groupId, notes) {
     try {
         await client.query('BEGIN');
         for (const note of notes) {
-            const validCoords = validateCoordinates(note.coordinates);
+            let latVal = note.latitude !== undefined && note.latitude !== null ? parseFloat(note.latitude) : null;
+            let lngVal = note.longitude !== undefined && note.longitude !== null ? parseFloat(note.longitude) : null;
+            let coordVal = note.coordinates;
+
+            if (note.coordinates && (latVal === null || lngVal === null)) {
+                const parts = String(note.coordinates).split(',');
+                if (parts.length === 2) {
+                    latVal = parseFloat(parts[0].trim());
+                    lngVal = parseFloat(parts[1].trim());
+                }
+            } else if (latVal !== null && lngVal !== null && !note.coordinates) {
+                coordVal = `${latVal},${lngVal}`;
+            }
+
             const { rows } = await client.query(
-                `INSERT INTO service_notes (group_id, title, description, coordinates, address, custom_fields) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-                [groupId, note.title || 'Sem Titulo', note.description || null, validCoords || null, note.address || null, note.custom_fields ? JSON.stringify(note.custom_fields) : null]
+                `INSERT INTO service_notes (group_id, title, description, coordinates, latitude, longitude, address, custom_fields) 
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+                [groupId, note.title || 'Sem Titulo', note.description || null, coordVal || null, latVal, lngVal, note.address || null, note.custom_fields ? JSON.stringify(note.custom_fields) : null]
             );
             inserted.push(rows[0]);
         }

@@ -138,9 +138,9 @@ router.get('/:id', verifyToken(), verifyModule('service_notes'), async (req, res
 
 router.post('/', verifyToken(), verifyModule('create_service_note'), async (req, res) => {
     try {
-        const { group_id, title, description, coordinates, address, marker_category_id } = req.body;
+        const { group_id, title, description, coordinates, latitude, longitude, address, marker_category_id } = req.body;
         if (!group_id || !title) return res.status(400).json({ error: 'group_id e title obrigatorios' });
-        const note = await createServiceNote({ group_id, title, description, coordinates, address, marker_category_id });
+        const note = await createServiceNote({ group_id, title, description, coordinates, latitude, longitude, address, marker_category_id });
         res.status(201).json(note);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -264,32 +264,41 @@ router.put('/:id/complete', verifyToken(), verifyModule('update_service_note'), 
 
 router.post('/import', verifyToken(), verifyModule('import_service_notes'), upload.single('file'), async (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ error: 'Arquivo obrigatorio' });
-        const { groupId, coordinatesColumn } = req.body;
+        const { groupId, notes } = req.body;
         if (!groupId) return res.status(400).json({ error: 'groupId obrigatorio' });
 
-        const XLSX = require('xlsx');
-        const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-        const sheetName = workbook.SheetNames[0];
-        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+        let notesToInsert = [];
 
-        const titleKeys = ['title', 'titulo', 'nome'];
-        const descKeys = ['description', 'descricao', 'obs'];
-        const addrKeys = ['address', 'endereco'];
+        if (req.file) {
+            const XLSX = require('xlsx');
+            const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+            const sheetName = workbook.SheetNames[0];
+            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
-        const notes = rows.map(row => {
-            const lowerRow = {};
-            Object.keys(row).forEach(k => { lowerRow[k.toLowerCase().trim()] = row[k]; });
+            const titleKeys = ['title', 'titulo', 'nome'];
+            const descKeys = ['description', 'descricao', 'obs'];
+            const addrKeys = ['address', 'endereco'];
 
-            const title = titleKeys.map(k => lowerRow[k]).find(v => v) || 'Sem Titulo';
-            const description = descKeys.map(k => lowerRow[k]).find(v => v) || '';
-            const address = addrKeys.map(k => lowerRow[k]).find(v => v) || '';
-            const coordinates = coordinatesColumn ? row[coordinatesColumn] : undefined;
+            notesToInsert = rows.map(row => {
+                const lowerRow = {};
+                Object.keys(row).forEach(k => { lowerRow[k.toLowerCase().trim()] = row[k]; });
 
-            return { title, description, address, coordinates: coordinates ? String(coordinates) : undefined, custom_fields: row };
-        });
+                const title = titleKeys.map(k => lowerRow[k]).find(v => v) || 'Sem Titulo';
+                const description = descKeys.map(k => lowerRow[k]).find(v => v) || '';
+                const address = addrKeys.map(k => lowerRow[k]).find(v => v) || '';
+                const lat = row.latitude || row.lat;
+                const lng = row.longitude || row.lng;
+                const coordinates = row.coordinates;
 
-        const inserted = await bulkInsertServiceNotes(parseInt(groupId), notes);
+                return { title, description, address, coordinates, latitude: lat, longitude: lng, custom_fields: row };
+            });
+        } else if (Array.isArray(notes)) {
+            notesToInsert = notes;
+        } else {
+            return res.status(400).json({ error: 'Arquivo file ou array notes obrigatorio' });
+        }
+
+        const inserted = await bulkInsertServiceNotes(parseInt(groupId), notesToInsert);
         res.json({ success: true, imported: inserted.length });
     } catch (err) {
         console.error('[SERVICE_NOTES] Erro importacao:', err);
