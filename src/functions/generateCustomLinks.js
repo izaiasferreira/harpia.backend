@@ -34,7 +34,7 @@ function generateCustomLinks({ state, id, user }) {
             "id": "servicos-app",
             "label": "Serviços",
             "description": "Meus serviços atribuídos",
-            "url": 'https://service.izisolucoes.com.br/servicos/default/699e3e5914265fccd12f57ad?matricula=${id}',
+            "url": '/service-notes',
             "emoji": "Smartphone",
             "color": "text-blue-600",
             "states": ['pi']

@@ -127,6 +127,12 @@ app.use('/admin/agent', adminAppPinsRouter)
 const adminTrackingRouter = require('./routes/adminTracking')
 app.use('/admin/tracking', adminTrackingRouter)
 
+// Service Notes (/admin/service-notes/* e /agent/service-notes/*)
+const adminServiceNotesRouter = require('./routes/adminServiceNotes')
+app.use('/admin/service-notes', adminServiceNotesRouter)
+const agentServiceNotesRouter = require('./routes/agentServiceNotes')
+app.use('/agent/service-notes', agentServiceNotesRouter)
+
 
 
 

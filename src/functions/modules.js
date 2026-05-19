@@ -75,6 +75,13 @@ const AVAILABLE_MODULES = [
     { id: 'delete_ceneduc', name: 'Deletar Card CenEduc' },
     // Monitoramento (Tracking)
     { id: 'tracking', name: 'Monitoramento de Agentes' },
+    // Notas de Serviço
+    { id: 'service_notes', name: 'Consultar Notas de Serviço' },
+    { id: 'create_service_note', name: 'Criar Nota de Serviço' },
+    { id: 'update_service_note', name: 'Atualizar Nota de Serviço' },
+    { id: 'delete_service_note', name: 'Deletar Nota de Serviço' },
+    { id: 'assign_service_notes', name: 'Atribuir Notas de Serviço' },
+    { id: 'import_service_notes', name: 'Importar Notas de Serviço' },
     // Consulta de Serviços
     { id: 'services_consult', name: 'Consulta Global de Serviços' },
     // PINs App Nativo

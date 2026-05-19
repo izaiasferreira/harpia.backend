@@ -1,0 +1,238 @@
+# Endpoints do Técnico de Campo (Agent-Facing APIs)
+
+Este documento descreve os endpoints consumidos pelo aplicativo do Técnico de Campo (PWA ou aplicativo nativo).
+
+---
+
+## 1. Regras Gerais de Acesso
+
+* **Prefixo padrão:** `/agent/*`
+* **Autenticação:** Requer o cabeçalho `X-Telegram-Init-Data` contendo a string de inicialização do Telegram (TMA) ou o token persistente obtido via login de PIN do aplicativo standalone.
+* **Objeto Injetado:** O middleware de autenticação injeta `req.colaborador` contendo a matrícula e o estado federativo do colaborador requisitante (ex: `{ "id": "T60702", "estado": "pi" }`).
+
+---
+
+## 2. Endpoints do Perfil e Desempenho
+
+### `GET /agent/agent_data`
+Retorna as credenciais básicas do colaborador autenticado para validação de sessão.
+
+**Resposta 200:**
+```json
+{ "id": "T60702", "estado": "pi" }
+```
+
+---
+
+### `GET /agent/profile`
+Retorna o perfil social completo do técnico, contendo seu nome, função, foto de avatar (MinIO), estatísticas de produtividade em campo, metas operacionais e emblemas conquistados (gamificação).
+
+**Resposta 200:**
+```json
+{
+    "user": {
+        "name": "Izaias da Silva Ferreira",
+        "role": "LEITURISTA A PÉ",
+        "location": "REGIONAL METROPOLITANA",
+        "photo": "https://api.izi.tec.br/files/assets/profile.png",
+        "stats": {
+            "level": 4.5,
+            "completionRate": 85,
+            "fastResponses": 134,
+            "points": 4350
+        }
+    },
+    "goals": [
+        { "id": 1, "title": "Não ultrapassar mais de 1.10% de CNL", "completed": true },
+        { "id": 2, "title": "Ter 80% do CNL indevidos justificado", "completed": true }
+    ],
+    "badges": [
+        {
+            "id": 2,
+            "title": "Roterizador Master",
+            "description": "Completou o treinamento de Roteirização",
+            "earned": true,
+            "imageUrl": "https://api.izi.tec.br/files/assets/emblema3.png"
+        }
+    ]
+}
+```
+
+---
+
+### `POST /agent/profile/upload`
+Atualiza a foto de avatar do perfil do colaborador. Suporta uploads multipart `form-data` ou strings JSON em `base64`.
+
+**Body (form-data):**
+* `photo` (file): arquivo de imagem
+
+**Resposta 200:** Retorna os metadados do perfil com a URL da foto atualizada no bucket do MinIO.
+
+---
+
+### `GET /agent/badge`
+Atribui um emblema de gamificação (badge) manualmente ao perfil do agente.
+
+**Query Params:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `badge` | number | **Sim** | ID do emblema a ser associado. |
+
+---
+
+## 3. Endpoints de Consulta de Instalações e Serviços
+
+### `GET /agent/predicted`
+Retorna as vistorias operacionais e leituras com previsões de perdas de energia calculadas pelo sistema central para a rota daquele técnico.
+
+**Query Params:**
+* `status` (string): status das leituras (`PENDENTE` ou `CONCLUIDO`). Padrão: `PENDENTE`.
+* `page` (number): número da página. Padrão: `1`.
+* `limit` (number): limite de resultados. Padrão: `100`.
+
+**Resposta 200:** Array de instalações contendo conta-contrato, endereço e as coordenadas geográficas.
+
+---
+
+### `POST /agent/search_in`
+Busca instalações do banco de dados em lote por número da instalação, número do medidor físico ou conta-contrato.
+
+**Body:**
+```json
+{
+    "type": "instalacao",
+    "queries": ["123456", "789012"]
+}
+```
+
+---
+
+### `GET /agent/instalation_details`
+Retorna a ficha técnica detalhada e o histórico recente de leituras e impedimentos de uma unidade consumidora específica.
+
+**Query Params:**
+* `instalacao` (string, **Obrigatório**): número único da instalação.
+
+**Resposta 200:**
+```json
+{
+    "instalacao": "123456",
+    "unidade_leitura": "TH09B011",
+    "tipo": "OB",
+    "status_ds": "LIGADO",
+    "etapa": "09",
+    "cidade": "TERESINA",
+    "seccional": "UAC TERESINA",
+    "regional": "METROPOLITANA",
+    "latitude": null,
+    "longitude": null,
+    "ntlei_historico": ["C12", "C12"],
+    "estado": "pi"
+}
+```
+
+---
+
+## 4. Endpoints de Justificativas e Performance Diária
+
+### `GET /agent/get_justify`
+Pesquisa justificativas de falhas de leitura enviadas pelo colaborador.
+
+**Query Params:** `instalacao` (string), `tipo` (string), `data_leit_prev` (string).
+
+---
+
+### `POST /agent/create_justify`
+Cria uma justificativa para um erro ou pendência de rota de campo. O sistema impede a criação de duplicidades (mesma instalação e mesma data prevista de leitura).
+
+**Body:**
+```json
+{
+    "instalacao": "18518168",
+    "data_leit_prev": "10/04/2026",
+    "tipo": "cnl",
+    "motivo": "Medidor com defeito",
+    "justificativa": "Aparelho quebrado após descarga elétrica local.",
+    "foto": "base64_string_aqui"
+}
+```
+
+---
+
+### `POST /agent/daily_report`
+Cria um reporte diário subjetivo (feedback) do técnico sobre suas atividades de campo. É permitido apenas **1 reporte por dia** por colaborador.
+
+**Body:**
+```json
+{
+    "nota": 5,
+    "motivo": "Boa performance",
+    "observacao": "Finalizei o roteiro 2 horas antes do previsto.",
+    "foto": "https://exemplo.com/comprovante.jpg"
+}
+```
+
+---
+
+### `GET /agent/daily_report/check_today`
+Informa reativamente ao app se o colaborador já enviou seu reporte diário na data atual para evitar submissões em duplicidade.
+
+**Resposta 200:**
+```json
+{
+    "hasReportToday": true,
+    "data": { "id": 15, "nota": 5, ... }
+}
+```
+
+---
+
+## 5. Endpoints de Segurança do Técnico (Safety Features)
+
+### `POST /agent/security_check`
+Realiza a confirmação diária obrigatória de segurança ("Estou ciente dos riscos operacionais do dia"). Pode ser executada apenas **1 vez por dia** por agente.
+
+**Body:**
+```json
+{
+    "latitude": "-5.0912",
+    "longitude": "-42.8021"
+}
+```
+
+---
+
+### `POST /agent/security_report`
+Permite ao colaborador reportar geograficamente um local ou instalação perigosa que oferece risco à vida (ex: cão bravo solto, risco de assalto, cabo elétrico caído).
+
+**Body:**
+```json
+{
+    "motivo": "Cão bravo",
+    "observacao": "Pitbull de grande porte solto na frente do medidor.",
+    "latitude": "-5.0912",
+    "longitude": "-42.8021"
+}
+```
+
+---
+
+## 6. Endpoints de Upload de Mídia (MinIO/S3)
+
+### `POST /agent/upload_agent`
+Upload otimizado de imagens comprobatórias coletadas pela câmera WebRTC do app. O backend redimensiona, compacta a imagem em até 60% e armazena de forma estruturada no bucket.
+
+**Body:** `multipart/form-data` contendo a chave `file`.
+
+**Resposta 200 (sucesso):**
+```json
+{
+    "success": true,
+    "fileName": "agents/123/123456789-ag001-xyz.jpg",
+    "url": "https://api.izi.tec.br/files/api-banco-dev/agents/123/...",
+    "size": 45000,
+    "originalSize": 120000,
+    "compression": "62%",
+    "mimetype": "image/jpeg"
+}
+```
