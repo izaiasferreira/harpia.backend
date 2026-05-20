@@ -37,8 +37,6 @@ const {
     getUserData,
     getLeiturasForAgent,
     checkJustifiedByInstallations,
-    parse_date,
-    today,
     perdas,
     getLeiturasPendingForAgent,
     get_pending_justifies
@@ -47,6 +45,7 @@ const {
 const {
     getLeiturasGeral
 } = require('../functions/database/getLeiturasGeral');
+const { parse_date, today } = require('../utils/dates');
 
 
 
@@ -96,28 +95,31 @@ router.get('/users_agents', verifyToken(), verifyModule('users_agents'), async (
 router.get('/users_agents/profile', verifyToken(), verifyModule('users_agents'), async (req, res) => {
     const { id } = req.query;
     const user = req.user;
-    const [userData, pending, completed, pending_justifies] = await Promise.all([
+    const [userData, completed, pending, pending_justifies] = await Promise.all([
         getUserData({ id: id, state: user.estado }),
         getLeiturasForAgent({ state: user.estado, id, limit: 99999 }),
         getLeiturasPendingForAgent({ state: user.estado, id, limit: 99999 }),
         get_pending_justifies({ autor: id, status: 'pendente', page: 1, limit: 100 })
     ])
-    const cnl = completed?.filter(r => !r.ntlei.startsWith('A') && !['B09', 'B10', 'B15'].includes(r.ntlei)).length || 0;
-    const perdas = completed?.filter(r => r.tem_perda === "PERDA" && parseInt(r.perda_prevista_mensal) > 0).reduce((acc, r) => acc + parseInt(r.perda_prevista_mensal), 0) || 0;
+    const cnl = completed?.filter(r => r.ntlei && !r.ntlei.startsWith('A') && !['B09', 'B10', 'B15'].includes(r.ntlei)).length || 0;
+    const perdas = completed?.filter(r => r.tem_perda === "PERDA" && r.perda_prevista_mensal && parseInt(r.perda_prevista_mensal) > 0).reduce((acc, r) => acc + parseInt(r.perda_prevista_mensal), 0) || 0;
+
+    const completedCount = completed ? completed.length : 0;
+    console.log('CNL:', cnl, 'Completed:', completedCount, 'Type of completed:', typeof completed, Array.isArray(completed));
 
     return res.json({
         user: {
-            name: `${userData.id} -  ${userData.nome}`,
-            role: userData.cargo,
-            location: userData.regional,
+            name: `${userData.id} -  ${userData.nome || 'Desconhecido'}`,
+            role: userData.cargo || 'Desconhecido',
+            location: userData.regional || 'Desconhecido',
             photo: userData.profilePicUrl || "https://api.izi.tec.br/files/assets/profile.png",
             stats: {
-                level: userData.level
+                level: userData.level || 0
             },
             summary: [
                 { title: 'Pendências', value: pending?.length || 0 },
-                { title: 'Concluídos', value: completed?.length || 0 },
-                { title: 'CNL Percentual', value: `${((cnl / (completed?.length || 0)) * 100).toFixed(2)}%` },
+                { title: 'Concluídos', value: completedCount },
+                { title: 'CNL Percentual', value: completedCount > 0 ? `${(((cnl || 0) / completedCount) * 100).toFixed(2)}%` : '0%' },
                 { title: 'CNL Quantidade', value: cnl },
                 { title: 'Perdas geradas', value: perdas },
                 { title: 'Justificativas Pendentes', value: pending_justifies?.length || 0 },
@@ -146,7 +148,7 @@ router.get('/users_agents/services', verifyToken(), verifyModule('users_agents')
         const atual_filter = filter || 'all';
 
         // Tratar data: se já está em DD.MM.YYYY, usar direto; senão usar parse_date
-        let today_date = parse_date(date);
+        let today_date = date ? parse_date(date) : today();
 
         const state = user.estado || 'pi';
 
@@ -222,16 +224,16 @@ router.get('/perdas', verifyToken(), verifyModule('perdas'), async (req, res) =>
     try {
         const { dateinit, dateend, search } = req.query;
         const user = req.user;
-        
+
         // Buscar estados permitidos para o usuário
         const allowedPools = getUserAllowedStatePools(user);
         const states = allowedPools.map(p => p.state);
-        
+
         // Processar datas
         const todayStr = today();
         const init = dateinit ? (dateinit.includes('.') ? dateinit : parse_date(dateinit)) : todayStr;
         const end = dateend ? (dateend.includes('.') ? dateend : parse_date(dateend)) : todayStr;
-        
+
         // Buscar perdas em todos os estados permitidos
         let allPerdas = [];
         for (const state of states) {
@@ -242,11 +244,11 @@ router.get('/perdas', verifyToken(), verifyModule('perdas'), async (req, res) =>
                 console.log(`Error querying perdas for state ${state}:`, err.message);
             }
         }
-        
+
         // Filtrar por busca textual se fornecido
         if (search && search.trim() !== '') {
             const searchLower = search.toLowerCase();
-            allPerdas = allPerdas.filter(p => 
+            allPerdas = allPerdas.filter(p =>
                 (p.instalacao && p.instalacao.toLowerCase().includes(searchLower)) ||
                 (p.regional && p.regional.toLowerCase().includes(searchLower)) ||
                 (p.seccional && p.seccional.toLowerCase().includes(searchLower)) ||
@@ -256,7 +258,7 @@ router.get('/perdas', verifyToken(), verifyModule('perdas'), async (req, res) =>
                 (p.tem_perda && p.tem_perda.toLowerCase().includes(searchLower))
             );
         }
-        
+
         res.json(allPerdas);
     } catch (err) {
         console.log(err);

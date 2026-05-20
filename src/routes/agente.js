@@ -57,9 +57,9 @@ router.get('/profile', telegramAuth, async (req, res) => {
     const userData = await getUserData({ id: user.id, state: user.estado });
     return res.json({
         user: {
-            name: userData.nome,
-            role: userData.cargo,
-            location: userData.regional,
+            name: userData.nome || 'Desconhecido',
+            role: userData.cargo || 'Desconhecido',
+            location: userData.regional || 'Desconhecido',
             photo: userData.profilePicUrl || "https://api.izi.tec.br/files/assets/profile.png",
             stats: {
                 level: 0
