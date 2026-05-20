@@ -46,12 +46,25 @@ async function sendToMultiple(fcmTokens, title, body, data = {}) {
 
     if (fcmTokens.length === 0) return { successCount: 0, failureCount: 0 };
 
-    const message = {
-        notification: { title, body },
-        data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
-        android: { priority: 'high' },
-        tokens: fcmTokens,
-    };
+    const stringData = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]));
+    const isCritical = stringData.critical === 'true';
+
+    let message;
+    if (isCritical) {
+        // Data-only: garante que onMessageReceived é chamado mesmo em background
+        message = {
+            data: { ...stringData, title: title || 'Alerta', body: body || '' },
+            android: { priority: 'high' },
+            tokens: fcmTokens,
+        };
+    } else {
+        message = {
+            notification: { title, body },
+            data: stringData,
+            android: { priority: 'high' },
+            tokens: fcmTokens,
+        };
+    }
 
     return admin.messaging().sendEachForMulticast(message);
 }
