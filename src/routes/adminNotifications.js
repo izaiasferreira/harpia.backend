@@ -28,6 +28,8 @@ router.post('/send', verifyToken(), verifyModule('send_message_user_agent'), upl
         const parsedBroadcast = broadcast === 'true' || broadcast === true;
         const parsedExtraData = typeof extraData === 'string' ? JSON.parse(extraData || '{}') : (extraData || {});
 
+        console.log('[NOTIFICATIONS] Request received:', { agent_ids, parsedAgentIds, parsedChannels, parsedBroadcast });
+
         if (!parsedChannels || parsedChannels.length === 0) {
             return res.status(400).json({ error: 'channels é obrigatório (array: ["telegram", "push"])' });
         }
@@ -79,9 +81,12 @@ router.post('/send', verifyToken(), verifyModule('send_message_user_agent'), upl
 
                 if (parsedBroadcast) {
                     const allTokens = await getAllTokens();
+                    console.log('[PUSH] Broadcast - total tokens found:', allTokens.length);
                     tokens = allTokens.map(r => r.token);
                 } else {
+                    console.log('[PUSH] Looking for agents:', parsedAgentIds);
                     const tokenRows = await getTokensByAgents(parsedAgentIds);
+                    console.log('[PUSH] Token rows found:', tokenRows.length, tokenRows);
                     tokens = tokenRows.map(r => r.token);
                 }
 

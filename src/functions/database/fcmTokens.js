@@ -25,11 +25,12 @@ async function ensureFcmTable() {
 
 async function upsertFcmToken(agentId, token, deviceInfo) {
     await ensureFcmTable();
+    const normalizedAgentId = String(agentId).trim().toUpperCase();
     await cenos_pool.query(`
         INSERT INTO fcm_tokens (agent_id, token, device_info, updated_at)
         VALUES ($1, $2, $3, NOW())
         ON CONFLICT (agent_id, token) DO UPDATE SET updated_at = NOW(), device_info = $3
-    `, [agentId, token, deviceInfo || null]);
+    `, [normalizedAgentId, token, deviceInfo || null]);
 }
 
 async function removeFcmToken(token) {
@@ -40,7 +41,7 @@ async function removeFcmToken(token) {
 async function getTokensByAgent(agentId) {
     await ensureFcmTable();
     const { rows } = await cenos_pool.query(
-        'SELECT token FROM fcm_tokens WHERE agent_id = $1 ORDER BY updated_at DESC',
+        'SELECT token FROM fcm_tokens WHERE upper(agent_id) = upper($1) ORDER BY updated_at DESC',
         [agentId]
     );
     return rows.map(r => r.token);
@@ -49,10 +50,13 @@ async function getTokensByAgent(agentId) {
 async function getTokensByAgents(agentIds) {
     await ensureFcmTable();
     if (!agentIds || agentIds.length === 0) return [];
+    const normalizedIds = agentIds.map(id => String(id).toUpperCase());
+    console.log('[FCM] getTokensByAgents - input IDs:', agentIds, 'normalized:', normalizedIds);
     const { rows } = await cenos_pool.query(
-        'SELECT agent_id, token FROM fcm_tokens WHERE agent_id = ANY($1) ORDER BY updated_at DESC',
-        [agentIds]
+        'SELECT agent_id, token FROM fcm_tokens WHERE upper(agent_id) = ANY($1) ORDER BY updated_at DESC',
+        [normalizedIds]
     );
+    console.log('[FCM] Query result rows:', rows.length, rows);
     return rows;
 }
 
