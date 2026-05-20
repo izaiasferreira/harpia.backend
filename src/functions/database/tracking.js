@@ -33,7 +33,7 @@ async function ensureTrackingTables() {
             latitude DECIMAL(10,7) NOT NULL,
             longitude DECIMAL(10,7) NOT NULL,
             speed DECIMAL(6,2) NOT NULL,
-            speed_limit DECIMAL(6,2) DEFAULT 80,
+            speed_limit DECIMAL(6,2) DEFAULT 50,
             recorded_at TIMESTAMP NOT NULL,
             synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -129,7 +129,7 @@ async function insertSpeedViolations(agentId, violations) {
             v.lat,
             v.lng,
             v.speed,
-            v.speedLimit || 80,
+            v.speedLimit || 50,
             new Date(v.timestamp)
         );
         paramIdx += 6;

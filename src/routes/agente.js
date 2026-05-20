@@ -960,6 +960,26 @@ const {
     insertAlertLogs,
 } = require('../functions/database/tracking');
 
+const { upsertFcmToken } = require('../functions/database/fcmTokens');
+
+// POST /agent/fcm-token — registrar token FCM do dispositivo
+router.post('/fcm-token', telegramAuth, async (req, res) => {
+    try {
+        const agentId = req.colaborador.id;
+        const { token, deviceInfo } = req.body;
+
+        if (!token) {
+            return res.status(400).json({ error: 'token é obrigatório' });
+        }
+
+        await upsertFcmToken(agentId, token, deviceInfo || null);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[FCM_TOKEN] Erro:', err);
+        res.status(500).json({ error: 'Erro ao registrar token' });
+    }
+});
+
 router.post('/tracking/sync', telegramAuth, async (req, res) => {
     try {
         await ensureTrackingTables();

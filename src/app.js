@@ -4,7 +4,11 @@ const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
 const logMiddleware = require('./middlewares/logMiddleware');
+const { initFirebase } = require('./functions/firebase');
 const app = express();
+
+// Inicializa Firebase (se service account disponível)
+initFirebase();
 
 // Trust proxy é necessário no Dokploy para o express pegar o IP real do cliente ao invés do IP do proxy
 app.set('trust proxy', true);
@@ -126,6 +130,10 @@ app.use('/admin/agent', adminAppPinsRouter)
 // Tracking (/admin/tracking/*)
 const adminTrackingRouter = require('./routes/adminTracking')
 app.use('/admin/tracking', adminTrackingRouter)
+
+// Notifications (/admin/notifications/*)
+const adminNotificationsRouter = require('./routes/adminNotifications')
+app.use('/admin/notifications', adminNotificationsRouter)
 
 // Service Notes (/admin/service-notes/* e /agent/service-notes/*)
 const adminServiceNotesRouter = require('./routes/adminServiceNotes')
