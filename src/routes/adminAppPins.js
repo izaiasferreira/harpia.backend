@@ -25,12 +25,12 @@ router.post('/generate_app_pin', verifyToken(), verifyModule('app_pins'), async 
         }
 
         await ensureAppPinsTable();
-        await invalidateExistingPins(agent_id);
+        await invalidateExistingPins(agent.id);
 
         const pin = String(Math.floor(100000 + Math.random() * 900000));
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
-        await createPin(agent_id, pin, expiresAt);
+        await createPin(agent.id, pin, expiresAt);
 
         res.json({
             pin,

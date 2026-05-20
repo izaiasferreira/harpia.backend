@@ -14,40 +14,44 @@ async function ensureAppPinsTable() {
 }
 
 async function findAgentById(agentId) {
+    const normalizedId = String(agentId).trim().toUpperCase();
     const { rows } = await cenos_pool.query(
-        'SELECT id, estado, telegram_id FROM login WHERE lower(id) = $1',
-        [String(agentId).trim().toLowerCase()]
+        'SELECT id, estado, telegram_id FROM login WHERE upper(id) = $1',
+        [normalizedId]
     );
     if (rows.length === 0) return null;
 
     const agent = rows[0];
+    agent.id = agent.id.toUpperCase();
 
     // Buscar nome na tabela colaboradores (PI ou MA)
     const pool = (agent.estado || 'pi').toLowerCase() === 'ma' ? ma_pool : pi_pool;
     try {
         const { rows: colabRows } = await pool.query(
-            `SELECT "Nome" FROM colaboradores WHERE "ID" = $1`,
-            [String(agentId).trim().toUpperCase()]
+            `SELECT "Nome" FROM colaboradores WHERE upper("ID") = $1`,
+            [normalizedId]
         );
-        agent.nome = colabRows.length > 0 ? colabRows[0].Nome : agentId;
+        agent.nome = colabRows.length > 0 ? colabRows[0].Nome : agent.id;
     } catch {
-        agent.nome = agentId;
+        agent.nome = agent.id;
     }
 
     return agent;
 }
 
 async function invalidateExistingPins(agentId) {
+    const normalizedId = String(agentId).trim().toUpperCase();
     await cenos_pool.query(
-        'UPDATE app_pins SET expires_at = CURRENT_TIMESTAMP WHERE agent_id = $1 AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP',
-        [agentId]
+        'UPDATE app_pins SET expires_at = CURRENT_TIMESTAMP WHERE upper(agent_id) = $1 AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP',
+        [normalizedId]
     );
 }
 
 async function createPin(agentId, pin, expiresAt) {
+    const normalizedId = String(agentId).trim().toUpperCase();
     await cenos_pool.query(
         'INSERT INTO app_pins (agent_id, pin, expires_at) VALUES ($1, $2, $3)',
-        [agentId, pin, expiresAt]
+        [normalizedId, pin, expiresAt]
     );
 }
 
@@ -55,7 +59,7 @@ async function listPins(limit = 50) {
     const { rows } = await cenos_pool.query(`
         SELECT ap.*, l.nome as agent_nome, l.estado as agent_estado
         FROM app_pins ap
-        LEFT JOIN login l ON l.id = ap.agent_id
+        LEFT JOIN login l ON upper(l.id) = upper(ap.agent_id)
         ORDER BY ap.created_at DESC
         LIMIT $1
     `, [limit]);
@@ -67,9 +71,10 @@ async function deletePinById(id) {
 }
 
 async function findValidPin(agentId, pin) {
+    const normalizedId = String(agentId).trim().toUpperCase();
     const { rows } = await cenos_pool.query(
-        'SELECT * FROM app_pins WHERE agent_id = $1 AND pin = $2 AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP',
-        [agentId, pin]
+        'SELECT * FROM app_pins WHERE upper(agent_id) = $1 AND pin = $2 AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP',
+        [normalizedId, pin]
     );
     return rows[0] || null;
 }

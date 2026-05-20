@@ -215,10 +215,15 @@ router.get('/generate_token', async (req, res) => {
                 id SERIAL PRIMARY KEY, 
                 token VARCHAR(255) NOT NULL UNIQUE, 
                 telegram_user_id BIGINT NOT NULL, 
+                agent_id VARCHAR(50),
                 expires_at TIMESTAMP NOT NULL, 
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
                 last_used_at TIMESTAMP
             )
+        `);
+
+            await cenos_pool.query(`
+            ALTER TABLE telegram_tokens ADD COLUMN IF NOT EXISTS agent_id VARCHAR(50)
         `);
 
             await cenos_pool.query(
@@ -277,10 +282,16 @@ router.post('/app_login', appLoginLimiter, async (req, res) => {
                 id SERIAL PRIMARY KEY,
                 token VARCHAR(255) NOT NULL UNIQUE,
                 telegram_user_id BIGINT NOT NULL,
+                agent_id VARCHAR(50),
                 expires_at TIMESTAMP NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_used_at TIMESTAMP
             )
+        `);
+
+        // Garantir que a coluna agent_id existe
+        await cenos_pool.query(`
+            ALTER TABLE telegram_tokens ADD COLUMN IF NOT EXISTS agent_id VARCHAR(50)
         `);
 
         await cenos_pool.query(
