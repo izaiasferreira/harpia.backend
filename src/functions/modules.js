@@ -85,7 +85,10 @@ const AVAILABLE_MODULES = [
     // Consulta de Serviços
     { id: 'services_consult', name: 'Consulta Global de Serviços' },
     // PINs App Nativo
-    { id: 'app_pins', name: 'PINs App Nativo' }
+    { id: 'app_pins', name: 'PINs App Nativo' },
+    // Revalidação de Fotos
+    { id: 'revalidate', name: 'Revalidar Fotos (Auditoria)' },
+    { id: 'revalidate_write', name: 'Salvar Resultado de Revalidação' }
 ];
 
 async function listModules() {

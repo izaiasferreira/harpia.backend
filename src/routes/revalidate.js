@@ -1,17 +1,9 @@
 const express = require('express');
+const { getFilesForRevalidate, saveRevalidateFile, getFilterOptions, getFilesForView } = require('../functions/database/revalidate');
+const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const router = express.Router();
-const { getFilesForRevalidate, saveRevalidateFile, getFilterOptions, getFilesForView } = require('../functions/postgresFunctions');
 
-function checkToken(req, res) {
-    if (req.query.token !== process.env.API_TOKEN) {
-        res.json({ error: 'Token inválido' });
-        return false;
-    }
-    return true;
-}
-
-router.get('/files_for_revalidate', async (req, res) => {
-    if (!checkToken(req, res)) return;
+router.get('/files_for_revalidate', verifyToken(), verifyModule('revalidate'), async (req, res) => {
     try {
         const result = await getFilesForRevalidate();
         res.json(result);
@@ -20,10 +12,11 @@ router.get('/files_for_revalidate', async (req, res) => {
     }
 });
 
-router.post('/revalidate_file', async (req, res) => {
-    if (!checkToken(req, res)) return;
+router.post('/revalidate_file', verifyToken(), verifyModule('revalidate_write'), async (req, res) => {
     try {
         const { instalacao, data, validation } = req.body;
+
+        console.log(instalacao, data, validation);
         const result = await saveRevalidateFile(instalacao, data, validation);
         res.json(result);
     } catch (err) {
@@ -31,18 +24,17 @@ router.post('/revalidate_file', async (req, res) => {
     }
 });
 
-router.get('/filter_options', async (req, res) => {
-    if (!checkToken(req, res)) return;
+router.get('/filter_options', verifyToken(), verifyModule('revalidate') , async (req, res) => {
     try {
         const result = await getFilterOptions();
+        console.log(result);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-router.get('/files_for_view', async (req, res) => {
-    if (!checkToken(req, res)) return;
+router.get('/files_for_view', verifyToken(), verifyModule('revalidate'), async (req, res) => {
     try {
         const { date, regional, seccional, agent, validation: validacao } = req.query;
         const result = await getFilesForView(date, regional, seccional, agent, validacao);

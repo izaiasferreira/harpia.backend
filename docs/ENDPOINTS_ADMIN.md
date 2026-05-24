@@ -296,3 +296,102 @@ Lista todos os serviços realizados e em andamento. Suporta scroll infinito no f
 | `search` | string | Termo de busca por matrícula do agente, instalação, regional ou seccional |
 | `page` | number | Número da página para paginação de resultados |
 
+---
+
+## 9. Revalidação de Auditorias (Revalidate)
+
+Módulo de revalidação de fotos de auditoria armazenadas no bucket MinIO `auditorias-pi`. Permite visualizar fotos pendentes de revalidação e marcar como validadas ou invalidadas.
+
+**Autenticação:** Token de query param `token` (mesmo do `/admin/*`).
+
+**Armazenamento:** Fotos armazenadas no MinIO bucket `auditorias-pi`, acessíveis via `/files/auditorias-pi/{caminho}`.
+
+### `GET /admin/revalidate/files_for_revalidate`
+Lista todas as fotos de auditoria pendentes de revalidação (onde `validacao = 'FALSO'` e `revalidacao = 'None'`).
+
+**Query Params:** Nenhum.
+
+**Resposta 200:**
+```json
+[
+  {
+    "instalacao": "12345678",
+    "data_foto": "15.01.2024",
+    "hora_foto": "10.30.25",
+    "apontamento": "B001",
+    "foto": "http://localhost:3040/files/auditorias-pi/PI/12345678/15.01.2024/103025_B001.jpg"
+  }
+]
+```
+
+---
+
+### `GET /admin/revalidate/files_for_view`
+Lista fotos de auditoria com filtros opcionais para visualização.
+
+**Query Params:**
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `date` | string | Data no formato `DD.MM.YYYY` (padrão: hoje) |
+| `regional` | string | Filtrar por regional |
+| `seccional` | string | Filtrar por seccional |
+| `agent` | string | Filtrar por agente |
+| `validation` | string | Filtrar por status de validação |
+
+**Resposta 200:**
+```json
+[
+  {
+    "instalacao": "12345678",
+    "data_foto": "15.01.2024",
+    "hora_foto": "10.30.25",
+    "apontamento": "B001",
+    "foto": "http://localhost:3040/files/auditorias-pi/PI/12345678/15.01.2024/103025_B001.jpg",
+    "validacao": "VERDADEIRO"
+  }
+]
+```
+
+---
+
+### `POST /admin/revalidate/revalidate_file`
+Salva o resultado da revalidação de uma foto.
+
+**Body:**
+```json
+{
+  "instalacao": "12345678",
+  "data": "15.01.2024",
+  "validation": "VERDADEIRO"
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `instalacao` | string | Número da instalação |
+| `data` | string | Data da conclusão no formato `DD.MM.YYYY` |
+| `validation` | string | Resultado: `VERDADEIRO` (válida) ou `FALSO` (inválida) |
+
+**Resposta 200:**
+```json
+{
+  "status": "success"
+}
+```
+
+---
+
+### `GET /admin/revalidate/filter_options`
+Retorna as opções disponíveis para filtros (datas, regionais, seccionais, agentes).
+
+**Resposta 200:**
+```json
+{
+  "agentes": [],
+  "seccionais": [],
+  "regionais": [],
+  "datas_conclusao": ["15.01.2024", "16.01.2024"],
+  "validacoes": ["VERDADEIRO", "FALSO"]
+}
+```
+

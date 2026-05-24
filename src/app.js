@@ -141,6 +141,10 @@ app.use('/admin/service-notes', adminServiceNotesRouter)
 const agentServiceNotesRouter = require('./routes/agentServiceNotes')
 app.use('/agent/service-notes', agentServiceNotesRouter)
 
+// Revalidate (/admin/revalidate/*)
+const revalidateRouter = require('./routes/revalidate')
+app.use('/admin/revalidate', revalidateRouter)
+
 
 
 

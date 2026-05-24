@@ -106,6 +106,59 @@ function getFileUrl(path) {
 }
 
 /**
+ * Lista objetos de um bucket específico
+ */
+async function listObjectsInBucket(bucketName, prefix = '', recursive = true) {
+    return new Promise((resolve, reject) => {
+        const objects = [];
+        const stream = minioClient.listObjects(bucketName, prefix, recursive);
+        
+        stream.on('data', (obj) => {
+            if (obj.name) {
+                objects.push(obj);
+            }
+        });
+        
+        stream.on('error', (err) => {
+            reject(err);
+        });
+        
+        stream.on('end', () => {
+            resolve(objects);
+        });
+    });
+}
+
+/**
+ * Lista objetos de um bucket com metadados completos
+ */
+async function listObjectsWithMetadata(bucketName, prefix = '') {
+    return new Promise((resolve, reject) => {
+        const objects = [];
+        const stream = minioClient.listObjects(bucketName, prefix, true, true);
+        
+        stream.on('data', (obj) => {
+            if (obj.name) {
+                objects.push({
+                    name: obj.name,
+                    size: obj.size,
+                    lastModified: obj.lastModified,
+                    etag: obj.etag
+                });
+            }
+        });
+        
+        stream.on('error', (err) => {
+            reject(err);
+        });
+        
+        stream.on('end', () => {
+            resolve(objects);
+        });
+    });
+}
+
+/**
  * Gera URL pública para acessar arquivo de bucket específico
  */
 function getBucketFileUrl(bucket, path) {
@@ -121,5 +174,7 @@ module.exports = {
     compressImage,
     ensureBucketExists,
     getFileUrl,
-    getBucketFileUrl
+    getBucketFileUrl,
+    listObjectsInBucket,
+    listObjectsWithMetadata
 };
