@@ -91,7 +91,7 @@ router.get('/metabase_geral', async (req, res) => {
 const crypto = require('crypto');
 require('dotenv').config();
 
-const { pi_pool, cenos_pool } = require('../db');
+const { cenos_pool } = require('../db');
 // ─── Training ───────────────────────────────────────────────────────────────
 
 router.get('/training/:id', publicLimiter, async (req, res) => {
