@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const crypto = require('crypto');
+const sharp = require('sharp');
 
 const { minioClient, CONFIG, compressImage, ensureBucketExists, getFileUrl } = require('../functions/minio');
 const { verifyToken } = require('../middlewares/jwtAuth');
@@ -10,6 +12,57 @@ const upload = multer({
     storage,
     limits: { fileSize: 10 * 1024 * 1024 }  // 10MB
 });
+
+// ==========================================
+// Cache de Imagens em Memória
+// ==========================================
+const IMAGE_CACHE = new Map();
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 Horas
+const MAX_CACHE_SIZE = 500; // Limite de 500 imagens na memória
+
+/**
+ * Limpa chaves expiradas ou excede o tamanho limite do cache (estratégia FIFO simples)
+ */
+function cleanCacheIfNeeded() {
+    const now = Date.now();
+    for (const [key, value] of IMAGE_CACHE.entries()) {
+        if (now - value.timestamp > CACHE_TTL_MS) {
+            IMAGE_CACHE.delete(key);
+        }
+    }
+    if (IMAGE_CACHE.size > MAX_CACHE_SIZE) {
+        const firstKey = IMAGE_CACHE.keys().next().value;
+        IMAGE_CACHE.delete(firstKey);
+    }
+}
+
+/**
+ * Processa a imagem aplicando compressão e redimensionamento sob demanda
+ */
+async function processAndOptimizeImage(buffer, ext, query) {
+    const { w, h, q } = query;
+    let pipeline = sharp(buffer);
+    
+    // Se solicitados parâmetros de dimensão, redimensiona
+    if (w || h) {
+        pipeline = pipeline.resize(
+            w ? parseInt(w, 10) : null,
+            h ? parseInt(h, 10) : null,
+            { fit: 'inside', withoutEnlargement: true }
+        );
+    }
+    
+    // Qualidade padrão ou vinda da query
+    const quality = q ? parseInt(q, 10) : CONFIG.imageQuality;
+    
+    // Força saída WebP de alta eficiência para melhor carregamento no mobile
+    pipeline = pipeline.webp({ quality });
+    
+    return {
+        buffer: await pipeline.toBuffer(),
+        contentType: 'image/webp'
+    };
+}
 
 // ==========================================
 // Endpoints
@@ -140,15 +193,43 @@ router.post('/admin/upload', upload.single('file'), verifyToken(), async (req, r
 
 /**
  * GET /file/:path
- * Serve arquivos do bucket padrão (como imagem pública)
+ * Serve arquivos do bucket padrão com cache e compressão sob demanda
  */
 router.get('/file/:path(*)', async (req, res) => {
     try {
         const objectName = req.params.path;
-        const stream = await minioClient.getObject(CONFIG.bucket, objectName);
-        
-        // Detecta content-type pelo extensão do arquivo
         const ext = objectName.split('.').pop()?.toLowerCase();
+        const isImage = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+
+        const cacheKey = `${CONFIG.bucket}:${objectName}:${req.query.w || ''}:${req.query.h || ''}:${req.query.q || ''}`;
+        
+        // Verifica cache de memória
+        if (isImage && IMAGE_CACHE.has(cacheKey)) {
+            const cached = IMAGE_CACHE.get(cacheKey);
+            if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
+                // Validação ETag
+                if (req.headers['if-none-match'] === cached.etag) {
+                    return res.status(304).end();
+                }
+                res.set('Content-Type', cached.contentType);
+                res.set('ETag', cached.etag);
+                res.set('Cache-Control', 'public, max-age=31536000, immutable');
+                res.set('Access-Control-Allow-Origin', '*');
+                return res.send(cached.buffer);
+            } else {
+                IMAGE_CACHE.delete(cacheKey);
+            }
+        }
+
+        // Busca objeto do MinIO
+        const stream = await minioClient.getObject(CONFIG.bucket, objectName);
+        const chunks = [];
+        for await (const chunk of stream) {
+            chunks.push(chunk);
+        }
+        let fileBuffer = Buffer.concat(chunks);
+        
+        let contentType;
         const contentTypes = {
             'jpg': 'image/jpeg',
             'jpeg': 'image/jpeg',
@@ -163,13 +244,46 @@ router.get('/file/:path(*)', async (req, res) => {
             'zip': 'application/zip',
             'rar': 'application/vnd.rar'
         };
-        
-        const contentType = contentTypes[ext] || 'application/octet-stream';
+        contentType = contentTypes[ext] || 'application/octet-stream';
+
+        // Comprime sob demanda se for imagem (imagens do MinIO que não foram comprimidas antes)
+        if (isImage) {
+            try {
+                const optimized = await processAndOptimizeImage(fileBuffer, ext, req.query);
+                fileBuffer = optimized.buffer;
+                contentType = optimized.contentType;
+            } catch (sharpError) {
+                console.error('[SHARP] Falha ao otimizar imagem, servindo original:', sharpError.message);
+            }
+
+            // Salva no cache
+            const etag = crypto.createHash('md5').update(fileBuffer).digest('hex');
+            cleanCacheIfNeeded();
+            IMAGE_CACHE.set(cacheKey, {
+                buffer: fileBuffer,
+                contentType,
+                etag,
+                timestamp: Date.now()
+            });
+
+            if (req.headers['if-none-match'] === etag) {
+                return res.status(304).end();
+            }
+            res.set('ETag', etag);
+        } else {
+            // Arquivos comuns usam MD5 rápido para ETag
+            const etag = crypto.createHash('md5').update(fileBuffer).digest('hex');
+            if (req.headers['if-none-match'] === etag) {
+                return res.status(304).end();
+            }
+            res.set('ETag', etag);
+        }
+
         res.set('Content-Type', contentType);
-        res.set('Cache-Control', 'public, max-age=31536000');
+        res.set('Cache-Control', 'public, max-age=31536000, immutable');
         res.set('Access-Control-Allow-Origin', '*');
-        
-        stream.pipe(res);
+        res.send(fileBuffer);
+
     } catch (err) {
         console.error('Erro ao servir arquivo:', err.message);
         res.status(404).json({ error: 'Arquivo não encontrado' });
@@ -178,14 +292,43 @@ router.get('/file/:path(*)', async (req, res) => {
 
 /**
  * GET /files/:bucket/:path
- * Serve arquivos de bucket específico
+ * Serve arquivos de bucket específico com cache e compressão sob demanda
  */
 router.get('/files/:bucket/:path(*)', async (req, res) => {
     try {
-        const { bucket, path } = req.params;
-        const stream = await minioClient.getObject(bucket, path);
+        const { bucket, path: objectName } = req.params;
+        const ext = objectName.split('.').pop()?.toLowerCase();
+        const isImage = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+
+        const cacheKey = `${bucket}:${objectName}:${req.query.w || ''}:${req.query.h || ''}:${req.query.q || ''}`;
         
-        const ext = path.split('.').pop()?.toLowerCase();
+        // Verifica cache de memória
+        if (isImage && IMAGE_CACHE.has(cacheKey)) {
+            const cached = IMAGE_CACHE.get(cacheKey);
+            if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
+                // Validação ETag
+                if (req.headers['if-none-match'] === cached.etag) {
+                    return res.status(304).end();
+                }
+                res.set('Content-Type', cached.contentType);
+                res.set('ETag', cached.etag);
+                res.set('Cache-Control', 'public, max-age=31536000, immutable');
+                res.set('Access-Control-Allow-Origin', '*');
+                return res.send(cached.buffer);
+            } else {
+                IMAGE_CACHE.delete(cacheKey);
+            }
+        }
+
+        // Busca objeto do MinIO
+        const stream = await minioClient.getObject(bucket, objectName);
+        const chunks = [];
+        for await (const chunk of stream) {
+            chunks.push(chunk);
+        }
+        let fileBuffer = Buffer.concat(chunks);
+        
+        let contentType;
         const contentTypes = {
             'jpg': 'image/jpeg',
             'jpeg': 'image/jpeg',
@@ -200,13 +343,46 @@ router.get('/files/:bucket/:path(*)', async (req, res) => {
             'zip': 'application/zip',
             'rar': 'application/vnd.rar'
         };
-        
-        const contentType = contentTypes[ext] || 'application/octet-stream';
+        contentType = contentTypes[ext] || 'application/octet-stream';
+
+        // Comprime sob demanda se for imagem (imagens do MinIO que não foram comprimidas antes)
+        if (isImage) {
+            try {
+                const optimized = await processAndOptimizeImage(fileBuffer, ext, req.query);
+                fileBuffer = optimized.buffer;
+                contentType = optimized.contentType;
+            } catch (sharpError) {
+                console.error('[SHARP] Falha ao otimizar imagem, servindo original:', sharpError.message);
+            }
+
+            // Salva no cache
+            const etag = crypto.createHash('md5').update(fileBuffer).digest('hex');
+            cleanCacheIfNeeded();
+            IMAGE_CACHE.set(cacheKey, {
+                buffer: fileBuffer,
+                contentType,
+                etag,
+                timestamp: Date.now()
+            });
+
+            if (req.headers['if-none-match'] === etag) {
+                return res.status(304).end();
+            }
+            res.set('ETag', etag);
+        } else {
+            // Arquivos comuns usam MD5 rápido para ETag
+            const etag = crypto.createHash('md5').update(fileBuffer).digest('hex');
+            if (req.headers['if-none-match'] === etag) {
+                return res.status(304).end();
+            }
+            res.set('ETag', etag);
+        }
+
         res.set('Content-Type', contentType);
-        res.set('Cache-Control', 'public, max-age=31536000');
+        res.set('Cache-Control', 'public, max-age=31536000, immutable');
         res.set('Access-Control-Allow-Origin', '*');
-        
-        stream.pipe(res);
+        res.send(fileBuffer);
+
     } catch (err) {
         console.error('Erro ao servir arquivo:', err.message);
         res.status(404).json({ error: 'Arquivo não encontrado' });
