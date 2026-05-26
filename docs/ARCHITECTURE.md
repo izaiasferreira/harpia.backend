@@ -96,3 +96,14 @@ Em respeito à integridade operacional do suporte e auditoria em campo, o banco 
 * Uma vez persistidas na tabela corporativa, as mensagens multimídia são vitalícias. O frontend não expõe opções de remoção ou retratação de envio, garantindo a rastreabilidade plena do atendimento de suporte comercial.
 * Badges de mensagens pendentes são computadas dinamicamente e zeradas sincronamente sob o endpoint de leitura (`POST /read`).
 
+### 4.4. Push FCM para Mensagens de Chat (Fallback Offline)
+Quando o admin envia uma mensagem no chat e o agente **não está com o app aberto**, o sistema envia uma notificação push via FCM como fallback:
+
+1. **`send_message` no Socket.io** (`socket.js`): Após persistir a mensagem e notificar via WebSocket, chama `sendChatPushNotification()`.
+2. **`sendChatPushNotification()`**: Busca os FCM tokens do agente em `fcm_tokens` e envia um push **data-only** (com `critical: 'true'` para garantir que `onMessageReceived` dispare mesmo em background).
+3. **Android `FcmRestartReceiver`**: Recebe o push e decide:
+   - **App aberto** → injeta JavaScript no WebView disparando evento `chatMessage` para notificação in-app.
+   - **App fechado/background** → exibe notificação do sistema com `IMPORTANCE_HIGH` (heads-up se tela ligada, drawer se desligada).
+
+O body da notificação varia conforme o tipo da mensagem: texto, imagem, vídeo, áudio, documento ou localização.
+

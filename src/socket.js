@@ -3,6 +3,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { get_or_create_support_room, save_chat_message, mark_messages_as_read } = require('./functions/database/chat');
 const { cenos_pool } = require('./db');
+const { getTokensByAgent } = require('./functions/database/fcmTokens');
+const { sendToMultiple } = require('./functions/firebase');
 
 // Guarda conexões ativas: Map<userId, socketId[]>
 const activeConnections = new Map();
@@ -278,6 +280,9 @@ function initSocket(httpServer) {
                         roomId: rId,
                         message: savedMsg
                     });
+
+                    // Envia push notification via FCM para o agente (cobre app fechado/background)
+                    sendChatPushNotification(targetRoom.agent_id, savedMsg, socket.user.name);
                 }
 
                 callback?.({ success: true, message: savedMsg });
@@ -335,6 +340,49 @@ function sendLiveNotification(targetUserId, notificationPayload) {
         return global.sendLiveNotification(targetUserId, notificationPayload);
     }
     return false;
+}
+
+// Envia push FCM para o agente sobre nova mensagem no chat
+async function sendChatPushNotification(agentId, savedMsg, senderName) {
+    try {
+        const tokens = await getTokensByAgent(agentId);
+        if (!tokens || tokens.length === 0) return;
+
+        let title = `Nova mensagem de ${senderName || 'Suporte'}`;
+        let body = '';
+
+        switch (savedMsg.message_type) {
+            case 'text':
+                body = savedMsg.message || 'Nova mensagem';
+                break;
+            case 'image':
+                body = 'Enviou uma imagem';
+                break;
+            case 'video':
+                body = 'Enviou um vídeo';
+                break;
+            case 'audio':
+                body = 'Enviou uma gravação de voz';
+                break;
+            case 'document':
+                body = `Enviou um documento: ${savedMsg.file_name || ''}`;
+                break;
+            case 'location':
+                body = 'Compartilhou uma localização';
+                break;
+            default:
+                body = 'Nova mensagem';
+        }
+
+        await sendToMultiple(tokens, title, body, {
+            critical: 'true',
+            chat_message: 'true',
+            roomId: String(savedMsg.room_id),
+            messageId: String(savedMsg.id)
+        });
+    } catch (err) {
+        console.error('[SOCKET] Erro ao enviar push FCM chat:', err.message);
+    }
 }
 
 module.exports = {
