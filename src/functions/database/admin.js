@@ -59,6 +59,17 @@ async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, 
         searchIdsFromLogin = loginMatches.map(l => l.id.toUpperCase());
     }
 
+    // Busca quais agentes têm inventário cadastrado
+    let inventoryAgentsSet = new Set();
+    try {
+        const { rows: inventoryAgents } = await cenos_pool.query(`SELECT DISTINCT agente FROM inventory`);
+        inventoryAgents.forEach(i => {
+            if (i.agente) inventoryAgentsSet.add(i.agente.toString().toUpperCase());
+        });
+    } catch (e) {
+        console.error('Erro ao buscar inventários ativos:', e.message);
+    }
+
     let rowsACC = [];
 
     for (const { state, pool } of targetPools) {
@@ -145,6 +156,7 @@ async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, 
                 // Garante valores null para campos vazios
                 r.seccional = r.seccional || null;
                 r.regional = r.regional || null;
+                r.has_inventory = inventoryAgentsSet.has(r.id);
             });
         }
 
@@ -404,11 +416,11 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
 
 
 // ─── inventory ───────────────────────────────────────────────────────────
-async function get_inventory_admin({ user, page = 1, limit = 9999, search }) {
+async function get_inventory_admin({ user, page = 1, limit = 9999, search, agente, estado }) {
     const allowedPools = getUserAllowedStatePools(user).map(p => p.state);
     const pool = cenos_pool;
 
-    // Garante existência da tabela
+    // Garante existência da tabela e colunas novas
     await pool.query(`
         CREATE TABLE IF NOT EXISTS inventory (
             id SERIAL PRIMARY KEY,
@@ -424,11 +436,17 @@ async function get_inventory_admin({ user, page = 1, limit = 9999, search }) {
             impressora_numero_serie TEXT,
             impressora_modelo TEXT,
             impressora_marca TEXT,
+            maquininha_numero_serie TEXT,
+            maquininha_numero_logico TEXT,
             estado TEXT DEFAULT 'pi',
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         );
     `);
+
+    // Adiciona colunas novas caso a tabela já existisse
+    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_serie TEXT;`).catch(() => {});
+    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_logico TEXT;`).catch(() => {});
 
     let query = `SELECT DISTINCT ON (agente) * FROM inventory WHERE 1=1`;
     const params = [];
@@ -455,6 +473,21 @@ async function get_inventory_admin({ user, page = 1, limit = 9999, search }) {
         return { ...r, ...agentData };
     }).filter(Boolean);
 
+    // Filtro por estado
+    if (estado) {
+        const est = estado.toLowerCase();
+        filteredRows = filteredRows.filter(r => r.estado?.toLowerCase() === est);
+    }
+
+    // Filtro por agente (ID ou Nome)
+    if (agente) {
+        const ag = agente.toLowerCase();
+        filteredRows = filteredRows.filter(r => 
+            r.id?.toLowerCase().includes(ag) || 
+            r.nome?.toLowerCase().includes(ag)
+        );
+    }
+
     // Busca Global em todas as propriedades do objeto (ID, Nome, IMEI, Regional, etc)
     if (search) {
         const s = search.toLowerCase();
@@ -470,14 +503,14 @@ async function get_inventory_admin({ user, page = 1, limit = 9999, search }) {
 }
 
 async function save_inventory_admin(data) {
-    const { agente, pda_imei_1, pda_imei_2, pda_numero_serie, pda_marca, pda_modelo, pda_numero_chip, pda_versao_android, pda_versao_bluetooth, impressora_numero_serie, impressora_modelo, impressora_marca, estado } = data;
+    const { agente, pda_imei_1, pda_imei_2, pda_numero_serie, pda_marca, pda_modelo, pda_numero_chip, pda_versao_android, pda_versao_bluetooth, impressora_numero_serie, impressora_modelo, impressora_marca, maquininha_numero_serie, maquininha_numero_logico, estado } = data;
     const pool = cenos_pool;
     const query = `
-        INSERT INTO inventory (agente, pda_imei_1, pda_imei_2, pda_numero_serie, pda_marca, pda_modelo, pda_numero_chip, pda_versao_android, pda_versao_bluetooth, impressora_numero_serie, impressora_modelo, impressora_marca, estado)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        INSERT INTO inventory (agente, pda_imei_1, pda_imei_2, pda_numero_serie, pda_marca, pda_modelo, pda_numero_chip, pda_versao_android, pda_versao_bluetooth, impressora_numero_serie, impressora_modelo, impressora_marca, maquininha_numero_serie, maquininha_numero_logico, estado)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING *;
     `;
-    const values = [agente, pda_imei_1, pda_imei_2, pda_numero_serie, pda_marca, pda_modelo, pda_numero_chip, pda_versao_android, pda_versao_bluetooth, impressora_numero_serie, impressora_modelo, impressora_marca, estado || 'pi'];
+    const values = [agente, pda_imei_1, pda_imei_2, pda_numero_serie, pda_marca, pda_modelo, pda_numero_chip, pda_versao_android, pda_versao_bluetooth, impressora_numero_serie, impressora_modelo, impressora_marca, maquininha_numero_serie || null, maquininha_numero_logico || null, estado || 'pi'];
     const { rows } = await pool.query(query, values);
     return rows[0];
 }

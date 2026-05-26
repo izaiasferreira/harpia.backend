@@ -1182,12 +1182,18 @@ async function get_inventory_by_agent({ agente, estado = 'pi' }) {
             impressora_numero_serie TEXT,
             impressora_modelo TEXT,
             impressora_marca TEXT,
+            maquininha_numero_serie TEXT,
+            maquininha_numero_logico TEXT,
             estado TEXT DEFAULT 'pi',
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         );
     `;
     await pool.query(createTableQuery);
+
+    // Garante que colunas novas existam caso a tabela já existisse
+    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_serie TEXT;`).catch(() => {});
+    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_logico TEXT;`).catch(() => {});
 
     const query = `
         SELECT * FROM inventory 
@@ -1213,6 +1219,8 @@ async function save_inventory({
     impressora_numero_serie,
     impressora_modelo,
     impressora_marca,
+    maquininha_numero_serie,
+    maquininha_numero_logico,
     created_at = new Date(),
     updated_at = new Date()
 }) {
@@ -1232,12 +1240,19 @@ async function save_inventory({
             pda_versao_bluetooth TEXT,
             impressora_numero_serie TEXT,
             impressora_modelo TEXT,
+            impressora_marca TEXT,
+            maquininha_numero_serie TEXT,
+            maquininha_numero_logico TEXT,
             estado TEXT DEFAULT 'pi',
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         );
     `;
     await pool.query(createTableQuery);
+
+    // Garante que colunas novas existam caso a tabela já existisse
+    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_serie TEXT;`).catch(() => {});
+    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_logico TEXT;`).catch(() => {});
 
     const existing = await get_inventory_by_agent({ agente, estado: state });
 
@@ -1255,8 +1270,10 @@ async function save_inventory({
                 impressora_numero_serie = $9,
                 impressora_modelo = $10,
                 impressora_marca = $11,
-                updated_at = $12
-            WHERE id = $13
+                maquininha_numero_serie = $12,
+                maquininha_numero_logico = $13,
+                updated_at = $14
+            WHERE id = $15
             RETURNING *;
         `;
         const values = [
@@ -1271,6 +1288,8 @@ async function save_inventory({
             impressora_numero_serie || null,
             impressora_modelo || null,
             impressora_marca || null,
+            maquininha_numero_serie || null,
+            maquininha_numero_logico || null,
             updated_at,
             existing.id
         ];
@@ -1283,8 +1302,9 @@ async function save_inventory({
             agente, pda_imei_1, pda_imei_2, pda_numero_serie, pda_marca, pda_modelo,
             pda_numero_chip, pda_versao_android, pda_versao_bluetooth,
             impressora_numero_serie, impressora_modelo, impressora_marca,
+            maquininha_numero_serie, maquininha_numero_logico,
             estado, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         RETURNING *;
     `;
     const values = [
@@ -1300,6 +1320,8 @@ async function save_inventory({
         impressora_numero_serie || null,
         impressora_modelo || null,
         impressora_marca || null,
+        maquininha_numero_serie || null,
+        maquininha_numero_logico || null,
         state.toLowerCase(),
         created_at,
         updated_at

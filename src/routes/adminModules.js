@@ -529,9 +529,9 @@ router.delete('/daily_report/:id', verifyToken(), verifyModule('delete_daily_rep
 
 router.get('/inventory', verifyToken(), verifyModule('inventory'), async (req, res) => {
     try {
-        const { page, limit, search } = req.query;
+        const { page, limit, search, agente, estado } = req.query;
         const user = req.user;
-        const result = await get_inventory_admin({ user, page, limit, search });
+        const result = await get_inventory_admin({ user, page, limit, search, agente, estado });
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
