@@ -31,6 +31,15 @@ function generateCustomLinks({ state, id, user }) {
             "states": ['pi', 'ma']
         },
         {
+            "id": "chatmessages-app",
+            "label": "Chat",
+            "description": "Converse com o suporte",
+            "url": '/chat',
+            "emoji": "MessageCircle",
+            "color": "text-blue-600",
+            "states": ['pi', 'ma']
+        },
+        {
             "id": "servicos-app",
             "label": "Serviços",
             "description": "Meus serviços atribuídos",
@@ -75,7 +84,7 @@ function generateCustomLinks({ state, id, user }) {
             "color": "text-red-600",
             "states": ['pi', 'ma']
         }
-        
+
     ]
 
     let links_filtered = links.filter(link => link.states.includes(state));

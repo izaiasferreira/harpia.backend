@@ -236,3 +236,99 @@ Upload otimizado de imagens comprobatórias coletadas pela câmera WebRTC do app
     "mimetype": "image/jpeg"
 }
 ```
+
+---
+
+## 7. Módulo de Chat de Suporte Real-Time (Socket.io)
+
+Endpoints utilizados pelo app do técnico (PWA) para envio de mídias, histórico e controle de mensagens lidas.
+
+### `GET /api/chat/agent/support`
+Retorna (e cria se não existir) a sala exclusiva de Suporte entre o Técnico autenticado e a central administrativa, contendo a última mensagem trafegada e a contagem de não lidas.
+
+**Headers:**
+* Requere cabeçalho `X-Telegram-Init-Data` com os dados criptografados do Telegram Mini App ou cabeçalho `Authorization: Bearer <token>`.
+
+**Resposta 200 (JSON):**
+```json
+{
+  "success": true,
+  "room": {
+    "id": 1,
+    "agent_id": "T12345",
+    "name": "Suporte T12345 - João da Silva",
+    "type": "support",
+    "created_at": "2026-05-26T12:00:00.000Z",
+    "unread_count": 0
+  }
+}
+```
+
+---
+
+### `GET /api/chat/rooms/:roomId/messages`
+Recupera o histórico completo e vitalício de mensagens de uma sala de chat. O histórico é imutável: mensagens não possuem endpoints de exclusão ou edição.
+
+**URL Parameters:**
+* `roomId`: ID numérico sequencial da sala.
+
+**Resposta 200 (JSON):**
+```json
+{
+  "success": true,
+  "messages": [
+    {
+      "id": 44,
+      "room_id": 1,
+      "sender_id": "admin_1",
+      "sender_type": "admin",
+      "sender_name": "Marcos Gestor (Suporte)",
+      "message": "Olá João, em que posso te ajudar?",
+      "message_type": "text",
+      "file_url": null,
+      "file_name": null,
+      "latitude": null,
+      "longitude": null,
+      "read": true,
+      "created_at": "2026-05-26T12:04:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### `POST /api/chat/upload`
+Endpoint para upload de arquivos multimídia suportados no chat (imagens, vídeos, gravação de áudios brutos da API MediaRecorder e documentos pdf/xlsx/docx). Armazenamento em MinIO seguro.
+
+**Consumes:** `multipart/form-data`
+
+**Body:**
+* `file`: Arquivo bruto (máx 15MB).
+* `room_id`: ID numérico sequencial da sala de chat.
+
+**Resposta 200 (JSON):**
+```json
+{
+  "success": true,
+  "file_url": "/api/chat/file/chat_attachments_1716723223_comercial.pdf",
+  "file_name": "comercial.pdf"
+}
+```
+
+---
+
+### `POST /api/chat/rooms/:roomId/read`
+Marca instantaneamente todas as mensagens recebidas na sala especificada como lidas para o agente. Dispara evento Socket.io de sincronização para zerar as badges no app.
+
+**URL Parameters:**
+* `roomId`: ID numérico da sala.
+
+**Resposta 200 (JSON):**
+```json
+{
+  "success": true,
+  "marked_count": 1
+}
+```
+

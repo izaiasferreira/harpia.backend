@@ -69,3 +69,30 @@ O arquivo `db.js` exporta múltiplos pools de conexão com bancos PostgreSQL loc
 O arquivo `redis.js` inicia uma instância cliente do Redis. O Redis é utilizado principalmente para:
 1. **Auditoria de Logs:** Armazenamento chave-valor de logs de execução e transação do sistema para rápida extração em tela administrativa (/api/logs/data).
 2. **Rate Limit:** Controle de requisições por IP de endpoints sensíveis (ex: rotas públicas) para mitigar ataques de negação de serviço e força bruta.
+
+---
+
+## 4. Arquitetura de Comunicação em Tempo Real (Socket.io)
+
+Para suportar a comunicação multimídia síncrona e notificações instantâneas do suporte, o sistema implementa uma camada híbrida REST + WebSockets (através do Socket.io).
+
+### 4.1. Handshake e Segurança
+As conexões do Socket.io passam por um middleware de autenticação obrigatório no handshake:
+1. **Administradores:** Autenticam-se fornecendo um token JWT tradicional. O socket é mapeado no barramento sob a regra `admin`.
+2. **Agentes de Campo (PWA):** Autenticam-se fornecendo a hash de validação do Telegram (`X-Telegram-Init-Data` em query param). O socket é mapeado sob a regra `agent`.
+3. **Mapeamento Ativo:** As instâncias de sockets são organizadas em tempo real em um dicionário em memória (`activeConnections`), indexado pelo `userId` de modo a viabilizar o roteamento direto de mensagens e o motor de notificações.
+
+### 4.2. Fluxo e Roteamento de Salas
+* **Isolamento Geográfico e de Segurança:** Cada agente de campo opera em sua respectiva sala unificada (`room_${roomId}`). O agente de campo não possui acesso a salas de terceiros.
+* **Administradores:** Podem entrar (`join`) em qualquer sala de suporte técnico sob demanda e são notificados instantaneamente de novas salas ou mensagens pendentes em qualquer estado de jurisdição.
+* **Eventos de Status (Presença, Digitação, Gravação):**
+  - `typing_status`: Notifica à outra ponta que o usuário está digitando texto.
+  - `recording_status`: Sinaliza em tempo real se o atendente ou o agente está gravando um áudio pelo microfone.
+  - `online_status`: Broadcasting do estado de presença para sinalização visual na lista de contatos.
+
+### 4.3. Imutabilidade e Auditoria Plena
+Em respeito à integridade operacional do suporte e auditoria em campo, o banco de dados PostgreSQL (`chat_messages` e `chat_rooms`) atua sob o princípio do **Append-Only**. 
+* Não existem queries de `UPDATE` ou `DELETE` para mensagens.
+* Uma vez persistidas na tabela corporativa, as mensagens multimídia são vitalícias. O frontend não expõe opções de remoção ou retratação de envio, garantindo a rastreabilidade plena do atendimento de suporte comercial.
+* Badges de mensagens pendentes são computadas dinamicamente e zeradas sincronamente sob o endpoint de leitura (`POST /read`).
+

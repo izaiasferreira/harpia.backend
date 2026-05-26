@@ -70,6 +70,24 @@ async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, 
         console.error('Erro ao buscar inventários ativos:', e.message);
     }
 
+    // Busca contagem de mensagens de chat não lidas enviadas pelos agentes
+    let unreadChatsSet = new Map();
+    try {
+        const { rows: unreadCounts } = await cenos_pool.query(`
+            SELECT r.agent_id, COUNT(m.id)::integer as count 
+            FROM chat_messages m 
+            JOIN chat_rooms r ON m.room_id = r.id 
+            WHERE m.sender_type = 'agent' AND m.read = false 
+            GROUP BY r.agent_id
+        `);
+        unreadCounts.forEach(c => {
+            if (c.agent_id) unreadChatsSet.set(c.agent_id.toString().toUpperCase(), c.count);
+        });
+    } catch (e) {
+        console.error('Erro ao buscar chats não lidos:', e.message);
+    }
+
+
     let rowsACC = [];
 
     for (const { state, pool } of targetPools) {
@@ -157,6 +175,7 @@ async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, 
                 r.seccional = r.seccional || null;
                 r.regional = r.regional || null;
                 r.has_inventory = inventoryAgentsSet.has(r.id);
+                r.unread_chat_count = unreadChatsSet.get(r.id) || 0;
             });
         }
 

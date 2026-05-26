@@ -44,7 +44,30 @@ Autenticação administrativa com e-mail e senha. Retorna o token JWT assinado.
 ---
 
 ### `GET /admin/users_agents`
-Lista os colaboradores de campo (técnicos) cadastrados no sistema. Suporta filtros por seccional e regional de atuação.
+Lista os colaboradores de campo (técnicos) cadastrados no sistema. Suporta filtros por seccional, regional, gestor, estado e busca textual.
+
+**Resposta 200 (JSON):**
+Retorna uma lista de agentes enriquecida com campos de login e inventário:
+```json
+[
+  {
+    "id": "T12345",
+    "matricula": "12345",
+    "nome": "João da Silva",
+    "estado": "pi",
+    "regional": "METROPOLITANA",
+    "seccional": "UAC TERESINA",
+    "setor": "LEITURA",
+    "cargo": "AGENTE COMERCIAL A PÉ",
+    "telegram_id": "987654321",
+    "has_inventory": true
+  }
+]
+```
+
+* **Mapeamento Adicional:** Cada registro inclui a propriedade computada `has_inventory` (boolean), que sinaliza de forma reativa se aquele agente possui um inventário ativo cadastrado no sistema.
+* **Exportação CSV:** O botão de exportação da listagem em massa gera um arquivo delimitado por ponto e vírgula (`;`) contendo o BOM (`\uFEFF`) e as colunas adicionais **"TEM TELEGRAM"** e **"TEM INVENTÁRIO"**.
+
 
 ---
 
@@ -394,4 +417,209 @@ Retorna as opções disponíveis para filtros (datas, regionais, seccionais, age
   "validacoes": ["VERDADEIRO", "FALSO"]
 }
 ```
+
+---
+
+## 10. Módulo de Inventário (Inventory)
+
+Gerencia os equipamentos (PDA/Coletores, Impressoras Térmicas e Maquininhas de Cartão) associados a cada agente comercial em campo.
+
+### `GET /admin/inventory`
+Lista os inventários ativos dos agentes no sistema, com suporte a filtros e busca global por texto.
+
+**Query Params:**
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| `page` | number | Número da página (padrão: 1) |
+| `limit` | number | Limite de itens por página (se algum filtro for ativo, assume `9999` automaticamente para exibir listagem unificada) |
+| `estado` | string | Filtro geográfico por estado: `pi` ou `ma` |
+| `agente` | string | Busca por ID ou Nome do colaborador |
+| `search` | string | Busca textual global que varre todos os campos do registro (Nome, IMEI, Serial, etc.) |
+
+**Resposta 200 (JSON):**
+```json
+[
+  {
+    "id": 1,
+    "agente": "T12345",
+    "pda_imei_1": "358912345678901",
+    "pda_imei_2": "358912345678902",
+    "pda_numero_serie": "PDA-987654",
+    "pda_marca": "Zebra",
+    "pda_modelo": "TC21",
+    "pda_numero_chip": "5586999999999",
+    "pda_versao_android": "11",
+    "pda_versao_bluetooth": "5.0",
+    "impressora_numero_serie": "IMP-112233",
+    "impressora_modelo": "IMPB-42",
+    "impressora_marca": "Leopardo",
+    "maquininha_numero_serie": "MAQ-556677",
+    "maquininha_numero_logico": "123456",
+    "estado": "pi",
+    "created_at": "2026-05-25T14:02:00.000Z",
+    "updated_at": "2026-05-25T19:30:00.000Z",
+    "nome": "João da Silva",
+    "matricula": "12345",
+    "gestor": "Marcos Gestor",
+    "regional": "METROPOLITANA",
+    "seccional": "UAC TERESINA"
+  }
+]
+```
+
+### `POST /admin/inventory`
+Cadastra ou sobrescreve o registro de inventário de um colaborador.
+
+**Body (JSON):**
+```json
+{
+  "agente": "T12345",
+  "pda_imei_1": "358912345678901",
+  "pda_imei_2": "358912345678902",
+  "pda_numero_serie": "PDA-987654",
+  "pda_marca": "Zebra",
+  "pda_modelo": "TC21",
+  "pda_numero_chip": "5586999999999",
+  "pda_versao_android": "11",
+  "pda_versao_bluetooth": "5.0",
+  "impressora_numero_serie": "IMP-112233",
+  "impressora_modelo": "IMPB-42",
+  "impressora_marca": "Leopardo",
+  "maquininha_numero_serie": "MAQ-556677", // Opcional, ou "Não possui maquininha"
+  "maquininha_numero_logico": "123456",     // Opcional, ou "Não possui maquininha"
+  "estado": "pi"
+}
+```
+
+* **Campos Opcionais de Maquininha:** Tanto `maquininha_numero_serie` quanto `maquininha_numero_logico` são opcionais. No aplicativo e no formulário administrativo, o usuário pode marcar a opção "Não possui maquininha", a qual salva os dados como nulos ou limpa os inputs mantendo a conformidade do schema.
+
+---
+
+## 10. Módulo de Chat de Suporte Real-Time (Socket.io)
+
+Este módulo gerencia a comunicação síncrona/assíncrona de auditoria imutável entre a central administrativa e os colaboradores em campo.
+
+### `GET /api/chat/admin/rooms`
+Retorna todas as salas de chat ativas integradas com metadados do agente (regional, seccional, estado, matrícula), a última mensagem trafegada e a contagem de mensagens pendentes (não lidas) para o admin.
+
+**Resposta 200 (JSON):**
+```json
+{
+  "success": true,
+  "rooms": [
+    {
+      "id": 1,
+      "agent_id": "T12345",
+      "name": "Suporte T12345 - João da Silva",
+      "type": "support",
+      "created_at": "2026-05-26T12:00:00.000Z",
+      "unread_count": 2,
+      "agent_name": "João da Silva",
+      "agent_regional": "METROPOLITANA",
+      "agent_seccional": "UAC TERESINA",
+      "agent_estado": "pi",
+      "last_message": {
+        "id": 45,
+        "room_id": 1,
+        "sender_id": "T12345",
+        "sender_type": "agent",
+        "sender_name": "João da Silva",
+        "message": "Preciso de auxílio na sincronização do formulário comercial.",
+        "message_type": "text",
+        "file_url": null,
+        "file_name": null,
+        "latitude": null,
+        "longitude": null,
+        "read": false,
+        "created_at": "2026-05-26T12:05:00.000Z"
+      }
+    }
+  ]
+}
+```
+
+---
+
+### `GET /api/chat/rooms/:roomId/messages`
+Recupera o histórico completo e vitalício de mensagens de uma sala de chat. O histórico é imutável: mensagens não possuem endpoints de exclusão ou edição.
+
+**URL Parameters:**
+* `roomId`: ID numérico sequencial da sala.
+
+**Resposta 200 (JSON):**
+```json
+{
+  "success": true,
+  "messages": [
+    {
+      "id": 44,
+      "room_id": 1,
+      "sender_id": "admin_1",
+      "sender_type": "admin",
+      "sender_name": "Marcos Gestor (Suporte)",
+      "message": "Olá João, em que posso te ajudar?",
+      "message_type": "text",
+      "file_url": null,
+      "file_name": null,
+      "latitude": null,
+      "longitude": null,
+      "read": true,
+      "created_at": "2026-05-26T12:04:00.000Z"
+    },
+    {
+      "id": 45,
+      "room_id": 1,
+      "sender_id": "T12345",
+      "sender_type": "agent",
+      "sender_name": "João da Silva",
+      "message": "Preciso de auxílio na sincronização do formulário comercial.",
+      "message_type": "text",
+      "file_url": null,
+      "file_name": null,
+      "latitude": null,
+      "longitude": null,
+      "read": false,
+      "created_at": "2026-05-26T12:05:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### `POST /api/chat/upload`
+Endpoint para upload de arquivos multimídia suportados no chat (imagens, vídeos, áudios e documentos pdf/xlsx/docx). Integra com o armazenamento MinIO persistente e seguro.
+
+**Consumes:** `multipart/form-data`
+
+**Body:**
+* `file`: Arquivo bruto (máx 15MB).
+* `room_id`: ID numérico sequencial da sala de chat.
+
+**Resposta 200 (JSON):**
+```json
+{
+  "success": true,
+  "file_url": "/api/chat/file/chat_attachments_1716723223_comercial.pdf",
+  "file_name": "comercial.pdf"
+}
+```
+
+---
+
+### `POST /api/chat/rooms/:roomId/read`
+Marca instantaneamente todas as mensagens recebidas na sala especificada como lidas para o administrador. Dispara sincronização via Socket.io para zerar badges em tempo real.
+
+**URL Parameters:**
+* `roomId`: ID numérico da sala.
+
+**Resposta 200 (JSON):**
+```json
+{
+  "success": true,
+  "marked_count": 2
+}
+```
+
+
 
