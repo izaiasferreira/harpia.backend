@@ -346,7 +346,10 @@ function sendLiveNotification(targetUserId, notificationPayload) {
 async function sendChatPushNotification(agentId, savedMsg, senderName) {
     try {
         const tokens = await getTokensByAgent(agentId);
-        if (!tokens || tokens.length === 0) return;
+        if (!tokens || tokens.length === 0) {
+            console.log(`[SOCKET] Nenhum token FCM encontrado para o agente ${agentId}. Push não enviado.`);
+            return;
+        }
 
         let title = `Nova mensagem de ${senderName || 'Suporte'}`;
         let body = '';
@@ -374,12 +377,16 @@ async function sendChatPushNotification(agentId, savedMsg, senderName) {
                 body = 'Nova mensagem';
         }
 
-        await sendToMultiple(tokens, title, body, {
+        const result = await sendToMultiple(tokens, title, body, {
             critical: 'true',
             chat_message: 'true',
             roomId: String(savedMsg.room_id),
             messageId: String(savedMsg.id)
         });
+
+        if (result && result.failureCount > 0) {
+            console.warn(`[SOCKET] Push FCM: ${result.successCount} ok, ${result.failureCount} falhas para o agente ${agentId}`);
+        }
     } catch (err) {
         console.error('[SOCKET] Erro ao enviar push FCM chat:', err.message);
     }
