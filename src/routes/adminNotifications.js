@@ -21,7 +21,7 @@ async function cleanInvalidTokens(tokens, responses) {
 // POST /admin/notifications/send — enviar para agente(s) via Telegram, Push, ou ambos
 router.post('/send', verifyToken(), verifyModule('send_message_user_agent'), upload.single('file'), async (req, res) => {
     try {
-        const { agent_ids, title, text, channels, broadcast, data: extraData } = req.body;
+        const { agent_ids, title, text, channels, broadcast, data: extraData, webAppButtonText, webAppButtonUrl, file: fileUrl } = req.body;
 
         const parsedChannels = typeof channels === 'string' ? JSON.parse(channels) : channels;
         const parsedAgentIds = typeof agent_ids === 'string' ? JSON.parse(agent_ids) : agent_ids;
@@ -47,7 +47,7 @@ router.post('/send', verifyToken(), verifyModule('send_message_user_agent'), upl
         // --- Telegram ---
         if (parsedChannels.includes('telegram')) {
             try {
-                const file = req.file || null;
+                const file = req.file || fileUrl || null;
                 if (parsedBroadcast) {
                     const { cenos_pool } = require('../../db');
                     const { rows } = await cenos_pool.query("SELECT id FROM login");
@@ -56,6 +56,8 @@ router.post('/send', verifyToken(), verifyModule('send_message_user_agent'), upl
                         ids: allIds,
                         text,
                         file,
+                        webAppButtonText,
+                        webAppButtonUrl,
                         user: req.user,
                     });
                     result.telegram = { sent: telegramResult.filter(r => !r.error).length, failed: telegramResult.filter(r => r.error).length };
@@ -64,6 +66,8 @@ router.post('/send', verifyToken(), verifyModule('send_message_user_agent'), upl
                         ids: parsedAgentIds,
                         text,
                         file,
+                        webAppButtonText,
+                        webAppButtonUrl,
                         user: req.user,
                     });
                     result.telegram = { sent: telegramResult.filter(r => !r.error).length, failed: telegramResult.filter(r => r.error).length };

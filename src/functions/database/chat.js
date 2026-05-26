@@ -87,13 +87,7 @@ async function get_rooms_for_agent(agentId) {
 }
 
 async function get_rooms_for_admin() {
-    // Pega todas as salas de suporte
-    const { rows: rooms } = await cenos_pool.query(
-        `SELECT * FROM chat_rooms WHERE type = 'suporte' ORDER BY id DESC`
-    );
-
-    // Para cada sala de suporte, precisamos acoplar os dados do agente
-    // Os dados do agente estão no pi_pool ou ma_pool. Vamos ler de ambos.
+    // Carrega todos os agentes de ambos os pools
     const agentsMap = new Map();
 
     const fetchAgents = async (pool, state) => {
@@ -101,6 +95,7 @@ async function get_rooms_for_admin() {
             const { rows } = await pool.query(`SELECT "ID", "Nome", "regional", "seccional" FROM colaboradores`);
             rows.forEach(r => {
                 agentsMap.set(r.ID?.toUpperCase(), {
+                    id: r.ID?.toUpperCase(),
                     nome: r.Nome,
                     regional: r.regional || null,
                     seccional: r.seccional || null,
@@ -115,38 +110,53 @@ async function get_rooms_for_admin() {
     await fetchAgents(pi_pool, 'pi');
     await fetchAgents(ma_pool, 'ma');
 
-    const enrichedRooms = [];
+    // Carrega todas as salas de suporte existentes
+    const { rows: rooms } = await cenos_pool.query(
+        `SELECT * FROM chat_rooms WHERE type = 'suporte' ORDER BY id DESC`
+    );
 
+    const roomsByAgent = new Map();
     for (const room of rooms) {
-        const agentInfo = agentsMap.get(room.agent_id?.toUpperCase());
-        if (!agentInfo) continue; // Pula se o agente foi deletado do cadastro principal
+        roomsByAgent.set(room.agent_id?.toUpperCase(), room);
+    }
 
-        const enrichedRoom = {
-            ...room,
+    const result = [];
+
+    for (const [agentId, agentInfo] of agentsMap) {
+        const room = roomsByAgent.get(agentId);
+
+        const entry = {
+            id: room?.id || null,
+            agent_id: agentId,
+            name: room?.name || 'Suporte Técnico',
+            type: 'suporte',
+            created_at: room?.created_at || null,
             agent_name: agentInfo.nome,
             agent_regional: agentInfo.regional,
             agent_seccional: agentInfo.seccional,
-            agent_estado: agentInfo.estado
+            agent_estado: agentInfo.estado,
+            last_message: null,
+            unread_count: 0
         };
 
-        // Adiciona última mensagem
-        const { rows: lastMsg } = await cenos_pool.query(
-            `SELECT * FROM chat_messages WHERE room_id = $1 ORDER BY created_at DESC LIMIT 1`,
-            [room.id]
-        );
-        enrichedRoom.last_message = lastMsg[0] || null;
+        if (room) {
+            const { rows: lastMsg } = await cenos_pool.query(
+                `SELECT * FROM chat_messages WHERE room_id = $1 ORDER BY created_at DESC LIMIT 1`,
+                [room.id]
+            );
+            entry.last_message = lastMsg[0] || null;
 
-        // Conta não lidas enviadas pelo agente
-        const { rows: countUnread } = await cenos_pool.query(
-            `SELECT COUNT(*)::integer as count FROM chat_messages WHERE room_id = $1 AND sender_type = 'agent' AND read = false`,
-            [room.id]
-        );
-        enrichedRoom.unread_count = countUnread[0]?.count || 0;
+            const { rows: countUnread } = await cenos_pool.query(
+                `SELECT COUNT(*)::integer as count FROM chat_messages WHERE room_id = $1 AND sender_type = 'agent' AND read = false`,
+                [room.id]
+            );
+            entry.unread_count = countUnread[0]?.count || 0;
+        }
 
-        enrichedRooms.push(enrichedRoom);
+        result.push(entry);
     }
 
-    return enrichedRooms;
+    return result;
 }
 
 async function save_chat_message(roomId, senderId, senderType, senderName, message, messageType = 'text', fileUrl = null, fileName = null, latitude = null, longitude = null) {

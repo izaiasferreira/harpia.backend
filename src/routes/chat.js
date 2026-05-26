@@ -213,7 +213,7 @@ router.post('/api/chat/upload', chatAuth, upload.single('file'), async (req, res
 
         const timestamp = Date.now();
         const ext = req.file.originalname.split('.').pop();
-        const safeFileName = `${timestamp}-${userId.replace(/[^a-zA-Z0-9]/g, '_')}-${Math.random().toString(36).substring(7)}.${ext}`;
+        const safeFileName = `${timestamp}-${String(userId).replace(/[^a-zA-Z0-9]/g, '_')}-${Math.random().toString(36).substring(7)}.${ext}`;
         const fullPath = `chat-attachments/${userId}/${safeFileName}`;
 
         let fileBuffer = req.file.buffer;
@@ -240,6 +240,52 @@ router.post('/api/chat/upload', chatAuth, upload.single('file'), async (req, res
     } catch (err) {
         console.error('[CHAT UPLOAD] Erro crítico no upload de chat:', err);
         res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /admin/chat/rooms — criar sala de suporte para um agente (se não existir)
+router.post('/admin/chat/rooms', verifyToken('COMPANY_ADMIN'), async (req, res) => {
+    try {
+        const { agent_id } = req.body;
+        if (!agent_id) {
+            return res.status(400).json({ error: 'agent_id é obrigatório' });
+        }
+
+        const { pi_pool, ma_pool } = require('../db');
+        let agentInfo = null;
+        let state = null;
+
+        // Busca agente em ambos os pools
+        for (const [pool, st] of [[pi_pool, 'pi'], [ma_pool, 'ma']]) {
+            const { rows } = await pool.query(
+                `SELECT "ID", "Nome", "regional", "seccional" FROM colaboradores WHERE "ID" = $1`,
+                [agent_id.toUpperCase()]
+            );
+            if (rows.length > 0) {
+                agentInfo = rows[0];
+                state = st;
+                break;
+            }
+        }
+
+        const agentName = agentInfo?.Nome || agent_id;
+
+        const room = await get_or_create_support_room(agent_id, agentName);
+
+        const enrichedRoom = {
+            ...room,
+            agent_name: agentName,
+            agent_regional: agentInfo?.regional || null,
+            agent_seccional: agentInfo?.seccional || null,
+            agent_estado: state,
+            last_message: null,
+            unread_count: 0
+        };
+
+        res.json({ success: true, room: enrichedRoom });
+    } catch (err) {
+        console.error('[CHAT API] Erro ao criar sala admin:', err);
+        res.status(500).json({ error: 'Erro ao criar sala de chat.' });
     }
 });
 

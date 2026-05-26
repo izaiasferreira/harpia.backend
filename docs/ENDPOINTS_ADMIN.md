@@ -499,8 +499,8 @@ Cadastra ou sobrescreve o registro de inventário de um colaborador.
 
 Este módulo gerencia a comunicação síncrona/assíncrona de auditoria imutável entre a central administrativa e os colaboradores em campo.
 
-### `GET /api/chat/admin/rooms`
-Retorna todas as salas de chat ativas integradas com metadados do agente (regional, seccional, estado, matrícula), a última mensagem trafegada e a contagem de mensagens pendentes (não lidas) para o admin.
+### `GET /admin/chat/rooms`
+Retorna **todos os agentes** do sistema com metadados (regional, seccional, estado, matrícula) e, quando existir sala, a última mensagem trafegada e a contagem de mensagens pendentes (não lidas). Agentes sem sala retornam `id: null` e `last_message: null`.
 
 **Resposta 200 (JSON):**
 ```json
@@ -510,29 +510,28 @@ Retorna todas as salas de chat ativas integradas com metadados do agente (region
     {
       "id": 1,
       "agent_id": "T12345",
-      "name": "Suporte T12345 - João da Silva",
-      "type": "support",
+      "name": "Suporte Técnico",
+      "type": "suporte",
       "created_at": "2026-05-26T12:00:00.000Z",
       "unread_count": 2,
       "agent_name": "João da Silva",
       "agent_regional": "METROPOLITANA",
       "agent_seccional": "UAC TERESINA",
       "agent_estado": "pi",
-      "last_message": {
-        "id": 45,
-        "room_id": 1,
-        "sender_id": "T12345",
-        "sender_type": "agent",
-        "sender_name": "João da Silva",
-        "message": "Preciso de auxílio na sincronização do formulário comercial.",
-        "message_type": "text",
-        "file_url": null,
-        "file_name": null,
-        "latitude": null,
-        "longitude": null,
-        "read": false,
-        "created_at": "2026-05-26T12:05:00.000Z"
-      }
+      "last_message": { ... }
+    },
+    {
+      "id": null,
+      "agent_id": "T99999",
+      "name": "Suporte Técnico",
+      "type": "suporte",
+      "created_at": null,
+      "unread_count": 0,
+      "agent_name": "Maria Souza",
+      "agent_regional": "INTERIOR",
+      "agent_seccional": "UAC PARNAÍBA",
+      "agent_estado": "pi",
+      "last_message": null
     }
   ]
 }
@@ -540,7 +539,52 @@ Retorna todas as salas de chat ativas integradas com metadados do agente (region
 
 ---
 
-### `GET /api/chat/rooms/:roomId/messages`
+### `POST /admin/chat/rooms`
+Cria uma sala de suporte para um agente (se já não existir). Utilizado quando o admin clica em um agente sem sala para iniciar uma conversa.
+
+**Módulo Requerido:** `COMPANY_ADMIN`
+
+**Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `agent_id` | string | sim | ID/matrícula do agente |
+
+**Resposta 200 (JSON):**
+```json
+{
+  "success": true,
+  "room": {
+    "id": 10,
+    "agent_id": "T99999",
+    "name": "Suporte Técnico",
+    "type": "suporte",
+    "created_at": "2026-05-26T14:00:00.000Z",
+    "agent_name": "Maria Souza",
+    "agent_regional": "INTERIOR",
+    "agent_seccional": "UAC PARNAÍBA",
+    "agent_estado": "pi",
+    "last_message": null,
+    "unread_count": 0
+  }
+}
+```
+
+---
+
+### `GET /admin/chat/rooms/unread-count`
+Retorna o total de salas com mensagens não lidas enviadas por agentes.
+
+**Resposta 200 (JSON):**
+```json
+{
+  "success": true,
+  "unread_rooms_count": 3
+}
+```
+
+---
+
+### `GET /admin/chat/rooms/:roomId/messages`
 Recupera o histórico completo e vitalício de mensagens de uma sala de chat. O histórico é imutável: mensagens não possuem endpoints de exclusão ou edição.
 
 **URL Parameters:**
@@ -565,21 +609,6 @@ Recupera o histórico completo e vitalício de mensagens de uma sala de chat. O 
       "longitude": null,
       "read": true,
       "created_at": "2026-05-26T12:04:00.000Z"
-    },
-    {
-      "id": 45,
-      "room_id": 1,
-      "sender_id": "T12345",
-      "sender_type": "agent",
-      "sender_name": "João da Silva",
-      "message": "Preciso de auxílio na sincronização do formulário comercial.",
-      "message_type": "text",
-      "file_url": null,
-      "file_name": null,
-      "latitude": null,
-      "longitude": null,
-      "read": false,
-      "created_at": "2026-05-26T12:05:00.000Z"
     }
   ]
 }
@@ -607,7 +636,7 @@ Endpoint para upload de arquivos multimídia suportados no chat (imagens, vídeo
 
 ---
 
-### `POST /api/chat/rooms/:roomId/read`
+### `POST /admin/chat/rooms/:roomId/read`
 Marca instantaneamente todas as mensagens recebidas na sala especificada como lidas para o administrador. Dispara sincronização via Socket.io para zerar badges em tempo real.
 
 **URL Parameters:**
