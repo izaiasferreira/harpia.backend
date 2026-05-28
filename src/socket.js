@@ -44,10 +44,13 @@ function verifyTelegramInitData(initData) {
 function initSocket(httpServer) {
     const io = new Server(httpServer, {
         cors: {
-            origin: '*', // Permitir conexões de qualquer origem ou conforme as configurações CORS do Express
+            origin: '*',
             methods: ['GET', 'POST']
         }
     });
+
+    // Expor io globalmente para uso em webhooks e rotas
+    global.io = io;
 
     // Middleware de Handshake Seguro (Autenticação)
     io.use(async (socket, next) => {
@@ -263,7 +266,8 @@ function initSocket(httpServer) {
                     file_url || null,
                     file_name || null,
                     latitude || null,
-                    longitude || null
+                    longitude || null,
+                    'internal'
                 );
 
                 // Transmitir para todos no quarto (inclusive quem enviou)

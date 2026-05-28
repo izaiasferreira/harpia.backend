@@ -148,6 +148,14 @@ app.use('/agent/service-notes', agentServiceNotesRouter)
 const revalidateRouter = require('./routes/revalidate')
 app.use('/admin/revalidate', revalidateRouter)
 
+// Unified Messages (/admin/messages/*)
+const adminMessagesRouter = require('./routes/adminMessages')
+app.use('/admin/messages', adminMessagesRouter)
+
+// Telegram Webhook (/public/telegram-webhook)
+const telegramWebhookRouter = require('./routes/telegramWebhook')
+app.use('/public', telegramWebhookRouter)
+
 
 
 

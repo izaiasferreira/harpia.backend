@@ -31,7 +31,7 @@ router.post('/send', verifyToken(), verifyModule('send_message_user_agent'), upl
         console.log('[NOTIFICATIONS] Request received:', { agent_ids, parsedAgentIds, parsedChannels, parsedBroadcast });
 
         if (!parsedChannels || parsedChannels.length === 0) {
-            return res.status(400).json({ error: 'channels é obrigatório (array: ["telegram", "push"])' });
+            return res.status(400).json({ error: 'O canal é obrigatório' });
         }
 
         if (!text) {

@@ -27,9 +27,21 @@ async function initChatDatabase() {
                 latitude NUMERIC,
                 longitude NUMERIC,
                 read BOOLEAN DEFAULT FALSE,
+                channel TEXT DEFAULT 'internal',
                 created_at TIMESTAMP DEFAULT NOW()
             );
         `);
+
+        // Migration: adicionar coluna channel se não existir
+        await cenos_pool.query(`
+            ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS channel TEXT DEFAULT 'internal';
+        `);
+
+        // Migration: adicionar coluna metadata JSONB para botões/extras
+        await cenos_pool.query(`
+            ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT NULL;
+        `);
+
         console.log('[DATABASE] Tabelas de chat verificadas/criadas com sucesso.');
     } catch (e) {
         console.error('[DATABASE] Erro ao inicializar tabelas de chat:', e.message);
@@ -159,13 +171,13 @@ async function get_rooms_for_admin() {
     return result;
 }
 
-async function save_chat_message(roomId, senderId, senderType, senderName, message, messageType = 'text', fileUrl = null, fileName = null, latitude = null, longitude = null) {
+async function save_chat_message(roomId, senderId, senderType, senderName, message, messageType = 'text', fileUrl = null, fileName = null, latitude = null, longitude = null, channel = 'internal', metadata = null) {
     const query = `
-        INSERT INTO chat_messages (room_id, sender_id, sender_type, sender_name, message, message_type, file_url, file_name, latitude, longitude)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO chat_messages (room_id, sender_id, sender_type, sender_name, message, message_type, file_url, file_name, latitude, longitude, channel, metadata)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *;
     `;
-    const values = [roomId, senderId, senderType, senderName, message, messageType, fileUrl, fileName, latitude, longitude];
+    const values = [roomId, senderId, senderType, senderName, message, messageType, fileUrl, fileName, latitude, longitude, channel, metadata ? JSON.stringify(metadata) : null];
     const { rows } = await cenos_pool.query(query, values);
     return rows[0];
 }

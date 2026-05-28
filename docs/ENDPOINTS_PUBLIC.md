@@ -44,6 +44,24 @@ Gera tokens de acesso temporário de uso estritamente interno e controle de test
 
 ---
 
+### `POST /public/telegram-webhook?token=SECRET`
+Webhook para receber updates do Telegram Bot API. Mensagens de agentes são salvas no chat unificado e emitidas via socket.io para admins.
+
+**Autenticação:** Query param `token` validado contra `TELEGRAM_WEBHOOK_SECRET` (env).
+
+**Body:** Update object padrão do Telegram Bot API.
+
+**Tipos suportados:** text, photo, video, document, voice, audio, location.
+
+**Fluxo:** Identifica agente por `telegram_id` → salva em `chat_messages` (channel='telegram') → emite via socket.io.
+
+**Resposta 200:**
+```json
+{ "ok": true }
+```
+
+---
+
 ## 2. Consultas Gerais (Token Simples)
 
 Estas rotas são desenhadas para extração em lote e integrações automáticas com ferramentas de BI.

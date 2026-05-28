@@ -650,5 +650,47 @@ Marca instantaneamente todas as mensagens recebidas na sala especificada como li
 }
 ```
 
+---
 
+## 10. Mensagens Unificadas (Chat Multicanal)
+
+Endpoint unificado que substitui o envio fragmentado de mensagens. Toda mensagem enviada é registrada em `chat_messages` com o canal correspondente, unificando o histórico de comunicação com o agente.
+
+### `POST /admin/messages/send`
+
+Envia mensagem para agente(s) via um ou mais canais e registra no chat unificado.
+
+**Módulo requerido:** JWT Admin (Bearer)
+
+**Content-Type:** `multipart/form-data`
+
+**Campos:**
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `channels` | JSON array | Sim | `["telegram"]`, `["push"]`, `["internal"]`, ou combinação |
+| `text` | string | Sim* | Corpo da mensagem (*ou file) |
+| `title` | string | Push: sim | Título da notificação push |
+| `agent_ids` | JSON array | Sim | IDs dos agentes destinatários |
+| `file` | File/string | Não | Anexo — upload (multer) ou URL |
+| `webAppButtonText` | string | Não | Texto do botão webapp inline (Telegram) |
+| `webAppButtonUrl` | string | Não | URL do botão webapp inline (Telegram) |
+| `critical` | "true" | Não | Marca como alerta crítico (overlay no dispositivo) |
+| `alertType` | string | Não | `danger`, `warn`, `success` |
+| `alertIcon` | string | Não | Emoji do alerta (🚨, ⚠️, 🔥, etc.) |
+
+**Comportamento por canal:**
+- `telegram`: Envia via serviço intermediário (`TELEGRAM_API_URL`) + registra em `chat_messages` (channel='telegram')
+- `push`: Envia FCM + registra em `chat_messages` (channel='push')
+- `overlay`: Envia FCM com critical=true + registra em `chat_messages` (channel='overlay')
+- `internal`: Apenas registra em `chat_messages` (channel='internal') + emite via socket.io
+
+**Resposta 200:**
+```json
+{
+  "telegram": { "sent": 3, "failed": 0 },
+  "push": { "sent": 3, "failed": 1 },
+  "chat": [{ "agentId": "T12345", "roomId": 42, "messageId": 501 }]
+}
+```
 
