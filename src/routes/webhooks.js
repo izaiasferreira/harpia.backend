@@ -2,13 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { sendMessageWhatsappFile } = require('../functions/requestsFunctions');
 
-function checkToken(req, res) {
-    if (req.query.token !== process.env.API_TOKEN) {
-        res.json({ error: 'Token inválido' });
-        return false;
-    }
-    return true;
-}
+const { checkToken } = require('../functions/middlewares');
 
 router.post('/webhook_perdas', async (req, res) => {
     if (!checkToken(req, res)) return;

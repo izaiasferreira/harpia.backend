@@ -1,14 +1,8 @@
 const express = require('express');
 const router = express.Router();
 require('dotenv').config();
+const { checkToken } = require('../functions/middlewares');
 
-function checkToken(req, res) {
-    if (req.query.token !== process.env.API_TOKEN) {
-        res.status(401).json({ error: 'Token inválido' });
-        return false;
-    }
-    return true;
-}
 
 const {
     pre_create_pending_justify

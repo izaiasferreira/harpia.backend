@@ -166,31 +166,62 @@ Substitui o endpoint de notificações para uso integrado com o chat. Toda mensa
 
 ## Telegram Webhook
 
-### `POST /public/telegram-webhook?token=SECRET`
+### `POST /public/telegram-webhook`
 
-Recebe updates do Telegram Bot API. Mensagens de agentes são salvas em `chat_messages` e emitidas via socket.io para admins.
+Recebe eventos do serviço intermediário Telegram. Mensagens inbound de agentes são salvas em `chat_messages` e emitidas via socket.io para admins.
 
-**Autenticação:** Query param `token` validado contra `TELEGRAM_WEBHOOK_SECRET`
+**Autenticação:** Middleware `checkToken` — valida `API_TOKEN` via query param `?token=` ou header.
 
-**Tipos suportados:** text, photo, video, document, voice, audio, location
+**Payload esperado (JSON):**
+```json
+{
+  "event": "message.received",
+  "direction": "inbound",
+  "timestamp": "2026-05-28T14:00:00.000Z",
+  "messageId": "uuid-v4",
+  "chatId": "123456789",
+  "from": {
+    "id": "123456789",
+    "firstName": "João",
+    "lastName": "Silva",
+    "username": "joaosilva",
+    "isBot": false
+  },
+  "message": {
+    "type": "text|photo|video|audio|document|voice|location|sticker|contact|web_app_data",
+    "text": "string | null",
+    "caption": "string | null",
+    "fileId": "string | null",
+    "location": { "latitude": 0, "longitude": 0 },
+    "contact": { "first_name": "", "last_name": "", "phone_number": "" },
+    "webAppData": { "data": "string", "button_text": "string" }
+  },
+  "origin": "telegram_polling"
+}
+```
+
+**Eventos processados:** `message.received`, `web_app_data` (direction=inbound apenas)
+
+**Tipos de mensagem:** text, photo, video, video_note, animation, document, voice, audio, location, sticker, contact, web_app_data
 
 **Fluxo:**
-1. Telegram envia update → webhook recebe
-2. Identifica agente por `message.from.id` → busca `telegram_id` na tabela `login`
+1. Serviço Telegram envia evento → webhook recebe
+2. Identifica agente por `from.id` → busca `telegram_id` na tabela `login`
 3. Obtém/cria `chat_room` para o agente
 4. Salva em `chat_messages` (sender_type='agent', channel='telegram')
-5. Para mídia: baixa do Telegram (`getFile`) → upload no MinIO
+5. Para mídia: baixa do Telegram (`getFile` com `fileId`) → upload no MinIO
 6. Emite `admin_new_chat_message` + `receive_message` via socket.io
 
 **Configuração:**
 ```env
-TELEGRAM_WEBHOOK_SECRET=seu_secret_aqui
-TELEGRAM_BOT_TOKEN=token_do_bot
+API_TOKEN=token_padrao_da_api
+TELEGRAM_BOT_TOKEN=token_do_bot_para_download_de_midia
 ```
 
-**Registrar webhook no Telegram:**
+**URL para configurar no serviço Telegram:**
 ```
-https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://api.izi.tec.br/public/telegram-webhook?token=<SECRET>
+https://api.izi.tec.br/public/telegram-webhook
+Header: X-Webhook-Secret = <API_TOKEN>
 ```
 
 ---
@@ -212,6 +243,16 @@ CREATE TABLE chat_messages (
     longitude NUMERIC,
     read BOOLEAN DEFAULT FALSE,
     channel TEXT DEFAULT 'internal',  -- internal|telegram|push|overlay
+    metadata JSONB DEFAULT NULL,      -- dados extras (botões, alertas, etc.)
     created_at TIMESTAMP DEFAULT NOW()
 );
 ```
+
+### Coluna `metadata` — Exemplos de conteúdo
+
+| Canal | Conteúdo metadata |
+|---|---|
+| telegram | `{ "webAppButtonText": "Abrir App", "webAppButtonUrl": "https://..." }` |
+| push | `{ "title": "Alerta", "critical": true, "alertType": "danger", "alertIcon": "🚨" }` |
+| overlay | `{ "title": "Emergência", "critical": true, "alertType": "danger", "alertIcon": "🔥" }` |
+| internal | `null` |

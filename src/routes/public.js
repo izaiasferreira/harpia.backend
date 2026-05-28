@@ -3,14 +3,7 @@ const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
-
-function checkToken(req, res) {
-    if (req.query.token !== process.env.API_TOKEN) {
-        res.json({ error: 'Token inválido' });
-        return false;
-    }
-    return true;
-}
+const { checkToken } = require('../functions/middlewares');
 
 const { getCalendarForAgent } = require('../functions/postgresFunctions');
 const { getFormById, submitForm, checkFormResponse } = require('../functions/database/forms');

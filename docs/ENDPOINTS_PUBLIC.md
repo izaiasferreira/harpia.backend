@@ -44,16 +44,27 @@ Gera tokens de acesso temporário de uso estritamente interno e controle de test
 
 ---
 
-### `POST /public/telegram-webhook?token=SECRET`
-Webhook para receber updates do Telegram Bot API. Mensagens de agentes são salvas no chat unificado e emitidas via socket.io para admins.
+### `POST /public/telegram-webhook`
+Webhook para receber eventos do serviço intermediário Telegram. Mensagens inbound de agentes são salvas no chat unificado e emitidas via socket.io para admins.
 
-**Autenticação:** Query param `token` validado contra `TELEGRAM_WEBHOOK_SECRET` (env).
+**Autenticação:** Middleware `checkToken` — valida `API_TOKEN` via query param `?token=` ou header.
 
-**Body:** Update object padrão do Telegram Bot API.
+**Body (JSON):** Payload estruturado do serviço Telegram:
+```json
+{
+  "event": "message.received",
+  "direction": "inbound",
+  "chatId": "123456789",
+  "from": { "id": "123456789", "firstName": "João", "lastName": "Silva" },
+  "message": { "type": "text", "text": "Olá", "fileId": null, "caption": null, "location": null, "contact": null, "webAppData": null }
+}
+```
 
-**Tipos suportados:** text, photo, video, document, voice, audio, location.
+**Eventos processados:** `message.received`, `web_app_data`
 
-**Fluxo:** Identifica agente por `telegram_id` → salva em `chat_messages` (channel='telegram') → emite via socket.io.
+**Tipos de mensagem suportados:** text, photo, video, video_note, animation, document, voice, audio, location, sticker, contact, web_app_data
+
+**Fluxo:** Identifica agente por `from.id` (telegram_id) → obtém/cria room → salva em `chat_messages` (channel='telegram') → download mídia via Telegram getFile → MinIO → emite via socket.io.
 
 **Resposta 200:**
 ```json

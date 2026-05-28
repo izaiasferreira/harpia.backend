@@ -20,19 +20,14 @@ const {
     pontualidade,
     pontualidadeJson
 } = require('../functions/postgresFunctions');
+const { checkToken } = require('../functions/middlewares');
 
 function today() {
     const d = new Date();
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
 }
 
-function checkToken(req, res) {
-    if (req.query.token !== process.env.API_TOKEN) {
-        res.json({ error: 'Token inválido' });
-        return false;
-    }
-    return true;
-}
+
 
 router.get('/last_update', async (req, res) => {
     if (!checkToken(req, res)) return;

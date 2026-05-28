@@ -4,22 +4,16 @@ const axios = require('axios');
 const { cenos_pool } = require('../db');
 const { get_or_create_support_room, save_chat_message } = require('../functions/database/chat');
 const { minioClient, CONFIG, ensureBucketExists, getFileUrl } = require('../functions/minio');
+const { checkToken } = require('../functions/middlewares');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_API_TOKEN;
-const WEBHOOK_SECRET = process.env.API_TOKEN;
+
 
 // POST /public/telegram-webhook
 router.post('/telegram-webhook', async (req, res) => {
 
-    
-    // Auth: header X-Webhook-Secret OR query param ?token=
-    const headerSecret = req.headers['x-webhook-secret'];
-    const querySecret = req.query.token;
-    const providedSecret = headerSecret || querySecret;
+    if (!checkToken(req, res)) return;
 
-    if (!providedSecret || providedSecret !== WEBHOOK_SECRET) {
-        return res.status(403).json({ error: 'Forbidden' });
-    }
 
     try {
         const payload = req.body;
