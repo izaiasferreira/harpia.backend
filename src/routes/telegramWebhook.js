@@ -4,26 +4,38 @@ const axios = require('axios');
 const { cenos_pool } = require('../db');
 const { get_or_create_support_room, save_chat_message } = require('../functions/database/chat');
 const { minioClient, CONFIG, ensureBucketExists, getFileUrl } = require('../functions/minio');
-const { sendLiveNotification } = require('../socket');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_API_TOKEN;
+const WEBHOOK_SECRET = process.env.API_TOKEN;
 
-// POST /public/telegram-webhook?token=SECRET
+// POST /public/telegram-webhook
 router.post('/telegram-webhook', async (req, res) => {
-    const secret = req.query.token;
-    if (!secret || secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
+
+    
+    // Auth: header X-Webhook-Secret OR query param ?token=
+    const headerSecret = req.headers['x-webhook-secret'];
+    const querySecret = req.query.token;
+    const providedSecret = headerSecret || querySecret;
+
+    if (!providedSecret || providedSecret !== WEBHOOK_SECRET) {
         return res.status(403).json({ error: 'Forbidden' });
     }
 
     try {
-        const update = req.body;
-        const message = update.message || update.edited_message;
-        if (!message) {
+        const payload = req.body;
+
+        // Only process inbound messages
+        if (payload.direction !== 'inbound') {
             return res.json({ ok: true });
         }
 
-        const telegramId = String(message.from.id);
-        const senderName = [message.from.first_name, message.from.last_name].filter(Boolean).join(' ') || 'Agente';
+        // Ignore non-message events (callback_query, inline_query, etc. can be added later)
+        if (!['message.received', 'web_app_data'].includes(payload.event)) {
+            return res.json({ ok: true });
+        }
+
+        const telegramId = String(payload.from?.id || payload.chatId);
+        const senderName = [payload.from?.firstName, payload.from?.lastName].filter(Boolean).join(' ') || 'Agente';
 
         const { rows: loginRows } = await cenos_pool.query(
             'SELECT id FROM login WHERE telegram_id = $1',
@@ -38,6 +50,7 @@ router.post('/telegram-webhook', async (req, res) => {
         const agentId = loginRows[0].id.toUpperCase();
         const room = await get_or_create_support_room(agentId, senderName);
 
+        const msg = payload.message || {};
         let messageText = null;
         let messageType = 'text';
         let fileUrl = null;
@@ -45,39 +58,62 @@ router.post('/telegram-webhook', async (req, res) => {
         let latitude = null;
         let longitude = null;
 
-        if (message.text) {
-            messageText = message.text;
-            messageType = 'text';
-        } else if (message.photo) {
-            messageType = 'image';
-            messageText = message.caption || null;
-            const photo = message.photo[message.photo.length - 1];
-            fileUrl = await downloadTelegramFile(photo.file_id, 'image');
-        } else if (message.video) {
-            messageType = 'video';
-            messageText = message.caption || null;
-            fileUrl = await downloadTelegramFile(message.video.file_id, 'video');
-            fileName = message.video.file_name || 'video.mp4';
-        } else if (message.document) {
-            messageType = 'document';
-            messageText = message.caption || null;
-            fileUrl = await downloadTelegramFile(message.document.file_id, 'document');
-            fileName = message.document.file_name || 'document';
-        } else if (message.voice) {
-            messageType = 'audio';
-            fileUrl = await downloadTelegramFile(message.voice.file_id, 'audio');
-            fileName = 'voice.ogg';
-        } else if (message.audio) {
-            messageType = 'audio';
-            messageText = message.caption || null;
-            fileUrl = await downloadTelegramFile(message.audio.file_id, 'audio');
-            fileName = message.audio.file_name || 'audio.mp3';
-        } else if (message.location) {
-            messageType = 'location';
-            latitude = message.location.latitude;
-            longitude = message.location.longitude;
-        } else {
-            return res.json({ ok: true });
+        switch (msg.type) {
+            case 'text':
+                messageText = msg.text;
+                messageType = 'text';
+                break;
+            case 'photo':
+                messageType = 'image';
+                messageText = msg.caption || null;
+                if (msg.fileId) fileUrl = await downloadTelegramFile(msg.fileId, 'image');
+                break;
+            case 'video':
+            case 'video_note':
+            case 'animation':
+                messageType = 'video';
+                messageText = msg.caption || null;
+                if (msg.fileId) fileUrl = await downloadTelegramFile(msg.fileId, 'video');
+                fileName = 'video.mp4';
+                break;
+            case 'document':
+                messageType = 'document';
+                messageText = msg.caption || null;
+                if (msg.fileId) fileUrl = await downloadTelegramFile(msg.fileId, 'document');
+                fileName = 'document';
+                break;
+            case 'voice':
+                messageType = 'audio';
+                if (msg.fileId) fileUrl = await downloadTelegramFile(msg.fileId, 'audio');
+                fileName = 'voice.ogg';
+                break;
+            case 'audio':
+                messageType = 'audio';
+                messageText = msg.caption || null;
+                if (msg.fileId) fileUrl = await downloadTelegramFile(msg.fileId, 'audio');
+                fileName = 'audio.mp3';
+                break;
+            case 'location':
+                messageType = 'location';
+                latitude = msg.location?.latitude || null;
+                longitude = msg.location?.longitude || null;
+                break;
+            case 'sticker':
+                messageType = 'image';
+                if (msg.fileId) fileUrl = await downloadTelegramFile(msg.fileId, 'image');
+                break;
+            case 'contact':
+                messageType = 'text';
+                const c = msg.contact || {};
+                messageText = `📇 ${c.first_name || ''} ${c.last_name || ''}\n${c.phone_number || ''}`.trim();
+                break;
+            case 'web_app_data':
+                messageType = 'text';
+                const webData = msg.webAppData?.data || '';
+                messageText = `[WebApp] ${webData}`;
+                break;
+            default:
+                return res.json({ ok: true });
         }
 
         const savedMsg = await save_chat_message(
