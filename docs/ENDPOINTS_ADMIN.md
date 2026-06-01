@@ -694,3 +694,47 @@ Envia mensagem para agente(s) via um ou mais canais e registra no chat unificado
 }
 ```
 
+---
+
+### `GET /admin/messages/notifications/:agentId`
+
+Consulta histórico de notificações de um agente específico com filtros.
+
+**Módulo requerido:** JWT Admin (Bearer)
+
+**Path Params:** `agentId` — matrícula do agente
+
+**Query Params:**
+
+| Parâmetro | Tipo | Default | Descrição |
+|-----------|------|---------|-----------|
+| `page` | number | 1 | Página |
+| `limit` | number | 30 | Itens por página (máx 100) |
+| `search` | string | — | Busca em título, body e sender (ILIKE) |
+| `from` | string (ISO date) | — | Data inicial |
+| `to` | string (ISO date) | — | Data final |
+
+**Resposta 200:**
+```json
+{
+  "success": true,
+  "notifications": [
+    {
+      "id": 42,
+      "agent_id": "T60702",
+      "sender": "sistema_rh",
+      "title": "Aviso Importante",
+      "body": "Seu treinamento vence amanhã.",
+      "type": "warn",
+      "method": ["push", "telegram"],
+      "read": true,
+      "read_at": "2026-05-29T15:00:00.000Z",
+      "metadata": null,
+      "created_at": "2026-05-29T14:30:00.000Z"
+    }
+  ],
+  "total": 45,
+  "page": 1,
+  "pages": 2
+}
+```
