@@ -54,7 +54,7 @@ router.get('/feriados', publicLimiter, (req, res) => {
         return res.json(['03/04/2026', '21/04/2026', '01/05/2026', 	'04/06/2026']);
     }
     if (state === 'ma') {
-        return res.json(['03/04/2026', '21/04/2026', '01/05/2026']);
+        return res.json(['03/04/2026', '21/04/2026', '01/05/2026', '04/06/2026']);
     }
     res.json([]);
 });
