@@ -239,7 +239,67 @@ Upload otimizado de imagens comprobatórias coletadas pela câmera WebRTC do app
 
 ---
 
-## 7. Módulo de Chat de Suporte Real-Time (Socket.io)
+## 7. Notificações
+
+### `GET /agent/notifications`
+Lista paginada de notificações do agente autenticado.
+
+**Query Params:**
+
+| Parâmetro | Tipo | Default | Descrição |
+|-----------|------|---------|-----------|
+| `page` | number | 1 | Página |
+| `limit` | number | 20 | Itens por página (máx 50) |
+| `unread_only` | boolean | false | Filtrar apenas não lidas |
+
+**Resposta 200:**
+```json
+{
+  "success": true,
+  "notifications": [
+    {
+      "id": 42,
+      "agent_id": "T60702",
+      "sender": "sistema_rh",
+      "title": "Aviso Importante",
+      "body": "Seu treinamento vence amanhã.",
+      "type": "warn",
+      "method": ["push", "telegram"],
+      "read": false,
+      "read_at": null,
+      "metadata": null,
+      "created_at": "2026-05-29T14:30:00.000Z"
+    }
+  ],
+  "total": 150,
+  "unread_count": 5,
+  "page": 1,
+  "pages": 8
+}
+```
+
+---
+
+### `POST /agent/notifications/read`
+Marca notificações como lidas.
+
+**Body (JSON):**
+```json
+{ "ids": [1, 2, 3] }
+```
+ou para marcar todas:
+```json
+{ "all": true }
+```
+
+**Resposta 200:**
+```json
+{ "success": true }
+```
+
+---
+
+## 8. Módulo de Chat de Suporte Real-Time (Socket.io)
 
 Endpoints utilizados pelo app do técnico (PWA) para envio de mídias, histórico e controle de mensagens lidas.
 

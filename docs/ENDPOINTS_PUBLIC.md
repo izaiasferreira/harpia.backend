@@ -73,6 +73,75 @@ Webhook para receber eventos do serviço intermediário Telegram. Mensagens inbo
 
 ---
 
+### `POST /public/notify`
+Endpoint público para apps externos gerarem notificações para agentes. Salva na tabela `notifications` e despacha pelos canais escolhidos.
+
+**Autenticação:** `checkToken` — valida `API_TOKEN` via query param `?token=`.
+
+**Body (JSON):**
+```json
+{
+  "sender": "id_de_quem_enviou",
+  "to": "MATRICULA_AGENTE",
+  "title": "Título opcional",
+  "body": "Conteúdo obrigatório",
+  "type": "success|warn|danger|info",
+  "method": ["telegram", "internal", "push", "priority"]
+}
+```
+
+| Campo | Tipo | Obrigatório | Default | Descrição |
+|-------|------|-------------|---------|-----------|
+| `sender` | string | Sim | — | Identificador de quem enviou |
+| `to` | string | Sim | — | Matrícula do agente destinatário |
+| `title` | string | Não | null | Título da notificação |
+| `body` | string | Sim | — | Conteúdo da notificação |
+| `type` | string | Não | `success` | Tipo visual: `success`, `info`, `warn`, `danger` |
+| `method` | string[] | Não | `["push"]` | Canais de entrega (ver abaixo) |
+
+**Canais disponíveis (`method`):**
+
+| Canal | Comportamento |
+|-------|---------------|
+| `telegram` | Envia via Telegram Bot (busca `telegram_id` do agente) |
+| `push` | Envia FCM push notification (busca tokens registrados) |
+| `priority` | Envia FCM com flag `critical: true` (overlay/bolha flutuante) |
+| `internal` | Salva em `chat_messages` + emite via socket.io (chat interno) |
+
+**Resposta 200 (sucesso):**
+```json
+{
+  "success": true,
+  "id": 42,
+  "results": {
+    "telegram": { "success": true },
+    "push": { "success": true, "sent": 2 },
+    "internal": { "success": true, "messageId": 156 }
+  }
+}
+```
+
+**Resposta 400:**
+```json
+{ "error": "body é obrigatório" }
+```
+
+**Exemplo de uso (curl):**
+```bash
+curl -X POST "https://api.izi.tec.br/public/notify?token=SEU_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sender": "sistema_rh",
+    "to": "12345",
+    "title": "Aviso Importante",
+    "body": "Seu treinamento vence amanhã.",
+    "type": "warn",
+    "method": ["push", "telegram"]
+  }'
+```
+
+---
+
 ## 2. Consultas Gerais (Token Simples)
 
 Estas rotas são desenhadas para extração em lote e integrações automáticas com ferramentas de BI.

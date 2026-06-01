@@ -156,7 +156,14 @@ app.use('/admin/messages', adminMessagesRouter)
 const telegramWebhookRouter = require('./routes/telegramWebhook')
 app.use('/public', telegramWebhookRouter)
 
+// Public Notify (/public/notify)
+const publicNotifyRouter = require('./routes/publicNotify')
+app.use('/public', publicNotifyRouter)
 
+
+// Init notifications table
+const { initNotificationsTable } = require('./functions/database/notifications');
+initNotificationsTable().catch(err => console.error('[INIT] Erro ao criar tabela notifications:', err.message));
 
 
 // Tratamento de erros limpo para o CORS (evita sujar o log com stack trace inteiro)

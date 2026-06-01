@@ -1019,4 +1019,48 @@ router.post('/tracking/sync', telegramAuth, async (req, res) => {
     }
 });
 
+// --- Notificações ---
+const {
+    getAgentNotifications,
+    markNotificationsRead,
+    markAllNotificationsRead
+} = require('../functions/database/notifications');
+
+// GET /agent/notifications — lista paginada
+router.get('/notifications', telegramAuth, async (req, res) => {
+    try {
+        const agentId = req.colaborador.id;
+        const page = parseInt(req.query.page) || 1;
+        const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+        const unreadOnly = req.query.unread_only === 'true';
+
+        const result = await getAgentNotifications(agentId, page, limit, unreadOnly);
+        res.json({ success: true, ...result });
+    } catch (err) {
+        console.error('[AGENT NOTIFICATIONS] Erro:', err.message);
+        res.status(500).json({ error: 'Erro ao buscar notificações' });
+    }
+});
+
+// POST /agent/notifications/read — marca como lidas
+router.post('/notifications/read', telegramAuth, async (req, res) => {
+    try {
+        const agentId = req.colaborador.id;
+        const { ids, all } = req.body;
+
+        if (all) {
+            await markAllNotificationsRead(agentId);
+        } else if (ids && Array.isArray(ids) && ids.length > 0) {
+            await markNotificationsRead(agentId, ids);
+        } else {
+            return res.status(400).json({ error: 'ids ou all é obrigatório' });
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[AGENT NOTIFICATIONS] Erro ao marcar lidas:', err.message);
+        res.status(500).json({ error: 'Erro ao marcar notificações como lidas' });
+    }
+});
+
 module.exports = router;

@@ -8,6 +8,7 @@ const { send_message_to_agent } = require('../functions/database/admin');
 const { sendToMultiple } = require('../functions/firebase');
 const { getTokensByAgent, getTokensByAgents, getAllTokens, removeFcmToken } = require('../functions/database/fcmTokens');
 const { sendLiveNotification } = require('../socket');
+const { createNotification } = require('../functions/database/notifications');
 
 async function cleanInvalidTokens(tokens, responses) {
     if (!responses) return;
@@ -174,6 +175,17 @@ router.post('/send', verifyToken(), upload.single('file'), async (req, res) => {
 
                 results.chat.push({ agentId: formattedId, roomId: room.id, messageId: savedMsg.id });
             }
+
+            // --- Registrar na tabela notifications (auditoria) ---
+            await createNotification(
+                formattedId,
+                req.user.id || req.user.matricula || 'ADMIN',
+                title || null,
+                text || '[Arquivo]',
+                'info',
+                parsedChannels,
+                null
+            );
         }
 
         res.json(results);
@@ -190,5 +202,25 @@ function getMessageTypeFromMime(mimetype) {
     if (mimetype.startsWith('audio/')) return 'audio';
     return 'document';
 }
+
+// GET /admin/messages/notifications/:agentId — histórico de notificações do agente
+const { getAdminNotificationHistory } = require('../functions/database/notifications');
+
+router.get('/notifications/:agentId', verifyToken(), async (req, res) => {
+    try {
+        const { agentId } = req.params;
+        const page = parseInt(req.query.page) || 1;
+        const limit = Math.min(parseInt(req.query.limit) || 30, 100);
+        const search = req.query.search || '';
+        const from = req.query.from || null;
+        const to = req.query.to || null;
+
+        const result = await getAdminNotificationHistory(agentId, page, limit, search, from, to);
+        res.json({ success: true, ...result });
+    } catch (err) {
+        console.error('[ADMIN NOTIFICATIONS HISTORY] Erro:', err.message);
+        res.status(500).json({ error: 'Erro ao buscar histórico de notificações' });
+    }
+});
 
 module.exports = router;
