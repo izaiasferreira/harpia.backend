@@ -88,7 +88,9 @@ const AVAILABLE_MODULES = [
     { id: 'app_pins', name: 'PINs App Nativo' },
     // Revalidação de Fotos
     { id: 'revalidate', name: 'Revalidar Fotos (Auditoria)' },
-    { id: 'revalidate_write', name: 'Salvar Resultado de Revalidação' }
+    { id: 'revalidate_write', name: 'Salvar Resultado de Revalidação' },
+    // Configurações
+    { id: 'configs', name: 'Configurações' }
 ];
 
 async function listModules() {

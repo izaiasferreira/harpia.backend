@@ -148,6 +148,10 @@ app.use('/agent/service-notes', agentServiceNotesRouter)
 const revalidateRouter = require('./routes/revalidate')
 app.use('/admin/revalidate', revalidateRouter)
 
+// Configs (/admin/config/*)
+const adminConfigRouter = require('./routes/adminConfig')
+app.use('/admin/config', adminConfigRouter)
+
 // Unified Messages (/admin/messages/*)
 const adminMessagesRouter = require('./routes/adminMessages')
 app.use('/admin/messages', adminMessagesRouter)

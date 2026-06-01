@@ -48,15 +48,21 @@ router.get('/calendar', publicLimiter, async (req, res) => {
     }
 });
 
-router.get('/feriados', publicLimiter, (req, res) => {
-    const state = req.query.state;
-    if (!state || state === 'pi') {
-        return res.json(['03/04/2026', '21/04/2026', '01/05/2026', 	'04/06/2026']);
+router.get('/feriados', publicLimiter, async (req, res) => {
+    try {
+        const state = req.query.state || 'pi';
+        const pool = state === 'ma' ? ma_pool : pi_pool;
+        const { rows } = await pool.query('SELECT date FROM feriados');
+        const dates = rows.map(r => r.date).filter(Boolean);
+        res.json(dates);
+    } catch (err) {
+        console.error('Erro ao buscar feriados no banco público:', err);
+        const state = req.query.state;
+        if (state === 'ma') {
+            return res.json(['03/04/2026', '21/04/2026', '01/05/2026', '04/06/2026']);
+        }
+        res.json(['03/04/2026', '21/04/2026', '01/05/2026', '04/06/2026']);
     }
-    if (state === 'ma') {
-        return res.json(['03/04/2026', '21/04/2026', '01/05/2026', '04/06/2026']);
-    }
-    res.json([]);
 });
 
 
@@ -84,7 +90,7 @@ router.get('/metabase_geral', async (req, res) => {
 const crypto = require('crypto');
 require('dotenv').config();
 
-const { cenos_pool } = require('../db');
+const { cenos_pool, pi_pool, ma_pool } = require('../db');
 // ─── Training ───────────────────────────────────────────────────────────────
 
 router.get('/training/:id', publicLimiter, async (req, res) => {
