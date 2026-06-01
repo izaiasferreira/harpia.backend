@@ -11,7 +11,7 @@ const {
     completeTrainingAndAssignBadge
 } = require('../functions/database/trainingProjects');
 
-router.post('/', verifyToken(), verifyModule('create_training_project'), async (req, res) => {
+router.post('/', verifyToken(), verifyModule('create_training'), async (req, res) => {
     try {
         const { name, description, badge_id } = req.body;
         if (!name) {
@@ -32,7 +32,7 @@ router.post('/', verifyToken(), verifyModule('create_training_project'), async (
     }
 });
 
-router.get('/', verifyToken(), verifyModule('training_projects'), async (req, res) => {
+router.get('/', verifyToken(), verifyModule('trainings'), async (req, res) => {
     try {
         const page = parseInt(req.query.page, 10) || 1;
         const limit = parseInt(req.query.limit, 10) || 20;
@@ -45,7 +45,7 @@ router.get('/', verifyToken(), verifyModule('training_projects'), async (req, re
     }
 });
 
-router.get('/:id', verifyToken(), verifyModule('training_projects'), async (req, res) => {
+router.get('/:id', verifyToken(), verifyModule('trainings'), async (req, res) => {
     try {
         const { id } = req.params;
         const project = await getTrainingProjectById(parseInt(id, 10));
@@ -61,7 +61,7 @@ router.get('/:id', verifyToken(), verifyModule('training_projects'), async (req,
     }
 });
 
-router.put('/:id', verifyToken(), verifyModule('update_training_project'), async (req, res) => {
+router.put('/:id', verifyToken(), verifyModule('update_training'), async (req, res) => {
     try {
         const { id } = req.params;
         const { name, description, badge_id } = req.body;
@@ -79,7 +79,7 @@ router.put('/:id', verifyToken(), verifyModule('update_training_project'), async
     }
 });
 
-router.delete('/:id', verifyToken(), verifyModule('delete_training_project'), async (req, res) => {
+router.delete('/:id', verifyToken(), verifyModule('delete_training'), async (req, res) => {
     try {
         const { id } = req.params;
         const deleted = await deleteTrainingProject(parseInt(id, 10));
@@ -95,7 +95,7 @@ router.delete('/:id', verifyToken(), verifyModule('delete_training_project'), as
     }
 });
 
-router.post('/:id/complete', verifyToken(), verifyModule('update_training_project'), async (req, res) => {
+router.post('/:id/complete', verifyToken(), verifyModule('update_training'), async (req, res) => {
     try {
         const { id } = req.params;
         const { agent_id } = req.body;
@@ -115,7 +115,7 @@ router.post('/:id/complete', verifyToken(), verifyModule('update_training_projec
     }
 });
 
-router.put('/:id/flow', verifyToken(), verifyModule('update_training_project'), async (req, res) => {
+router.put('/:id/flow', verifyToken(), verifyModule('update_training'), async (req, res) => {
     try {
         const { id } = req.params;
         const { flow_data } = req.body;

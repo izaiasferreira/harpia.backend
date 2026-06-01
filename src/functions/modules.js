@@ -44,10 +44,10 @@ const AVAILABLE_MODULES = [
     { id: 'delete_user_agent', name: 'Deletar Agente' },
     { id: 'send_message_user_agent', name: 'Enviar Mensagem para Agente' },
     // Interativos
-    { id: 'training_projects', name: 'Projetos de Treinamento' },
-    { id: 'create_training_project', name: 'Criar Projeto de Treinamento' },
-    { id: 'update_training_project', name: 'Atualizar Projeto de Treinamento' },
-    { id: 'delete_training_project', name: 'Deletar Projeto de Treinamento' },
+    { id: 'trainings', name: 'Projetos de Treinamento' },
+    { id: 'create_training', name: 'Criar Projeto de Treinamento' },
+    { id: 'update_training', name: 'Atualizar Projeto de Treinamento' },
+    { id: 'delete_training', name: 'Deletar Projeto de Treinamento' },
     // Modelos de Mensagem
     { id: 'message_templates', name: 'Consultar Modelos de Mensagem' },
     { id: 'create_message_template', name: 'Criar Modelo de Mensagem' },
