@@ -44,7 +44,7 @@ Retorna todos os grupos de serviços operacionais cadastrados no sistema.
 ---
 
 ### `POST /admin/service-groups`
-Cria um novo grupo de serviços e define seu formulário dinâmico.
+Cria um novo grupo de serviços e define seu formulário dinâmico, além do controle de acesso dos agentes.
 
 **Headers:** `Authorization: Bearer <token>`
 **Módulo Requerido:** `service_notes`
@@ -54,6 +54,8 @@ Cria um novo grupo de serviços e define seu formulário dinâmico.
 {
   "name": "Inspeção de Fraudes",
   "description": "Grupo para vistorias de fraudes e desvios",
+  "allow_all_agents": false,
+  "allowed_agents": ["T60702", "T12345"],
   "completion_config": {
     "formFields": [
       {
@@ -68,10 +70,13 @@ Cria um novo grupo de serviços e define seu formulário dinâmico.
 }
 ```
 
+* **`allow_all_agents`** (boolean, opcional, default `true`): Se definido como `true` (grupo público), qualquer agente de campo poderá visualizar e concluir as notas de serviço associadas. Se `false`, o grupo se torna privado/restrito.
+* **`allowed_agents`** (array de strings, opcional, default `[]`): Contém a lista de IDs/Telegram dos agentes autorizados a visualizar e interagir com o grupo se `allow_all_agents` for `false`.
+
 ---
 
 ### `PUT /admin/service-groups/:id`
-Atualiza os metadados ou a configuração do formulário de um grupo de serviços.
+Atualiza os metadados, a configuração do formulário ou as permissões de acesso de um grupo de serviços.
 
 **Headers:** `Authorization: Bearer <token>`
 **Módulo Requerido:** `service_notes`
@@ -80,7 +85,9 @@ Atualiza os metadados ou a configuração do formulário de um grupo de serviço
 ```json
 {
   "name": "Inspeção de Fraudes e Perdas",
-  "description": "Novo escopo expandido de monitoramento"
+  "description": "Novo escopo expandido de monitoramento",
+  "allow_all_agents": true,
+  "allowed_agents": []
 }
 ```
 
@@ -157,9 +164,31 @@ Cria uma nota de serviço manual.
 ---
 
 ### `PUT /admin/service-notes/:id`
-Atualiza parcialmente qualquer campo de uma nota de serviço (Ex: coordenadas, descrição, endereço).
+Atualiza parcialmente uma nota de serviço. A partir da versão atual, os campos `group_id` e `archived` também são permitidos nessa operação, possibilitando mover individualmente uma nota para outro grupo ou alterar seu estado de arquivamento sem precisar usar as ações em lote.
 
 **Headers:** `Authorization: Bearer <token>`
+**Módulo Requerido:** `update_service_note`
+
+**Campos editáveis:**
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `title` | string | Título da nota |
+| `description` | string | Descrição (JSON ou texto) |
+| `address` | string | Endereço textual |
+| `coordinates` | string | Coordenadas `"lat,lng"` |
+| `latitude` | number | Latitude numérica (derivada automaticamente de `coordinates` se omitida) |
+| `longitude` | number | Longitude numérica |
+| `marker_category_id` | number | ID da categoria de marcador |
+| `status` | string | Status `PENDENTE` ou `CONCLUIDO` |
+| `group_id` | number | **Novo** — Move a nota para o grupo com este ID |
+| `archived` | boolean | **Novo** — Arquiva (`true`) ou desarquiva (`false`) a nota |
+
+**Body de Exemplo (mover de grupo):**
+```json
+{
+  "group_id": 4
+}
+```
 
 ---
 
@@ -191,6 +220,13 @@ Força o encerramento manual (conclusão) da nota diretamente do painel administ
 
 ---
 
+### `POST /admin/service-notes/:id/restore`
+Restaura a conclusão de uma nota de serviço individual, retornando o seu status para `'PENDENTE'` e limpando todas as respostas do formulário, coordenadas de finalização e evidências fotográficas anexadas.
+
+**Headers:** `Authorization: Bearer <token>`
+
+---
+
 ## 4. Operações em Lote (Admin - Bulk Actions)
 
 ### `POST /admin/service-notes/bulk-assign`
@@ -201,6 +237,18 @@ Atribui ou desatribui múltiplos registros de notas de serviço de uma só vez p
 {
   "serviceIds": [101, 102, 103],
   "userId": "T60702" // Ou null para desatribuir
+}
+```
+
+---
+
+### `POST /admin/service-notes/bulk-restore`
+Restaura a conclusão de múltiplos registros de notas de serviço em lote, revertendo-os para `'PENDENTE'` e apagando todos os seus dados e arquivos de conclusão.
+
+**Body:**
+```json
+{
+  "serviceIds": [101, 102, 103]
 }
 ```
 

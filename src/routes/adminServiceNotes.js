@@ -8,6 +8,7 @@ const {
     listServiceNotes, getServiceNoteById, createServiceNote, updateServiceNote, deleteServiceNote,
     assignServiceNote, bulkAssign, bulkUpdateCategory, bulkDelete, bulkArchive, bulkUnarchive, bulkMove,
     bulkInsertServiceNotes, adminCompleteNote,
+    restoreServiceNoteCompletion, bulkRestore,
 } = require('../functions/database/serviceNotes');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -38,9 +39,9 @@ router.get('/groups/:id', verifyToken(), verifyModule('service_notes'), async (r
 
 router.post('/groups', verifyToken(), verifyModule('create_service_note'), async (req, res) => {
     try {
-        const { name, description, completion_config } = req.body;
+        const { name, description, completion_config, allow_all_agents, allowed_agents } = req.body;
         if (!name) return res.status(400).json({ error: 'Nome obrigatorio' });
-        const group = await createServiceGroup({ name, description, completion_config, created_by: req.user.id });
+        const group = await createServiceGroup({ name, description, completion_config, allow_all_agents, allowed_agents, created_by: req.user.id });
         res.status(201).json(group);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -302,6 +303,31 @@ router.post('/import', verifyToken(), verifyModule('import_service_notes'), uplo
         res.json({ success: true, imported: inserted.length });
     } catch (err) {
         console.error('[SERVICE_NOTES] Erro importacao:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ==========================================
+// RESTAURACAO
+// ==========================================
+
+router.post('/:id/restore', verifyToken(), verifyModule('update_service_note'), async (req, res) => {
+    try {
+        const note = await restoreServiceNoteCompletion(req.params.id);
+        if (!note) return res.status(404).json({ error: 'Nota nao encontrada' });
+        res.json(note);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/bulk-restore', verifyToken(), verifyModule('update_service_note'), async (req, res) => {
+    try {
+        const { serviceIds } = req.body;
+        if (!serviceIds || !Array.isArray(serviceIds)) return res.status(400).json({ error: 'serviceIds obrigatorio (array)' });
+        await bulkRestore(serviceIds);
+        res.json({ success: true, count: serviceIds.length });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });

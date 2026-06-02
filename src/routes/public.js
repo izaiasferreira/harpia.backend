@@ -170,7 +170,9 @@ router.post('/form/submit/:id', publicLimiter, async (req, res) => {
             return res.status(400).json({ error: 'Formulário não está ativo' });
         }
 
+        const clientMetadata = req.body.metadata || {};
         const metadata = {
+            ...clientMetadata,
             ip: req.ip || req.connection.remoteAddress,
             userAgent: req.headers['user-agent'] || ''
         };

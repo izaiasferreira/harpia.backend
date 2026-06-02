@@ -63,6 +63,12 @@ async function ensureServiceNotesTables() {
         ALTER TABLE service_notes ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
     `);
 
+    // Migração de banco: adiciona controle de permissões por agente em service_groups
+    await cenos_pool.query(`
+        ALTER TABLE service_groups ADD COLUMN IF NOT EXISTS allow_all_agents BOOLEAN DEFAULT TRUE;
+        ALTER TABLE service_groups ADD COLUMN IF NOT EXISTS allowed_agents JSONB DEFAULT '[]';
+    `);
+
     // Migra registros legados: copia de coordinates para latitude/longitude
     const { rows } = await cenos_pool.query("SELECT id, coordinates FROM service_notes WHERE coordinates IS NOT NULL AND (latitude IS NULL OR longitude IS NULL)");
     for (const row of rows) {
@@ -106,16 +112,23 @@ async function getServiceGroupById(id) {
     return rows[0] || null;
 }
 
-async function createServiceGroup({ name, description, completion_config, created_by }) {
+async function createServiceGroup({ name, description, completion_config, allow_all_agents, allowed_agents, created_by }) {
     await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query(
-        `INSERT INTO service_groups (name, description, completion_config, created_by) VALUES ($1, $2, $3, $4) RETURNING *`,
-        [name, description || null, JSON.stringify(completion_config || {}), created_by || null]
+        `INSERT INTO service_groups (name, description, completion_config, allow_all_agents, allowed_agents, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [
+            name,
+            description || null,
+            JSON.stringify(completion_config || {}),
+            allow_all_agents !== undefined ? allow_all_agents : true,
+            JSON.stringify(allowed_agents || []),
+            created_by || null
+        ]
     );
     return rows[0];
 }
 
-async function updateServiceGroup(id, { name, description, completion_config }) {
+async function updateServiceGroup(id, { name, description, completion_config, allow_all_agents, allowed_agents }) {
     await ensureServiceNotesTables();
     const updates = [];
     const params = [];
@@ -123,6 +136,8 @@ async function updateServiceGroup(id, { name, description, completion_config }) 
     if (name !== undefined) { updates.push(`name = $${idx}`); params.push(name); idx++; }
     if (description !== undefined) { updates.push(`description = $${idx}`); params.push(description); idx++; }
     if (completion_config !== undefined) { updates.push(`completion_config = $${idx}`); params.push(JSON.stringify(completion_config)); idx++; }
+    if (allow_all_agents !== undefined) { updates.push(`allow_all_agents = $${idx}`); params.push(allow_all_agents); idx++; }
+    if (allowed_agents !== undefined) { updates.push(`allowed_agents = $${idx}`); params.push(JSON.stringify(allowed_agents)); idx++; }
     if (updates.length === 0) return null;
     updates.push('updated_at = NOW()');
     params.push(id);
@@ -173,9 +188,9 @@ async function listServiceNotes({ groupId, status, assignedTo, archived, unassig
     if (archived !== undefined) { query += ` AND sn.archived = $${idx}`; params.push(archived); idx++; }
     if (groupId) { query += ` AND sn.group_id = $${idx}`; params.push(groupId); idx++; }
     if (status) { query += ` AND sn.status = $${idx}`; params.push(status); idx++; }
-    if (assignedTo) { query += ` AND sn.assigned_to = $${idx}`; params.push(assignedTo); idx++; }
     if (unassigned) { query += ' AND sn.assigned_to IS NULL'; }
     else if (assignedTo === '__any__') { query += ' AND sn.assigned_to IS NOT NULL'; }
+    else if (assignedTo) { query += ` AND sn.assigned_to = $${idx}`; params.push(assignedTo); idx++; }
     if (categoryId) { query += ` AND sn.marker_category_id = $${idx}`; params.push(categoryId); idx++; }
     if (createdFrom) { query += ` AND sn.created_at >= $${idx}`; params.push(createdFrom); idx++; }
     if (createdTo) { query += ` AND sn.created_at <= $${idx}`; params.push(createdTo + 'T23:59:59'); idx++; }
@@ -224,7 +239,7 @@ async function createServiceNote({ group_id, title, description, coordinates, la
 
 async function updateServiceNote(id, fields) {
     await ensureServiceNotesTables();
-    const allowed = ['title', 'description', 'coordinates', 'latitude', 'longitude', 'address', 'marker_category_id', 'status'];
+    const allowed = ['title', 'description', 'coordinates', 'latitude', 'longitude', 'address', 'marker_category_id', 'status', 'group_id', 'archived'];
     const updates = [];
     const params = [];
     let idx = 1;
@@ -331,8 +346,15 @@ async function completeServiceNote(noteId, { agentId, coordinates, completionDat
     await ensureServiceNotesTables();
     const validCoords = validateCoordinates(coordinates);
     const { rows } = await cenos_pool.query(
-        `UPDATE service_notes SET status = 'CONCLUIDO', completed_by = $1, completed_at = $2, completion_coordinates = $3, completion_data = $4, updated_at = NOW()
-         WHERE id = $5 AND assigned_to = $1 RETURNING *`,
+        `UPDATE service_notes 
+         SET status = 'CONCLUIDO', 
+             completed_by = $1, 
+             assigned_to = COALESCE(assigned_to, $1),
+             completed_at = $2, 
+             completion_coordinates = $3, 
+             completion_data = $4, 
+             updated_at = NOW()
+         WHERE id = $5 AND (assigned_to = $1 OR assigned_to IS NULL) RETURNING *`,
         [agentId, completedAt || new Date().toISOString(), validCoords || null, completionData ? JSON.stringify(completionData) : null, noteId]
     );
     return rows[0] || null;
@@ -402,7 +424,11 @@ async function getAssignedNotes(agentId) {
          FROM service_notes sn
          LEFT JOIN marker_categories mc ON sn.marker_category_id = mc.id
          LEFT JOIN service_groups sg ON sn.group_id = sg.id
-         WHERE sn.assigned_to = $1 AND sn.archived = false
+          WHERE sn.archived = false AND
+                sn.assigned_to = $1 AND (
+                    COALESCE(sg.allow_all_agents, true) = true OR
+                    (sg.allowed_agents IS NOT NULL AND sg.allowed_agents @> jsonb_build_array($1::text))
+                )
          ORDER BY sn.status ASC, sn.created_at DESC`, [agentId]
     );
     return rows;
@@ -431,6 +457,43 @@ async function adminCompleteNote(noteId, { adminId, completionData }) {
     return rows[0] || null;
 }
 
+// ==========================================
+// RESTAURACAO (Admin)
+// ==========================================
+
+async function restoreServiceNoteCompletion(id) {
+    await ensureServiceNotesTables();
+    const { rows } = await cenos_pool.query(
+        `UPDATE service_notes 
+         SET status = 'PENDENTE', 
+             completed_by = NULL, 
+             completed_at = NULL, 
+             completion_coordinates = NULL, 
+             completion_data = NULL, 
+             assigned_to = NULL,
+             updated_at = NOW()
+         WHERE id = $1 RETURNING *`,
+        [id]
+    );
+    return rows[0] || null;
+}
+
+async function bulkRestore(serviceIds) {
+    await ensureServiceNotesTables();
+    await cenos_pool.query(
+        `UPDATE service_notes 
+         SET status = 'PENDENTE', 
+             completed_by = NULL, 
+             completed_at = NULL, 
+             completion_coordinates = NULL, 
+             completion_data = NULL, 
+             assigned_to = NULL,
+             updated_at = NOW()
+         WHERE id = ANY($1::int[])`,
+        [serviceIds]
+    );
+}
+
 module.exports = {
     ensureServiceNotesTables,
     validateCoordinates,
@@ -441,4 +504,5 @@ module.exports = {
     completeServiceNote, adminCompleteNote, selfRegisterServiceNote,
     bulkInsertServiceNotes,
     getAssignedNotes,
+    restoreServiceNoteCompletion, bulkRestore,
 };
