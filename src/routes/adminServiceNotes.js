@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
+const { cenos_pool } = require('../db');
 const {
     listServiceGroups, getServiceGroupById, createServiceGroup, updateServiceGroup, deleteServiceGroup,
     listCategoriesByGroup, createCategory, deleteCategory,
@@ -10,6 +11,21 @@ const {
     bulkInsertServiceNotes, adminCompleteNote,
     restoreServiceNoteCompletion, bulkRestore,
 } = require('../functions/database/serviceNotes');
+
+async function notifyAssignedAgents(serviceIds) {
+    if (!global.sendLiveNotification || !serviceIds || serviceIds.length === 0) return;
+    try {
+        const { rows } = await cenos_pool.query(
+            'SELECT DISTINCT assigned_to FROM service_notes WHERE id = ANY($1::int[]) AND assigned_to IS NOT NULL',
+            [serviceIds]
+        );
+        rows.forEach(row => {
+            global.sendLiveNotification(row.assigned_to, { type: 'service_notes_updated' });
+        });
+    } catch (e) {
+        console.warn('[notifyAssignedAgents] Erro:', e.message);
+    }
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -39,9 +55,9 @@ router.get('/groups/:id', verifyToken(), verifyModule('service_notes'), async (r
 
 router.post('/groups', verifyToken(), verifyModule('create_service_note'), async (req, res) => {
     try {
-        const { name, description, completion_config, allow_all_agents, allowed_agents } = req.body;
+        const { name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation } = req.body;
         if (!name) return res.status(400).json({ error: 'Nome obrigatorio' });
-        const group = await createServiceGroup({ name, description, completion_config, allow_all_agents, allowed_agents, created_by: req.user.id });
+        const group = await createServiceGroup({ name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation, created_by: req.user.id });
         res.status(201).json(group);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -150,8 +166,10 @@ router.post('/', verifyToken(), verifyModule('create_service_note'), async (req,
 
 router.put('/:id', verifyToken(), verifyModule('update_service_note'), async (req, res) => {
     try {
+        await notifyAssignedAgents([req.params.id]);
         const note = await updateServiceNote(req.params.id, req.body);
         if (!note) return res.status(404).json({ error: 'Nota nao encontrada' });
+        await notifyAssignedAgents([req.params.id]);
         res.json(note);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -160,6 +178,7 @@ router.put('/:id', verifyToken(), verifyModule('update_service_note'), async (re
 
 router.delete('/:id', verifyToken(), verifyModule('delete_service_note'), async (req, res) => {
     try {
+        await notifyAssignedAgents([req.params.id]);
         const note = await deleteServiceNote(req.params.id);
         if (!note) return res.status(404).json({ error: 'Nota nao encontrada' });
         res.json({ success: true, deleted: note });
@@ -175,7 +194,11 @@ router.delete('/:id', verifyToken(), verifyModule('delete_service_note'), async 
 router.put('/:id/assign', verifyToken(), verifyModule('assign_service_notes'), async (req, res) => {
     try {
         const { userId } = req.body;
+        await notifyAssignedAgents([req.params.id]);
         await assignServiceNote(req.params.id, userId || null, req.user.id);
+        if (userId && global.sendLiveNotification) {
+            global.sendLiveNotification(userId, { type: 'service_notes_updated' });
+        }
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -186,7 +209,11 @@ router.post('/bulk-assign', verifyToken(), verifyModule('assign_service_notes'),
     try {
         const { serviceIds, userId } = req.body;
         if (!serviceIds || !Array.isArray(serviceIds)) return res.status(400).json({ error: 'serviceIds obrigatorio (array)' });
+        await notifyAssignedAgents(serviceIds);
         await bulkAssign(serviceIds, userId || null, req.user.id);
+        if (userId && global.sendLiveNotification) {
+            global.sendLiveNotification(userId, { type: 'service_notes_updated' });
+        }
         res.json({ success: true, count: serviceIds.length });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -208,6 +235,7 @@ router.post('/bulk-delete', verifyToken(), verifyModule('delete_service_note'), 
     try {
         const { serviceIds } = req.body;
         if (!serviceIds || !Array.isArray(serviceIds)) return res.status(400).json({ error: 'serviceIds obrigatorio' });
+        await notifyAssignedAgents(serviceIds);
         await bulkDelete(serviceIds);
         res.json({ success: true, count: serviceIds.length });
     } catch (err) {
@@ -219,6 +247,7 @@ router.post('/bulk-archive', verifyToken(), verifyModule('update_service_note'),
     try {
         const { serviceIds } = req.body;
         if (!serviceIds || !Array.isArray(serviceIds)) return res.status(400).json({ error: 'serviceIds obrigatorio' });
+        await notifyAssignedAgents(serviceIds);
         await bulkArchive(serviceIds);
         res.json({ success: true, count: serviceIds.length });
     } catch (err) {
@@ -230,6 +259,7 @@ router.post('/bulk-unarchive', verifyToken(), verifyModule('update_service_note'
     try {
         const { serviceIds } = req.body;
         if (!serviceIds || !Array.isArray(serviceIds)) return res.status(400).json({ error: 'serviceIds obrigatorio' });
+        await notifyAssignedAgents(serviceIds);
         await bulkUnarchive(serviceIds);
         res.json({ success: true, count: serviceIds.length });
     } catch (err) {
@@ -241,6 +271,7 @@ router.post('/bulk-move', verifyToken(), verifyModule('update_service_note'), as
     try {
         const { serviceIds, targetGroupId } = req.body;
         if (!serviceIds || !Array.isArray(serviceIds) || !targetGroupId) return res.status(400).json({ error: 'serviceIds e targetGroupId obrigatorios' });
+        await notifyAssignedAgents(serviceIds);
         await bulkMove(serviceIds, targetGroupId);
         res.json({ success: true, count: serviceIds.length });
     } catch (err) {
@@ -313,6 +344,7 @@ router.post('/import', verifyToken(), verifyModule('import_service_notes'), uplo
 
 router.post('/:id/restore', verifyToken(), verifyModule('update_service_note'), async (req, res) => {
     try {
+        await notifyAssignedAgents([req.params.id]);
         const note = await restoreServiceNoteCompletion(req.params.id);
         if (!note) return res.status(404).json({ error: 'Nota nao encontrada' });
         res.json(note);
@@ -325,6 +357,7 @@ router.post('/bulk-restore', verifyToken(), verifyModule('update_service_note'),
     try {
         const { serviceIds } = req.body;
         if (!serviceIds || !Array.isArray(serviceIds)) return res.status(400).json({ error: 'serviceIds obrigatorio (array)' });
+        await notifyAssignedAgents(serviceIds);
         await bulkRestore(serviceIds);
         res.json({ success: true, count: serviceIds.length });
     } catch (err) {

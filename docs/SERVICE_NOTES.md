@@ -1,6 +1,6 @@
 # Notas de Serviço (Service Notes) e Grupos
 
-Este documento descreve os endpoints operacionais e administrativos de Notas de Serviço e Grupos de Serviços.
+Este documento descreve os endpoints operacionais e administrativos de Notas de Serviço e Grupos de Serviços, incluindo arquitetura offline-first, sincronização em tempo real e resolução de conflitos.
 
 ---
 
@@ -180,8 +180,8 @@ Atualiza parcialmente uma nota de serviço. A partir da versão atual, os campos
 | `longitude` | number | Longitude numérica |
 | `marker_category_id` | number | ID da categoria de marcador |
 | `status` | string | Status `PENDENTE` ou `CONCLUIDO` |
-| `group_id` | number | **Novo** — Move a nota para o grupo com este ID |
-| `archived` | boolean | **Novo** — Arquiva (`true`) ou desarquiva (`false`) a nota |
+| `group_id` | number | Move a nota para o grupo com este ID |
+| `archived` | boolean | Arquiva (`true`) ou desarquiva (`false`) a nota |
 
 **Body de Exemplo (mover de grupo):**
 ```json
@@ -189,6 +189,8 @@ Atualiza parcialmente uma nota de serviço. A partir da versão atual, os campos
   "group_id": 4
 }
 ```
+
+**Socket:** Se `archived` for alterado, emite `live_notification { type: 'service_notes_updated' }` para o agente atribuído à nota.
 
 ---
 
@@ -290,6 +292,8 @@ Arquiva ou restaura logicamente as notas de serviço (removendo-as do dia a dia 
 }
 ```
 
+**Socket:** Antes de arquivar/restaurar, emite `live_notification { type: 'service_notes_updated' }` para cada agente atribuído às notas afetadas. Isso faz o frontend do agente recarregar os serviços imediatamente.
+
 ---
 
 ### `POST /admin/service-notes/bulk-delete`
@@ -306,19 +310,56 @@ Deleta fisicamente múltiplos registros no banco de dados.
 
 ## 5. Operações de Campo (Agente de Campo - PWA/Mini App)
 
-### `GET /public/service-notes`
-Retorna as notas de serviço ativas atribuídas ao agente requisitante (identificado pela sessão JWT/Telegram).
+### `GET /agent/service-notes`
+Retorna as notas de serviço ativas (não arquivadas) atribuídas ao agente.
+
+**Query SQL:** `WHERE sn.archived = false AND sn.assigned_to = $1`
 
 **Headers:** `X-Telegram-Init-Data: <token>`
 
-**Resposta 200:** Array de notas atribuídas de status `PENDENTE` ou concluídas recentemente.
+**Resposta 200:** Array de notas atribuídas com status PENDENTE ou CONCLUIDO, ordenadas por status ASC, created_at DESC.
 
 ---
 
-### `PUT /public/service-notes/:id/complete`
-Técnico encerra uma nota de serviço de campo respondendo ao formulário dinâmico.
+### `GET /agent/service-notes/groups/visible-with-counts`
+Lista grupos visíveis ao agente com contagens totais e concluídas.
 
 **Headers:** `X-Telegram-Init-Data: <token>`
+
+**Query SQL:** LEFT JOIN com `sn.archived = false` no JOIN, agrupando por `sg.id`. Inclui grupos públicos (`allow_all_agents = true`) e grupos com o agente na lista `allowed_agents`.
+
+**Resposta 200:**
+```json
+[
+  {
+    "id": 1,
+    "name": "Corte e Religação",
+    "total_notes": 15,
+    "done_notes": 10
+  }
+]
+```
+
+---
+
+### `GET /agent/service-notes/groups/:groupId/notes`
+Retorna todas as notas de um grupo específico.
+
+**Headers:** `X-Telegram-Init-Data: <token>`
+
+**Regras de visibilidade:**
+- **Grupo público** (`allow_all_agents = true`): Retorna TODAS as notas do grupo com `archived = false`.
+- **Grupo restrito**: Retorna apenas notas atribuídas ao agente.
+
+---
+
+### `PUT /agent/service-notes/:id/complete`
+Técnico conclui uma nota de serviço respondendo ao formulário dinâmico.
+
+**Headers:** `X-Telegram-Init-Data: <token>`
+
+**Resolução de Conflitos (first-to-sync-wins):**
+A query SQL inclui `AND status = 'PENDENTE'` — apenas notas pendentes podem ser concluídas. Se outro agente ou admin já concluiu a nota, o backend retorna `200 { alreadyCompleted: true }` em vez de erro, para que a fila de sincronização não retente.
 
 **Body:**
 ```json
@@ -334,15 +375,17 @@ Técnico encerra uma nota de serviço de campo respondendo ao formulário dinâm
 
 ---
 
-### `POST /public/groups/:groupId/service-notes` (Auto-registro de Campo)
-Permite ao técnico criar e concluir um ponto novo diretamente no mapa de campo, sem a existência de uma nota pré-gerada pelo administrativo.
+### `POST /agent/service-notes/self-register`
+Auto-registro de campo (Registro Rápido). Cria e conclui uma nota nova sem necessidade de nota pré-existente.
 
 **Headers:** `X-Telegram-Init-Data: <token>`
+**Requisição:** Grupo deve ter `allow_agent_creation = true`.
 
 **Body:**
 ```json
 {
-  "completionCoordinates": "-5.0895,-42.8012",
+  "groupId": 1,
+  "coordinates": "-5.0895,-42.8012",
   "completionData": {
     "tipo_acao": "Limpeza preventiva",
     "observacao": "Ponto de risco removido"
@@ -351,4 +394,128 @@ Permite ao técnico criar e concluir um ponto novo diretamente no mapa de campo,
 }
 ```
 
-**Resposta 201:** Retorna a nota gerada e auto-concluída.
+---
+
+### `GET /agent/service-notes/groups/creatable`
+Lista grupos onde o agente pode criar novos registros (`allow_agent_creation = true`).
+
+---
+
+### `GET /agent/service-notes/groups/:groupId/categories`
+Lista as categorias de marcadores disponíveis para um grupo específico.
+
+---
+
+## 6. Arquitetura de Sincronização e Offline-First
+
+### Cache no IndexedDB
+Todas as queries do agente passam por `cachedGet()` que:
+1. Tenta ler do IndexedDB (cache)
+2. Se cache válido (< TTL de 5 min) e sem `forceRefresh`, retorna cache
+3. Se online, busca do backend e atualiza cache
+4. Se offline, retorna cache (mesmo que stale)
+
+### Fila de Sincronização (Sync Queue)
+Operações offline (conclusão, auto-registro) são enfileiradas no IndexedDB:
+- **`service_note_complete`**: Conclusão de nota
+- **`service_note_self_register`**: Auto-registro de campo
+- **`service_note_create`**: Criação de nota pelo agente
+
+**Processamento:**
+1. Disparado automaticamente ao ficar online (`window.addEventListener('online')`)
+2. Retry a cada 5 minutos (`setInterval`)
+3. No boot do app se estiver online
+4. Ao clicar em refresh na página de Service Notes
+
+**Ciclo de vida do item na fila:**
+| Status | Descrição |
+|---|---|
+| `pending` | Aguardando processamento |
+| `syncing` | Em processamento no momento |
+| `synced` | Processado com sucesso — removido no próximo `clearSynced()` |
+| `failed` | Falhou após 5 tentativas — NUNCA é removido automaticamente |
+
+Itens `synced` só são removidos após chamada explícita a `clearSynced()`, garantindo que nenhum dado seja perdido antes da confirmação.
+
+### Sincronização Automática (Socket + Eventos)
+
+**Ao ficar online:**
+```
+online event → syncManager.onReconnect()
+  → photoQueue.uploadPending()     (fotos pendentes)
+  → syncQueue.process()            (envia conclusões)
+  → syncQueue.clearSynced()         (limpa apenas sucessos)
+```
+
+**Ao clicar em Refresh:**
+```
+loadNotes(true)
+  → getAssignedServiceNotes(true)   (força fetch, fallback offline)
+  → getVisibleGroups(true)
+  → getCreatableGroups(true)
+  → getGroupAllNotes(true)          (se dentro de grupo público)
+  → syncQueue.process()
+  → syncQueue.clearSynced()
+```
+
+**Admin arquiva/restaura nota:**
+```
+bulk-archive → notifyAssignedAgents(serviceIds)
+  → global.sendLiveNotification(agentId, { type: 'service_notes_updated' })
+  → frontend recebe 'live_notification' → loadNotes(true)
+```
+
+### Resolução de Conflitos (First-to-Sync-Wins)
+
+Quando dois agentes concluem a mesma nota simultaneamente:
+
+```sql
+UPDATE service_notes SET status = 'CONCLUIDO', ...
+WHERE id = $5 AND status = 'PENDENTE' AND (assigned_to = $1 OR assigned_to IS NULL)
+```
+
+1. **Agente A** sincroniza primeiro → SQL executa, status vira `CONCLUIDO`
+2. **Agente B** sincroniza depois → SQL não afeta linhas (status já é CONCLUIDO), retorna `null`
+3. Backend identifica que a nota já está concluída → retorna `200 { alreadyCompleted: true }`
+4. Frontend marca como `synced` (não retenta), dado preservado até `clearSynced()`
+
+### Prefetch no Boot (AgentContext.tsx)
+Ao iniciar o app, em background:
+- Dashboard, Predicted, Security Report, Calendar, Holidays
+- **Service Notes**: `getAssignedServiceNotes()` + `getServiceNoteDetail()` para cada nota (cache dos formulários)
+- `getVisibleGroups()` — cache dos grupos visíveis
+- `getCreatableGroups()` — cache dos grupos com permissão de criação
+
+Isso garante que o agente tenha todos os dados disponíveis offline logo ao abrir o app.
+
+### Grupos Públicos vs Restritos
+
+| Característica | Público (`allow_all_agents=true`) | Restrito |
+|---|---|---|
+| Visível na lista? | Sempre | Só se tem notas atribuídas |
+| Notas ao entrar | Todas do grupo (archived=false) | Só as atribuídas ao agente |
+| Contagens | LEFT JOIN COUNT com todas as notas | Só notas atribuídas |
+
+### Campos do Banco
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `id` | SERIAL | PK |
+| `group_id` | INTEGER | FK para service_groups |
+| `title` | VARCHAR | Título |
+| `description` | TEXT | Descrição ou JSON de campos |
+| `coordinates` | VARCHAR | "lat,lng" |
+| `latitude` | DOUBLE | Latitude |
+| `longitude` | DOUBLE | Longitude |
+| `address` | TEXT | Endereço |
+| `status` | VARCHAR | PENDENTE ou CONCLUIDO |
+| `assigned_to` | VARCHAR | Matrícula do agente |
+| `completed_by` | VARCHAR | Quem concluiu |
+| `completed_at` | TIMESTAMP | Data de conclusão |
+| `completion_coordinates` | VARCHAR | Coordenadas da conclusão |
+| `completion_data` | JSONB | Respostas do formulário |
+| `marker_category_id` | INTEGER | Categoria do marcador |
+| `self_registered` | BOOLEAN | Criado pelo próprio agente |
+| `archived` | BOOLEAN | Arquivo lógico (default false) |
+| `created_at` | TIMESTAMP | Criação |
+| `updated_at` | TIMESTAMP | Atualização |

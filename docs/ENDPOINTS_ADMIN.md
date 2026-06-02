@@ -696,6 +696,352 @@ Envia mensagem para agente(s) via um ou mais canais e registra no chat unificado
 
 ---
 
+## 11. Módulo de Notas de Serviço (Service Notes Admin)
+
+Módulo completo de gerenciamento de notas de serviço. Permite criar grupos, categorias, notas, atribuir agentes, importar/exportar e gerenciar conclusões.
+
+**Autenticação:** JWT Admin (Bearer) + módulo `service_notes`
+
+---
+
+### `GET /admin/service-notes/groups`
+
+Lista todos os grupos de serviço ordenados por criação (decrescente).
+
+**Módulo Requerido:** `service_notes`
+
+**Resposta 200 (JSON):**
+```json
+[
+  {
+    "id": 1,
+    "name": "Vistorias Semanais",
+    "description": "Vistorias da semana operacional",
+    "completion_config": {},
+    "allow_all_agents": true,
+    "allowed_agents": [],
+    "allow_agent_creation": false,
+    "created_at": "2026-05-01T10:00:00.000Z"
+  }
+]
+```
+
+---
+
+### `GET /admin/service-notes/groups/:id`
+
+Retorna detalhes de um grupo específico.
+
+**Módulo Requerido:** `service_notes`
+
+**Path Params:** `id` — ID numérico do grupo
+
+**Resposta 200 (JSON):** Objeto do grupo (mesma estrutura acima)
+
+**Resposta 404:** `{ "error": "Grupo nao encontrado" }`
+
+---
+
+### `POST /admin/service-notes/groups`
+
+Cria um novo grupo de serviço.
+
+**Módulo Requerido:** `create_service_note`
+
+**Body (JSON):**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `name` | string | **sim** | Nome do grupo |
+| `description` | string | não | Descrição |
+| `completion_config` | object | não | Configuração do formulário dinâmico |
+| `allow_all_agents` | boolean | não | Visibilidade pública (default: true) |
+| `allowed_agents` | string[] | não | Lista de agentes com acesso |
+| `allow_agent_creation` | boolean | não | Permite criação por agentes (default: false) |
+
+**Resposta 201 (JSON):** Objeto do grupo criado
+
+---
+
+### `PUT /admin/service-notes/groups/:id`
+
+Atualiza parcialmente um grupo de serviço.
+
+**Módulo Requerido:** `update_service_note`
+
+**Body (JSON):** Campos parciais (mesmos do POST)
+
+**Resposta 200 (JSON):** Objeto do grupo atualizado
+
+**Resposta 404:** `{ "error": "Grupo nao encontrado" }`
+
+---
+
+### `DELETE /admin/service-notes/groups/:id`
+
+Remove um grupo e todas as notas associadas (CASCADE).
+
+**Módulo Requerido:** `delete_service_note`
+
+**Resposta 200:** `{ "success": true, "deleted": { ... } }`
+
+---
+
+### `GET /admin/service-notes/groups/:id/categories`
+
+Lista categorias de marcador de um grupo.
+
+**Módulo Requerido:** `service_notes`
+
+**Resposta 200 (JSON):**
+```json
+[
+  { "id": 1, "group_id": 1, "name": "Urgente", "color": "#FF0000" }
+]
+```
+
+---
+
+### `POST /admin/service-notes/groups/:id/categories`
+
+Cria uma nova categoria de marcador.
+
+**Módulo Requerido:** `create_service_note`
+
+**Body (JSON):**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `name` | string | **sim** | Nome da categoria |
+| `color` | string | não | Cor hexadecimal (default: `#2563EB`) |
+
+**Resposta 201 (JSON):** Objeto da categoria criada
+
+---
+
+### `DELETE /admin/service-notes/categories/:id`
+
+Remove uma categoria de marcador.
+
+**Módulo Requerido:** `delete_service_note`
+
+---
+
+### `GET /admin/service-notes`
+
+Lista notas de serviço com filtros avançados.
+
+**Módulo Requerido:** `service_notes`
+
+**Query Params:**
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| `groupId` | number | Filtrar por grupo |
+| `status` | string | `PENDENTE` ou `CONCLUIDO` |
+| `assignedTo` | string | Matrícula do agente ou `__any__` (atribuídos) |
+| `archived` | string | `true`, `false` ou `all` |
+| `unassigned` | boolean | Apenas não atribuídos |
+| `categoryId` | number | Filtrar por categoria |
+| `createdFrom` | string (ISO) | Data inicial de criação |
+| `createdTo` | string (ISO) | Data final de criação |
+| `completedFrom` | string (ISO) | Data inicial de conclusão |
+| `completedTo` | string (ISO) | Data final de conclusão |
+
+**Resposta 200 (JSON):**
+```json
+[
+  {
+    "id": 1,
+    "group_id": 1,
+    "title": "Vistoria na Rua A",
+    "description": "Verificar medidor",
+    "status": "PENDENTE",
+    "assigned_to": "T001",
+    "group_name": "Vistorias",
+    "category_name": "Urgente",
+    "category_color": "#FF0000",
+    "created_at": "2026-05-01T10:00:00.000Z"
+  }
+]
+```
+
+---
+
+### `GET /admin/service-notes/:id`
+
+Detalhes de uma nota de serviço.
+
+**Módulo Requerido:** `service_notes`
+
+**Resposta 200 (JSON):** Objeto da nota com `completion_config` do grupo
+
+**Resposta 404:** `{ "error": "Nota nao encontrada" }`
+
+---
+
+### `POST /admin/service-notes`
+
+Cria uma nova nota de serviço (admin).
+
+**Módulo Requerido:** `create_service_note`
+
+**Body (JSON):**
+| Campo | Tipo | Obrigatório |
+|---|---|---|
+| `group_id` | number | **sim** |
+| `title` | string | **sim** |
+| `description` | string | não |
+| `coordinates` | string | não |
+| `latitude` | number | não |
+| `longitude` | number | não |
+| `address` | string | não |
+| `marker_category_id` | number | não |
+
+---
+
+### `PUT /admin/service-notes/:id`
+
+Atualiza uma nota de serviço.
+
+**Módulo Requerido:** `update_service_note`
+
+---
+
+### `DELETE /admin/service-notes/:id`
+
+Remove uma nota de serviço.
+
+**Módulo Requerido:** `delete_service_note`
+
+---
+
+### `PUT /admin/service-notes/:id/assign`
+
+Atribui ou desatribui uma nota a um agente.
+
+**Módulo Requerido:** `assign_service_notes`
+
+**Body:**
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `userId` | string \| null | Matrícula do agente ou `null` para desatribuir |
+
+---
+
+### `POST /admin/service-notes/bulk-assign`
+
+Atribuição em lote.
+
+**Módulo Requerido:** `assign_service_notes`
+
+**Body:**
+| Campo | Tipo |
+|---|---|
+| `serviceIds` | number[] |
+| `userId` | string \| null |
+
+---
+
+### `POST /admin/service-notes/bulk-category`
+
+Altera categoria em lote.
+
+**Módulo Requerido:** `update_service_note`
+
+**Body:**
+| Campo | Tipo |
+|---|---|
+| `serviceIds` | number[] |
+| `markerCategoryId` | number \| null |
+
+---
+
+### `POST /admin/service-notes/bulk-delete`
+
+Exclusão em lote.
+
+**Módulo Requerido:** `delete_service_note`
+
+**Body:** `{ "serviceIds": number[] }`
+
+---
+
+### `POST /admin/service-notes/bulk-archive`
+
+Arquivamento em lote.
+
+**Módulo Requerido:** `update_service_note`
+
+---
+
+### `POST /admin/service-notes/bulk-unarchive`
+
+Restaura arquivamento em lote.
+
+**Módulo Requerido:** `update_service_note`
+
+---
+
+### `POST /admin/service-notes/bulk-move`
+
+Move notas entre grupos em lote.
+
+**Módulo Requerido:** `update_service_note`
+
+**Body:**
+| Campo | Tipo |
+|---|---|
+| `serviceIds` | number[] |
+| `targetGroupId` | number |
+
+---
+
+### `PUT /admin/service-notes/:id/complete`
+
+Conclusão manual (admin) de uma nota de serviço.
+
+**Módulo Requerido:** `update_service_note`
+
+**Body:**
+| Campo | Tipo |
+|---|---|
+| `completionData` | object \| null |
+
+---
+
+### `POST /admin/service-notes/:id/restore`
+
+Restaura uma nota concluída para PENDENTE.
+
+**Módulo Requerido:** `update_service_note`
+
+---
+
+### `POST /admin/service-notes/bulk-restore`
+
+Restaura múltiplas notas em lote.
+
+**Módulo Requerido:** `update_service_note`
+
+**Body:** `{ "serviceIds": number[] }`
+
+---
+
+### `POST /admin/service-notes/import`
+
+Importa notas a partir de arquivo XLSX ou array JSON.
+
+**Módulo Requerido:** `import_service_notes`
+
+**Content-Type:** `multipart/form-data`
+
+**Campos:**
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `groupId` | number | **sim** — Grupo de destino |
+| `file` | File | Arquivo .xlsx com colunas title/titulo, description/descricao, address/endereco, latitude, longitude |
+| `notes` | JSON array | Alternativa ao file: array de objetos |
+
+---
+
 ### `GET /admin/messages/notifications/:agentId`
 
 Consulta histórico de notificações de um agente específico com filtros.

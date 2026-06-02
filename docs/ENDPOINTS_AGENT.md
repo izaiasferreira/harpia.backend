@@ -392,3 +392,209 @@ Marca instantaneamente todas as mensagens recebidas na sala especificada como li
 }
 ```
 
+---
+
+## 9. Módulo de Notas de Serviço (Service Notes)
+
+Endpoints consumidos pelo app do agente para visualização, conclusão e criação de notas de serviço em campo.
+
+### `GET /agent/service-notes`
+
+Retorna todas as notas de serviço atribuídas ao agente autenticado, incluindo metadados do grupo e categoria. Notas arquivadas são excluídas.
+
+**Headers:** `X-Telegram-Init-Data`
+
+**Resposta 200 (JSON):**
+```json
+[
+  {
+    "id": 1,
+    "group_id": 1,
+    "title": "Vistoria na Rua A",
+    "description": "Verificar medidor 12345",
+    "coordinates": "-5.089,-42.801",
+    "latitude": -5.089,
+    "longitude": -42.801,
+    "address": "Rua A, 123",
+    "status": "PENDENTE",
+    "assigned_to": "T001",
+    "self_registered": false,
+    "group_name": "Vistorias Semanais",
+    "category_name": "Urgente",
+    "category_color": "#FF0000",
+    "completion_config": { "formFields": [] },
+    "created_at": "2026-05-01T10:00:00.000Z"
+  }
+]
+```
+
+---
+
+### `GET /agent/service-notes/:id`
+
+Retorna os detalhes completos de uma nota de serviço específica, incluindo `completion_config` do grupo para renderização do formulário de conclusão.
+
+**Headers:** `X-Telegram-Init-Data`
+
+**Path Params:** `id` — ID numérico da nota
+
+**Resposta 200 (JSON):** Objeto da nota (mesma estrutura do array acima).
+
+**Resposta 404:**
+```json
+{ "error": "Nota nao encontrada" }
+```
+
+---
+
+### `PUT /agent/service-notes/:id/complete`
+
+Conclui uma nota de serviço atribuída ao agente. Atribui automaticamente se `assigned_to` estiver nulo. Requer que a nota esteja atribuída ao agente ou não atribuída.
+
+**Headers:** `X-Telegram-Init-Data`
+
+**Path Params:** `id` — ID numérico da nota
+
+**Body (JSON):**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `coordinates` | string | não | Coordenadas GPS no formato `"lat,lng"` |
+| `completionData` | object | não | Dados do formulário dinâmico de conclusão |
+| `completedAt` | string (ISO) | não | Timestamp de conclusão (default: now) |
+
+**Resposta 200:**
+```json
+{
+  "success": true,
+  "note": { "id": 1, "status": "CONCLUIDO", "completed_by": "T001", ... }
+}
+```
+
+**Resposta 404:**
+```json
+{ "error": "Nota nao encontrada ou nao atribuida a voce" }
+```
+
+---
+
+### `POST /agent/service-notes/self-register`
+
+Auto-registro de serviço em campo com conclusão imediata (status `CONCLUIDO`). Disponível apenas em grupos com `allow_agent_creation = true` e visibilidade ao agente.
+
+**Headers:** `X-Telegram-Init-Data`
+
+**Body (JSON):**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `groupId` | number | **sim** | ID do grupo |
+| `title` | string | não | Título (auto-gerado se omitido: "Registro – {grupo} – {data}") |
+| `coordinates` | string | não | Coordenadas GPS `"lat,lng"` |
+| `completionData` | object | não | Respostas do formulário dinâmico |
+| `completedAt` | string (ISO) | não | Timestamp de conclusão |
+
+**Resposta 201:**
+```json
+{
+  "success": true,
+  "note": { "id": 99, "status": "CONCLUIDO", "self_registered": true, "assigned_to": "T001", ... }
+}
+```
+
+**Resposta 400:**
+```json
+{ "error": "groupId obrigatorio" }
+```
+
+**Resposta 403:**
+```json
+{ "error": "Este grupo nao permite criacao de servicos por agentes" }
+```
+
+---
+
+### `POST /agent/service-notes/create`
+
+Cria uma nova nota de serviço com status `PENDENTE`. Disponível apenas em grupos com `allow_agent_creation = true` e visibilidade ao agente.
+
+**Headers:** `X-Telegram-Init-Data`
+
+**Body (JSON):**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `group_id` | number | **sim** | ID do grupo |
+| `title` | string | **sim** | Título da nota |
+| `description` | string | não | Descrição detalhada |
+| `coordinates` | string | não | Coordenadas `"lat,lng"` |
+| `latitude` | number | não | Latitude (alternativa a coordinates) |
+| `longitude` | number | não | Longitude (alternativa a coordinates) |
+| `address` | string | não | Endereço textual |
+| `marker_category_id` | number | não | ID da categoria de marcador |
+| `assignToSelf` | boolean | não | Auto-atribuir ao agente (default: false) |
+
+**Resposta 201:**
+```json
+{
+  "success": true,
+  "note": { "id": 100, "status": "PENDENTE", "assigned_to": "T001", "self_registered": true, ... }
+}
+```
+
+**Resposta 400:**
+```json
+{ "error": "group_id obrigatorio" }
+```
+
+**Resposta 403:**
+```json
+{ "error": "Este grupo nao permite criacao de servicos por agentes" }
+```
+
+---
+
+### `GET /agent/service-notes/groups/visible`
+
+Lista todos os grupos visíveis ao agente (públicos ou com o agente na lista `allowed_agents`), independente de permissão de criação. Usado para exibir grupos no mapa mesmo sem permissão de cadastro.
+
+**Headers:** `X-Telegram-Init-Data`
+
+**Resposta 200 (JSON):**
+```json
+[
+  { "id": 1, "name": "Grupo Público", "allow_all_agents": true, "allow_agent_creation": false },
+  { "id": 2, "name": "Grupo Restrito", "allow_all_agents": false, "allowed_agents": ["T001"], "allow_agent_creation": true }
+]
+```
+
+---
+
+### `GET /agent/service-notes/groups/creatable`
+
+Lista apenas grupos onde o agente pode criar serviços (`allow_agent_creation = true` + visibilidade). Usado no seletor de grupo ao criar uma nova nota de serviço.
+
+**Headers:** `X-Telegram-Init-Data`
+
+**Resposta 200 (JSON):**
+```json
+[
+  { "id": 1, "name": "Grupo Público", "allow_agent_creation": true, "completion_config": { "formFields": [...] } }
+]
+```
+
+---
+
+### `GET /agent/service-notes/groups/:groupId/categories`
+
+Lista as categorias de marcador disponíveis em um grupo.
+
+**Headers:** `X-Telegram-Init-Data`
+
+**Path Params:** `groupId` — ID numérico do grupo
+
+**Resposta 200 (JSON):**
+```json
+[
+  { "id": 1, "group_id": 1, "name": "Urgente", "color": "#FF0000" },
+  { "id": 2, "group_id": 1, "name": "Programado", "color": "#00FF00" }
+]
+```
+

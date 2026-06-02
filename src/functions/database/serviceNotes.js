@@ -67,6 +67,7 @@ async function ensureServiceNotesTables() {
     await cenos_pool.query(`
         ALTER TABLE service_groups ADD COLUMN IF NOT EXISTS allow_all_agents BOOLEAN DEFAULT TRUE;
         ALTER TABLE service_groups ADD COLUMN IF NOT EXISTS allowed_agents JSONB DEFAULT '[]';
+        ALTER TABLE service_groups ADD COLUMN IF NOT EXISTS allow_agent_creation BOOLEAN DEFAULT FALSE;
     `);
 
     // Migra registros legados: copia de coordinates para latitude/longitude
@@ -112,23 +113,24 @@ async function getServiceGroupById(id) {
     return rows[0] || null;
 }
 
-async function createServiceGroup({ name, description, completion_config, allow_all_agents, allowed_agents, created_by }) {
+async function createServiceGroup({ name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation, created_by }) {
     await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query(
-        `INSERT INTO service_groups (name, description, completion_config, allow_all_agents, allowed_agents, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        `INSERT INTO service_groups (name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
         [
             name,
             description || null,
             JSON.stringify(completion_config || {}),
             allow_all_agents !== undefined ? allow_all_agents : true,
             JSON.stringify(allowed_agents || []),
+            allow_agent_creation !== undefined ? allow_agent_creation : false,
             created_by || null
         ]
     );
     return rows[0];
 }
 
-async function updateServiceGroup(id, { name, description, completion_config, allow_all_agents, allowed_agents }) {
+async function updateServiceGroup(id, { name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation }) {
     await ensureServiceNotesTables();
     const updates = [];
     const params = [];
@@ -138,6 +140,7 @@ async function updateServiceGroup(id, { name, description, completion_config, al
     if (completion_config !== undefined) { updates.push(`completion_config = $${idx}`); params.push(JSON.stringify(completion_config)); idx++; }
     if (allow_all_agents !== undefined) { updates.push(`allow_all_agents = $${idx}`); params.push(allow_all_agents); idx++; }
     if (allowed_agents !== undefined) { updates.push(`allowed_agents = $${idx}`); params.push(JSON.stringify(allowed_agents)); idx++; }
+    if (allow_agent_creation !== undefined) { updates.push(`allow_agent_creation = $${idx}`); params.push(allow_agent_creation); idx++; }
     if (updates.length === 0) return null;
     updates.push('updated_at = NOW()');
     params.push(id);
@@ -348,13 +351,13 @@ async function completeServiceNote(noteId, { agentId, coordinates, completionDat
     const { rows } = await cenos_pool.query(
         `UPDATE service_notes 
          SET status = 'CONCLUIDO', 
-             completed_by = $1, 
-             assigned_to = COALESCE(assigned_to, $1),
-             completed_at = $2, 
-             completion_coordinates = $3, 
-             completion_data = $4, 
-             updated_at = NOW()
-         WHERE id = $5 AND (assigned_to = $1 OR assigned_to IS NULL) RETURNING *`,
+              completed_by = $1, 
+              assigned_to = COALESCE(assigned_to, $1),
+              completed_at = $2, 
+              completion_coordinates = $3, 
+              completion_data = $4, 
+              updated_at = NOW()
+          WHERE id = $5 AND status = 'PENDENTE' AND (assigned_to = $1 OR assigned_to IS NULL) RETURNING *`,
         [agentId, completedAt || new Date().toISOString(), validCoords || null, completionData ? JSON.stringify(completionData) : null, noteId]
     );
     return rows[0] || null;
@@ -362,13 +365,114 @@ async function completeServiceNote(noteId, { agentId, coordinates, completionDat
 
 async function selfRegisterServiceNote({ groupId, agentId, title, coordinates, completionData, completedAt }) {
     await ensureServiceNotesTables();
+
+    const group = await getServiceGroupById(groupId);
+    if (!group) throw new Error('Grupo nao encontrado');
+
+    if (!group.allow_agent_creation) throw new Error('Este grupo nao permite criacao de servicos por agentes');
+
+    const isVisible = group.allow_all_agents ||
+        (Array.isArray(group.allowed_agents) && group.allowed_agents.includes(agentId));
+    if (!isVisible) throw new Error('Voce nao tem permissao para registrar servicos neste grupo');
+
     const validCoords = validateCoordinates(coordinates);
+    const autoTitle = title || `Registro – ${group.name} – ${new Date().toLocaleDateString('pt-BR')}`;
     const { rows } = await cenos_pool.query(
         `INSERT INTO service_notes (group_id, title, coordinates, status, assigned_to, completed_by, completed_at, completion_coordinates, completion_data, self_registered)
          VALUES ($1, $2, $3, 'CONCLUIDO', $4, $4, $5, $3, $6, true) RETURNING *`,
-        [groupId, title || 'Auto-registro', validCoords || null, agentId, completedAt || new Date().toISOString(), completionData ? JSON.stringify(completionData) : null]
+        [groupId, autoTitle, validCoords || null, agentId, completedAt || new Date().toISOString(), completionData ? JSON.stringify(completionData) : null]
     );
     return rows[0];
+}
+
+// ==========================================
+// CRIACAO PELO AGENTE (com status PENDENTE)
+// ==========================================
+
+async function createAgentServiceNote({ group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, agentId, assignToSelf }) {
+    await ensureServiceNotesTables();
+
+    const group = await getServiceGroupById(group_id);
+    if (!group) throw new Error('Grupo nao encontrado');
+
+    if (!group.allow_agent_creation) throw new Error('Este grupo nao permite criacao de servicos por agentes');
+
+    const isVisible = group.allow_all_agents ||
+        (Array.isArray(group.allowed_agents) && group.allowed_agents.includes(agentId));
+    if (!isVisible) throw new Error('Voce nao tem permissao para criar servicos neste grupo');
+
+    let latVal = latitude !== undefined ? parseFloat(latitude) : null;
+    let lngVal = longitude !== undefined ? parseFloat(longitude) : null;
+    let coordVal = coordinates;
+
+    if (coordinates && (latVal === null || lngVal === null)) {
+        const parts = String(coordinates).split(',');
+        if (parts.length === 2) {
+            latVal = parseFloat(parts[0].trim());
+            lngVal = parseFloat(parts[1].trim());
+        }
+    } else if (latVal !== null && lngVal !== null && !coordinates) {
+        coordVal = `${latVal},${lngVal}`;
+    }
+
+    const assignTo = assignToSelf ? agentId : null;
+
+    const { rows } = await cenos_pool.query(
+        `INSERT INTO service_notes (group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, assigned_to, self_registered)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true) RETURNING *`,
+        [group_id, title, description || null, coordVal || null, latVal, lngVal, address || null, marker_category_id || null, assignTo]
+    );
+
+    if (assignTo) {
+        await cenos_pool.query(
+            'INSERT INTO service_assignments (service_note_id, agent_id, assigned_by) VALUES ($1, $2, $3)',
+            [rows[0].id, agentId, null]
+        );
+    }
+
+    return rows[0];
+}
+
+async function listCreatableGroups(agentId) {
+    await ensureServiceNotesTables();
+    const { rows } = await cenos_pool.query(
+        `SELECT * FROM service_groups
+         WHERE allow_agent_creation = true
+           AND (allow_all_agents = true
+                OR (allowed_agents IS NOT NULL AND allowed_agents @> jsonb_build_array($1::text)))
+         ORDER BY name`,
+        [agentId]
+    );
+    return rows;
+}
+
+async function listVisibleGroups(agentId) {
+    await ensureServiceNotesTables();
+    const { rows } = await cenos_pool.query(
+        `SELECT * FROM service_groups
+         WHERE allow_all_agents = true
+            OR (allowed_agents IS NOT NULL AND allowed_agents @> jsonb_build_array($1::text))
+         ORDER BY name`,
+        [agentId]
+    );
+    return rows;
+}
+
+async function listVisibleGroupsWithCounts(agentId) {
+    await ensureServiceNotesTables();
+    const { rows } = await cenos_pool.query(
+        `SELECT sg.*,
+                COUNT(sn.id) AS total_notes,
+                COUNT(sn.id) FILTER (WHERE sn.status = 'CONCLUIDO') AS done_notes
+         FROM service_groups sg
+         LEFT JOIN service_notes sn ON sn.group_id = sg.id AND sn.archived = false
+         WHERE sg.allow_all_agents = true
+            OR (sg.allowed_agents IS NOT NULL AND sg.allowed_agents @> jsonb_build_array($1::text))
+         GROUP BY sg.id
+         ORDER BY sg.name`,
+        [agentId]
+    );
+    return rows;
 }
 
 // ==========================================
@@ -424,14 +528,44 @@ async function getAssignedNotes(agentId) {
          FROM service_notes sn
          LEFT JOIN marker_categories mc ON sn.marker_category_id = mc.id
          LEFT JOIN service_groups sg ON sn.group_id = sg.id
-          WHERE sn.archived = false AND
-                sn.assigned_to = $1 AND (
-                    COALESCE(sg.allow_all_agents, true) = true OR
-                    (sg.allowed_agents IS NOT NULL AND sg.allowed_agents @> jsonb_build_array($1::text))
-                )
+         WHERE sn.archived = false AND sn.assigned_to = $1
          ORDER BY sn.status ASC, sn.created_at DESC`, [agentId]
     );
     return rows;
+}
+
+// ==========================================
+// NOTAS DE GRUPO (Agente - visibilidade)
+// ==========================================
+
+async function getGroupNotesForAgent(groupId, agentId) {
+    await ensureServiceNotesTables();
+
+    const { rows: groups } = await cenos_pool.query(
+        `SELECT * FROM service_groups WHERE id = $1`, [groupId]
+    );
+    const group = groups[0];
+    if (!group) throw new Error('Grupo nao encontrado');
+
+    const agentStr = String(agentId);
+    const isPublic = group.allow_all_agents === true;
+    const isAssigned = group.allowed_agents && group.allowed_agents.some(a => String(a) === agentStr);
+
+    if (!isPublic && !isAssigned) throw new Error('Sem permissao para ver este grupo');
+
+    if (isPublic) {
+        const { rows } = await cenos_pool.query(
+            `SELECT sn.*, mc.name as category_name, mc.color as category_color, sg.name as group_name, sg.completion_config
+             FROM service_notes sn
+             LEFT JOIN marker_categories mc ON sn.marker_category_id = mc.id
+             LEFT JOIN service_groups sg ON sn.group_id = sg.id
+             WHERE sn.archived = false AND sn.group_id = $1
+             ORDER BY sn.created_at DESC`, [groupId]
+        );
+        return rows;
+    }
+    const notes = await getAssignedNotes(agentId);
+    return notes.filter(n => Number(n.group_id) === Number(groupId));
 }
 
 // ==========================================
@@ -505,4 +639,6 @@ module.exports = {
     bulkInsertServiceNotes,
     getAssignedNotes,
     restoreServiceNoteCompletion, bulkRestore,
+    createAgentServiceNote, listCreatableGroups, listVisibleGroups, listVisibleGroupsWithCounts,
+    getGroupNotesForAgent,
 };
