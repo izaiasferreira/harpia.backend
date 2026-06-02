@@ -223,8 +223,21 @@ router.get('/agent_dashboard', telegramAuth, async (req, res) => {
             chosed_date = chosed_date.replaceAll('/', '.')
         }
         
-        const firstMonthDay = '01.' + chosed_date.split('.')[1] + '.' + chosed_date.split('.')[2]
-        const lastMonthDay = '31.' + chosed_date.split('.')[1] + '.' + chosed_date.split('.')[2]
+        const todayStr = today();
+        const firstMonthDay = '01.' + chosed_date.split('.')[1] + '.' + chosed_date.split('.')[2];
+        
+        const [_, monthPart, yearPart] = chosed_date.split('.');
+        const lastDayNum = new Date(Number(yearPart), Number(monthPart), 0).getDate();
+        let lastMonthDay = String(lastDayNum).padStart(2, '0') + '.' + monthPart + '.' + yearPart;
+
+        const parseDate = (dStr) => {
+            const [d, m, y] = dStr.split('.');
+            return new Date(Number(y), Number(m) - 1, Number(d));
+        };
+
+        if (parseDate(lastMonthDay) > parseDate(todayStr)) {
+            lastMonthDay = todayStr;
+        }
 
         // Buscar dados reais em paralelo
         const [
