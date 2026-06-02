@@ -2,12 +2,17 @@ const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
 require('dotenv').config();
 const { checkToken } = require('../functions/middlewares');
 
 const { getCalendarForAgent } = require('../functions/postgresFunctions');
 const { getFormById, submitForm, checkFormResponse } = require('../functions/database/forms');
 const { getTrainingProjectById } = require('../functions/database/trainingProjects');
+const { minioClient, CONFIG, compressImage, ensureBucketExists, getFileUrl } = require('../functions/minio');
+
+const uploadStorage = multer.memoryStorage();
+const formUpload = multer({ storage: uploadStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 const { ensureAppPinsTable, findAgentById, findValidPin, markPinAsUsed } = require('../functions/database/appPins');
 
 const publicLimiter = rateLimit({
@@ -360,6 +365,58 @@ router.post('/app_refresh_token', async (req, res) => {
     } catch (err) {
         console.error('[APP_REFRESH] Erro:', err);
         res.status(500).json({ error: 'Erro interno no refresh' });
+    }
+});
+
+// ==========================================
+// Upload público para formulários (imagens e arquivos)
+// ==========================================
+router.post('/form/upload', strictPublicLimiter, formUpload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+        }
+
+        const allowedTypes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/zip', 'application/x-zip-compressed'
+        ];
+
+        if (!allowedTypes.includes(req.file.mimetype)) {
+            return res.status(400).json({ error: 'Tipo de arquivo não permitido' });
+        }
+
+        await ensureBucketExists();
+
+        const timestamp = Date.now();
+        const ext = req.file.originalname.split('.').pop();
+        const fileName = `${timestamp}-${Math.random().toString(36).substring(7)}.${ext}`;
+        const fullPath = `forms/uploads/${fileName}`;
+
+        let fileBuffer = req.file.buffer;
+
+        // Compress images
+        if (['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(req.file.mimetype)) {
+            fileBuffer = await compressImage(fileBuffer, req.file.mimetype);
+        }
+
+        await minioClient.putObject(CONFIG.bucket, fullPath, fileBuffer);
+
+        res.json({
+            success: true,
+            url: getFileUrl(fullPath),
+            fileName: fullPath,
+            mimetype: req.file.mimetype,
+            size: fileBuffer.length
+        });
+    } catch (err) {
+        console.error('Erro no upload de formulário:', err);
+        res.status(500).json({ error: 'Erro no upload' });
     }
 });
 
