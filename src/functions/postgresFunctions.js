@@ -33,6 +33,7 @@ const {
 const {
     getLeiturasForAgent,
     getLeiturasPendingForAgent,
+    getLeiturasForAgentInDateInterval,
     getCalendarForAgent,
     getAgentTelegramId,
     get_instalations,
@@ -85,6 +86,7 @@ module.exports = {
     incompletedServices,
     getLeiturasForAgent,
     getLeiturasPendingForAgent,
+    getLeiturasForAgentInDateInterval,
     firstC12ForAgent,
     fastC12ForAgent,
     licacaoNovaC12ForAgent,

@@ -27,20 +27,11 @@ function generateDashboard({ state, id, stats }) {
 
     let widgets = [
         {
-            id: 'banner_promo',
-            type: 'bannerCarousel',
-            size: { colSpan: 3, rowSpan: 1 },
-            data: {
-                autoSlideInterval: 5000,
-                banners: banners
-            },
-        },
-        {
             id: 'stat_leituras',
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Leituras',
+                title: 'Leituras Realizadas',
                 value: String(stats.quant_leituras),
                 icon: 'BookCheck',
                 color: 'text-emerald-500 bg-emerald-50/10'
@@ -52,7 +43,7 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Pendências',
+                title: 'Leituras Pendentes',
                 value: String(stats.pending.length),
                 icon: 'AlertTriangle',
                 color: 'text-red-500 bg-red-50/10'
@@ -70,6 +61,15 @@ function generateDashboard({ state, id, stats }) {
                 color: 'text-yellow-500 bg-yellow-50/10'
             },
             action: { type: 'link', url: '/perdas' }
+        },
+        {
+            id: 'banner_promo',
+            type: 'bannerCarousel',
+            size: { colSpan: 3, rowSpan: 1 },
+            data: {
+                autoSlideInterval: 5000,
+                banners: banners
+            },
         },
         {
             id: 'chart_producao_hora',
@@ -216,6 +216,34 @@ function generateDashboard({ state, id, stats }) {
             },
             action: { type: 'link', url: '/services?filter=first_c12' }
         },
+        {
+            id: 'chart_month_leituras',
+            type: 'chartCard',
+            size: { colSpan: 2, rowSpan: 1 },
+            data: {
+                chartType: 'bar',
+                title: 'Leituras do mês',
+                description: 'Leituras realizadas e não lidas',
+                dataset: [
+                    { label: "Lidos", value: stats.month_leituras },
+                    { label: "Não lidos", value: stats.month_cnl }
+                ],
+
+            },
+        },
+        {
+            id: 'stat_month_total_leituras',
+            type: 'statCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                title: 'Total de leituras',
+                value: String(stats.month_total_leituras),
+                icon: 'Check',
+                color: 'text-emerald-500 bg-emerald-50/10'
+            },
+            action: { type: 'link', url: '/services?filter=all' }
+        },
+
     ];
 
     if (stats.pending_justifies.length > 0) {

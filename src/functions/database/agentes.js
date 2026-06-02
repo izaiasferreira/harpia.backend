@@ -238,7 +238,7 @@ function orderLeituras(rows) {
 async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1, limit = 20, filter = 'all', search = '' }) {
     const result = [];
     let params = [id.toUpperCase(), id.toLowerCase(), date, limit, (page - 1) * limit];
-    
+
     // Adicionar parâmetro de busca se fornecido
     const hasSearch = search && search.trim() !== '';
     const searchPattern = hasSearch ? `%${search.trim().toLowerCase()}%` : null;
@@ -250,7 +250,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
     if (filter === 'all') {
         let searchClause = '';
         let finalParams = [...params];
-        
+
         if (hasSearch) {
             searchClause = `AND (
                 LOWER(m.instalacao) LIKE $6 OR
@@ -262,7 +262,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
             )`;
             finalParams.push(searchPattern);
         }
-        
+
         const query_all = `
             SELECT 
                 m.instalacao, m.etapa, m.ntlei, m.data_conclusao, m.data_leit_prev, m.agente,
@@ -296,7 +296,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
             ORDER BY m.data_conclusao ASC
             LIMIT $4 OFFSET $5;
         `;
-        
+
         const { rows } = state === 'pi'
             ? await pi_pool.query(query_all, finalParams)
             : await ma_pool.query(query_all, finalParams);
@@ -307,7 +307,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
     if (filter === 'cnl') {
         let searchClause = '';
         let finalParams = [...params];
-        
+
         if (hasSearch) {
             searchClause = `AND (
                 LOWER(instalacao) LIKE $6 OR
@@ -319,7 +319,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
             )`;
             finalParams.push(searchPattern);
         }
-        
+
         const query_all = `
             WITH historico_completo AS (
                 SELECT 
@@ -346,7 +346,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
     if (filter === 'c12') {
         let searchClause = '';
         let finalParams = [...params];
-        
+
         if (hasSearch) {
             searchClause = `AND (
                 LOWER(instalacao) LIKE $6 OR
@@ -358,7 +358,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
             )`;
             finalParams.push(searchPattern);
         }
-        
+
         const query_all = `
             WITH historico_completo AS (
                 SELECT 
@@ -450,6 +450,46 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
         const data = locations.find(l => l.instalacao === r.instalacao);
         r.latitude = data?.latitude;
         r.longitude = data?.longitude;
+        r.data_leit_prev = new Date(r.data_leit_prev).toLocaleDateString('pt-BR');
+        return r
+    });
+
+}
+
+async function getLeiturasForAgentInDateInterval({ state = 'pi', id, initDate = today(), endDate = today(), page = 1, limit = 20 }) {
+    const result = [];
+    let params = [
+        id.toUpperCase(),
+        id.toLowerCase(),
+        initDate.replaceAll('.', '/'),
+        endDate.replaceAll('.', '/'),
+        limit,
+        (page - 1) * limit
+    ];
+
+ 
+
+    const query_all = `
+            SELECT 
+                m.instalacao, m.etapa, m.ntlei, m.data_conclusao, m.data_leit_prev, m.agente,
+                m.tem_perda, m.perda_prevista_mensal, m.nome_agente, m.seccional, m.regional, m.unidade_leitura
+            FROM matriz m
+            WHERE m.agente IN ($1, $2)
+            AND m.data_conclusao >= TO_DATE($3, 'DD/MM/YYYY')
+            AND m.data_conclusao < TO_DATE($4, 'DD/MM/YYYY') + interval '1 day'
+            ORDER BY m.data_conclusao ASC
+            LIMIT $5 OFFSET $6;
+        `;
+
+    const { rows } = state === 'pi'
+        ? await pi_pool.query(query_all, params)
+        : await ma_pool.query(query_all, params);
+
+    if (rows.length === 0) return [];
+
+    result.push(...orderLeituras(rows));
+
+    return result.map(r => {
         r.data_leit_prev = new Date(r.data_leit_prev).toLocaleDateString('pt-BR');
         return r
     });
@@ -1192,8 +1232,8 @@ async function get_inventory_by_agent({ agente, estado = 'pi' }) {
     await pool.query(createTableQuery);
 
     // Garante que colunas novas existam caso a tabela já existisse
-    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_serie TEXT;`).catch(() => {});
-    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_logico TEXT;`).catch(() => {});
+    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_serie TEXT;`).catch(() => { });
+    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_logico TEXT;`).catch(() => { });
 
     const query = `
         SELECT * FROM inventory 
@@ -1251,8 +1291,8 @@ async function save_inventory({
     await pool.query(createTableQuery);
 
     // Garante que colunas novas existam caso a tabela já existisse
-    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_serie TEXT;`).catch(() => {});
-    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_logico TEXT;`).catch(() => {});
+    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_serie TEXT;`).catch(() => { });
+    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_logico TEXT;`).catch(() => { });
 
     const existing = await get_inventory_by_agent({ agente, estado: state });
 
@@ -1542,6 +1582,7 @@ async function get_security_check_today({ state = 'pi', autor }) {
 module.exports = {
     getLeiturasForAgent,
     getLeiturasPendingForAgent,
+    getLeiturasForAgentInDateInterval,
     getCalendarForAgent,
     getAgentTelegramId,
     get_instalations,

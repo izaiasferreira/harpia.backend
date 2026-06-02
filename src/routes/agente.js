@@ -32,7 +32,8 @@ const {
     get_security_reports,
     save_security_check,
     get_security_checks,
-    get_security_check_today
+    get_security_check_today,
+    getLeiturasForAgentInDateInterval
 } = require('../functions/postgresFunctions');
 const { minioClient, CONFIG, ensureBucketExists, getFileUrl, compressImage } = require('../functions/minio');
 const { telegramAuth } = require('../middlewares/telegramAuth');
@@ -216,10 +217,18 @@ router.get('/agent_dashboard', telegramAuth, async (req, res) => {
     try {
         const state = req.colaborador.estado || 'pi';
         const id = req.colaborador.id;
-        const today_date = req.query.date || today();
+        let chosed_date = req.query.date || today();
+
+        if(chosed_date.includes('/')) {
+            chosed_date = chosed_date.replaceAll('/', '.')
+        }
+        
+        const firstMonthDay = '01.' + chosed_date.split('.')[1] + '.' + chosed_date.split('.')[2]
+        const lastMonthDay = '31.' + chosed_date.split('.')[1] + '.' + chosed_date.split('.')[2]
 
         // Buscar dados reais em paralelo
         const [
+            month_result,
             result,
             pending,
             licacao_nova_c12_rows,
@@ -228,14 +237,16 @@ router.get('/agent_dashboard', telegramAuth, async (req, res) => {
             weekly_cnl_stats,
             pending_justifies
         ] = await Promise.all([
-            getLeiturasForAgent({ state, id, date: today_date, limit: 99999 }),
-            getLeiturasPendingForAgent({ state, id, date: today_date, limit: 99999 }),
-            licacaoNovaC12ForAgent({ state, id, date: today_date }),
-            fastC12ForAgent({ state, id, date: today_date }),
-            firstC12ForAgent({ state, id, date: today_date }),
-            getWeeklyCNLStats({ state, id, date: today_date }),
+            getLeiturasForAgentInDateInterval({ state, id, initDate: firstMonthDay, endDate: lastMonthDay, limit: 99999 }),
+            getLeiturasForAgent({ state, id, date: chosed_date, limit: 99999 }),
+            getLeiturasPendingForAgent({ state, id, date: chosed_date, limit: 99999 }),
+            licacaoNovaC12ForAgent({ state, id, date: chosed_date }),
+            fastC12ForAgent({ state, id, date: chosed_date }),
+            firstC12ForAgent({ state, id, date: chosed_date }),
+            getWeeklyCNLStats({ state, id, date: chosed_date }),
             get_pending_justifies({ autor: id, status: 'pendente', page: 1, limit: 100 })
         ]);
+
         const licacao_nova_c12 = licacao_nova_c12_rows.length || 0;
         const fast_c12 = fast_c12_rows.length || 0;
         const first_c12 = first_c12_rows.length || 0;
@@ -273,12 +284,21 @@ router.get('/agent_dashboard', telegramAuth, async (req, res) => {
         const quant_c12 = result.filter(r => r.ntlei === 'C12').length || 0;
         const quant_c12_out_hour = result.filter(r => r.ntlei === 'C12' && parseInt(r.hora_conclusao.split(':')[0]) < 8).length || 0;
 
+        const month_leituras = month_result.filter(r => r.ntlei.startsWith('A') ||['B09', 'B10', 'B15'].includes(r.ntlei)).length || 0;
+        const month_cnl = month_result.filter(r => !r.ntlei.startsWith('A') && !['B09', 'B10', 'B15'].includes(r.ntlei)).length || 0;
+        const month_total_leituras = month_result.length || 0;
+        const month_percent_cnl = month_total_leituras > 0 ? (month_cnl / month_total_leituras) * 100 : 0;
+
 
         const layout = generateDashboard({
             state,
             id,
-            today_date,
+            today_date: chosed_date,
             stats: {
+                month_leituras,
+                month_cnl,
+                month_total_leituras,
+                month_percent_cnl,
                 quant_leituras,
                 pending,
                 licacao_nova_c12,
@@ -394,7 +414,7 @@ router.get('/instalation_details', telegramAuth, async (req, res) => {
         }
 
         console.log(result, estado);
-        res.json({...result});
+        res.json({ ...result });
     } catch (err) {
         console.log(err);
         res.status(500).json({ error: err.message });
@@ -938,7 +958,7 @@ router.post('/training/:id/complete', telegramAuth, async (req, res) => {
 
         const result = await completeTrainingAndAssignBadge(parseInt(id, 10), agentId);
 
-        await recordTrainingCompletion(parseInt(id, 10), agentId).catch(() => {});
+        await recordTrainingCompletion(parseInt(id, 10), agentId).catch(() => { });
 
         res.json(result);
     } catch (error) {
