@@ -167,7 +167,7 @@ async function deleteCategory(id) {
 
 async function listServiceNotes({ groupId, status, assignedTo, archived, unassigned, categoryId, createdFrom, createdTo, completedFrom, completedTo }) {
     await ensureServiceNotesTables();
-    let query = 'SELECT sn.*, mc.name as category_name, mc.color as category_color FROM service_notes sn LEFT JOIN marker_categories mc ON sn.marker_category_id = mc.id WHERE 1=1';
+    let query = 'SELECT sn.*, mc.name as category_name, mc.color as category_color, sg.name as group_name, sg.completion_config FROM service_notes sn LEFT JOIN marker_categories mc ON sn.marker_category_id = mc.id LEFT JOIN service_groups sg ON sn.group_id = sg.id WHERE 1=1';
     const params = [];
     let idx = 1;
     if (archived !== undefined) { query += ` AND sn.archived = $${idx}`; params.push(archived); idx++; }
