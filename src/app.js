@@ -67,10 +67,12 @@ const adminSecurityReportsRouter = require('./routes/adminSecurityReports')
 const adminAppPinsRouter = require('./routes/adminAppPins')
 const formsRouter = require('./routes/forms')
 const chatRouter = require('./routes/chat')
+const adminChatRouter = require('./routes/adminChat')
 
 // Rotas de arquivos e upload (MinIO)
 app.use('/', uploadRouter);
 app.use('/', chatRouter);
+app.use('/', adminChatRouter);
 
 
 // Rotas públicas (calendar, feriados)

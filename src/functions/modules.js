@@ -90,7 +90,9 @@ const AVAILABLE_MODULES = [
     { id: 'revalidate', name: 'Revalidar Fotos (Auditoria)' },
     { id: 'revalidate_write', name: 'Salvar Resultado de Revalidação' },
     // Configurações
-    { id: 'configs', name: 'Configurações' }
+    { id: 'configs', name: 'Configurações' },
+    // Chat Suporte
+    { id: 'chat', name: 'Chat Suporte Técnico' }
 ];
 
 async function listModules() {
