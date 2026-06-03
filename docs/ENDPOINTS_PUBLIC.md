@@ -142,6 +142,87 @@ curl -X POST "https://api.izi.tec.br/public/notify?token=SEU_API_TOKEN" \
 
 ---
 
+### `GET /public/form/:id`
+Retorna a estrutura pública de um formulário dinâmico.
+
+**Resposta 200 (sucesso):**
+A estrutura do formulário (`FormProject` mapeado), incluindo suas configurações e páginas:
+```json
+{
+  "id": "form_uuid",
+  "title": "Vistoria de Campo",
+  "structure": [
+    {
+      "title": "Informações Iniciais",
+      "elements": [
+        { "id": "1", "type": "question", "field_type": "text", "label": "Nome do Agente", "required": true }
+      ]
+    }
+  ],
+  "settings": { "limitToOneResponse": true }
+}
+```
+
+---
+
+### `GET /public/form/:id/check`
+Verifica se um respondente específico já enviou uma resposta para este formulário (utilizado para limitar a uma resposta por usuário).
+
+**Query Params:**
+- `respondentId` (string): Identificador único do respondente (matrícula do agente ou ID anônimo).
+
+**Resposta 200:**
+`true` se já respondeu, `false` caso contrário.
+
+---
+
+### `POST /public/form/submit/:id`
+Envia as respostas preenchidas de um formulário.
+
+**Body (JSON):**
+```json
+{
+  "answers": {
+    "respondent_id": "12345",
+    "campo_id": "Valor preenchido"
+  },
+  "metadata": {
+    "score": 10,
+    "maxScore": 10,
+    "duration_seconds": 120
+  }
+}
+```
+
+**Resposta 200 (sucesso):**
+```json
+{
+  "success": true,
+  "response": {
+    "id": "response_uuid",
+    "form_id": "form_uuid",
+    "answers": { ... },
+    "metadata": { ... }
+  }
+}
+```
+
+---
+
+### `POST /public/form/upload`
+Endpoint público para upload de arquivos/imagens anexados a formulários dinâmicos.
+
+**Body:** `multipart/form-data` contendo a chave `file`.
+
+**Resposta 200 (sucesso):**
+```json
+{
+  "url": "/public/uploads/file_name.png"
+}
+```
+
+---
+
 ## 2. Consultas Gerais (Token Simples)
 
 Estas rotas são desenhadas para extração em lote e integrações automáticas com ferramentas de BI.
