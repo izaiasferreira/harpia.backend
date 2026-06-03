@@ -23,13 +23,13 @@ router.get('/:id/chat', verifyToken(), verifyModule('forms'), async (req, res) =
 router.post('/:id/chat', verifyToken(), verifyModule('forms'), async (req, res) => {
     try {
         const formId = parseInt(req.params.id, 10);
-        const { message, currentStructure } = req.body;
+        const { message, currentStructure, attachments } = req.body;
 
-        if (!message || !message.trim()) {
-            return res.status(400).json({ error: 'Mensagem é obrigatória' });
+        if ((!message || !message.trim()) && (!attachments || attachments.length === 0)) {
+            return res.status(400).json({ error: 'Mensagem ou anexos são obrigatórios' });
         }
 
-        const result = await sendChatMessage(formId, message, currentStructure || {});
+        const result = await sendChatMessage(formId, message || '', currentStructure || {}, attachments);
         res.json(result);
     } catch (error) {
         console.error('Erro ao enviar mensagem:', error);

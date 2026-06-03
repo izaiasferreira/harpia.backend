@@ -131,22 +131,76 @@ Cria um formulário dinâmico definindo sua estrutura de perguntas obrigatórias
 
 ---
 
+### `GET /admin/forms/:id/chat`
+
+Recupera o histórico de conversas do assistente de IA para o formulário especificado.
+
+**Resposta 200:**
+```json
+[
+  {
+    "id": 1,
+    "role": "user",
+    "content": "Adicione uma nova pergunta do tipo rádio",
+    "attachments": null,
+    "created_at": "2026-06-03T15:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "role": "assistant",
+    "content": "Entendido! Adicionei a pergunta...",
+    "attachments": null,
+    "created_at": "2026-06-03T15:00:05.000Z"
+  }
+]
+```
+
+---
+
 ### `POST /admin/forms/:id/chat` (Assistente IA)
-Permite criar ou modificar a estrutura de um formulário dinâmico enviando instruções de texto natural para a IA (Gemini ou OpenAI). A IA responde e sugere uma nova estrutura JSON pronta para aplicação.
+
+Permite criar ou modificar a estrutura de um formulário dinâmico enviando instruções de texto natural e/ou mídias para a IA (Gemini ou OpenAI). A IA responde e sugere uma nova estrutura JSON pronta para aplicação. O assistente é multimodal e aceita o envio de áudio, imagens ou documentos de suporte.
 
 **Body:**
+* `message` (string, opcional): Instrução de texto natural.
+* `currentStructure` (object, opcional): Estrutura JSON atual do formulário.
+* `attachments` (array, opcional): Lista de mídias anexadas (imagens, áudios, etc).
+  * `url` (string): Link do arquivo.
+  * `name` (string): Nome do arquivo.
+  * `mimeType` (string): Tipo MIME.
+
+Exemplo de Body:
 ```json
 {
     "message": "Adicione um campo obrigatório do tipo foto para registrar a fachada do imóvel",
-    "currentStructure": { "title": "...", "structure": [] }
+    "currentStructure": { "title": "...", "structure": [] },
+    "attachments": []
 }
 ```
 
 **Resposta 200:**
 ```json
 {
-    "text": "Compreendido! Adicionei o campo 'Foto da Fachada' como obrigatório na página 1.",
+    "message": {
+        "id": 15,
+        "role": "assistant",
+        "content": "Compreendido! Adicionei o campo 'Foto da Fachada' como obrigatório na página 1.",
+        "created_at": "2026-06-03T15:01:00.000Z"
+    },
     "parsedStructure": { "title": "...", "structure": [...] }
+}
+```
+
+---
+
+### `DELETE /admin/forms/:id/chat`
+
+Limpa todo o histórico de conversas do assistente de IA do formulário especificado.
+
+**Resposta 200:**
+```json
+{
+    "success": true
 }
 ```
 
@@ -1039,6 +1093,159 @@ Importa notas a partir de arquivo XLSX ou array JSON.
 | `groupId` | number | **sim** — Grupo de destino |
 | `file` | File | Arquivo .xlsx com colunas title/titulo, description/descricao, address/endereco, latitude, longitude |
 | `notes` | JSON array | Alternativa ao file: array de objetos |
+
+---
+
+### `GET /admin/service-notes/:groupId/chat`
+
+Obtém o histórico de mensagens do assistente de IA administrativo para o grupo de serviço especificado.
+
+**Módulo Requerido:** `service_notes`
+
+**Path Params:**
+* `groupId` (number): ID do grupo de serviços ativo.
+
+**Resposta 200:**
+```json
+[
+  {
+    "id": 1,
+    "role": "user",
+    "content": "Listar os serviços pendentes deste grupo",
+    "attachments": null,
+    "name": null,
+    "tool_calls": null,
+    "tool_call_id": null,
+    "created_at": "2026-06-03T15:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "role": "assistant",
+    "content": "Aqui estão os serviços pendentes...",
+    "attachments": null,
+    "name": null,
+    "tool_calls": null,
+    "tool_call_id": null,
+    "created_at": "2026-06-03T15:00:05.000Z"
+  }
+]
+```
+
+---
+
+### `POST /admin/service-notes/:groupId/chat`
+
+Envia uma mensagem (texto e/ou anexos multimídia) para o assistente de IA de Notas de Serviço. A IA analisa os anexos (áudio, imagens, PDFs, planilhas) e propõe ações administrativas em formato de JSON estruturado.
+
+**Módulo Requerido:** `service_notes`
+
+**Path Params:**
+* `groupId` (number): ID do grupo de serviços ativo.
+
+**Body (JSON):**
+* `message` (string, opcional): Mensagem do usuário.
+* `attachments` (array, opcional): Lista de mídias/documentos previamente carregados.
+  * `url` (string): Link do arquivo.
+  * `name` (string): Nome do arquivo.
+  * `mimeType` (string): Tipo MIME.
+
+Exemplo de Body:
+```json
+{
+  "message": "Crie uma nota com prioridade a partir da imagem anexa",
+  "attachments": [
+    {
+      "url": "/api/chat/file/anexo_123.jpg",
+      "name": "fachada.jpg",
+      "mimeType": "image/jpeg"
+    }
+  ]
+}
+```
+
+**Resposta 200:**
+Retorna a mensagem gerada e um array `proposedActions` contendo as propostas detectadas pela IA.
+```json
+{
+  "message": {
+    "id": 45,
+    "role": "assistant",
+    "content": "Identifiquei a solicitação e propus a criação da nota...",
+    "attachments": null,
+    "name": null,
+    "tool_calls": null,
+    "tool_call_id": null,
+    "created_at": "2026-06-03T15:01:00.000Z"
+  },
+  "proposedActions": [
+    {
+      "type": "criar_servico",
+      "params": {
+        "title": "Ajustar Medidor",
+        "description": "Ordem gerada via assistente de IA",
+        "address": "Rua das Flores, 123",
+        "latitude": -5.1595,
+        "longitude": -42.7635,
+        "markerCategoryId": 1
+      }
+    }
+  ]
+}
+```
+
+---
+
+### `POST /admin/service-notes/:groupId/chat/apply`
+
+Aplica as ações propostas pelo assistente de IA de Notas de Serviço que foram aprovadas manualmente pelo gestor.
+
+**Módulo Requerido:** `service_notes`
+
+**Path Params:**
+* `groupId` (number): ID do grupo de serviços ativo.
+
+**Body (JSON):**
+* `proposedActions` (array, obrigatório): Lista de objetos de ação estruturados conforme retornado pela IA.
+
+**Resposta 200:**
+```json
+{
+  "success": true,
+  "results": [
+    {
+      "type": "criar_servico",
+      "result": {
+        "success": true,
+        "service": {
+          "id": 345,
+          "group_id": 2,
+          "title": "Ajustar Medidor",
+          "status": "PENDENTE",
+          "created_at": "2026-06-03T15:02:00.000Z"
+        }
+      }
+    }
+  ]
+}
+```
+
+---
+
+### `DELETE /admin/service-notes/:groupId/chat`
+
+Limpa o histórico de conversas do assistente administrativo de Notas de Serviço para o grupo especificado.
+
+**Módulo Requerido:** `service_notes`
+
+**Path Params:**
+* `groupId` (number): ID do grupo de serviços ativo.
+
+**Resposta 200:**
+```json
+{
+  "success": true
+}
+```
 
 ---
 

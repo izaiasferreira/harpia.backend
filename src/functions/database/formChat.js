@@ -1,6 +1,7 @@
 const { cenos_pool } = require('../../db');
 const { FORM_BUILDER_SYSTEM_PROMPT } = require('../../llm/prompts/formBuilder');
 const llm = require('../../llm');
+const axios = require('axios');
 
 async function createFormChatTable() {
     await cenos_pool.query(`
@@ -9,28 +10,59 @@ async function createFormChatTable() {
             form_id INTEGER REFERENCES forms(id) ON DELETE CASCADE,
             role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
             content TEXT NOT NULL,
+            attachments JSONB,
             created_at TIMESTAMP DEFAULT NOW()
         )
     `);
+    await cenos_pool.query(`
+        ALTER TABLE form_chat_messages ADD COLUMN IF NOT EXISTS attachments JSONB;
+    `).catch(() => {});
     await cenos_pool.query(`
         CREATE INDEX IF NOT EXISTS idx_form_chat_messages_form_id ON form_chat_messages(form_id)
     `).catch(() => {});
 }
 
+async function urlToGeminiPart(url, mimeType) {
+    try {
+        let response;
+        let resolvedUrl = url;
+        if (url.startsWith('/')) {
+            const port = process.env.PORT || 3000;
+            resolvedUrl = `http://127.0.0.1:${port}${url}`;
+        }
+        
+        response = await axios.get(resolvedUrl, { responseType: 'arraybuffer' });
+        const buffer = Buffer.from(response.data);
+        const base64Data = buffer.toString('base64');
+        
+        const finalMimeType = mimeType || response.headers['content-type'] || 'application/octet-stream';
+        
+        return {
+            inlineData: {
+                mimeType: finalMimeType,
+                data: base64Data
+            }
+        };
+    } catch (err) {
+        console.error(`Erro ao converter URL para Gemini Part: ${url}`, err);
+        return null;
+    }
+}
+
 async function getChatMessages(formId) {
     await createFormChatTable();
     const { rows } = await cenos_pool.query(
-        `SELECT id, role, content, created_at FROM form_chat_messages WHERE form_id = $1 ORDER BY created_at ASC`,
+        `SELECT id, role, content, attachments, created_at FROM form_chat_messages WHERE form_id = $1 ORDER BY created_at ASC`,
         [formId]
     );
     return rows;
 }
 
-async function addChatMessage(formId, role, content) {
+async function addChatMessage(formId, role, content, attachments = null) {
     await createFormChatTable();
     const { rows } = await cenos_pool.query(
-        `INSERT INTO form_chat_messages (form_id, role, content) VALUES ($1, $2, $3) RETURNING id, role, content, created_at`,
-        [formId, role, content]
+        `INSERT INTO form_chat_messages (form_id, role, content, attachments) VALUES ($1, $2, $3, $4) RETURNING id, role, content, attachments, created_at`,
+        [formId, role, content, attachments ? JSON.stringify(attachments) : null]
     );
     return rows[0];
 }
@@ -40,11 +72,11 @@ async function clearChatMessages(formId) {
     await cenos_pool.query(`DELETE FROM form_chat_messages WHERE form_id = $1`, [formId]);
 }
 
-async function sendChatMessage(formId, userMessage, currentFormStructure) {
+async function sendChatMessage(formId, userMessage, currentFormStructure, attachments = null) {
     await createFormChatTable();
 
     // Save user message
-    await addChatMessage(formId, 'user', userMessage);
+    await addChatMessage(formId, 'user', userMessage, attachments);
 
     // Build message array for LLM
     const history = await getChatMessages(formId);
@@ -54,9 +86,32 @@ async function sendChatMessage(formId, userMessage, currentFormStructure) {
         {
             role: 'system',
             content: `A estrutura ATUAL do formulário (JSON) é:\n\`\`\`json\n${JSON.stringify(currentFormStructure, null, 2)}\n\`\`\`\n\nConsidere esta estrutura como base para suas respostas. Quando fizer alterações, retorne o JSON completo do formulário atualizado.`
-        },
-        ...history.map(m => ({ role: m.role, content: m.content })),
+        }
     ];
+
+    for (const m of history) {
+        let atts = [];
+        if (m.attachments) {
+            try {
+                atts = typeof m.attachments === 'string' ? JSON.parse(m.attachments) : m.attachments;
+            } catch (e) {
+                atts = m.attachments;
+            }
+        }
+
+        if (Array.isArray(atts) && atts.length > 0) {
+            const parts = [{ text: m.content || '' }];
+            for (const att of atts) {
+                const part = await urlToGeminiPart(att.url, att.mimeType);
+                if (part) {
+                    parts.push(part);
+                }
+            }
+            messages.push({ role: m.role, parts });
+        } else {
+            messages.push({ role: m.role, content: m.content });
+        }
+    }
 
     // Call LLM
     const llmResponse = await llm.generateResponse(messages);

@@ -7,6 +7,8 @@ function convertToGeminiMessages(messages) {
       continue;
     }
 
+    const role = msg.role === 'assistant' ? 'model' : 'user';
+
     if (msg.role === 'assistant') {
       const parts = [];
       if (msg.content) parts.push({ text: msg.content });
@@ -15,7 +17,7 @@ function convertToGeminiMessages(messages) {
           parts.push({
             functionCall: {
               name: tc.function.name,
-              args: JSON.parse(tc.function.arguments),
+              args: typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : tc.function.arguments,
             },
           });
         }
@@ -37,7 +39,12 @@ function convertToGeminiMessages(messages) {
       continue;
     }
 
-    contents.push({ role: 'user', parts: [{ text: msg.content }] });
+    if (Array.isArray(msg.parts)) {
+      contents.push({ role, parts: msg.parts });
+      continue;
+    }
+
+    contents.push({ role, parts: [{ text: msg.content || '' }] });
   }
 
   return contents;

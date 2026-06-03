@@ -519,3 +519,109 @@ Isso garante que o agente tenha todos os dados disponíveis offline logo ao abri
 | `archived` | BOOLEAN | Arquivo lógico (default false) |
 | `created_at` | TIMESTAMP | Criação |
 | `updated_at` | TIMESTAMP | Atualização |
+
+---
+
+## 7. Assistente de IA Administrativa (Service Notes Chat Agent)
+
+O Control Center conta com um assistente virtual baseado em LLM (Gemini) integrado diretamente ao módulo de Notas de Serviço. Ele permite que o gestor comande em linguagem natural as ações do grupo de serviços ativo, além de suportar anexos de arquivos (áudio, imagens, PDFs, planilhas) para auxiliar nas tarefas administrativas.
+
+### 7.1. Fluxo de Proposta e Aprovação (Human-in-the-Loop)
+Para garantir a integridade dos dados e o controle absoluto do gestor, a IA **não executa modificações diretamente no banco de dados**. O fluxo opera da seguinte forma:
+1. O gestor envia uma mensagem ou anexo (ex: *"Importe estes novos serviços a partir desta foto"*).
+2. A IA utiliza ferramentas de **apenas leitura** (`listar_agentes`, `listar_servicos`, `listar_categorias_marcadores`) para consultar o estado atual do sistema.
+3. Se a instrução exigir uma alteração (criação, edição, atribuição, restauração, arquivamento ou mudança no formulário de conclusão), a IA monta um array estruturado no corpo de sua resposta em formato JSON (`proposedActions`).
+4. O frontend do chat intercepta esse JSON, oculta-o da janela de chat e renderiza um **Banner de Ações Propostas** com uma lista legível de alterações e um botão **"Aplicar"**.
+5. Ao clicar em **"Aplicar"**, o frontend envia as ações estruturadas para o endpoint `/chat/apply`, executando-as em lote no backend de forma transparente.
+
+### 7.2. Ferramentas de Leitura Disponíveis à IA
+* **`listar_agentes`**: Lista os colaboradores ativos com seus respectivos IDs e nomes para atribuição por nome próprio.
+* **`listar_servicos`**: Lista os serviços do grupo ativo filtrados por status ou arquivamento.
+* **`listar_categorias_marcadores`**: Lista as tags e categorias visuais de pins disponíveis no grupo ativo.
+
+### 7.3. Formatos JSON de Ações Propostas (`proposedActions`)
+
+#### A. Criar Serviço (`criar_servico`)
+```json
+{
+  "type": "criar_servico",
+  "params": {
+    "title": "Ajustar Medidor A1685229",
+    "description": "etapa: 03 | medidor: A1685229 | nome: FRANCISCA DAS CHAGAS",
+    "address": "R. GARJAO 3820 SANTO ANTONIO",
+    "latitude": -5.1595097,
+    "longitude": -42.7635119,
+    "markerCategoryId": 1
+  }
+}
+```
+
+#### B. Editar Serviço (`editar_servico`)
+```json
+{
+  "type": "editar_servico",
+  "params": {
+    "serviceId": 123,
+    "updates": {
+      "title": "Novo Título",
+      "description": "Nova Descrição",
+      "status": "PENDENTE",
+      "archived": false
+    }
+  }
+}
+```
+
+#### C. Atribuir Serviços (`atribuir_servicos`)
+```json
+{
+  "type": "atribuir_servicos",
+  "params": {
+    "serviceIds": [123, 124],
+    "agentId": "T60702"
+  }
+}
+```
+*Nota: Para remover a atribuição de um serviço, o campo `agentId` deve ser enviado como `null`.*
+
+#### D. Restaurar Serviços Concluídos (`restaurar_servicos`)
+```json
+{
+  "type": "restaurar_servicos",
+  "params": {
+    "serviceIds": [123, 124]
+  }
+}
+```
+
+#### E. Arquivar Serviços (`arquivar_servicos`)
+```json
+{
+  "type": "arquivar_servicos",
+  "params": {
+    "serviceIds": [123, 124]
+  }
+}
+```
+
+#### F. Criar/Editar Formulário de Conclusão (`criar_editar_formulario_conclusao`)
+```json
+{
+  "type": "criar_editar_formulario_conclusao",
+  "params": {
+    "campos": [
+      { "id": "tipo_defeitos", "label": "Defeitos Encontrados", "type": "radio", "options": ["Vazamento", "Outro"], "required": true },
+      { "id": "foto_fachada", "label": "Foto da Fachada", "type": "image", "required": false }
+    ]
+  }
+}
+```
+
+### 7.4. Mecanismo de Cura Sequencial do Histórico (`tool_call_id`)
+A API da OpenAI/Gemini exige que toda mensagem com o papel (`role`) `'tool'` contenha um `tool_call_id` correspondente à chamada feita anteriormente pelo assistente. Em conversas legadas ou históricas migradas sem este ID, requisições falhariam com erro 400.
+Para mitigar isso de forma resiliente, o backend implementa um **pareador e curador dinâmico sequencial** no arquivo `back/src/functions/database/serviceNotesChat.js`:
+1. Durante a reconstrução do histórico para enviar ao LLM, o sistema detecta mensagens do tipo `'tool'` sem `tool_call_id`.
+2. O pareador sequencial busca a correspondência com a chamada pendente do assistente logo anterior no histórico de mensagens.
+3. Ao encontrar o ID correspondente, o backend atualiza a mensagem no banco de dados (`UPDATE service_notes_chat_messages`) para persistir a cura.
+4. Caso o ID não possa ser curado, a mensagem órfã é descartada da pilha enviada ao LLM para prevenir erros de validação na API.
+

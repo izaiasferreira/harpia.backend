@@ -143,6 +143,8 @@ app.use('/admin/notifications', adminNotificationsRouter)
 // Service Notes (/admin/service-notes/* e /agent/service-notes/*)
 const adminServiceNotesRouter = require('./routes/adminServiceNotes')
 app.use('/admin/service-notes', adminServiceNotesRouter)
+const serviceNotesChatRouter = require('./routes/serviceNotesChat')
+app.use('/admin/service-notes', serviceNotesChatRouter)
 const agentServiceNotesRouter = require('./routes/agentServiceNotes')
 app.use('/agent/service-notes', agentServiceNotesRouter)
 
