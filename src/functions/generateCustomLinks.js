@@ -83,7 +83,16 @@ function generateCustomLinks({ state, id, user }) {
             "emoji": "AlertTriangle",
             "color": "text-red-600",
             "states": ['pi', 'ma']
-        }
+        },
+        {
+            "id": "search-errors-app",
+            "label": "Pesquisa de erros",
+            "description": "Acesse aqui",
+            "url": `/f/4`,
+            "emoji": "FileText",
+            "color": "text-red-600",
+            "states": ['pi']
+        },
 
     ]
 
