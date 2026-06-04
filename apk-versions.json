@@ -1,31 +1,15 @@
 {
     "latest":  {
-                   "changelog":  "Ajuste de atualizações",
-                   "versionName":  "1.0.4",
-                   "versionCode":  5,
-                   "releaseDate":  "2026-06-04T04:44:27.050Z",
+                   "changelog":  "Atualizacao",
+                   "versionName":  "1.0.5",
+                   "versionCode":  6,
+                   "releaseDate":  "2026-06-04T13:02:24.998Z",
                    "forceUpdate":  false,
-                   "url":  "/files/apk/app-1.0.4.apk"
+                   "url":  "/files/apk/app-1.0.5.apk"
                },
     "history":  [
                     {
-                        "changelog":  "VersÃƒÂ£o inicial",
-                        "versionName":  "1.0.1",
-                        "versionCode":  2,
-                        "releaseDate":  "2026-06-04T03:19:59.092Z",
-                        "forceUpdate":  false,
-                        "url":  "/files/apk/app-1.0.1.apk"
-                    },
-                    {
-                        "changelog":  "Ajustes de seguranÃƒÂ§a",
-                        "versionName":  "1.0.2",
-                        "versionCode":  3,
-                        "releaseDate":  "2026-06-04T04:08:30.514Z",
-                        "forceUpdate":  false,
-                        "url":  "/files/apk/app-1.0.2.apk"
-                    },
-                    {
-                        "changelog":  "AtualizaÃ§Ã£o automÃ¡tica",
+                        "changelog":  "AtualizaÃƒÂ§ÃƒÂ£o automÃƒÂ¡tica",
                         "versionName":  "1.0.3",
                         "versionCode":  4,
                         "releaseDate":  "2026-06-04T04:37:16.546Z",
@@ -33,10 +17,34 @@
                         "url":  "/files/apk/app-1.0.3.apk"
                     },
                     {
-                        "changelog":  "Ajustes de seguranÃƒÂ§a",
+                        "changelog":  "Ajustes de seguranÃƒÆ’Ã‚Â§a",
                         "versionName":  "1.0.1",
                         "versionCode":  1,
                         "releaseDate":  "2026-06-04T03:47:40.669Z",
+                        "forceUpdate":  false,
+                        "url":  "/files/apk/app-1.0.1.apk"
+                    },
+                    {
+                        "changelog":  "Ajustes de seguranÃƒÆ’Ã‚Â§a",
+                        "versionName":  "1.0.2",
+                        "versionCode":  3,
+                        "releaseDate":  "2026-06-04T04:08:30.514Z",
+                        "forceUpdate":  false,
+                        "url":  "/files/apk/app-1.0.2.apk"
+                    },
+                    {
+                        "changelog":  "Ajuste de atualizaÃ§Ãµes",
+                        "versionName":  "1.0.4",
+                        "versionCode":  5,
+                        "releaseDate":  "2026-06-04T04:44:27.050Z",
+                        "forceUpdate":  false,
+                        "url":  "/files/apk/app-1.0.4.apk"
+                    },
+                    {
+                        "changelog":  "VersÃƒÆ’Ã‚Â£o inicial",
+                        "versionName":  "1.0.1",
+                        "versionCode":  2,
+                        "releaseDate":  "2026-06-04T03:19:59.092Z",
                         "forceUpdate":  false,
                         "url":  "/files/apk/app-1.0.1.apk"
                     }
