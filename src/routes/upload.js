@@ -242,7 +242,8 @@ router.get('/file/:path(*)', async (req, res) => {
             'xls': 'application/vnd.ms-excel',
             'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'zip': 'application/zip',
-            'rar': 'application/vnd.rar'
+            'rar': 'application/vnd.rar',
+            'apk': 'application/vnd.android.package-archive'
         };
         contentType = contentTypes[ext] || 'application/octet-stream';
 
@@ -341,7 +342,8 @@ router.get('/files/:bucket/:path(*)', async (req, res) => {
             'xls': 'application/vnd.ms-excel',
             'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'zip': 'application/zip',
-            'rar': 'application/vnd.rar'
+            'rar': 'application/vnd.rar',
+            'apk': 'application/vnd.android.package-archive'
         };
         contentType = contentTypes[ext] || 'application/octet-stream';
 
