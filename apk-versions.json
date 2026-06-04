@@ -1,28 +1,36 @@
 {
-  "latest": {
-    "changelog": "Ajustes de segurança",
-    "versionName": "1.0.2",
-    "versionCode": 3,
-    "releaseDate": "2026-06-04T04:08:30.514Z",
-    "forceUpdate": false,
-    "url": "/files/apk/app-1.0.2.apk"
-  },
-  "history": [
-    {
-      "changelog": "Versão inicial",
-      "versionName": "1.0.1",
-      "versionCode": 2,
-      "releaseDate": "2026-06-04T03:19:59.092Z",
-      "forceUpdate": false,
-      "url": "/files/apk/app-1.0.0.apk"
-    },
-    {
-      "changelog": "Ajustes de segurança",
-      "versionName": "1.0.1",
-      "versionCode": 1,
-      "releaseDate": "2026-06-04T03:47:40.669Z",
-      "forceUpdate": false,
-      "url": "/files/apk/app-1.0.1.apk"
-    }
-  ]
+    "latest":  {
+                   "changelog":  "Atualização automática",
+                   "versionName":  "1.0.3",
+                   "versionCode":  4,
+                   "releaseDate":  "2026-06-04T04:37:16.546Z",
+                   "forceUpdate":  false,
+                   "url":  "/files/apk/app-1.0.3.apk"
+               },
+    "history":  [
+                    {
+                        "changelog":  "Ajustes de seguranÃ§a",
+                        "versionName":  "1.0.1",
+                        "versionCode":  1,
+                        "releaseDate":  "2026-06-04T03:47:40.669Z",
+                        "forceUpdate":  false,
+                        "url":  "/files/apk/app-1.0.1.apk"
+                    },
+                    {
+                        "changelog":  "VersÃ£o inicial",
+                        "versionName":  "1.0.1",
+                        "versionCode":  2,
+                        "releaseDate":  "2026-06-04T03:19:59.092Z",
+                        "forceUpdate":  false,
+                        "url":  "/files/apk/app-1.0.1.apk"
+                    },
+                    {
+                        "changelog":  "Ajustes de seguranÃ§a",
+                        "versionName":  "1.0.2",
+                        "versionCode":  3,
+                        "releaseDate":  "2026-06-04T04:08:30.514Z",
+                        "forceUpdate":  false,
+                        "url":  "/files/apk/app-1.0.2.apk"
+                    }
+                ]
 }
