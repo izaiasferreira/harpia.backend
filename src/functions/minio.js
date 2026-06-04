@@ -165,6 +165,26 @@ function getBucketFileUrl(bucket, path) {
     return `${CONFIG.publicBaseUrl}/files/${bucket}/${path}`;
 }
 
+/**
+ * Garante que um bucket específico existe (com política pública)
+ */
+async function ensureBucketByName(name) {
+    const exists = await minioClient.bucketExists(name);
+    if (!exists) {
+        await minioClient.makeBucket(name);
+        const policy = {
+            Version: '2012-10-17',
+            Statement: [{
+                Effect: 'Allow',
+                Principal: '*',
+                Action: ['s3:GetObject'],
+                Resource: [`arn:aws:s3:::${name}/*`]
+            }]
+        };
+        await minioClient.setBucketPolicy(name, JSON.stringify(policy));
+    }
+}
+
 // ==========================================
 // Exports
 // ==========================================
@@ -173,6 +193,7 @@ module.exports = {
     CONFIG,
     compressImage,
     ensureBucketExists,
+    ensureBucketByName,
     getFileUrl,
     getBucketFileUrl,
     listObjectsInBucket,

@@ -160,6 +160,10 @@ app.use('/admin/config', adminConfigRouter)
 const adminMessagesRouter = require('./routes/adminMessages')
 app.use('/admin/messages', adminMessagesRouter)
 
+// App Update (/api/app/update/*)
+const appUpdateRouter = require('./routes/appUpdate')
+app.use('/', appUpdateRouter)
+
 // Telegram Webhook (/public/telegram-webhook)
 const telegramWebhookRouter = require('./routes/telegramWebhook')
 app.use('/public', telegramWebhookRouter)

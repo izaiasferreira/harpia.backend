@@ -18,6 +18,7 @@ Consulte o documento específico na pasta `back/docs/` para obter detalhes de en
 | **[6. APIs do Painel de Controle (Admin)](docs/ENDPOINTS_ADMIN.md)** | Rotas administrativas e seguras protegidas por escopo de perfis e regras de jurisdição. | `/admin/forms`, `/admin/tracking`, `/admin/users_agents`. |
 | **[7. APIs de Notas de Serviço (Service Notes)](docs/SERVICE_NOTES.md)** | Endpoints operacionais e administrativos de gestão de Notas e Grupos. | `/admin/service-notes`, `/admin/service-groups`, auto-registro. |
 | **[8. APIs de Gamificação e Aprendizado](docs/GAMIFICATION_TRAINING.md)** | Trilhas CenEduc e Construtor de Treinamentos Interativos baseados em grafos. | `/agent/ceneduc`, `/admin/training`, concessão de badges. |
+| **[9. APIs de Auto-Update](docs/APP_UPDATE.md)** | Auto-update do app Android via self-hosted APK. | `/api/app/update/check`, `/api/app/update/versions`. |
 
 ---
 
