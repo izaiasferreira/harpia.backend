@@ -1,11 +1,20 @@
 {
   "latest": {
-    "changelog": "Versão Inicial",
-    "versionName": "1.0.5",
-    "versionCode": 6,
-    "releaseDate": "2026-06-04T13:02:24.998Z",
+    "changelog": "Ajustes de mapa",
+    "versionName": "1.0.6",
+    "versionCode": 7,
+    "releaseDate": "2026-06-05T13:39:08.933Z",
     "forceUpdate": false,
-    "url": "/files/apk/app-1.0.5.apk"
+    "url": "/files/apk/app-1.0.6.apk"
   },
-  "history": []
+  "history": [
+    {
+      "changelog": "Inicial",
+      "versionName": "1.0.5",
+      "versionCode": 6,
+      "releaseDate": "2026-06-04T13:02:24.998Z",
+      "forceUpdate": false,
+      "url": "/files/apk/app-1.0.5.apk"
+    }
+  ]
 }
