@@ -66,8 +66,19 @@ router.post('/login', async (req, res) => {
         await updateLastLogin(user.id);
 
         const token = generateToken(user);
+        const modules = await getUserModules(user.id, user.estado);
 
-        res.json({ token, user: { id: user.id, email: user.email, nome: user.nome, role: user.role, estado: user.estado } });
+        res.json({ 
+            token, 
+            user: { 
+                id: user.id, 
+                email: user.email, 
+                nome: user.nome, 
+                role: user.role, 
+                estado: user.estado,
+                modules
+            } 
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
