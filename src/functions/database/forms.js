@@ -76,17 +76,16 @@ async function listForms(userId, page = 1, limit = 20) {
     const pool = cenos_pool;
     const offset = (page - 1) * limit;
 
-    const countQuery = `SELECT COUNT(*) as total FROM forms WHERE user_id = $1`;
-    const { rows: countRows } = await pool.query(countQuery, [userId]);
+    const countQuery = `SELECT COUNT(*) as total FROM forms`;
+    const { rows: countRows } = await pool.query(countQuery);
     const total = parseInt(countRows[0].total, 10);
 
     const query = `
         SELECT * FROM forms
-        WHERE user_id = $1
         ORDER BY created_at DESC
-        LIMIT $2 OFFSET $3
+        LIMIT $1 OFFSET $2
     `;
-    const { rows } = await pool.query(query, [userId, limit, offset]);
+    const { rows } = await pool.query(query, [limit, offset]);
 
     return {
         data: rows,

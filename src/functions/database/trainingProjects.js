@@ -74,19 +74,18 @@ async function listTrainingProjects(userId, page = 1, limit = 20) {
     const offset = (page - 1) * limit;
 
     const countQuery = `
-        SELECT COUNT(*) as total FROM training_projects WHERE user_id = $1
+        SELECT COUNT(*) as total FROM training_projects
     `;
-    const { rows: countRows } = await pool.query(countQuery, [userId]);
+    const { rows: countRows } = await pool.query(countQuery);
     const total = parseInt(countRows[0].total, 10);
 
     const query = `
         SELECT id, user_id, name, description, badge_id, created_at, updated_at
         FROM training_projects
-        WHERE user_id = $1
         ORDER BY created_at DESC
-        LIMIT $2 OFFSET $3
+        LIMIT $1 OFFSET $2
     `;
-    const { rows } = await pool.query(query, [userId, limit, offset]);
+    const { rows } = await pool.query(query, [limit, offset]);
 
     return {
         data: rows,
