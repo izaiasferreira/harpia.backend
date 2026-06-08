@@ -1,87 +1,12 @@
 const { cenos_pool } = require('../../db');
+const { serviceGroupCreateSchema, serviceGroupSchema, markerCategorySchema, serviceNoteCreateSchema, serviceNoteSchema } = require('../../db/schemas');
 
 // ==========================================
 // DDL
 // ==========================================
 
 async function ensureServiceNotesTables() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS service_groups (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(255) NOT NULL,
-            description TEXT,
-            completion_config JSONB NOT NULL DEFAULT '{}',
-            created_by INTEGER,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-        CREATE TABLE IF NOT EXISTS marker_categories (
-            id SERIAL PRIMARY KEY,
-            group_id INTEGER NOT NULL REFERENCES service_groups(id) ON DELETE CASCADE,
-            name VARCHAR(100) NOT NULL,
-            color VARCHAR(7) NOT NULL DEFAULT '#2563EB',
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-        CREATE TABLE IF NOT EXISTS service_notes (
-            id SERIAL PRIMARY KEY,
-            group_id INTEGER NOT NULL REFERENCES service_groups(id) ON DELETE CASCADE,
-            title VARCHAR(255) NOT NULL,
-            description TEXT,
-            coordinates VARCHAR(100),
-            latitude DOUBLE PRECISION,
-            longitude DOUBLE PRECISION,
-            address TEXT,
-            status VARCHAR(50) NOT NULL DEFAULT 'PENDENTE' CHECK (status IN ('PENDENTE', 'CONCLUIDO')),
-            assigned_to VARCHAR(50),
-            completed_by VARCHAR(50),
-            completed_at TIMESTAMP,
-            completion_coordinates VARCHAR(100),
-            completion_data JSONB,
-            custom_fields JSONB,
-            marker_category_id INTEGER REFERENCES marker_categories(id) ON DELETE SET NULL,
-            self_registered BOOLEAN NOT NULL DEFAULT FALSE,
-            archived BOOLEAN NOT NULL DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-        CREATE TABLE IF NOT EXISTS service_assignments (
-            id SERIAL PRIMARY KEY,
-            service_note_id INTEGER NOT NULL REFERENCES service_notes(id) ON DELETE CASCADE,
-            agent_id VARCHAR(50) NOT NULL,
-            assigned_by INTEGER,
-            assigned_at TIMESTAMP DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_service_notes_group ON service_notes(group_id);
-        CREATE INDEX IF NOT EXISTS idx_service_notes_assigned ON service_notes(assigned_to);
-        CREATE INDEX IF NOT EXISTS idx_service_notes_status ON service_notes(status);
-        CREATE INDEX IF NOT EXISTS idx_marker_categories_group ON marker_categories(group_id);
-    `);
-
-    // Migração de banco: adiciona latitude/longitude se não existirem
-    await cenos_pool.query(`
-        ALTER TABLE service_notes ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
-        ALTER TABLE service_notes ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
-    `);
-
-    // Migração de banco: adiciona controle de permissões por agente em service_groups
-    await cenos_pool.query(`
-        ALTER TABLE service_groups ADD COLUMN IF NOT EXISTS allow_all_agents BOOLEAN DEFAULT TRUE;
-        ALTER TABLE service_groups ADD COLUMN IF NOT EXISTS allowed_agents JSONB DEFAULT '[]';
-        ALTER TABLE service_groups ADD COLUMN IF NOT EXISTS allow_agent_creation BOOLEAN DEFAULT FALSE;
-    `);
-
-    // Migra registros legados: copia de coordinates para latitude/longitude
-    const { rows } = await cenos_pool.query("SELECT id, coordinates FROM service_notes WHERE coordinates IS NOT NULL AND (latitude IS NULL OR longitude IS NULL)");
-    for (const row of rows) {
-        const parts = String(row.coordinates).split(',');
-        if (parts.length === 2) {
-            const lat = parseFloat(parts[0].trim());
-            const lng = parseFloat(parts[1].trim());
-            if (!isNaN(lat) && !isNaN(lng)) {
-                await cenos_pool.query("UPDATE service_notes SET latitude = $1, longitude = $2 WHERE id = $3", [lat, lng, row.id]);
-            }
-        }
-    }
+    // Tabelas criadas via migration central
 }
 
 function validateCoordinates(coord) {
@@ -115,31 +40,34 @@ async function getServiceGroupById(id) {
 
 async function createServiceGroup({ name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation, created_by }) {
     await ensureServiceNotesTables();
+    const validated = serviceGroupCreateSchema.parse({ name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation, created_by });
     const { rows } = await cenos_pool.query(
         `INSERT INTO service_groups (name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
         [
-            name,
-            description || null,
-            JSON.stringify(completion_config || {}),
-            allow_all_agents !== undefined ? allow_all_agents : true,
-            JSON.stringify(allowed_agents || []),
-            allow_agent_creation !== undefined ? allow_agent_creation : false,
-            created_by || null
+            validated.name,
+            validated.description || null,
+            typeof validated.completion_config === 'string' ? validated.completion_config : JSON.stringify(validated.completion_config || {}),
+            validated.allow_all_agents !== undefined ? validated.allow_all_agents : true,
+            typeof validated.allowed_agents === 'string' ? validated.allowed_agents : JSON.stringify(validated.allowed_agents || []),
+            validated.allow_agent_creation !== undefined ? validated.allow_agent_creation : false,
+            validated.created_by || null
         ]
     );
     return rows[0];
 }
 
-async function updateServiceGroup(id, { name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation }) {
+async function updateServiceGroup(id, data) {
     await ensureServiceNotesTables();
+    const validated = serviceGroupSchema.partial().parse(data);
+    const { name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation } = validated;
     const updates = [];
     const params = [];
     let idx = 1;
     if (name !== undefined) { updates.push(`name = $${idx}`); params.push(name); idx++; }
     if (description !== undefined) { updates.push(`description = $${idx}`); params.push(description); idx++; }
-    if (completion_config !== undefined) { updates.push(`completion_config = $${idx}`); params.push(JSON.stringify(completion_config)); idx++; }
+    if (completion_config !== undefined) { updates.push(`completion_config = $${idx}`); params.push(typeof completion_config === 'string' ? completion_config : JSON.stringify(completion_config)); idx++; }
     if (allow_all_agents !== undefined) { updates.push(`allow_all_agents = $${idx}`); params.push(allow_all_agents); idx++; }
-    if (allowed_agents !== undefined) { updates.push(`allowed_agents = $${idx}`); params.push(JSON.stringify(allowed_agents)); idx++; }
+    if (allowed_agents !== undefined) { updates.push(`allowed_agents = $${idx}`); params.push(typeof allowed_agents === 'string' ? allowed_agents : JSON.stringify(allowed_agents)); idx++; }
     if (allow_agent_creation !== undefined) { updates.push(`allow_agent_creation = $${idx}`); params.push(allow_agent_creation); idx++; }
     if (updates.length === 0) return null;
     updates.push('updated_at = NOW()');
@@ -166,9 +94,10 @@ async function listCategoriesByGroup(groupId) {
 
 async function createCategory({ group_id, name, color }) {
     await ensureServiceNotesTables();
+    const validated = markerCategorySchema.parse({ group_id: Number(group_id), name, color });
     const { rows } = await cenos_pool.query(
         `INSERT INTO marker_categories (group_id, name, color) VALUES ($1, $2, $3) RETURNING *`,
-        [group_id, name, color || '#2563EB']
+        [validated.group_id, validated.name, validated.color || '#2563EB']
     );
     return rows[0];
 }
@@ -232,37 +161,60 @@ async function createServiceNote({ group_id, title, description, coordinates, la
         coordVal = `${latVal},${lngVal}`;
     }
 
+    const validated = serviceNoteCreateSchema.parse({
+        group_id: Number(group_id),
+        title,
+        description,
+        coordinates: coordVal || null,
+        latitude: latVal,
+        longitude: lngVal,
+        address,
+        marker_category_id: marker_category_id !== undefined && marker_category_id !== null ? Number(marker_category_id) : null,
+        custom_fields
+    });
+
     const { rows } = await cenos_pool.query(
         `INSERT INTO service_notes (group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, custom_fields)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-        [group_id, title, description || null, coordVal || null, latVal, lngVal, address || null, marker_category_id || null, custom_fields ? JSON.stringify(custom_fields) : null]
+        [
+            validated.group_id,
+            validated.title,
+            validated.description || null,
+            validated.coordinates || null,
+            validated.latitude,
+            validated.longitude,
+            validated.address || null,
+            validated.marker_category_id || null,
+            validated.custom_fields ? (typeof validated.custom_fields === 'string' ? validated.custom_fields : JSON.stringify(validated.custom_fields)) : null
+        ]
     );
     return rows[0];
 }
 
 async function updateServiceNote(id, fields) {
     await ensureServiceNotesTables();
+    const validated = serviceNoteSchema.partial().parse(fields);
     const allowed = ['title', 'description', 'coordinates', 'latitude', 'longitude', 'address', 'marker_category_id', 'status', 'group_id', 'archived'];
     const updates = [];
     const params = [];
     let idx = 1;
 
-    let latVal = fields.latitude !== undefined ? parseFloat(fields.latitude) : undefined;
-    let lngVal = fields.longitude !== undefined ? parseFloat(fields.longitude) : undefined;
-    let coordVal = fields.coordinates;
+    let latVal = validated.latitude !== undefined ? parseFloat(validated.latitude) : undefined;
+    let lngVal = validated.longitude !== undefined ? parseFloat(validated.longitude) : undefined;
+    let coordVal = validated.coordinates;
 
-    if (fields.coordinates !== undefined && fields.latitude === undefined) {
-        const parts = String(fields.coordinates).split(',');
+    if (validated.coordinates !== undefined && validated.latitude === undefined) {
+        const parts = String(validated.coordinates).split(',');
         if (parts.length === 2) {
             latVal = parseFloat(parts[0].trim());
             lngVal = parseFloat(parts[1].trim());
         }
-    } else if (latVal !== undefined && lngVal !== undefined && fields.coordinates === undefined) {
+    } else if (latVal !== undefined && lngVal !== undefined && validated.coordinates === undefined) {
         coordVal = `${latVal},${lngVal}`;
     }
 
     for (const key of allowed) {
-        if (fields[key] !== undefined || (key === 'latitude' && latVal !== undefined) || (key === 'longitude' && lngVal !== undefined)) {
+        if (validated[key] !== undefined || (key === 'latitude' && latVal !== undefined) || (key === 'longitude' && lngVal !== undefined)) {
             updates.push(`${key} = $${idx}`);
             if (key === 'coordinates') {
                 params.push(coordVal || null);
@@ -271,7 +223,7 @@ async function updateServiceNote(id, fields) {
             } else if (key === 'longitude') {
                 params.push(lngVal !== undefined ? lngVal : null);
             } else {
-                params.push(fields[key]);
+                params.push(validated[key]);
             }
             idx++;
         }

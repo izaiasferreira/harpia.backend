@@ -14,40 +14,113 @@ src/
 ├── app.js                              # Express app — middlewares globais e montagem de routers
 ├── db.js                               # Pools de conexão PostgreSQL (pi, ma, localizacoes_pi, cenos)
 ├── redis.js                            # Cliente Redis (logs e rate limit)
-├── routes/
+├── socket.js                           # Socket.io (chat em tempo real, notificações)
+├── db/
+│   ├── migrations/                     # Migrações SQL versionadas
+│   │   ├── 001_base_tables.sql
+│   │   ├── 002_chat_tables.sql
+│   │   ├── 003_service_notes.sql
+│   │   ├── 004_tracking.sql
+│   │   ├── 005_forms_training.sql
+│   │   ├── 006_indexes.sql
+│   │   ├── 007_types.sql
+│   │   ├── 008_foreign_keys.sql
+│   │   ├── 009_telegram_tokens.sql
+│   │   └── run.js
+│   └── schemas/                        # Schemas de criação de tabelas
+│       ├── appPins.js
+│       ├── badges.js
+│       ├── branches.js
+│       ├── ceneduc.js
+│       ├── chat.js
+│       ├── dailyReport.js
+│       ├── fcmTokens.js
+│       ├── forms.js
+│       ├── index.js
+│       ├── inventory.js
+│       ├── justify.js
+│       ├── login.js
+│       ├── messageTemplates.js
+│       ├── notifications.js
+│       ├── permissions.js
+│       ├── security.js
+│       ├── sentMessages.js
+│       ├── serviceNotes.js
+│       ├── tracking.js
+│       ├── training.js
+│       └── users.js
+├── routes/                             # 35 arquivos de rotas Express
 │   ├── public.js                       # Rotas públicas (/public/*)
+│   ├── publicNotify.js                 # Notificação pública (/public/notify)
+│   ├── telegramWebhook.js              # Webhook Telegram (/public/telegram-webhook)
 │   ├── consultas.js                    # Consultas gerais (/api/*, token simples)
+│   ├── logs.js                         # Logs de auditoria (/api/logs/*)
 │   ├── agentDefaultAuth.js             # Rotas agente sem Telegram auth (/api/*)
 │   ├── agente.js                       # Rotas do app do agente (/agent/*, Telegram auth)
-│   ├── adminModules.js                 # Admin dashboard, search_in, justify, etc. (/admin/*)
-│   ├── adminUsers.js                   # CRUD de usuários (/admin/user/*)
+│   ├── agentServiceNotes.js            # Notas de serviço do agente (/agent/service-notes/*)
+│   ├── adminModules.js                 # Dashboard, search_in, justify, CRUDs (/admin/*)
+│   ├── adminUsers.js                   # CRUD de usuários admin (/admin/user/*)
 │   ├── adminBranches.js                # CRUD de filiais (/admin/branch/*)
 │   ├── adminPermissions.js             # CRUD de permissões (/admin/permission/*)
 │   ├── adminSecurityReports.js         # Relatórios de segurança (/admin/security_reports/*)
 │   ├── adminMessageTemplates.js        # Modelos de mensagem (/admin/message_templates/*)
 │   ├── adminBadges.js                  # CRUD de badges (/admin/badge/*)
+│   ├── adminUserBadges.js              # Badges por usuário (/admin/user-badges/*)
 │   ├── adminCeneduc.js                 # CRUD de cards CenEduc (/admin/ceneduc/*)
-│   ├── trainingProjects.js             # Interativos (/admin/training/*)
+│   ├── adminConfig.js                  # Config (etapas/feriados) (/admin/config/*)
+│   ├── adminAppPins.js                 # PINs para login app nativo (/admin/agent/*)
+│   ├── adminTracking.js                # Monitoramento GPS (/admin/tracking/*)
+│   ├── adminServiceNotes.js            # Service notes admin (/admin/service-notes/*)
+│   ├── serviceNotesChat.js             # Chat IA service notes (/admin/service-notes/:id/chat)
+│   ├── adminNotifications.js           # Notificações push (/admin/notifications/*)
+│   ├── adminMessages.js                # Mensagens multicanal (/admin/messages/*)
+│   ├── adminChat.js                    # Chat administrativo (/admin/chat/*)
+│   ├── chat.js                         # Chat do agente (/api/chat/*)
+│   ├── trainingProjects.js             # Treinamentos interativos (/admin/training/*)
+│   ├── trainingChat.js                 # Chat IA treinamentos (/admin/training/:id/chat)
 │   ├── forms.js                        # Formulários dinâmicos (/admin/forms/*)
-│   ├── formChat.js                     # Chat IA para formulários (/admin/forms/:id/chat)
-│   ├── adminAppPins.js                 # PINs para login app nativo/web (/admin/agent/*)
-│   ├── adminTracking.js                # Monitoramento: GPS, velocidade, quedas (/admin/tracking/*)
-│   └── upload.js                       # Upload de arquivos MinIO/S3 (/*)
+│   ├── formChat.js                     # Chat IA formulários (/admin/forms/:id/chat)
+│   ├── revalidate.js                   # Revalidação de auditorias (/admin/revalidate/*)
+│   ├── appUpdate.js                    # Auto-update Android (/api/app/update/*)
+│   ├── upload.js                       # Upload de arquivos MinIO/S3 (/*)
+│   ├── docsViewer.js                   # Visualizador de documentação (/docsmd, /raw-md/*)
+│   └── webhooks.js                     # Webhooks diversos (não montado ativamente)
+├── middlewares/                        # Middlewares de autenticação e validação
+│   ├── auth.js                         # Autenticação geral
+│   ├── jwtAuth.js                      # JWT admin
+│   ├── telegramAuth.js                 # Telegram TMA
+│   ├── permissions.js                  # Guardas de módulo
+│   ├── logMiddleware.js                # Log de requisições
+│   └── validate.js                     # Validação de schemas
 ├── llm/                                # Módulo LLM (Modular)
 │   ├── index.js                        # Factory de providers (OpenAI / Gemini)
-│   ├── providers/                      # Classes específicas do OpenAI, Gemini, etc.
-│   └── prompts/                        # Prompts estruturados do sistema (ex: formBuilder)
-├── functions/
-│   ├── postgresFunctions.js            # Todas as queries SQL consolidadas
-│   ├── database/                       # Scripts de criação de tabelas e DDL do banco
-│   │   ├── formChat.js                 # Lógica e persistência de chats com IA
-│   │   ├── appPins.js                  # PINs para login app nativo
-│   │   └── tracking.js                 # Estrutura de tabelas e queries de geolocalização
-│   ├── generateDashboard.js            # Lógica dinâmica para montagem do layout SDUI
-│   ├── generateCustomLinks.js          # Links customizados baseados nas restrições de grupos
-│   ├── middlewares.js                  # Middlewares comuns (auth, guards, rate limits)
+│   ├── providers/
+│   │   ├── gemini.js                   # Provider Gemini
+│   │   └── openai.js                   # Provider OpenAI
+│   └── prompts/
+│       ├── formBuilder.js              # Prompt para construção de formulários
+│       └── serviceNotes.js             # Prompt para assistente service notes
+├── functions/                          # Lógicas de negócio e queries
+│   ├── postgresFunctions.js            # Queries SQL consolidadas (legado)
+│   ├── generateDashboard.js            # Montagem do layout SDUI do dashboard
+│   ├── generateCustomLinks.js          # Links customizados por permissão
+│   ├── badges.js                       # Lógica de badges
+│   ├── firebase.js                     # Firebase Admin (FCM push)
 │   ├── minio.js                        # Cliente wrapper MinIO/S3
-│   └── modules.js                      # Definição e enumeração de módulos do sistema
+│   ├── modules.js                      # Definição de módulos do sistema
+│   ├── middlewares.js                  # Helpers de middleware
+│   ├── requestsFunctions.js            # Funções auxiliares de request
+│   └── database/                       # Queries especializadas por módulo (31 arquivos)
+│       ├── admin.js, agentes.js, adminSecurityReports.js
+│       ├── appPins.js, badges.js, branches.js
+│       ├── c12.js, ceneduc.js, chat.js, cnl.js, cnlSemReceita.js
+│       ├── commom.js, configs.js, fcmTokens.js
+│       ├── formChat.js, forms.js, getLeiturasGeral.js
+│       ├── messageTemplates.js, notifications.js
+│       ├── pendencias.js, perdas.js, permissions.js, pontualidade.js
+│       ├── revalidate.js, serviceNotes.js, serviceNotesChat.js
+│       ├── status.js, tracking.js, trainingChat.js
+│       ├── trainingProjects.js, users.js
 └── utils/
     └── dates.js                        # Helpers utilitários de formatação de datas
 ```

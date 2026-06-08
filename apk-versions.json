@@ -1,36 +1,20 @@
 {
-    "latest": {
-        "changelog": "Correções de serviços e melhoria de desempenho",
-        "versionName": "1.0.8",
-        "versionCode": 8,
-        "releaseDate": "2026-06-05T17:22:04.601Z",
-        "forceUpdate": false,
-        "url": "/files/apk/app-1.0.8.apk"
-    },
-    "history": [
-        {
-            "changelog": "Ajustes de mapa",
-            "versionName": "1.0.6",
-            "versionCode": 7,
-            "releaseDate": "2026-06-05T13:39:08.933Z",
-            "forceUpdate": false,
-            "url": "/files/apk/app-1.0.6.apk"
-        },
-        {
-            "changelog": "Inicial",
-            "versionName": "1.0.5",
-            "versionCode": 6,
-            "releaseDate": "2026-06-04T13:02:24.998Z",
-            "forceUpdate": false,
-            "url": "/files/apk/app-1.0.5.apk"
-        },
-        {
-            "changelog": "CorreÃ§Ãµes de serviÃ§os e melhoria de desempenho",
-            "versionName": "1.0.7",
-            "versionCode": 8,
-            "releaseDate": "2026-06-05T17:01:05.956Z",
-            "forceUpdate": false,
-            "url": "/files/apk/app-1.0.7.apk"
-        }
-    ]
+  "latest": {
+    "versionCode": 2,
+    "versionName": "1.0.1",
+    "url": "/files/apk/app-1.0.1.apk",
+    "changelog": "Correcao de bugs",
+    "forceUpdate": false,
+    "releaseDate": "2025-06-03T00:00:00.000Z"
+  },
+  "history": [
+    {
+      "versionCode": 1,
+      "versionName": "1.0.0",
+      "url": "/files/apk/app-1.0.0.apk",
+      "changelog": "Versao inicial",
+      "forceUpdate": false,
+      "releaseDate": "2025-01-01T00:00:00.000Z"
+    }
+  ]
 }

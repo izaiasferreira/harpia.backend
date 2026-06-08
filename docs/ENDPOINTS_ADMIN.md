@@ -43,6 +43,62 @@ Autenticação administrativa com e-mail e senha. Retorna o token JWT assinado.
 
 ---
 
+### `POST /admin/user/register`
+Registra um novo usuário administrativo no sistema.
+
+**Body:**
+```json
+{
+  "email": "novo@cenos.com.br",
+  "senha": "senha_secreta",
+  "nome": "Maria Souza",
+  "role": "REGIONAL_ADMIN",
+  "estado": "pi"
+}
+```
+
+---
+
+### `GET /admin/user/me`
+Retorna os dados do usuário administrativo autenticado.
+
+---
+
+### `GET /admin/user/users`
+Lista todos os usuários administrativos cadastrados.
+
+---
+
+### `GET /admin/user/users/:id`
+Retorna detalhes de um usuário administrativo específico.
+
+---
+
+### `PUT /admin/user/users/:id`
+Atualiza dados de um usuário administrativo.
+
+---
+
+### `PUT /admin/user/users/:id/password`
+Altera a senha de um usuário administrativo.
+
+**Body:**
+```json
+{ "senha": "nova_senha" }
+```
+
+---
+
+### `PUT /admin/user/users/:id/permissions`
+Atualiza as permissões de módulo de um usuário.
+
+---
+
+### `DELETE /admin/user/users/:id`
+Remove um usuário administrativo do sistema.
+
+---
+
 ### `GET /admin/users_agents`
 Lista os colaboradores de campo (técnicos) cadastrados no sistema. Suporta filtros por seccional, regional, gestor, estado e busca textual.
 
@@ -68,7 +124,6 @@ Retorna uma lista de agentes enriquecida com campos de login e inventário:
 * **Mapeamento Adicional:** Cada registro inclui a propriedade computada `has_inventory` (boolean), que sinaliza de forma reativa se aquele agente possui um inventário ativo cadastrado no sistema.
 * **Exportação CSV:** O botão de exportação da listagem em massa gera um arquivo delimitado por ponto e vírgula (`;`) contendo o BOM (`\uFEFF`) e as colunas adicionais **"TEM TELEGRAM"** e **"TEM INVENTÁRIO"**.
 
-
 ---
 
 ### `POST /admin/users_agents`
@@ -88,6 +143,26 @@ Cadastra um novo colaborador de campo.
 
 ---
 
+### `GET /admin/users_agents/:id`
+Retorna detalhes de um agente de campo específico.
+
+---
+
+### `PUT /admin/users_agents/:id`
+Atualiza dados de um agente de campo.
+
+---
+
+### `DELETE /admin/users_agents/:id`
+Remove um agente de campo do sistema.
+
+---
+
+### `GET /admin/users_agents/options`
+Retorna listas de valores para filtros (regionais, seccionais, estados).
+
+---
+
 ### `GET /admin/branch` / `POST /admin/branch`
 CRUD de filiais e regionais operacionais.
 
@@ -98,9 +173,141 @@ CRUD de perfis de permissão (grupos de módulos e filtros geográficos).
 
 ---
 
-## 3. Construtor de Formulários Dinâmicos e Assistente IA
+### `GET /admin/available_modules`
+Retorna a lista de todos os módulos do sistema disponíveis para atribuição de permissões.
+
+---
+
+## 3. Dashboard e Métricas Operacionais
+
+Painel central com métricas em tempo real do desempenho dos agentes de campo.
+
+### `GET /admin/dashboard`
+Retorna dados consolidados do dashboard administrativo com indicadores de leituras, pontualidade, CNL e produtividade.
+
+**Módulo Requerido:** `dashboard`
+
+---
+
+### `GET /admin/perdas`
+Retorna dados de perdas de energia para análise no dashboard.
+
+---
+
+## 4. Ferramentas de Busca e Consulta
+
+### `POST /admin/search_in`
+Busca instalações no banco de dados por matrícula do agente, instalação ou conta-contrato.
+
+**Body:**
+```json
+{
+  "type": "instalacao",
+  "queries": ["123456", "789012"]
+}
+```
+
+---
+
+### `PUT /admin/search_in/:id`
+Atualiza dados de uma instalação específica encontrada via busca.
+
+---
+
+## 5. Gestão de Justificativas (Justify)
+
+Módulo de gerenciamento de justificativas de falhas de leitura enviadas pelos agentes de campo.
+
+### `GET /admin/justify`
+Lista justificativas de falhas de leitura com filtros.
+
+**Query Params:** `search`, `data`, `tipo`, `regional`, `seccional`, `page`, `limit`
+
+---
+
+### `GET /admin/justify/types`
+Retorna os tipos de justificativa disponíveis.
+
+---
+
+### `POST /admin/justify`
+Cria uma nova justificativa administrativa.
+
+---
+
+### `PUT /admin/justify/:id`
+Atualiza uma justificativa existente.
+
+---
+
+### `DELETE /admin/justify/:id`
+Remove uma justificativa do sistema.
+
+---
+
+### `GET /admin/justify_pending`
+Lista justificativas pendentes de aprovação.
+
+**Query Params:** `search`, `regional`, `seccional`, `status`, `page`, `limit`
+
+---
+
+### `POST /admin/justify_pending`
+Cria uma justificativa pendente.
+
+---
+
+### `PUT /admin/justify_pending/:id`
+Atualiza uma justificativa pendente.
+
+---
+
+### `DELETE /admin/justify_pending/:id`
+Remove uma justificativa pendente.
+
+---
+
+## 6. Reporte Diário (Daily Report)
+
+### `GET /admin/daily_report`
+Lista os reportes diários enviados pelos agentes.
+
+**Query Params:** `search`, `data`, `regional`, `seccional`, `page`, `limit`
+
+---
+
+### `POST /admin/daily_report`
+Cria um reporte diário administrativo.
+
+---
+
+### `PUT /admin/daily_report/:id`
+Atualiza um reporte diário.
+
+---
+
+### `DELETE /admin/daily_report/:id`
+Remove um reporte diário.
+
+---
+
+## 7. Construtor de Formulários Dinâmicos e Assistente IA
 
 Os formulários dinâmicos de vistoria são criados visualmente pelo administrador e sincronizados com os PWAs de campo.
+
+### `GET /admin/forms`
+Lista todos os formulários dinâmicos cadastrados.
+
+**Módulo Requerido:** `forms`
+
+---
+
+### `GET /admin/forms/:id`
+Retorna detalhes de um formulário específico, incluindo sua estrutura de perguntas.
+
+**Módulo Requerido:** `forms`
+
+---
 
 ### `POST /admin/forms`
 Cria um formulário dinâmico definindo sua estrutura de perguntas obrigatórias.
@@ -206,6 +413,25 @@ Limpa todo o histórico de conversas do assistente de IA do formulário especifi
 
 ---
 
+### `PUT /admin/forms/:id`
+Atualiza parcialmente um formulário dinâmico.
+
+**Módulo Requerido:** `update_form`
+
+---
+
+### `DELETE /admin/forms/:id`
+Remove um formulário dinâmico.
+
+**Módulo Requerido:** `delete_form`
+
+---
+
+### `GET /admin/forms/:id/stats`
+Retorna estatísticas de respostas de um formulário (total de submissões, taxa de preenchimento, etc).
+
+---
+
 ### `GET /admin/forms/:id/responses`
 Lista as respostas coletadas para um formulário específico.
 
@@ -221,7 +447,7 @@ Exporta as respostas consolidadas de um formulário no formato CSV otimizado par
 
 ---
 
-## 4. Rastreamento e Monitoria em Tempo Real (Tracking)
+## 8. Rastreamento e Monitoria em Tempo Real (Tracking)
 
 Gerencia a telemetria, detecção de acidentes, trajetos e velocidades de agentes em campo.
 
@@ -259,7 +485,7 @@ Retorna as coordenadas históricas (trilha) percorridas por um agente específic
 ---
 
 ### `GET /admin/tracking/speed_violations`
-Lista as infrações de limite de velocidade (> 80 km/h) disparadas em campo.
+Lista as infrações de limite de velocidade (> 50 km/h) disparadas em campo.
 
 ---
 
@@ -278,7 +504,7 @@ Permite ao gestor alterar o status do incidente (marcar como emergência confirm
 
 ---
 
-## 5. PINs de Aplicativo Standalone
+## 9. PINs de Aplicativo Standalone
 
 ### `POST /admin/agent/generate_app_pin`
 Gera o código PIN de 6 dígitos numéricos, válido por 24 horas, para que um colaborador de campo acesse o aplicativo standalone (fora do Telegram Mini App).
@@ -298,7 +524,17 @@ Gera o código PIN de 6 dígitos numéricos, válido por 24 horas, para que um c
 
 ---
 
-## 6. Logs de Auditoria do Sistema
+### `GET /admin/agent/app_pins`
+Lista todos os PINs gerados, com status de uso e expiração.
+
+---
+
+### `DELETE /admin/agent/app_pins/:id`
+Remove um registro de PIN gerado.
+
+---
+
+## 10. Logs de Auditoria do Sistema
 
 Módulo de auditoria de performance, erros e infraestrutura.
 
@@ -318,7 +554,7 @@ Exclui logicamente os logs correspondentes aos filtros selecionados para expurgo
 
 ---
 
-## 7. Modelos de Mensagens (Message Templates)
+## 11. Modelos de Mensagens (Message Templates)
 
 Permite gerenciar textos padrão pré-cadastrados para notificações rápidas enviadas aos leitores e agentes de campo via Telegram.
 
@@ -357,7 +593,7 @@ Deleta permanentemente um modelo de mensagem do banco.
 
 ---
 
-## 8. Consulta Geral de Serviços (Services Consult)
+## 12. Consulta Geral de Serviços (Services Consult)
 
 Módulo analítico que oferece ao gestor uma visão de auditoria em tempo real sobre a execução de leituras e vistorias.
 
@@ -375,7 +611,7 @@ Lista todos os serviços realizados e em andamento. Suporta scroll infinito no f
 
 ---
 
-## 9. Revalidação de Auditorias (Revalidate)
+## 13. Revalidação de Auditorias (Revalidate)
 
 Módulo de revalidação de fotos de auditoria armazenadas no bucket MinIO `auditorias-pi`. Permite visualizar fotos pendentes de revalidação e marcar como validadas ou invalidadas.
 
@@ -474,7 +710,7 @@ Retorna as opções disponíveis para filtros (datas, regionais, seccionais, age
 
 ---
 
-## 10. Módulo de Inventário (Inventory)
+## 14. Módulo de Inventário (Inventory)
 
 Gerencia os equipamentos (PDA/Coletores, Impressoras Térmicas e Maquininhas de Cartão) associados a cada agente comercial em campo.
 
@@ -549,7 +785,17 @@ Cadastra ou sobrescreve o registro de inventário de um colaborador.
 
 ---
 
-## 10. Módulo de Chat de Suporte Real-Time (Socket.io)
+### `PUT /admin/inventory/:id`
+Atualiza parcialmente um registro de inventário.
+
+---
+
+### `DELETE /admin/inventory/:id`
+Remove um registro de inventário.
+
+---
+
+## 15. Módulo de Chat de Suporte Real-Time (Socket.io)
 
 Este módulo gerencia a comunicação síncrona/assíncrona de auditoria imutável entre a central administrativa e os colaboradores em campo.
 
@@ -706,13 +952,32 @@ Marca instantaneamente todas as mensagens recebidas na sala especificada como li
 
 ---
 
-## 10. Mensagens Unificadas (Chat Multicanal)
+## 16. Mensagens Unificadas (Chat Multicanal)
 
 Endpoint unificado que substitui o envio fragmentado de mensagens. Toda mensagem enviada é registrada em `chat_messages` com o canal correspondente, unificando o histórico de comunicação com o agente.
 
 ### `POST /admin/messages/send`
 
 Envia mensagem para agente(s) via um ou mais canais e registra no chat unificado.
+
+---
+
+### `POST /admin/notifications/broadcast`
+
+Envia notificação em massa para todos os agentes de um estado ou filtro geográfico.
+
+**Módulo Requerido:** `notifications`
+
+**Body (JSON):**
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `title` | string | **sim** | Título da notificação |
+| `body` | string | **sim** | Corpo da mensagem |
+| `type` | string | não | `success`, `warn`, `danger`, `info` |
+| `estado` | string | não | Filtrar por estado (`pi` ou `ma`) |
+| `method` | string[] | não | Canais: `telegram`, `push`, `internal` |
+
+---
 
 **Módulo requerido:** JWT Admin (Bearer)
 
@@ -750,7 +1015,7 @@ Envia mensagem para agente(s) via um ou mais canais e registra no chat unificado
 
 ---
 
-## 11. Módulo de Notas de Serviço (Service Notes Admin)
+## 17. Módulo de Notas de Serviço (Service Notes Admin)
 
 Módulo completo de gerenciamento de notas de serviço. Permite criar grupos, categorias, notas, atribuir agentes, importar/exportar e gerenciar conclusões.
 
@@ -1291,3 +1556,467 @@ Consulta histórico de notificações de um agente específico com filtros.
   "pages": 2
 }
 ```
+
+---
+
+## 18. Módulo de Badges (Emblemas)
+
+Gerencia o catálogo global de insígnias visuais da plataforma.
+
+**Prefixo:** `/admin/badge/*`
+
+**Autenticação:** JWT Admin (Bearer)
+
+---
+
+### `GET /admin/badge`
+
+Lista todas as badges cadastradas no sistema.
+
+**Módulo Requerido:** `badges`
+
+**Resposta 200:** Array de badges.
+
+---
+
+### `GET /admin/badge/:id`
+
+Retorna detalhes de uma badge específica.
+
+**Módulo Requerido:** `badges`
+
+**Resposta 200:** Objeto da badge.
+
+**Resposta 404:** `{ "error": "Badge não encontrado" }`
+
+---
+
+### `POST /admin/badge`
+
+Cria uma nova badge.
+
+**Módulo Requerido:** `create_badge`
+
+**Body (JSON):**
+```json
+{
+  "title": "Super Agente",
+  "description": "Leitura de mais de 500 rotas sem erros",
+  "image_url": "https://api.izi.tec.br/files/assets/emblema_super.png"
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `title` | string | **sim** | Título da badge |
+| `description` | string | não | Descrição |
+| `image_url` | string | não | URL da imagem |
+
+**Resposta 201:** Objeto da badge criada.
+
+---
+
+### `PUT /admin/badge/:id`
+
+Atualiza parcialmente uma badge.
+
+**Módulo Requerido:** `update_badge`
+
+**Body (JSON):** Campos parciais (mesmos do POST).
+
+**Resposta 200:** Objeto da badge atualizada.
+
+**Resposta 404:** `{ "error": "Badge não encontrado" }`
+
+---
+
+### `DELETE /admin/badge/:id`
+
+Remove uma badge permanentemente.
+
+**Módulo Requerido:** `delete_badge`
+
+**Resposta 200:** `{ "success": true, "deleted": { ... } }`
+
+---
+
+## 19. Badges de Usuário (User Badges)
+
+Gerencia a associação de emblemas a perfis de agentes de campo.
+
+**Prefixo:** `/admin/user-badges/*`
+
+**Autenticação:** JWT Admin (Bearer)
+
+---
+
+### `GET /admin/user-badges/:id`
+
+Consulta as badges associadas a um agente.
+
+**Módulo Requerido:** `badges`
+
+**Path Params:** `id` — matrícula do agente
+
+**Query Params:**
+| Parâmetro | Tipo | Descrição |
+|-----------|------|-----------|
+| `state` | string | Estado do agente (`pi` ou `ma`) |
+
+**Resposta 200:**
+```json
+{
+  "id": "T60702",
+  "nome": "João Silva",
+  "badges": [1, 3, 5]
+}
+```
+
+**Resposta 404:** `{ "error": "Usuário não encontrado no sistema de campo" }`
+
+---
+
+### `POST /admin/user-badges/:id/add`
+
+Atribui manualmente uma badge ao perfil do agente.
+
+**Módulo Requerido:** `update_user`
+
+**Body (JSON):**
+```json
+{
+  "badgeId": 5
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `badgeId` | number | **sim** | ID da badge a atribuir |
+
+**Resposta 200:** `{ "success": true, "badges": [1, 3, 5] }`
+
+---
+
+### `POST /admin/user-badges/:id/remove`
+
+Revoga manualmente uma badge do perfil do agente.
+
+**Módulo Requerido:** `update_user`
+
+**Body (JSON):**
+```json
+{
+  "badgeId": 5
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `badgeId` | number | **sim** | ID da badge a remover |
+
+**Resposta 200:** `{ "success": true, "badges": [1, 3] }`
+
+---
+
+## 20. Módulo CenEduc (Admin)
+
+CRUD de cards da plataforma de aprendizado CenEduc.
+
+**Prefixo:** `/admin/ceneduc/*`
+
+**Autenticação:** JWT Admin (Bearer)
+
+---
+
+### `GET /admin/ceneduc`
+
+Lista todos os cards CenEduc cadastrados.
+
+**Módulo Requerido:** `ceneduc`
+
+**Query Params:**
+| Parâmetro | Tipo | Descrição |
+|-----------|------|-----------|
+| `state` | string | Filtrar por estado (`pi` ou `ma`) |
+
+**Resposta 200:** Array de cards.
+
+---
+
+### `GET /admin/ceneduc/:id`
+
+Retorna detalhes de um card específico.
+
+**Módulo Requerido:** `ceneduc`
+
+**Resposta 200:** Objeto do card.
+
+**Resposta 404:** `{ "error": "Card não encontrado" }`
+
+---
+
+### `POST /admin/ceneduc`
+
+Cria um novo card CenEduc.
+
+**Módulo Requerido:** `create_ceneduc`
+
+**Body (JSON):**
+```json
+{
+  "card_type": "cover",
+  "section": "slider",
+  "group_title": "Trilha de Leitura",
+  "state": "pi",
+  "sort_order": 1,
+  "badge_id": null,
+  "data": {
+    "title": "Curso de Leitura Eficiente",
+    "image": "https://...",
+    "description": "Aprenda técnicas...",
+    "link": "https://...",
+    "resource_type": "training",
+    "resource_id": 1
+  }
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `card_type` | string | **sim** | `cover` ou `train_item` |
+| `section` | string | não | `slider` ou `banner` (só para train_item) |
+| `group_title` | string | não | Obrigatório para train_item |
+| `state` | string | não | `pi`, `ma` ou null (ambos) |
+| `sort_order` | number | não | Ordem de exibição |
+| `badge_id` | number | não | ID da badge concedida ao completar |
+| `data` | object | **sim** | Conteúdo do card (título, imagem, link, resource_type, resource_id) |
+
+**Resposta 201:** Objeto do card criado.
+
+---
+
+### `PUT /admin/ceneduc/:id`
+
+Atualiza parcialmente um card CenEduc.
+
+**Módulo Requerido:** `update_ceneduc`
+
+**Body (JSON):** Campos parciais (mesmos do POST + `active` boolean).
+
+**Resposta 200:** Objeto do card atualizado.
+
+**Resposta 404:** `{ "error": "Card não encontrado" }`
+
+---
+
+### `DELETE /admin/ceneduc/:id`
+
+Remove um card CenEduc.
+
+**Módulo Requerido:** `delete_ceneduc`
+
+**Resposta 200:** `{ "success": true, "deleted": { ... } }`
+
+---
+
+## 21. Módulo de Configurações (Etapas e Feriados)
+
+Gerencia as etapas de leitura e feriados por estado (PI/MA).
+
+**Prefixo:** `/admin/config/*`
+
+**Autenticação:** JWT Admin (Bearer) + módulo `configs`
+
+---
+
+### `GET /admin/config/etapas`
+
+Lista todas as etapas de leitura de um estado.
+
+**Módulo Requerido:** `configs`
+
+**Query Params:**
+| Parâmetro | Tipo | Default | Descrição |
+|-----------|------|---------|-----------|
+| `state` | string | `pi` | Estado (`pi` ou `ma`) |
+
+**Resposta 200:**
+```json
+[
+  { "etapa": "1", "data": "05/05/2026" },
+  { "etapa": "2", "data": "12/05/2026" }
+]
+```
+
+---
+
+### `PUT /admin/config/etapas`
+
+Atualiza a data de uma etapa específica.
+
+**Módulo Requerido:** `configs`
+
+**Query Params:**
+| Parâmetro | Tipo | Default | Descrição |
+|-----------|------|---------|-----------|
+| `state` | string | `pi` | Estado (`pi` ou `ma`) |
+
+**Body (JSON):**
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `etapa` | string | **sim** | Identificador da etapa |
+| `data` | string | **sim** | Nova data no formato `DD/MM/YYYY` |
+
+**Resposta 200:**
+```json
+{ "success": true, "updated": { "etapa": "1", "data": "05/05/2026" } }
+```
+
+**Resposta 404:** `{ "error": "Etapa não encontrada no banco desse estado." }`
+
+---
+
+### `GET /admin/config/feriados`
+
+Lista todos os feriados de um estado.
+
+**Módulo Requerido:** `configs`
+
+**Query Params:**
+| Parâmetro | Tipo | Default | Descrição |
+|-----------|------|---------|-----------|
+| `state` | string | `pi` | Estado (`pi` ou `ma`) |
+
+**Resposta 200:**
+```json
+[
+  { "id": 1, "date": "03/04/2026" },
+  { "id": 2, "date": "21/04/2026" }
+]
+```
+
+---
+
+### `POST /admin/config/feriados`
+
+Adiciona um novo feriado.
+
+**Módulo Requerido:** `configs`
+
+**Query Params:**
+| Parâmetro | Tipo | Default | Descrição |
+|-----------|------|---------|-----------|
+| `state` | string | `pi` | Estado (`pi` ou `ma`) |
+
+**Body (JSON):**
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `date` | string | **sim** | Data no formato `DD/MM/YYYY` |
+| `description` | string | não | Descrição do feriado |
+
+**Resposta 201:** Objeto do feriado criado.
+
+---
+
+### `DELETE /admin/config/feriados/:id`
+
+Remove um feriado.
+
+**Módulo Requerido:** `configs`
+
+**Query Params:**
+| Parâmetro | Tipo | Default | Descrição |
+|-----------|------|---------|-----------|
+| `state` | string | `pi` | Estado (`pi` ou `ma`) |
+
+**Path Params:** `id` — ID numérico do feriado
+
+**Resposta 200:** `{ "success": true, "message": "Feriado excluído com sucesso." }`
+
+**Resposta 404:** `{ "error": "Feriado não encontrado ou já excluído." }`
+
+---
+
+## 22. Relatórios de Segurança (Security Reports)
+
+Gerencia relatórios de incidentes de segurança reportados pelos agentes de campo.
+
+**Prefixo:** `/admin/security_reports/*`
+
+**Autenticação:** JWT Admin (Bearer)
+
+---
+
+### `GET /admin/security_reports`
+
+Lista relatórios de segurança dos últimos 3 meses, com paginação e filtros.
+
+**Módulo Requerido:** `security_reports`
+
+**Query Params:**
+| Parâmetro | Tipo | Default | Descrição |
+|-----------|------|---------|-----------|
+| `page` | number | 1 | Número da página |
+| `limit` | number | 9999 | Itens por página |
+| `estado` | string | — | Filtrar por estado (`pi` ou `ma`) |
+| `search` | string | — | Busca em autor, motivo e observação (ILIKE) |
+
+**Resposta 200:**
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "autor": "T60702",
+      "motivo": "Queda de poste",
+      "observacao": "Poste na Rua A",
+      "latitude": -5.089,
+      "longitude": -42.801,
+      "estado": "pi",
+      "created_at": "2026-05-01T10:00:00.000Z",
+      "nome": "João Silva",
+      "matricula": "T60702"
+    }
+  ],
+  "total": 10,
+  "page": 1,
+  "limit": 9999,
+  "totalPages": 1
+}
+```
+
+---
+
+### `POST /admin/security_reports`
+
+Cria um novo relatório de segurança (admin).
+
+**Módulo Requerido:** `create_security_report`
+
+**Body (JSON):**
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `autor` | string | **sim** | Matrícula do agente |
+| `motivo` | string | **sim** | Motivo do relatório |
+| `observacao` | string | não | Observação adicional |
+| `latitude` | number | não | Latitude do incidente |
+| `longitude` | number | não | Longitude do incidente |
+| `estado` | string | não | Estado (`pi` ou `ma`, default: estado do admin) |
+
+**Resposta 201:** Objeto do relatório criado.
+
+---
+
+### `DELETE /admin/security_reports/:id`
+
+Remove um relatório de segurança.
+
+**Módulo Requerido:** `delete_security_report`
+
+**Path Params:** `id` — ID numérico do relatório
+
+**Resposta 200:** `{ "success": true, "deleted": { ... } }`
+
+**Resposta 403:** `{ "error": "Você não tem permissão para deletar relatórios deste estado" }`
+
+**Resposta 404:** `{ "error": "Relatório não encontrado" }`

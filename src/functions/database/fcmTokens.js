@@ -1,36 +1,21 @@
 const { cenos_pool } = require('../../db');
+const { fcmTokenCreateSchema } = require('../../db/schemas');
 
 let tableChecked = false;
 
 async function ensureFcmTable() {
-    if (tableChecked) return;
-
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS fcm_tokens (
-            id SERIAL PRIMARY KEY,
-            agent_id VARCHAR(50) NOT NULL,
-            token TEXT NOT NULL,
-            device_info TEXT,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(agent_id, token)
-        )
-    `);
-
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_fcm_tokens_agent ON fcm_tokens(agent_id)
-    `);
-
-    tableChecked = true;
+    // Tabela fcm_tokens criada via migration central
 }
 
 async function upsertFcmToken(agentId, token, deviceInfo) {
     await ensureFcmTable();
-    const normalizedAgentId = String(agentId).trim().toUpperCase();
+    const validated = fcmTokenCreateSchema.parse({ agent_id: agentId, token, device_info: deviceInfo });
+    const normalizedAgentId = validated.agent_id;
     await cenos_pool.query(`
         INSERT INTO fcm_tokens (agent_id, token, device_info, updated_at)
         VALUES ($1, $2, $3, NOW())
         ON CONFLICT (agent_id, token) DO UPDATE SET updated_at = NOW(), device_info = $3
-    `, [normalizedAgentId, token, deviceInfo || null]);
+    `, [normalizedAgentId, validated.token, validated.device_info || null]);
 }
 
 async function removeFcmToken(token) {

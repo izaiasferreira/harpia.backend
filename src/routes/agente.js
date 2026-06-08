@@ -1,4 +1,10 @@
 const express = require('express');
+const { validate } = require('../middlewares/validate');
+const { justifyCreateSchema } = require('../db/schemas/justify');
+const { dailyReportSchema } = require('../db/schemas/dailyReport');
+const { inventoryCreateSchema } = require('../db/schemas/inventory');
+const { securityReportCreateSchema, securityCheckCreateSchema } = require('../db/schemas/security');
+
 const router = express.Router();
 require('dotenv').config();
 
@@ -526,7 +532,7 @@ router.get('/get_justify', telegramAuth, async (req, res) => {
     }
 });
 
-router.post('/create_justify', telegramAuth, async (req, res) => {
+router.post('/create_justify', telegramAuth, validate(justifyCreateSchema), async (req, res) => {
     try {
         const {
             instalacao,
@@ -663,7 +669,7 @@ router.get('/justify_pending', telegramAuth, async (req, res) => {
 });
 
 // daily_report - criar reporte diário (1 por dia)
-router.post('/daily_report', telegramAuth, async (req, res) => {
+router.post('/daily_report', telegramAuth, validate(dailyReportSchema), async (req, res) => {
     try {
         const estado = req.colaborador.estado || 'pi';
         const autor = req.colaborador.id;
@@ -750,7 +756,7 @@ router.get('/inventory', telegramAuth, async (req, res) => {
 });
 
 
-router.post('/inventory', telegramAuth, async (req, res) => {
+router.post('/inventory', telegramAuth, validate(inventoryCreateSchema), async (req, res) => {
     try {
         const estado = req.colaborador.estado || 'pi';
         const {
@@ -814,7 +820,7 @@ router.post('/inventory', telegramAuth, async (req, res) => {
     }
 });
 
-router.post('/security_report', telegramAuth, async (req, res) => {
+router.post('/security_report', telegramAuth, validate(securityReportCreateSchema), async (req, res) => {
     try {
         const autor = req.colaborador.id;
         const { motivo, observacao, latitude, longitude } = req.body;
@@ -840,7 +846,7 @@ router.post('/security_report', telegramAuth, async (req, res) => {
 });
 
 // security_check - confirmação de check (1 por dia)
-router.post('/security_check', telegramAuth, async (req, res) => {
+router.post('/security_check', telegramAuth, validate(securityCheckCreateSchema), async (req, res) => {
     try {
         const autor = req.colaborador.id;
         const estado = req.colaborador.estado || 'pi';

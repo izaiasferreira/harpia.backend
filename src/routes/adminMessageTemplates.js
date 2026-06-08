@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
+const { validate } = require('../middlewares/validate');
 const {
     get_message_templates_admin,
     save_message_template_admin,
@@ -19,7 +20,7 @@ router.get('/', verifyToken(), verifyModule('message_templates'), async (req, re
     }
 });
 
-router.post('/', verifyToken(), verifyModule('create_message_template'), async (req, res) => {
+router.post('/', verifyToken(), verifyModule('create_message_template'), validate(require('../db/schemas/messageTemplates').messageTemplateCreateSchema), async (req, res) => {
     try {
         const { name, text, file, webAppButtonText, webAppButtonUrl } = req.body;
         if (!name) {
@@ -36,7 +37,7 @@ router.post('/', verifyToken(), verifyModule('create_message_template'), async (
     }
 });
 
-router.put('/:id', verifyToken(), verifyModule('update_message_template'), async (req, res) => {
+router.put('/:id', verifyToken(), verifyModule('update_message_template'), validate(require('../db/schemas/messageTemplates').messageTemplateSchema.partial()), async (req, res) => {
     try {
         const { id } = req.params;
         const result = await update_message_template_admin(id, req.body, req.user.id);

@@ -1,20 +1,8 @@
 const { cenos_pool } = require('../../db');
-
-
+const { branchCreateSchema, branchSchema } = require('../../db/schemas');
 
 async function createBranchesTable() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS branches (
-            id SERIAL PRIMARY KEY,
-            name TEXT NOT NULL,
-            code TEXT NOT NULL,
-            state TEXT DEFAULT 'pi',
-            parent_id INTEGER,
-            ativo BOOLEAN DEFAULT true,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        )
-    `);
+    // Tabela branches criada via migration central
 }
 
 async function createBranch({
@@ -25,10 +13,12 @@ async function createBranch({
 }) {
     await createBranchesTable();
 
+    const validated = branchCreateSchema.parse({ name, code, state, parent_id });
+
     const pool = cenos_pool;
 
     const checkQuery = `SELECT id FROM branches WHERE code = $1 AND state = $2`;
-    const checkResult = await pool.query(checkQuery, [code.toUpperCase(), state.toLowerCase()]);
+    const checkResult = await pool.query(checkQuery, [validated.code.toUpperCase(), validated.state.toLowerCase()]);
     if (checkResult.rows.length > 0) {
         throw new Error('Branch já existe com este código');
     }
@@ -39,10 +29,10 @@ async function createBranch({
         RETURNING id, name, code, state, parent_id, ativo;
     `;
     const { rows } = await pool.query(insertQuery, [
-        name,
-        code.toUpperCase(),
-        state.toLowerCase(),
-        parent_id
+        validated.name,
+        validated.code.toUpperCase(),
+        validated.state.toLowerCase(),
+        validated.parent_id
     ]);
     return rows[0];
 }
@@ -74,7 +64,8 @@ async function listBranches(state = 'pi') {
 
 async function updateBranch(id, data, state = 'pi') {
     const pool = cenos_pool;
-    const { name, parent_id, ativo } = data;
+    const validated = branchSchema.partial().parse(data);
+    const { name, parent_id, ativo } = validated;
     
     const updates = [];
     const params = [];

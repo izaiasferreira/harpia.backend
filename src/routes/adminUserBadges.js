@@ -1,4 +1,7 @@
 const express = require('express');
+const { validate } = require('../middlewares/validate');
+const z = require('zod');
+
 const router = express.Router();
 const { 
     getUserData, 
@@ -29,7 +32,7 @@ router.get('/:id', verifyToken(), verifyModule('badges'), async (req, res) => {
 });
 
 // Add badge to user
-router.post('/:id/add', verifyToken(), verifyModule('update_user'), async (req, res) => {
+router.post('/:id/add', verifyToken(), verifyModule('update_user'), validate(z.object({ badgeId: z.number().int() })), async (req, res) => {
     try {
         const { id } = req.params;
         const { badgeId } = req.body;
@@ -46,7 +49,7 @@ router.post('/:id/add', verifyToken(), verifyModule('update_user'), async (req, 
 });
 
 // Remove badge from user
-router.post('/:id/remove', verifyToken(), verifyModule('update_user'), async (req, res) => {
+router.post('/:id/remove', verifyToken(), verifyModule('update_user'), validate(z.object({ badgeId: z.number().int() })), async (req, res) => {
     try {
         const { id } = req.params;
         const { badgeId } = req.body;

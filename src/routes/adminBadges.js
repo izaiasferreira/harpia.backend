@@ -8,6 +8,8 @@ const {
     deleteBadge
 } = require('../functions/database/badges');
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
+const { validate } = require('../middlewares/validate');
+const { badgeCreateSchema } = require('../db/schemas/badges');
 
 router.get('/', verifyToken(), verifyModule('badges'), async (req, res) => {
     try {
@@ -31,7 +33,7 @@ router.get('/:id', verifyToken(), verifyModule('badges'), async (req, res) => {
     }
 });
 
-router.post('/', verifyToken(), verifyModule('create_badge'), async (req, res) => {
+router.post('/', verifyToken(), verifyModule('create_badge'), validate(badgeCreateSchema), async (req, res) => {
     try {
         const { title, description, image_url } = req.body;
 
@@ -47,7 +49,7 @@ router.post('/', verifyToken(), verifyModule('create_badge'), async (req, res) =
     }
 });
 
-router.put('/:id', verifyToken(), verifyModule('update_badge'), async (req, res) => {
+router.put('/:id', verifyToken(), verifyModule('update_badge'), validate(require('../db/schemas/badges').badgeSchema.partial()), async (req, res) => {
     try {
         const { id } = req.params;
         const data = req.body;

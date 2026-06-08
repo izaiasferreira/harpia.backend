@@ -23,6 +23,9 @@ describe('Admin Security Reports', () => {
         });
         userId = user.id;
         token = jwt.sign({ id: userId, estado: 'pi' }, JWT_SECRET);
+
+        // Insert agent to satisfy foreign key constraints
+        await cenos_pool.query("INSERT INTO login (id, estado) VALUES ('T12345', 'pi') ON CONFLICT (id) DO NOTHING");
     });
 
     afterAll(async () => {
@@ -32,6 +35,7 @@ describe('Admin Security Reports', () => {
         if (reportId) {
             await cenos_pool.query('DELETE FROM security_report WHERE id = $1', [reportId]);
         }
+        await cenos_pool.query("DELETE FROM login WHERE id = 'T12345'");
     });
 
     test('POST /admin/security_reports - deve criar um relatório (Admin)', async () => {

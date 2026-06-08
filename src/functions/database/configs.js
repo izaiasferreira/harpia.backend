@@ -1,4 +1,5 @@
 const { pi_pool, ma_pool } = require('../../db');
+const { etapaCreateSchema, feriadoCreateSchema } = require('../../db/schemas');
 
 /**
  * Obtém a conexão (pool) do banco de acordo com o estado
@@ -10,11 +11,34 @@ function getPoolByState(state) {
     return pi_pool;
 }
 
+async function ensureTable(state) {
+    const pool = getPoolByState(state);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS etapas (
+            id SERIAL PRIMARY KEY,
+            etapa TEXT NOT NULL UNIQUE,
+            data TEXT NOT NULL,
+            estado TEXT DEFAULT 'pi',
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    `);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS feriados (
+            id SERIAL PRIMARY KEY,
+            date TEXT NOT NULL,
+            estado TEXT DEFAULT 'pi',
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    `);
+}
+
 /**
  * Lista todas as etapas de leitura de um estado, ordenadas numericamente
  * @param {string} state - 'pi' ou 'ma'
  */
 async function listEtapas(state) {
+    await ensureTable(state);
     const pool = getPoolByState(state);
     const query = 'SELECT etapa, data FROM etapas';
     const { rows } = await pool.query(query);
@@ -34,6 +58,7 @@ async function listEtapas(state) {
  * @param {string} data - Nova data formatada como DD/MM/YYYY (ex: '05/05/2026')
  */
 async function updateEtapa(state, etapa, data) {
+    await ensureTable(state);
     const pool = getPoolByState(state);
     const query = 'UPDATE etapas SET data = $1 WHERE etapa = $2 RETURNING *';
     const { rows } = await pool.query(query, [data, etapa]);
@@ -45,6 +70,7 @@ async function updateEtapa(state, etapa, data) {
  * @param {string} state - 'pi' ou 'ma'
  */
 async function listFeriados(state) {
+    await ensureTable(state);
     const pool = getPoolByState(state);
     const query = 'SELECT id, date FROM feriados';
     const { rows } = await pool.query(query);
@@ -61,15 +87,24 @@ async function listFeriados(state) {
     });
 }
 
+const z = require('zod');
+
+const feriadoSchema = z.object({
+    state: z.string().transform(v => v.toLowerCase()),
+    date: z.string().regex(/^\d{2}\/\d{2}\/\d{4}$/)
+});
+
 /**
  * Adiciona um novo feriado na base de dados
  * @param {string} state - 'pi' ou 'ma'
  * @param {string} date - Data do feriado formatada como DD/MM/YYYY (ex: '12/10/2026')
  */
 async function addFeriado(state, date) {
-    const pool = getPoolByState(state);
+    await ensureTable(state);
+    const validated = feriadoSchema.parse({ state, date });
+    const pool = getPoolByState(validated.state);
     const query = 'INSERT INTO feriados (date) VALUES ($1) RETURNING *';
-    const { rows } = await pool.query(query, [date]);
+    const { rows } = await pool.query(query, [validated.date]);
     return rows[0];
 }
 
@@ -79,6 +114,7 @@ async function addFeriado(state, date) {
  * @param {number|string} id - ID do feriado
  */
 async function deleteFeriado(state, id) {
+    await ensureTable(state);
     const pool = getPoolByState(state);
     const query = 'DELETE FROM feriados WHERE id = $1 RETURNING *';
     const { rows } = await pool.query(query, [parseInt(id, 10)]);

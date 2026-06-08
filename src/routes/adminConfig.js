@@ -1,4 +1,7 @@
 const express = require('express');
+const { validate } = require('../middlewares/validate');
+const z = require('zod');
+
 const router = express.Router();
 const {
     listEtapas,
@@ -28,7 +31,7 @@ router.get('/etapas', verifyToken(), verifyModule('configs'), async (req, res) =
  * PUT /admin/config/etapas
  * Atualiza a data de uma etapa específica no estado selecionado
  */
-router.put('/etapas', verifyToken(), verifyModule('configs'), async (req, res) => {
+router.put('/etapas', verifyToken(), verifyModule('configs'), validate(z.object({ etapa: z.string(), data: z.string() })), async (req, res) => {
     try {
         const state = req.query.state || req.user.estado || 'pi';
         const { etapa, data } = req.body;
@@ -68,7 +71,7 @@ router.get('/feriados', verifyToken(), verifyModule('configs'), async (req, res)
  * POST /admin/config/feriados
  * Adiciona um feriado na base de dados do estado selecionado
  */
-router.post('/feriados', verifyToken(), verifyModule('configs'), async (req, res) => {
+router.post('/feriados', verifyToken(), verifyModule('configs'), validate(z.object({ date: z.string(), description: z.string().optional() })), async (req, res) => {
     try {
         const state = req.query.state || req.user.estado || 'pi';
         const { date } = req.body;

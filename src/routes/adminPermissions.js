@@ -10,6 +10,18 @@ const {
 } = require('../functions/database/permissions');
 const { listModules } = require('../functions/modules');
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
+const { validate } = require('../middlewares/validate');
+const z = require('zod');
+
+const permissionCreateSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  modules: z.array(z.string()).min(1),
+  filters: z.array(z.object({
+    type: z.string(),
+    value: z.string()
+  }))
+});
 
 createPermissionsTable().catch(console.error);
 
@@ -36,7 +48,7 @@ router.get('/:id', verifyToken(), verifyModule('permissions'), async (req, res) 
     }
 });
 
-router.post('/', verifyToken(), verifyModule('create_permission'), async (req, res) => {
+router.post('/', verifyToken(), verifyModule('create_permission'), validate(permissionCreateSchema), async (req, res) => {
     try {
         const { name, description, modules, filters } = req.body;
         
@@ -98,7 +110,7 @@ router.post('/', verifyToken(), verifyModule('create_permission'), async (req, r
     }
 });
 
-router.put('/:id', verifyToken(), verifyModule('update_permission'), async (req, res) => {
+router.put('/:id', verifyToken(), verifyModule('update_permission'), validate(permissionCreateSchema.partial()), async (req, res) => {
     try {
         const { id } = req.params;
         const data = req.body;

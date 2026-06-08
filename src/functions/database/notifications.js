@@ -1,42 +1,32 @@
 const { cenos_pool } = require('../../db');
+const { notificationCreateSchema } = require('../../db/schemas');
 
 async function initNotificationsTable() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS notifications (
-            id SERIAL PRIMARY KEY,
-            agent_id TEXT NOT NULL,
-            sender TEXT NOT NULL,
-            title TEXT,
-            body TEXT NOT NULL,
-            type TEXT DEFAULT 'success',
-            method TEXT[] DEFAULT '{push}',
-            read BOOLEAN DEFAULT FALSE,
-            read_at TIMESTAMP,
-            metadata JSONB,
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-    `);
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_notifications_agent ON notifications(agent_id, created_at DESC);
-    `);
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(agent_id, read);
-    `);
+    // Tabela notifications criada via migration central
 }
 
 async function createNotification(agentId, sender, title, body, type, method, metadata) {
+    const validated = notificationCreateSchema.parse({
+        agent_id: agentId,
+        sender,
+        title,
+        body,
+        type,
+        method: Array.isArray(method) ? method : (method ? [method] : undefined),
+        metadata
+    });
     const { rows } = await cenos_pool.query(
         `INSERT INTO notifications (agent_id, sender, title, body, type, method, metadata)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
         [
-            agentId.toUpperCase(),
-            sender,
-            title || null,
-            body,
-            type || 'success',
-            method || ['push'],
-            metadata ? JSON.stringify(metadata) : null
+            validated.agent_id,
+            validated.sender,
+            validated.title || null,
+            validated.body,
+            validated.type || 'success',
+            validated.method || ['push'],
+            validated.metadata ? (typeof validated.metadata === 'string' ? validated.metadata : JSON.stringify(validated.metadata)) : null
         ]
     );
     return rows[0];

@@ -216,22 +216,6 @@ router.get('/generate_token', async (req, res) => {
             const token = crypto.randomBytes(32).toString('hex');
             const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000 * 30);
 
-            await cenos_pool.query(`
-            CREATE TABLE IF NOT EXISTS telegram_tokens (
-                id SERIAL PRIMARY KEY, 
-                token VARCHAR(255) NOT NULL UNIQUE, 
-                telegram_user_id BIGINT NOT NULL, 
-                agent_id VARCHAR(50),
-                expires_at TIMESTAMP NOT NULL, 
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
-                last_used_at TIMESTAMP
-            )
-        `);
-
-            await cenos_pool.query(`
-            ALTER TABLE telegram_tokens ADD COLUMN IF NOT EXISTS agent_id VARCHAR(50)
-        `);
-
             await cenos_pool.query(
                 'INSERT INTO telegram_tokens (token, telegram_user_id, expires_at) VALUES ($1, $2, $3)',
                 [token, telegramId, expiresAt]
@@ -282,23 +266,6 @@ router.post('/app_login', appLoginLimiter, async (req, res) => {
 
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-        await cenos_pool.query(`
-            CREATE TABLE IF NOT EXISTS telegram_tokens (
-                id SERIAL PRIMARY KEY,
-                token VARCHAR(255) NOT NULL UNIQUE,
-                telegram_user_id BIGINT NOT NULL,
-                agent_id VARCHAR(50),
-                expires_at TIMESTAMP NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_used_at TIMESTAMP
-            )
-        `);
-
-        // Garantir que a coluna agent_id existe
-        await cenos_pool.query(`
-            ALTER TABLE telegram_tokens ADD COLUMN IF NOT EXISTS agent_id VARCHAR(50)
-        `);
 
         await cenos_pool.query(
             'INSERT INTO telegram_tokens (token, telegram_user_id, agent_id, expires_at) VALUES ($1, $2, $3, $4)',

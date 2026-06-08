@@ -1,4 +1,5 @@
 const { cenos_pool, pi_pool, ma_pool } = require('../../db');
+const { securityReportCreateSchema } = require('../../db/schemas/security');
 const { get_users_agents_admin } = require('./admin');
 
 const userIsAdmin = (user) => {
@@ -20,24 +21,7 @@ const getUserAllowedStatePools = (user) => {
 };
 
 async function ensureSecurityReportTable() {
-    const pool = cenos_pool;
-    await pool.query(`
-        CREATE TABLE IF NOT EXISTS security_report (
-            id SERIAL PRIMARY KEY,
-            autor TEXT NOT NULL,
-            motivo TEXT NOT NULL,
-            observacao TEXT,
-            latitude TEXT,
-            longitude TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        )
-    `);
-
-    // Add estado column if it doesn't exist
-    await pool.query(`
-        ALTER TABLE security_report 
-        ADD COLUMN IF NOT EXISTS estado TEXT;
-    `).catch(() => { });
+    // Table is created by centralized migrations runner
 }
 
 async function get_security_reports_admin({ user, estado, page = 1, limit = 9999, search }) {
@@ -45,36 +29,61 @@ async function get_security_reports_admin({ user, estado, page = 1, limit = 9999
     const availablePools = getUserAllowedStatePools(user).map(p => p.state);
     const pool = cenos_pool;
 
-    let query = `SELECT * FROM security_report WHERE created_at >= NOW() - INTERVAL '3 months'`;
-    const params = [];
-    let paramIndex = 1;
+    const limitVal = parseInt(limit) || 9999;
+    const offsetVal = (parseInt(page) - 1) * limitVal;
+
+    const dataParams = [];
+    const countParams = [];
+    let dataParamIdx = 1;
+    let countParamIdx = 1;
+
+    let dataQuery = `SELECT * FROM security_report WHERE created_at >= NOW() - INTERVAL '3 months'`;
+    let countQuery = `SELECT COUNT(*) AS total FROM security_report WHERE created_at >= NOW() - INTERVAL '3 months'`;
 
     // Se não for admin global, filtra pelos estados permitidos
     if (!userIsAdmin(user)) {
-        query += ` AND estado = ANY($${paramIndex})`;
-        params.push(availablePools);
-        paramIndex++;
+        dataQuery += ` AND estado = ANY($${dataParamIdx})`;
+        countQuery += ` AND estado = ANY($${countParamIdx})`;
+        dataParams.push(availablePools);
+        countParams.push(availablePools);
+        dataParamIdx++;
+        countParamIdx++;
     }
 
     if (estado) {
-        query += ` AND estado = $${paramIndex}`;
-        params.push(estado.toLowerCase());
-        paramIndex++;
+        dataQuery += ` AND estado = $${dataParamIdx}`;
+        countQuery += ` AND estado = $${countParamIdx}`;
+        dataParams.push(estado.toLowerCase());
+        countParams.push(estado.toLowerCase());
+        dataParamIdx++;
+        countParamIdx++;
     }
 
     if (search) {
-        query += ` AND (autor ILIKE $${paramIndex} OR motivo ILIKE $${paramIndex} OR observacao ILIKE $${paramIndex})`;
-        params.push(`%${search}%`);
-        paramIndex++;
+        dataQuery += ` AND (autor ILIKE $${dataParamIdx} OR motivo ILIKE $${dataParamIdx} OR observacao ILIKE $${dataParamIdx})`;
+        countQuery += ` AND (autor ILIKE $${countParamIdx} OR motivo ILIKE $${countParamIdx} OR observacao ILIKE $${countParamIdx})`;
+        dataParams.push(`%${search}%`);
+        countParams.push(`%${search}%`);
+        dataParamIdx++;
+        countParamIdx++;
     }
 
-    query += ` ORDER BY created_at DESC`;
+    // Apply LIMIT/OFFSET directly in SQL
+    dataQuery += ` ORDER BY created_at DESC LIMIT $${dataParamIdx} OFFSET $${dataParamIdx + 1}`;
+    dataParams.push(limitVal, offsetVal);
 
-    const { rows } = await pool.query(query, params);
+    // Run data and count queries in parallel
+    const [{ rows }, { rows: countRows }] = await Promise.all([
+        pool.query(dataQuery, dataParams),
+        pool.query(countQuery, countParams)
+    ]);
+
+    const total = parseInt(countRows[0]?.total) || 0;
+    const totalPages = Math.ceil(total / limitVal);
 
     // Complementar com dados do agente para exibição completa no admin
     const agents = await get_users_agents_admin({ user });
-    
+
     let result = rows.map(r => {
         const agent = agents.find(a => a.id?.toUpperCase() === r.autor?.toUpperCase());
         // Se o estado estiver nulo (registros antigos dos agentes), tentamos inferir do agente
@@ -90,20 +99,17 @@ async function get_security_reports_admin({ user, estado, page = 1, limit = 9999
         result = result.filter(r => availablePools.includes(r.estado));
     }
 
-    // Paginação em memória
-    const limitVal = parseInt(limit) || 9999;
-    const offsetVal = (parseInt(page) - 1) * limitVal;
-    
     return {
-        data: result.slice(offsetVal, offsetVal + limitVal),
-        total: result.length,
+        data: result,
+        total,
         page: parseInt(page),
         limit: limitVal,
-        totalPages: Math.ceil(result.length / limitVal)
+        totalPages
     };
 }
 
 async function create_security_report_admin({ autor, motivo, observacao, latitude, longitude, estado }) {
+    const validated = securityReportCreateSchema.parse({ autor, motivo, observacao, latitude, longitude, estado });
     await ensureSecurityReportTable();
     const pool = cenos_pool;
     const query = `
@@ -111,16 +117,18 @@ async function create_security_report_admin({ autor, motivo, observacao, latitud
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *
     `;
-    const { rows } = await pool.query(query, [autor?.toUpperCase(), motivo, observacao, latitude, longitude, estado?.toLowerCase()]);
+    const { rows } = await pool.query(query, [validated.autor?.toUpperCase(), validated.motivo, validated.observacao, validated.latitude, validated.longitude, validated.estado?.toLowerCase()]);
     return rows[0];
 }
 
 async function delete_security_report_admin(id, user) {
     await ensureSecurityReportTable();
     const pool = cenos_pool;
+    const reportId = parseInt(id, 10);
+    if (isNaN(reportId)) return null;
     
     // Antes de deletar, verificamos a permissão de estado
-    const { rows: existing } = await pool.query('SELECT * FROM security_report WHERE id = $1', [id]);
+    const { rows: existing } = await pool.query('SELECT * FROM security_report WHERE id = $1', [reportId]);
     if (existing.length === 0) return null;
 
     const report = existing[0];
@@ -130,7 +138,7 @@ async function delete_security_report_admin(id, user) {
         throw new Error('Você não tem permissão para deletar relatórios deste estado');
     }
 
-    const { rows } = await pool.query('DELETE FROM security_report WHERE id = $1 RETURNING *', [id]);
+    const { rows } = await pool.query('DELETE FROM security_report WHERE id = $1 RETURNING *', [reportId]);
     return rows[0];
 }
 

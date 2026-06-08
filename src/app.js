@@ -173,9 +173,35 @@ const publicNotifyRouter = require('./routes/publicNotify')
 app.use('/public', publicNotifyRouter)
 
 
-// Init notifications table
-const { initNotificationsTable } = require('./functions/database/notifications');
-initNotificationsTable().catch(err => console.error('[INIT] Erro ao criar tabela notifications:', err.message));
+// Swagger UI
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('yamljs');
+const path = require('path');
+const fs = require('fs');
+try {
+    const swaggerDocument = YAML.load(path.join(__dirname, '..', 'docs', 'openapi.yaml'));
+    app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+        customCss: '.swagger-ui .topbar { display: none }',
+        customSiteTitle: 'Cenos API Docs',
+    }));
+    // Serve raw openapi.yaml
+    app.get('/docs/openapi.yaml', (req, res) => {
+        res.sendFile(path.join(__dirname, '..', 'docs', 'openapi.yaml'));
+    });
+    console.log('[SWAGGER] Swagger UI disponível em /docs');
+} catch (err) {
+    console.warn('[SWAGGER] Erro ao carregar openapi.yaml:', err.message);
+}
+
+// Rendered markdown viewer + raw md files
+const docsViewerRouter = require('./routes/docsViewer');
+app.use('/docsmd', docsViewerRouter);
+// Serve raw markdown files (outside /docs to avoid swagger-ui conflict)
+app.use('/raw-md', express.static(path.join(__dirname, '..', 'docs')));
+
+// Database Migrations
+const { ensureMigrated } = require('./db/migrations/run');
+ensureMigrated().catch(err => console.error('[INIT] Erro ao executar migrações de banco:', err.message));
 
 
 // Tratamento de erros limpo para o CORS (evita sujar o log com stack trace inteiro)

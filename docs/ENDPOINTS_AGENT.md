@@ -80,7 +80,38 @@ Atribui um emblema de gamificação (badge) manualmente ao perfil do agente.
 
 ---
 
-## 3. Endpoints de Consulta de Instalações e Serviços
+## 3. Endpoints de Dashboard e Serviços
+
+### `GET /agent/agent_dashboard`
+Retorna os dados consolidados do dashboard do agente, incluindo métricas de leituras do dia, pontualidade, CNL e gráficos de desempenho.
+
+**Headers:** `X-Telegram-Init-Data`
+
+**Resposta 200:** Objeto com indicadores operacionais do agente.
+
+---
+
+### `GET /agent/agent_services`
+Lista os serviços/leituras atribuídos ao agente com paginação.
+
+**Query Params:**
+* `page` (number): número da página. Padrão: `1`.
+* `date` (string): filtro por data.
+* `filter` (string): tipo de filtro.
+
+---
+
+### `GET /agent/last_update_agent`
+Retorna o timestamp da última atualização dos dados do agente.
+
+---
+
+### `GET /agent/custom_links`
+Gera os links customizados do agente baseados em suas permissões e grupos.
+
+---
+
+## 4. Endpoints de Consulta de Instalações
 
 ### `GET /agent/predicted`
 Retorna as vistorias operacionais e leituras com previsões de perdas de energia calculadas pelo sistema central para a rota daquele técnico.
@@ -133,7 +164,7 @@ Retorna a ficha técnica detalhada e o histórico recente de leituras e impedime
 
 ---
 
-## 4. Endpoints de Justificativas e Performance Diária
+## 5. Endpoints de Justificativas e Performance Diária
 
 ### `GET /agent/get_justify`
 Pesquisa justificativas de falhas de leitura enviadas pelo colaborador.
@@ -174,6 +205,50 @@ Cria um reporte diário subjetivo (feedback) do técnico sobre suas atividades d
 
 ---
 
+### `PUT /agent/update_justify`
+Atualiza uma justificativa existente.
+
+**Body:** Campos parciais da justificativa.
+
+---
+
+### `DELETE /agent/delete_justify/:id`
+Remove uma justificativa do sistema.
+
+---
+
+### `GET /agent/justify_pending`
+Lista as justificativas pendentes de aprovação do agente autenticado.
+
+**Query Params:** `status`, `page`, `limit`
+
+---
+
+### `GET /agent/justify_pending/:id`
+Retorna detalhes de uma justificativa pendente específica.
+
+---
+
+### `PUT /agent/justify_pending/:id/respond`
+Responde a uma justificativa pendente, aceitando ou rejeitando.
+
+**Body:**
+```json
+{
+  "status": "APROVADO",
+  "observacao": "Justificativa aceita"
+}
+```
+
+---
+
+### `GET /agent/daily_report`
+Lista os reportes diários do agente autenticado.
+
+**Query Params:** `data`, `limit`
+
+---
+
 ### `GET /agent/daily_report/check_today`
 Informa reativamente ao app se o colaborador já enviou seu reporte diário na data atual para evitar submissões em duplicidade.
 
@@ -187,7 +262,22 @@ Informa reativamente ao app se o colaborador já enviou seu reporte diário na d
 
 ---
 
-## 5. Endpoints de Segurança do Técnico (Safety Features)
+### `POST /agent/inventory`
+Cria ou atualiza o inventário de equipamentos do agente.
+
+**Body:**
+```json
+{
+  "pda_imei_1": "358912345678901",
+  "pda_numero_serie": "PDA-987654",
+  "pda_marca": "Zebra",
+  "pda_modelo": "TC21"
+}
+```
+
+---
+
+## 6. Endpoints de Segurança do Técnico (Safety Features)
 
 ### `POST /agent/security_check`
 Realiza a confirmação diária obrigatória de segurança ("Estou ciente dos riscos operacionais do dia"). Pode ser executada apenas **1 vez por dia** por agente.
@@ -198,6 +288,23 @@ Realiza a confirmação diária obrigatória de segurança ("Estou ciente dos ri
     "latitude": "-5.0912",
     "longitude": "-42.8021"
 }
+```
+
+---
+
+### `GET /agent/security_check`
+Lista os checks de segurança do agente autenticado.
+
+**Query Params:** `data`, `limit`
+
+---
+
+### `GET /agent/security_check/check_today`
+Verifica se o check-in de segurança já foi realizado hoje.
+
+**Resposta 200:**
+```json
+{ "checked": true, "data": { ... } }
 ```
 
 ---
@@ -217,7 +324,12 @@ Permite ao colaborador reportar geograficamente um local ou instalação perigos
 
 ---
 
-## 6. Endpoints de Upload de Mídia (MinIO/S3)
+### `GET /agent/security_report`
+Lista os relatórios de segurança do agente.
+
+---
+
+## 7. Endpoints de Upload de Mídia (MinIO/S3)
 
 ### `POST /agent/upload_agent`
 Upload otimizado de imagens comprobatórias coletadas pela câmera WebRTC do app. O backend redimensiona, compacta a imagem em até 60% e armazena de forma estruturada no bucket.
@@ -239,7 +351,7 @@ Upload otimizado de imagens comprobatórias coletadas pela câmera WebRTC do app
 
 ---
 
-## 7. Notificações
+## 8. Notificações
 
 ### `GET /agent/notifications`
 Lista paginada de notificações do agente autenticado.
@@ -299,7 +411,7 @@ ou para marcar todas:
 
 ---
 
-## 8. Módulo de Chat de Suporte Real-Time (Socket.io)
+## 9. Módulo de Chat de Suporte Real-Time (Socket.io)
 
 Endpoints utilizados pelo app do técnico (PWA) para envio de mídias, histórico e controle de mensagens lidas.
 
@@ -394,7 +506,7 @@ Marca instantaneamente todas as mensagens recebidas na sala especificada como li
 
 ---
 
-## 9. Módulo de Notas de Serviço (Service Notes)
+## 10. Módulo de Notas de Serviço (Service Notes)
 
 Endpoints consumidos pelo app do agente para visualização, conclusão e criação de notas de serviço em campo.
 
@@ -597,4 +709,39 @@ Lista as categorias de marcador disponíveis em um grupo.
   { "id": 2, "group_id": 1, "name": "Programado", "color": "#00FF00" }
 ]
 ```
+
+---
+
+## 11. Rastreamento GPS (Tracking)
+
+### `POST /agent/tracking/sync`
+Envia lote de pontos GPS, violações de velocidade, incidentes de queda e alertas coletados offline.
+
+**Body:**
+```json
+{
+  "points": [{ "lat": -5.089, "lng": -42.801, "speed": 12.5, "accuracy": 8, "timestamp": 1716000000000 }],
+  "violations": [{ "lat": -5.089, "lng": -42.801, "speed": 62.3, "speedLimit": 50, "timestamp": 1716000000000 }],
+  "incidents": [{ "lat": -5.089, "lng": -42.801, "timestamp": 1716000000000 }]
+}
+```
+
+---
+
+### `POST /agent/fcm-token`
+Registra o token FCM do dispositivo do agente para recebimento de notificações push.
+
+**Body:**
+```json
+{ "token": "fcm_token_string", "deviceInfo": "android_13" }
+```
+
+---
+
+## 12. Treinamentos e Gamificação
+
+### `POST /agent/training/:id/complete`
+Marca um treinamento interativo como concluído e atribui a badge correspondente ao agente.
+
+**Path Params:** `id` — ID do treinamento
 

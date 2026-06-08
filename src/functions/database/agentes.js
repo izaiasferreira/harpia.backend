@@ -1,18 +1,16 @@
 const { pi_pool, ma_pool, localizacoes_pi_pool, cenos_pool } = require('../../db');
+const { justificativaCreateSchema, justifyPendingCreateSchema } = require('../../db/schemas/justify');
+const { dailyReportCreateSchema } = require('../../db/schemas/dailyReport');
+const { inventoryCreateSchema } = require('../../db/schemas/inventory');
+const { securityReportCreateSchema, securityCheckCreateSchema } = require('../../db/schemas/security');
+
 const { today } = require('../../utils/dates');
 const { fastC12ForAgent, firstC12ForAgent } = require('./c12');
 const { listBadges } = require('../badges');
 const { get_instalation_matriz, getPoolByState } = require('./commom');
 
 async function createProfilesTable() {
-    const query = `
-        CREATE TABLE IF NOT EXISTS profiles (
-            id VARCHAR(50) PRIMARY KEY,
-            "profilePicUrl" VARCHAR(255),
-            badges JSONB DEFAULT '[]'::jsonb
-        );
-    `;
-    await cenos_pool.query(query);
+    // Tabela profiles criada via migration central
 }
 
 async function getUserData({ id, state }) {
@@ -160,24 +158,7 @@ async function checkJustifiedByInstallations(installations, estado = 'pi') {
 
     if (!installations || installations.length === 0) return {};
 
-    // Garante que a tabela existe
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS justificativas (
-            id SERIAL PRIMARY KEY,
-            instalacao TEXT,
-            tipo TEXT,
-            motivo TEXT,
-            justificativa TEXT,
-            foto TEXT,
-            data_leit_prev TEXT,
-            author TEXT,
-            estado TEXT,
-            quantidade INTEGER,
-            created_at TIMESTAMP,
-            updated_at TIMESTAMP
-        );
-    `;
-    await pool.query(createTableQuery);
+    // Tabela justificativas criada via migration central
 
     // Busca justificativas respondidas para essas instalações
     const placeholders = installations.map((_, i) => `$${i + 1}`).join(', ');
@@ -522,22 +503,22 @@ async function getCalendarForAgent({ state = 'pi', month = new Date().getMonth()
     const pool = getPoolByState(state);
     const monthStr = parseInt(month);
 
-    const query = state == 'ma'
-        ? `SELECT * FROM etapas`
-        : `SELECT * FROM calendario_anual WHERE "DATA" LIKE '${monthStr}/%'`;
-
-
-    const { rows } = await pool.query(query);
-    if (state == 'pi') {
+    if (state == 'ma') {
+        const { rows } = await pool.query(`SELECT * FROM etapas`);
+        return rows.map(r => ({
+            etapa: r.etapa,
+            data: r.data
+        }));
+    } else {
+        const { rows } = await pool.query(
+            `SELECT * FROM calendario_anual WHERE "DATA" LIKE $1`,
+            [`${monthStr}/%`]
+        );
         return rows.map(r => ({
             etapa: r.ETAPA,
             data: new Date(r.DATA).toLocaleDateString('pt-BR')
         }));
     }
-    return rows.map(r => ({
-        etapa: r.etapa,
-        data: r.data
-    }));
 }
 
 // ─── getAgentTelegramId ───────────────────────────────────────────────────────
@@ -545,14 +526,13 @@ async function getAgentTelegramId({ state = 'pi', id }) {
     const query = `
     SELECT * 
     FROM login 
-    WHERE id in ('${id.toUpperCase()}', '${id.toLowerCase()}')
+    WHERE id in ($1, $2)
     `;
 
-    const { rows } = await cenos_pool.query(query);
+    const { rows } = await cenos_pool.query(query, [id.toUpperCase(), id.toLowerCase()]);
     return rows;
 }
 
-// ─── get_instalations ──────────────────────────────────────────────────────────
 async function get_instalations({ state, query = [], type }) {
     if (!query || query.length === 0) return [];
 
@@ -703,26 +683,11 @@ async function save_justify({
     created_at = new Date(),
     updated_at = new Date()
 }) {
-    // 1. Garantir que a tabela existe com a estrutura completa
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS justificativas (
-            id SERIAL PRIMARY KEY,
-            instalacao TEXT,
-            tipo TEXT,
-            motivo TEXT,
-            justificativa TEXT,
-            foto TEXT,
-            data_leit_prev TEXT,
-            author TEXT,
-            estado TEXT,
-            quantidade INTEGER,
-            created_at TIMESTAMP,
-            updated_at TIMESTAMP
-        );
-    `;
-
+    const validated = justificativaCreateSchema.parse({
+        state, instalacao, tipo, motivo, justificativa, foto,
+        data_leit_prev, author, quantidade, created_at, updated_at
+    });
     const pool = cenos_pool;
-    await pool.query(createTableQuery);
 
     const insertQuery = `
         INSERT INTO justificativas (
@@ -731,17 +696,17 @@ async function save_justify({
         RETURNING *;
     `;
     const values = [
-        instalacao,
-        tipo,
-        motivo,
-        justificativa,
-        foto,
-        data_leit_prev,
-        author,
-        state,
-        quantidade,
-        created_at,
-        updated_at
+        validated.instalacao,
+        validated.tipo,
+        validated.motivo,
+        validated.justificativa,
+        validated.foto,
+        validated.data_leit_prev,
+        validated.author,
+        validated.state,
+        validated.quantidade,
+        validated.created_at,
+        validated.updated_at
     ];
 
     const { rows } = await pool.query(insertQuery, values);
@@ -750,25 +715,7 @@ async function save_justify({
 
 // ─── get_justify ─────────────────────────────────────────────────────────────
 async function get_justify({ instalacao, data_leit_prev, estado = 'pi', author, tipo, quantidade }) {
-    // Garantir que a tabela existe antes de consultar
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS justificativas (
-            id SERIAL PRIMARY KEY,
-            instalacao TEXT,
-            tipo TEXT,
-            motivo TEXT,
-            justificativa TEXT,
-            foto TEXT,
-            data_leit_prev TEXT,
-            author TEXT,
-            estado TEXT,
-            quantidade INTEGER,
-            created_at TIMESTAMP,
-            updated_at TIMESTAMP
-        );
-    `;
     const pool = cenos_pool;
-    await pool.query(createTableQuery);
 
     let querySql = `SELECT * FROM justificativas WHERE 1=1`;
     const params = [];
@@ -907,43 +854,21 @@ async function pre_create_pending_justify({
     quantidade,
     tipo,
     unidade_leitura,
-    foto,
     instalacao = JSON.stringify([]),
     created_at = new Date(),
     updated_at = new Date()
 }) {
+    const validated = justifyPendingCreateSchema.parse({
+        state, autor, quantidade, tipo, unidade_leitura, instalacao, created_at, updated_at
+    });
     const pool = cenos_pool;
-
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS justify_pending (
-            id SERIAL PRIMARY KEY,
-            autor TEXT NOT NULL,
-            quantidade INTEGER NOT NULL,
-            tipo TEXT,
-            unidade_leitura TEXT,
-            instalacao JSONB,
-            motivo TEXT,
-            observacao TEXT,
-            foto TEXT,
-            estado TEXT DEFAULT 'pi',
-            status TEXT DEFAULT 'pendente' CHECK (status IN ('pendente', 'respondido')),
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `;
-    await pool.query(createTableQuery);
-
-    // Adicionar colunas se não existirem (para tabelas antigas)
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => { });
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => { });
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS instalacao JSONB`).catch(() => { });
 
     const insertQuery = `
         INSERT INTO justify_pending (autor, quantidade, tipo, unidade_leitura, instalacao, foto, estado, status, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pendente', $8, $9)
         RETURNING *;
     `;
-    const { rows } = await pool.query(insertQuery, [autor.toLowerCase(), quantidade, tipo, unidade_leitura, JSON.stringify(instalacao), foto, state.toLowerCase(), created_at, updated_at]);
+    const { rows } = await pool.query(insertQuery, [validated.autor.toLowerCase(), validated.quantidade, validated.tipo, validated.unidade_leitura, JSON.stringify(validated.instalacao), null, validated.state.toLowerCase(), validated.created_at, validated.updated_at]);
     return rows[0];
 }
 
@@ -956,26 +881,6 @@ async function respond_pending_justify({
     updated_at = new Date()
 }) {
     const pool = cenos_pool;
-
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS justify_pending (
-            id SERIAL PRIMARY KEY,
-            autor TEXT NOT NULL,
-            quantidade INTEGER NOT NULL,
-            motivo TEXT,
-            observacao TEXT,
-            foto TEXT,
-            estado TEXT DEFAULT 'pi',
-            status TEXT DEFAULT 'pendente' CHECK (status IN ('pendente', 'respondido')),
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `;
-    await pool.query(createTableQuery);
-
-    // Adicionar colunas se não existirem (para tabelas antigas)
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => { });
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => { });
 
     const updateQuery = `
         UPDATE justify_pending 
@@ -990,26 +895,6 @@ async function respond_pending_justify({
 async function get_pending_justify_by_id({ id, estado = 'pi' }) {
     const pool = cenos_pool;
 
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS justify_pending (
-            id SERIAL PRIMARY KEY,
-            autor TEXT NOT NULL,
-            quantidade INTEGER NOT NULL,
-            motivo TEXT,
-            observacao TEXT,
-            foto TEXT,
-            estado TEXT DEFAULT 'pi',
-            status TEXT DEFAULT 'pendente' CHECK (status IN ('pendente', 'respondido')),
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `;
-    await pool.query(createTableQuery);
-
-    // Adicionar colunas se não existirem (para tabelas antigas)
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => { });
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => { });
-
     const query = `SELECT * FROM justify_pending WHERE id = $1;`;
     const { rows } = await pool.query(query, [id]);
     return rows[0] || null;
@@ -1017,28 +902,6 @@ async function get_pending_justify_by_id({ id, estado = 'pi' }) {
 
 async function get_pending_justifies({ autor, status = 'pendente', page = 1, limit = 20 }) {
     const pool = cenos_pool;
-
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS justify_pending (
-            id SERIAL PRIMARY KEY,
-            autor TEXT NOT NULL,
-            quantidade INTEGER NOT NULL,
-            tipo TEXT,
-            unidade_leitura TEXT,
-            motivo TEXT,
-            observacao TEXT,
-            foto TEXT,
-            estado TEXT DEFAULT 'pi',
-            status TEXT DEFAULT 'pendente' CHECK (status IN ('pendente', 'respondido')),
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `;
-    await pool.query(createTableQuery);
-
-    // Adicionar colunas se não existirem (para tabelas antigas)
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS tipo TEXT`).catch(() => { });
-    await pool.query(`ALTER TABLE justify_pending ADD COLUMN IF NOT EXISTS unidade_leitura TEXT`).catch(() => { });
 
     let query = `SELECT * FROM justify_pending WHERE 1=1`;
     const params = [];
@@ -1089,35 +952,16 @@ async function save_daily_report({
     created_at = new Date(),
     updated_at = new Date()
 }) {
+    const validated = dailyReportCreateSchema.parse({
+        state, autor, nota, motivo, observacao, foto, created_at, updated_at
+    });
     const pool = cenos_pool;
 
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS daily_report (
-            id SERIAL PRIMARY KEY,
-            autor TEXT NOT NULL,
-            nota INTEGER NOT NULL CHECK (nota >= 1 AND nota <= 5),
-            motivo TEXT,
-            observacao TEXT,
-            foto TEXT,
-            estado TEXT DEFAULT 'pi',
-            data_report DATE DEFAULT CURRENT_DATE,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `;
-    await pool.query(createTableQuery);
-
-    // Adicionar coluna foto se não existir (para tabelas antigas)
-    await pool.query(`
-        ALTER TABLE daily_report 
-        ADD COLUMN IF NOT EXISTS foto TEXT;
-    `).catch(() => { });
-
     const existingQuery = `
-        SELECT id FROM daily_report 
+        SELECT id FROM daily_report
         WHERE LOWER(autor) = LOWER($1) AND DATE(created_at) = CURRENT_DATE;
     `;
-    const existing = await pool.query(existingQuery, [autor.toLowerCase()]);
+    const existing = await pool.query(existingQuery, [validated.autor.toLowerCase()]);
     if (existing.rows.length > 0) {
         throw new Error('Já existe um report diário para hoje');
     }
@@ -1127,28 +971,12 @@ async function save_daily_report({
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *;
     `;
-    const { rows } = await pool.query(insertQuery, [autor.toLowerCase(), nota, motivo, observacao, foto, state.toLowerCase(), created_at, updated_at]);
+    const { rows } = await pool.query(insertQuery, [validated.autor.toLowerCase(), validated.nota, validated.motivo, validated.observacao, validated.foto, validated.state.toLowerCase(), validated.created_at, validated.updated_at]);
     return rows[0];
 }
 
 async function get_daily_reports({ state = 'pi', autor, data, limit = 10 }) {
     const pool = cenos_pool;
-
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS daily_report (
-            id SERIAL PRIMARY KEY,
-            autor TEXT NOT NULL,
-            nota INTEGER NOT NULL CHECK (nota >= 1 AND nota <= 5),
-            motivo TEXT,
-            observacao TEXT,
-            foto TEXT,
-            estado TEXT DEFAULT 'pi',
-            data_report DATE DEFAULT CURRENT_DATE,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `;
-    await pool.query(createTableQuery);
 
     let query = `SELECT * FROM daily_report WHERE 1=1`;
     const params = [];
@@ -1171,21 +999,6 @@ async function get_daily_reports({ state = 'pi', autor, data, limit = 10 }) {
 async function get_daily_report_today({ state = 'pi', autor }) {
     const pool = cenos_pool;
 
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS daily_report (
-            id SERIAL PRIMARY KEY,
-            autor TEXT NOT NULL,
-            nota INTEGER NOT NULL CHECK (nota >= 1 AND nota <= 5),
-            motivo TEXT,
-            observacao TEXT,
-            estado TEXT DEFAULT 'pi',
-            data_report DATE DEFAULT CURRENT_DATE,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `;
-    await pool.query(createTableQuery);
-
     const query = `
         SELECT * FROM daily_report 
         WHERE LOWER(autor) = LOWER($1) AND DATE(created_at) = CURRENT_DATE;
@@ -1206,34 +1019,6 @@ async function delete_daily_report({ id, estado = 'pi' }) {
 // ─── inventory ───────────────────────────────────────────────────────────
 async function get_inventory_by_agent({ agente, estado = 'pi' }) {
     const pool = cenos_pool;
-
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS inventory (
-            id SERIAL PRIMARY KEY,
-            agente TEXT NOT NULL,
-            pda_imei_1 TEXT,
-            pda_imei_2 TEXT,
-            pda_numero_serie TEXT,
-            pda_marca TEXT,
-            pda_modelo TEXT,
-            pda_numero_chip TEXT,
-            pda_versao_android TEXT,
-            pda_versao_bluetooth TEXT,
-            impressora_numero_serie TEXT,
-            impressora_modelo TEXT,
-            impressora_marca TEXT,
-            maquininha_numero_serie TEXT,
-            maquininha_numero_logico TEXT,
-            estado TEXT DEFAULT 'pi',
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `;
-    await pool.query(createTableQuery);
-
-    // Garante que colunas novas existam caso a tabela já existisse
-    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_serie TEXT;`).catch(() => { });
-    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_logico TEXT;`).catch(() => { });
 
     const query = `
         SELECT * FROM inventory 
@@ -1264,41 +1049,19 @@ async function save_inventory({
     created_at = new Date(),
     updated_at = new Date()
 }) {
+    const validated = inventoryCreateSchema.parse({
+        state, agente, pda_imei_1, pda_imei_2, pda_numero_serie, pda_marca, pda_modelo,
+        pda_numero_chip, pda_versao_android, pda_versao_bluetooth,
+        impressora_numero_serie, impressora_modelo, impressora_marca,
+        maquininha_numero_serie, maquininha_numero_logico, created_at, updated_at
+    });
     const pool = cenos_pool;
 
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS inventory (
-            id SERIAL PRIMARY KEY,
-            agente TEXT NOT NULL,
-            pda_imei_1 TEXT,
-            pda_imei_2 TEXT,
-            pda_numero_serie TEXT,
-            pda_marca TEXT,
-            pda_modelo TEXT,
-            pda_numero_chip TEXT,
-            pda_versao_android TEXT,
-            pda_versao_bluetooth TEXT,
-            impressora_numero_serie TEXT,
-            impressora_modelo TEXT,
-            impressora_marca TEXT,
-            maquininha_numero_serie TEXT,
-            maquininha_numero_logico TEXT,
-            estado TEXT DEFAULT 'pi',
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `;
-    await pool.query(createTableQuery);
-
-    // Garante que colunas novas existam caso a tabela já existisse
-    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_serie TEXT;`).catch(() => { });
-    await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_logico TEXT;`).catch(() => { });
-
-    const existing = await get_inventory_by_agent({ agente, estado: state });
+    const existing = await get_inventory_by_agent({ agente: validated.agente, estado: validated.state });
 
     if (existing) {
         const updateQuery = `
-            UPDATE inventory 
+            UPDATE inventory
             SET pda_imei_1 = $1,
                 pda_imei_2 = $2,
                 pda_numero_serie = $3,
@@ -1317,20 +1080,20 @@ async function save_inventory({
             RETURNING *;
         `;
         const values = [
-            pda_imei_1 || null,
-            pda_imei_2 || null,
-            pda_numero_serie || null,
-            pda_marca || null,
-            pda_modelo || null,
-            pda_numero_chip || null,
-            pda_versao_android || null,
-            pda_versao_bluetooth || null,
-            impressora_numero_serie || null,
-            impressora_modelo || null,
-            impressora_marca || null,
-            maquininha_numero_serie || null,
-            maquininha_numero_logico || null,
-            updated_at,
+            validated.pda_imei_1,
+            validated.pda_imei_2,
+            validated.pda_numero_serie,
+            validated.pda_marca,
+            validated.pda_modelo,
+            validated.pda_numero_chip,
+            validated.pda_versao_android,
+            validated.pda_versao_bluetooth,
+            validated.impressora_numero_serie,
+            validated.impressora_modelo,
+            validated.impressora_marca,
+            validated.maquininha_numero_serie,
+            validated.maquininha_numero_logico,
+            validated.updated_at,
             existing.id
         ];
         const { rows } = await pool.query(updateQuery, values);
@@ -1348,34 +1111,34 @@ async function save_inventory({
         RETURNING *;
     `;
     const values = [
-        agente.toLowerCase(),
-        pda_imei_1 || null,
-        pda_imei_2 || null,
-        pda_numero_serie || null,
-        pda_marca || null,
-        pda_modelo || null,
-        pda_numero_chip || null,
-        pda_versao_android || null,
-        pda_versao_bluetooth || null,
-        impressora_numero_serie || null,
-        impressora_modelo || null,
-        impressora_marca || null,
-        maquininha_numero_serie || null,
-        maquininha_numero_logico || null,
-        state.toLowerCase(),
-        created_at,
-        updated_at
+        validated.agente.toLowerCase(),
+        validated.pda_imei_1,
+        validated.pda_imei_2,
+        validated.pda_numero_serie,
+        validated.pda_marca,
+        validated.pda_modelo,
+        validated.pda_numero_chip,
+        validated.pda_versao_android,
+        validated.pda_versao_bluetooth,
+        validated.impressora_numero_serie,
+        validated.impressora_modelo,
+        validated.impressora_marca,
+        validated.maquininha_numero_serie,
+        validated.maquininha_numero_logico,
+        validated.state.toLowerCase(),
+        validated.created_at,
+        validated.updated_at
     ];
     const { rows } = await pool.query(insertQuery, values);
     const newId = rows[0].id;
 
     const deleteDuplicatesQuery = `
-        DELETE FROM inventory 
-        WHERE agente = $1 
-        AND estado = $2 
+        DELETE FROM inventory
+        WHERE agente = $1
+        AND estado = $2
         AND id < $3
     `;
-    await pool.query(deleteDuplicatesQuery, [agente.toLowerCase(), state.toLowerCase(), newId]);
+    await pool.query(deleteDuplicatesQuery, [validated.agente.toLowerCase(), validated.state.toLowerCase(), newId]);
 
     return { ...rows[0], action: 'created' };
 }
@@ -1383,29 +1146,12 @@ async function save_inventory({
 // ─── security_report ───────────────────────────────────────────────────────────
 
 async function createSecurityReportTable() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS security_report (
-            id SERIAL PRIMARY KEY,
-            autor TEXT NOT NULL,
-            motivo TEXT NOT NULL,
-            observacao TEXT,
-            latitude TEXT,
-            longitude TEXT,
-            estado TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        )
-    `);
-
-    // Add estado column if it doesn't exist (for existing tables)
-    await cenos_pool.query(`
-        ALTER TABLE security_report 
-        ADD COLUMN IF NOT EXISTS estado TEXT;
-    `).catch(() => { });
+    // Table is created by centralized migrations runner
 }
 
 async function create_security_report(data) {
-    await createSecurityReportTable();
-    const { autor, motivo, observacao, latitude, longitude, estado } = data;
+    const validated = securityReportCreateSchema.parse(data);
+    const { autor, motivo, observacao, latitude, longitude, estado } = validated;
     const query = `
         INSERT INTO security_report (autor, motivo, observacao, latitude, longitude, estado)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -1416,7 +1162,6 @@ async function create_security_report(data) {
 }
 
 async function get_security_report_points({ user }) {
-    await createSecurityReportTable();
     const query = `
         SELECT * FROM security_report WHERE estado = $1;
     `;
@@ -1430,7 +1175,6 @@ async function get_security_reports({ user }) {
         risks_list: [],
         points: []
     }
-    await createSecurityReportTable();
     const leituras = await getLeiturasPendingForAgent({ id, state: estado, page: 1, limit: 1000000 });
     let uls_prefix = []
     for (const leitura of leituras) {
@@ -1459,8 +1203,11 @@ async function get_security_reports({ user }) {
         created_at: point.created_at
     }))
     if (locals.length > 0) {
+        const municipios = [...new Set(locals.map(l => l.municipio))];
+        const placeholders = municipios.map((_, i) => `$${i + 1}`).join(', ');
         const { rows } = await cenos_pool.query(
-            `SELECT * FROM mapa_seguranca WHERE localidade IN (${locals.map(l => `'${l.municipio}'`).join(', ')})`,
+            `SELECT * FROM mapa_seguranca WHERE localidade IN (${placeholders})`,
+            municipios
         );
         const risks = rows.filter(risk => [...new Set(steps.map(s => parseInt(s)))].includes(parseInt(risk.etapa)))
 
@@ -1485,27 +1232,16 @@ async function save_security_check({
     created_at = new Date(),
     updated_at = new Date()
 }) {
+    const validated = securityCheckCreateSchema.parse({
+        state, autor, latitude, longitude, created_at, updated_at
+    });
     const pool = cenos_pool;
 
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS security_check (
-            id SERIAL PRIMARY KEY,
-            autor TEXT NOT NULL,
-            latitude TEXT,
-            longitude TEXT,
-            estado TEXT DEFAULT 'pi',
-            data_check DATE DEFAULT CURRENT_DATE,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `;
-    await pool.query(createTableQuery);
-
     const existingQuery = `
-        SELECT id FROM security_check 
+        SELECT id FROM security_check
         WHERE LOWER(autor) = LOWER($1) AND DATE(created_at) = CURRENT_DATE;
     `;
-    const existing = await pool.query(existingQuery, [autor.toLowerCase()]);
+    const existing = await pool.query(existingQuery, [validated.autor.toLowerCase()]);
     if (existing.rows.length > 0) {
         throw new Error('Já existe uma confirmação de segurança para hoje');
     }
@@ -1515,26 +1251,12 @@ async function save_security_check({
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *;
     `;
-    const { rows } = await pool.query(insertQuery, [autor.toLowerCase(), latitude, longitude, state.toLowerCase(), created_at, updated_at]);
+    const { rows } = await pool.query(insertQuery, [validated.autor.toLowerCase(), validated.latitude, validated.longitude, validated.state.toLowerCase(), validated.created_at, validated.updated_at]);
     return rows[0];
 }
 
 async function get_security_checks({ state = 'pi', autor, data, limit = 10 }) {
     const pool = cenos_pool;
-
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS security_check (
-            id SERIAL PRIMARY KEY,
-            autor TEXT NOT NULL,
-            latitude TEXT,
-            longitude TEXT,
-            estado TEXT DEFAULT 'pi',
-            data_check DATE DEFAULT CURRENT_DATE,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `;
-    await pool.query(createTableQuery);
 
     let query = `SELECT * FROM security_check WHERE 1=1`;
     const params = [];
@@ -1556,20 +1278,6 @@ async function get_security_checks({ state = 'pi', autor, data, limit = 10 }) {
 
 async function get_security_check_today({ state = 'pi', autor }) {
     const pool = cenos_pool;
-
-    const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS security_check (
-            id SERIAL PRIMARY KEY,
-            autor TEXT NOT NULL,
-            latitude TEXT,
-            longitude TEXT,
-            estado TEXT DEFAULT 'pi',
-            data_check DATE DEFAULT CURRENT_DATE,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `;
-    await pool.query(createTableQuery);
 
     const query = `
         SELECT * FROM security_check 

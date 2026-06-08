@@ -39,11 +39,10 @@ const getFilterUser = (user) => {
     return othersFilters.length > 0 ? othersFilters[0] : null;
 }
 
-async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, search, regional, seccional, gestor, estado }) {
+async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limit = 50, search, regional, seccional, gestor, estado }) {
     const availablePools = getUserAllowedStatePools(user);
     const filterUser = getFilterUser(user);
 
-    // Filtra pelo estado solicitado, se houver
     let targetPools = availablePools;
     if (estado) {
         targetPools = availablePools.filter(p => p.state === estado.toLowerCase());
@@ -87,51 +86,142 @@ async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, 
         console.error('Erro ao buscar chats não lidos:', e.message);
     }
 
+    // Busca total primeiro (COUNT em cada pool)
+    let grandTotal = 0;
+    for (const { state, pool } of targetPools) {
+        let countQuery = `SELECT COUNT(*) as total FROM colaboradores WHERE 1=1`;
+        const countParams = [];
+        let paramIdx = 1;
 
+        if (search) {
+            const conditions = [`"Nome" ILIKE $1`, `"ID" ILIKE $1`];
+            countParams.push(`%${search}%`);
+            paramIdx++;
+            if (searchIdsFromLogin.length > 0) {
+                conditions.push(`"ID" = ANY($2)`);
+                countParams.push(searchIdsFromLogin);
+                paramIdx++;
+            }
+            countQuery += ` AND (${conditions.join(' OR ')})`;
+        }
+        if (ids && ids.length > 0) {
+            countQuery += ` AND "ID" = ANY($${paramIdx})`;
+            countParams.push(ids.map(id => id.toUpperCase()));
+            paramIdx++;
+        }
+        if (regional) {
+            countQuery += ` AND "regional" ILIKE $${paramIdx}`;
+            countParams.push(`%${regional}%`);
+            paramIdx++;
+        }
+        if (seccional) {
+            countQuery += ` AND "seccional" ILIKE $${paramIdx}`;
+            countParams.push(`%${seccional}%`);
+            paramIdx++;
+        }
+        if (gestor) {
+            countQuery += ` AND "GESTOR IMEDIATO" ILIKE $${paramIdx}`;
+            countParams.push(`%${gestor}%`);
+            paramIdx++;
+        }
+
+        const { rows: countRows } = await pool.query(countQuery, countParams);
+        grandTotal += parseInt(countRows[0]?.total || 0);
+    }
+
+    // Busca dados paginados (limit + offset por pool, ordenado depois)
+    const limitVal = parseInt(limit) || 50;
+    const offsetVal = (parseInt(page) - 1) * limitVal;
     let rowsACC = [];
+    let accumulated = 0;
 
     for (const { state, pool } of targetPools) {
+        let poolCountQuery = `SELECT COUNT(*) as total FROM colaboradores WHERE 1=1`;
+        const poolCountParams = [];
+        let pcIdx = 1;
+        if (search) {
+            const conditions = [`"Nome" ILIKE $1`, `"ID" ILIKE $1`];
+            poolCountParams.push(`%${search}%`);
+            pcIdx++;
+            if (searchIdsFromLogin.length > 0) {
+                conditions.push(`"ID" = ANY($2)`);
+                poolCountParams.push(searchIdsFromLogin);
+                pcIdx++;
+            }
+            poolCountQuery += ` AND (${conditions.join(' OR ')})`;
+        }
+        if (ids && ids.length > 0) {
+            poolCountQuery += ` AND "ID" = ANY($${pcIdx})`;
+            poolCountParams.push(ids.map(id => id.toUpperCase()));
+            pcIdx++;
+        }
+        if (regional) {
+            poolCountQuery += ` AND "regional" ILIKE $${pcIdx}`;
+            poolCountParams.push(`%${regional}%`);
+            pcIdx++;
+        }
+        if (seccional) {
+            poolCountQuery += ` AND "seccional" ILIKE $${pcIdx}`;
+            poolCountParams.push(`%${seccional}%`);
+            pcIdx++;
+        }
+        if (gestor) {
+            poolCountQuery += ` AND "GESTOR IMEDIATO" ILIKE $${pcIdx}`;
+            poolCountParams.push(`%${gestor}%`);
+            pcIdx++;
+        }
+
+        const { rows: pcRows } = await pool.query(poolCountQuery, poolCountParams);
+        const poolTotal = parseInt(pcRows[0]?.total || 0);
+
+        if (poolTotal === 0) continue;
+
+        // Calcula offset para este pool
+        if (offsetVal >= accumulated + poolTotal) {
+            accumulated += poolTotal;
+            continue; // pool todo pula
+        }
+
         let colabQuery = `SELECT * FROM colaboradores WHERE 1=1`;
         const colabParams = [];
         let paramIdx = 1;
 
         if (search) {
-            // Busca por Nome ou ID ou IDs encontrados via busca de Email
-            const conditions = [`"Nome" ILIKE $${paramIdx}`, `"ID" ILIKE $${paramIdx}`];
+            const conditions = [`"Nome" ILIKE $1`, `"ID" ILIKE $1`];
             colabParams.push(`%${search}%`);
             paramIdx++;
-
             if (searchIdsFromLogin.length > 0) {
-                conditions.push(`"ID" = ANY($${paramIdx})`);
+                conditions.push(`"ID" = ANY($2)`);
                 colabParams.push(searchIdsFromLogin);
                 paramIdx++;
             }
             colabQuery += ` AND (${conditions.join(' OR ')})`;
         }
-
         if (ids && ids.length > 0) {
             colabQuery += ` AND "ID" = ANY($${paramIdx})`;
             colabParams.push(ids.map(id => id.toUpperCase()));
             paramIdx++;
         }
-
         if (regional) {
             colabQuery += ` AND "regional" ILIKE $${paramIdx}`;
             colabParams.push(`%${regional}%`);
             paramIdx++;
         }
-
         if (seccional) {
             colabQuery += ` AND "seccional" ILIKE $${paramIdx}`;
             colabParams.push(`%${seccional}%`);
             paramIdx++;
         }
-
         if (gestor) {
             colabQuery += ` AND "GESTOR IMEDIATO" ILIKE $${paramIdx}`;
             colabParams.push(`%${gestor}%`);
             paramIdx++;
         }
+
+        // LIMIT + OFFSET por pool
+        const poolOffset = Math.max(0, offsetVal - accumulated);
+        colabQuery += ` ORDER BY "Nome" ASC LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`;
+        colabParams.push(limitVal, poolOffset);
 
         const { rows } = await pool.query(colabQuery, colabParams);
 
@@ -161,7 +251,7 @@ async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, 
             return mapped;
         });
 
-        // Complementa com dados do cenos_pool.login para pegar telegram_id e outros campos
+        // Enriquecimento com login data
         if (result.length > 0) {
             const { rows: loginData } = await cenos_pool.query(
                 `SELECT * FROM login WHERE id IN (${result.map((_, i) => `$${i + 1}`).join(',')})`,
@@ -180,22 +270,29 @@ async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, 
         }
 
         rowsACC.push(...result);
+        accumulated += poolTotal;
     }
 
-    // Ordenação básica (pode ser expandida se necessário)
+    // Ordenação básica
     rowsACC.sort((a, b) => a.nome.localeCompare(b.nome));
 
-    // console.log(filterUser, !userIsAdmin(user));
     if (filterUser && !userIsAdmin(user)) {
         rowsACC = rowsACC.filter(r => {
-            // console.log(filterUser.type);
-            return r[filterUser.type] === filterUser.value
+            return r[filterUser.type] === filterUser.value;
         });
     }
 
-    // Paginação em memória
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    return rowsACC.slice(offset, offset + parseInt(limit));
+    return {
+        data: rowsACC,
+        total: grandTotal,
+        page: parseInt(page),
+        limit: limitVal
+    };
+}
+
+async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, search, regional, seccional, gestor, estado }) {
+    const res = await get_users_agents_admin_paginated({ user, ids, page, limit, search, regional, seccional, gestor, estado });
+    return res.data;
 }
 
 async function get_user_agent_options({ estado }) {
@@ -952,6 +1049,7 @@ module.exports = {
     delete_daily_report_admin,
     get_instalations_admin,
     get_users_agents_admin,
+    get_users_agents_admin_paginated,
     create_user_agent_admin,
     update_user_agent_admin,
     delete_user_agent_admin,

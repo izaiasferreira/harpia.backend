@@ -1,4 +1,7 @@
 const express = require('express');
+const { validate } = require('../middlewares/validate');
+const z = require('zod');
+
 const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const {
@@ -72,7 +75,7 @@ router.get('/fall_incidents', verifyToken(), verifyModule('tracking'), async (re
 });
 
 // PUT /admin/tracking/fall_incidents/:id — validar/rejeitar incidente
-router.put('/fall_incidents/:id', verifyToken(), verifyModule('tracking'), async (req, res) => {
+router.put('/fall_incidents/:id', verifyToken(), verifyModule('tracking'), validate(z.object({ status: z.enum(['confirmed', 'false_positive']) })), async (req, res) => {
     try {
         const { id } = req.params;
         const { status, notes } = req.body;

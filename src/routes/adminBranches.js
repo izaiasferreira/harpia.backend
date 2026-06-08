@@ -9,6 +9,7 @@ const {
     deleteBranch
 } = require('../functions/database/branches');
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
+const { validate } = require('../middlewares/validate');
 
 createBranchesTable().catch(console.error);
 
@@ -35,7 +36,7 @@ router.get('/:id', verifyToken(), verifyModule('branches'), async (req, res) => 
     }
 });
 
-router.post('/', verifyToken(), verifyModule('create_branch'), async (req, res) => {
+router.post('/', verifyToken(), verifyModule('create_branch'), validate(require('../db/schemas/branches').branchCreateSchema), async (req, res) => {
     try {
         const { name, code, state, parent_id } = req.body;
 
@@ -58,7 +59,7 @@ router.post('/', verifyToken(), verifyModule('create_branch'), async (req, res) 
     }
 });
 
-router.put('/:id', verifyToken(), verifyModule('update_branch'), async (req, res) => {
+router.put('/:id', verifyToken(), verifyModule('update_branch'), validate(require('../db/schemas/branches').branchSchema.partial()), async (req, res) => {
     try {
         const { id } = req.params;
         const data = req.body;

@@ -1,4 +1,11 @@
 const express = require('express');
+const { validate } = require('../middlewares/validate');
+const { userCreateSchema, userUpdateSchema } = require('../db/schemas/users');
+const { justificativaCreateSchema, justifyPendingCreateSchema, justificativaSchema, justifyPendingSchema } = require('../db/schemas/justify');
+const { dailyReportCreateSchema, dailyReportSchema } = require('../db/schemas/dailyReport');
+const { inventoryCreateSchema, inventorySchema } = require('../db/schemas/inventory');
+const z = require('zod');
+
 const router = express.Router();
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
@@ -23,11 +30,10 @@ const {
     delete_daily_report_admin,
     get_instalations_admin,
     get_users_agents_admin,
+    get_users_agents_admin_paginated,
     create_user_agent_admin,
     update_user_agent_admin,
     delete_user_agent_admin,
-    send_message_to_agent,
-    send_bulk_message_to_agents,
     get_justify_types_admin,
     get_user_agent_options,
     getUserAllowedStatePools
@@ -84,7 +90,7 @@ router.get('/users_agents', verifyToken(), verifyModule('users_agents'), async (
     try {
         const { page, limit, search, regional, seccional, gestor, estado } = req.query;
         const user = req.user;
-        const result = await get_users_agents_admin({ user, page, limit, search, regional, seccional, gestor, estado });
+        const result = await get_users_agents_admin_paginated({ user, page, limit, search, regional, seccional, gestor, estado });
         res.json(result);
     } catch (error) {
         console.log(error)
@@ -292,7 +298,7 @@ router.get('/users_agents/:id', verifyToken(), verifyModule('users_agents'), asy
     }
 });
 
-router.post('/users_agents', verifyToken(), verifyModule('create_user_agent'), async (req, res) => {
+router.post('/users_agents', verifyToken(), verifyModule('create_user_agent'), validate(userCreateSchema), async (req, res) => {
     try {
         const { id, matricula, nome, estado, gestor, cargo, seccional, regional } = req.body;
         const user = req.user;
@@ -304,7 +310,7 @@ router.post('/users_agents', verifyToken(), verifyModule('create_user_agent'), a
     }
 });
 
-router.put('/users_agents/:id', verifyToken(), verifyModule('update_user_agent'), async (req, res) => {
+router.put('/users_agents/:id', verifyToken(), verifyModule('update_user_agent'), validate(userUpdateSchema), async (req, res) => {
     try {
         const { id } = req.params;
         const { nome, gestor, cargo, seccional, regional } = req.body;
@@ -330,54 +336,9 @@ router.delete('/users_agents/:id', verifyToken(), verifyModule('delete_user_agen
     }
 });
 
-router.post('/send_message_user_agent', verifyToken(), verifyModule('send_message_user_agent'), upload.single('file'), async (req, res) => {
-    try {
-        const { id, text, file: fileUrl, webAppButtonText, webAppButtonUrl, options } = req.body;
-        const file = req.file; // From multer
-        const user = req.user;
-        const result = await send_message_to_agent({
-            id,
-            text,
-            file: file || fileUrl,
-            webAppButtonText,
-            webAppButtonUrl,
-            options,
-            user
-        });
-        res.json(result);
-    } catch (error) {
-        console.log(error)
-        res.status(500).json({ error: error.message });
-    }
-});
-
-router.post('/send_bulk_message_user_agent', verifyToken(), verifyModule('send_message_user_agent'), upload.single('file'), async (req, res) => {
-    try {
-        const { ids, text, file: fileUrl, webAppButtonText, webAppButtonUrl, options } = req.body;
-        const file = req.file; // From multer
-        const user = req.user;
-
-        // ids can come as a stringified array if sent via multipart/form-data
-        const parsedIds = typeof ids === 'string' ? JSON.parse(ids) : ids;
-
-        const results = await send_bulk_message_to_agents({
-            ids: parsedIds,
-            text,
-            file: file || fileUrl,
-            webAppButtonText,
-            webAppButtonUrl,
-            options,
-            user
-        });
-        res.json(results);
-    } catch (error) {
-        console.log(error)
-        res.status(500).json({ error: error.message });
-    }
-});
 
 // Search installation
-router.post('/search_in', verifyToken(), verifyModule('search_in'), async (req, res) => {
+router.post('/search_in', verifyToken(), verifyModule('search_in'), validate(z.object({ type: z.string(), queries: z.array(z.string()) })), async (req, res) => {
     try {
         const { type, queries } = req.body;
         const cleanQueries = queries.map(q => q.trim()).filter(Boolean);
@@ -421,7 +382,7 @@ router.get('/justify/types', verifyToken(), verifyModule('justify'), async (req,
     }
 });
 
-router.post('/justify', verifyToken(), verifyModule('create_justify'), async (req, res) => {
+router.post('/justify', verifyToken(), verifyModule('create_justify'), validate(justificativaCreateSchema), async (req, res) => {
     try {
         const result = await save_justify_admin(req.body);
         res.status(201).json(result);
@@ -430,7 +391,7 @@ router.post('/justify', verifyToken(), verifyModule('create_justify'), async (re
     }
 });
 
-router.put('/justify/:id', verifyToken(), verifyModule('update_justify'), async (req, res) => {
+router.put('/justify/:id', verifyToken(), verifyModule('update_justify'), validate(justificativaSchema.partial()), async (req, res) => {
     try {
         const result = await update_justify_admin(req.params.id, req.body);
         res.json(result);
@@ -462,7 +423,7 @@ router.get('/justify_pending', verifyToken(), verifyModule('justify_pending'), a
 });
 
 
-router.post('/justify_pending', verifyToken(), verifyModule('create_justify_pending'), async (req, res) => {
+router.post('/justify_pending', verifyToken(), verifyModule('create_justify_pending'), validate(justifyPendingCreateSchema), async (req, res) => {
     try {
         const result = await create_pending_justify_admin(req.body);
         res.status(201).json(result);
@@ -471,7 +432,7 @@ router.post('/justify_pending', verifyToken(), verifyModule('create_justify_pend
     }
 });
 
-router.put('/justify_pending/:id', verifyToken(), verifyModule('update_justify_pending'), async (req, res) => {
+router.put('/justify_pending/:id', verifyToken(), verifyModule('update_justify_pending'), validate(justifyPendingSchema.partial()), async (req, res) => {
     try {
         const result = await update_pending_justify_admin(req.params.id, req.body);
         res.json(result);
@@ -500,7 +461,7 @@ router.get('/daily_report', verifyToken(), verifyModule('daily_report'), async (
     }
 });
 
-router.post('/daily_report', verifyToken(), verifyModule('create_daily_report'), async (req, res) => {
+router.post('/daily_report', verifyToken(), verifyModule('create_daily_report'), validate(dailyReportCreateSchema), async (req, res) => {
     try {
         const result = await create_daily_report_admin(req.body);
         res.status(201).json(result);
@@ -509,7 +470,7 @@ router.post('/daily_report', verifyToken(), verifyModule('create_daily_report'),
     }
 });
 
-router.put('/daily_report/:id', verifyToken(), verifyModule('update_daily_report'), async (req, res) => {
+router.put('/daily_report/:id', verifyToken(), verifyModule('update_daily_report'), validate(dailyReportSchema.partial()), async (req, res) => {
     try {
         const result = await update_daily_report_admin(req.params.id, req.body);
         res.json(result);
@@ -538,7 +499,7 @@ router.get('/inventory', verifyToken(), verifyModule('inventory'), async (req, r
     }
 });
 
-router.post('/inventory', verifyToken(), verifyModule('create_inventory'), async (req, res) => {
+router.post('/inventory', verifyToken(), verifyModule('create_inventory'), validate(inventoryCreateSchema), async (req, res) => {
     try {
         const result = await save_inventory_admin(req.body);
         res.status(201).json(result);
@@ -547,7 +508,7 @@ router.post('/inventory', verifyToken(), verifyModule('create_inventory'), async
     }
 });
 
-router.put('/inventory/:id', verifyToken(), verifyModule('update_inventory'), async (req, res) => {
+router.put('/inventory/:id', verifyToken(), verifyModule('update_inventory'), validate(inventorySchema.partial()), async (req, res) => {
     try {
         const result = await update_inventory_admin(req.params.id, req.body);
         res.json(result);

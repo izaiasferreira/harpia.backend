@@ -2,18 +2,7 @@ const { cenos_pool } = require('../../db');
 const llm = require('../../llm');
 
 async function createTrainingChatTable() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS training_chat_messages (
-            id SERIAL PRIMARY KEY,
-            training_id INTEGER REFERENCES training_projects(id) ON DELETE CASCADE,
-            role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
-            content TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT NOW()
-        )
-    `);
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_training_chat_messages_training_id ON training_chat_messages(training_id)
-    `).catch(() => {});
+    // Tabela training_chat_messages criada via migration central
 }
 
 async function getChatMessages(trainingId) {

@@ -1,4 +1,5 @@
 const { cenos_pool } = require('../../db');
+const { badgeCreateSchema, badgeSchema } = require('../../db/schemas');
 
 const DEFAULT_BADGES = [
     { id: 1, title: 'Limpador de Rota', description: 'Completou o treinamento de abertura de notas de Desligamento', image_url: 'https://api.izi.tec.br/files/assets/emblema1.png' },
@@ -8,16 +9,7 @@ const DEFAULT_BADGES = [
 ];
 
 async function createBadgesTable() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS badges (
-            id SERIAL PRIMARY KEY,
-            title VARCHAR(255) NOT NULL,
-            description TEXT,
-            image_url VARCHAR(500),
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `);
+    // Tabela badges criada via migration central
 }
 
 async function seedDefaultBadges() {
@@ -64,11 +56,12 @@ async function getBadgeById(id) {
 
 async function createBadge({ title, description, image_url }) {
     await createBadgesTable();
+    const validated = badgeCreateSchema.parse({ title, description, image_url });
     const { rows } = await cenos_pool.query(
         `INSERT INTO badges (title, description, image_url)
          VALUES ($1, $2, $3)
          RETURNING *`,
-        [title, description, image_url || null]
+        [validated.title, validated.description, validated.image_url || null]
     );
     const b = rows[0];
     return {
@@ -83,23 +76,24 @@ async function createBadge({ title, description, image_url }) {
 
 async function updateBadge(id, { title, description, image_url }) {
     await createBadgesTable();
+    const validated = badgeSchema.partial().parse({ title, description, image_url });
     const updates = [];
     const params = [];
     let paramIndex = 1;
 
-    if (title !== undefined) {
+    if (validated.title !== undefined) {
         updates.push(`title = $${paramIndex}`);
-        params.push(title);
+        params.push(validated.title);
         paramIndex++;
     }
-    if (description !== undefined) {
+    if (validated.description !== undefined) {
         updates.push(`description = $${paramIndex}`);
-        params.push(description);
+        params.push(validated.description);
         paramIndex++;
     }
-    if (image_url !== undefined) {
+    if (validated.image_url !== undefined) {
         updates.push(`image_url = $${paramIndex}`);
-        params.push(image_url);
+        params.push(validated.image_url);
         paramIndex++;
     }
 

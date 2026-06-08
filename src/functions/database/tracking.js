@@ -1,92 +1,10 @@
 const { cenos_pool } = require('../../db');
+const { trackingPointSchema, speedViolationSchema, fallIncidentSchema } = require('../../db/schemas');
 
 let tablesChecked = false;
 
 async function ensureTrackingTables() {
-    if (tablesChecked) return;
-
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS tracking_points (
-            id SERIAL PRIMARY KEY,
-            agent_id VARCHAR(50) NOT NULL,
-            latitude DECIMAL(10,7) NOT NULL,
-            longitude DECIMAL(10,7) NOT NULL,
-            speed DECIMAL(6,2),
-            accuracy DECIMAL(6,2),
-            recorded_at TIMESTAMP NOT NULL,
-            synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    `);
-
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_tracking_points_agent ON tracking_points(agent_id)
-    `);
-
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_tracking_points_recorded ON tracking_points(recorded_at)
-    `);
-
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS speed_violations (
-            id SERIAL PRIMARY KEY,
-            agent_id VARCHAR(50) NOT NULL,
-            latitude DECIMAL(10,7) NOT NULL,
-            longitude DECIMAL(10,7) NOT NULL,
-            speed DECIMAL(6,2) NOT NULL,
-            speed_limit DECIMAL(6,2) DEFAULT 50,
-            recorded_at TIMESTAMP NOT NULL,
-            synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    `);
-
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_speed_violations_agent ON speed_violations(agent_id)
-    `);
-
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS fall_incidents (
-            id SERIAL PRIMARY KEY,
-            agent_id VARCHAR(50) NOT NULL,
-            latitude DECIMAL(10,7),
-            longitude DECIMAL(10,7),
-            status VARCHAR(20) DEFAULT 'pending',
-            recorded_at TIMESTAMP NOT NULL,
-            confirmed_at TIMESTAMP,
-            notes TEXT,
-            synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    `);
-
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_fall_incidents_agent ON fall_incidents(agent_id)
-    `);
-
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_fall_incidents_status ON fall_incidents(status)
-    `);
-
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS agent_alerts_log (
-            id SERIAL PRIMARY KEY,
-            agent_id VARCHAR(50) NOT NULL,
-            alert_type VARCHAR(30) NOT NULL,
-            latitude DECIMAL(10,7),
-            longitude DECIMAL(10,7),
-            details JSONB,
-            recorded_at TIMESTAMP NOT NULL,
-            synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    `);
-
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_agent_alerts_log_agent ON agent_alerts_log(agent_id)
-    `);
-
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_agent_alerts_log_type ON agent_alerts_log(alert_type)
-    `);
-
-    tablesChecked = true;
+    // Tabelas de tracking criadas via migration central
 }
 
 async function insertTrackingPoints(agentId, points) {
@@ -97,14 +15,22 @@ async function insertTrackingPoints(agentId, points) {
     let paramIdx = 1;
 
     for (const point of points) {
+        const validated = trackingPointSchema.parse({
+            agent_id: agentId,
+            latitude: point.lat,
+            longitude: point.lng,
+            speed: point.speed,
+            accuracy: point.accuracy,
+            recorded_at: point.timestamp
+        });
         values.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5})`);
         params.push(
-            agentId,
-            point.lat,
-            point.lng,
-            point.speed || null,
-            point.accuracy || null,
-            new Date(point.timestamp)
+            validated.agent_id,
+            validated.latitude,
+            validated.longitude,
+            validated.speed,
+            validated.accuracy,
+            validated.recorded_at
         );
         paramIdx += 6;
     }
@@ -123,14 +49,22 @@ async function insertSpeedViolations(agentId, violations) {
     let paramIdx = 1;
 
     for (const v of violations) {
+        const validated = speedViolationSchema.parse({
+            agent_id: agentId,
+            latitude: v.lat,
+            longitude: v.lng,
+            speed: v.speed,
+            speed_limit: v.speedLimit || 50,
+            recorded_at: v.timestamp
+        });
         values.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5})`);
         params.push(
-            agentId,
-            v.lat,
-            v.lng,
-            v.speed,
-            v.speedLimit || 50,
-            new Date(v.timestamp)
+            validated.agent_id,
+            validated.latitude,
+            validated.longitude,
+            validated.speed,
+            validated.speed_limit,
+            validated.recorded_at
         );
         paramIdx += 6;
     }
@@ -142,10 +76,17 @@ async function insertSpeedViolations(agentId, violations) {
 }
 
 async function insertFallIncident(agentId, incident) {
+    const validated = fallIncidentSchema.parse({
+        agent_id: agentId,
+        latitude: incident.lat || null,
+        longitude: incident.lng || null,
+        status: 'pending',
+        recorded_at: incident.timestamp
+    });
     const { rows } = await cenos_pool.query(
         `INSERT INTO fall_incidents (agent_id, latitude, longitude, status, recorded_at)
          VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [agentId, incident.lat || null, incident.lng || null, 'pending', new Date(incident.timestamp)]
+        [validated.agent_id, validated.latitude, validated.longitude, validated.status, validated.recorded_at]
     );
     return rows[0];
 }
@@ -227,10 +168,11 @@ async function getFallIncidents(filters = {}) {
 }
 
 async function updateFallIncidentStatus(id, status, notes) {
-    const confirmedAt = (status === 'confirmed' || status === 'false_positive') ? new Date() : null;
+    const validated = fallIncidentSchema.pick({ status: true, notes: true }).parse({ status, notes });
+    const confirmedAt = (validated.status === 'confirmed' || validated.status === 'false_positive') ? new Date() : null;
     const { rows } = await cenos_pool.query(
         `UPDATE fall_incidents SET status = $1, confirmed_at = $2, notes = $3 WHERE id = $4 RETURNING *`,
-        [status, confirmedAt, notes || null, id]
+        [validated.status, confirmedAt, validated.notes || null, id]
     );
     return rows[0];
 }

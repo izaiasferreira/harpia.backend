@@ -1,32 +1,10 @@
 const { cenos_pool } = require('../../db');
 const bcrypt = require('bcrypt');
+const { userCreateSchema, userUpdateSchema } = require('../../db/schemas');
+const z = require('zod');
 
 async function createUsersTable() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            email TEXT UNIQUE NOT NULL,
-            senha TEXT NOT NULL,
-            nome TEXT NOT NULL,
-            role TEXT DEFAULT 'USER' CHECK (role IN ('COMPANY_ADMIN', 'USER')),
-            estado TEXT DEFAULT 'pi',
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW(),
-            ultimo_login TIMESTAMP,
-            ativo BOOLEAN DEFAULT true
-        )
-    `);
-
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS user_branches (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
-            state TEXT DEFAULT 'pi',
-            created_at TIMESTAMP DEFAULT NOW(),
-            UNIQUE(user_id, branch_id, state)
-        )
-    `);
+    // Tabelas users e user_branches criadas via migration central
 }
 
 async function createUser({
@@ -39,16 +17,17 @@ async function createUser({
     permissions = []
 }) {
     await createUsersTable();
+    const validated = userCreateSchema.parse({ email, senha, nome, role, estado });
 
     const pool = cenos_pool;
 
     const checkQuery = `SELECT id FROM users WHERE email = $1`;
-    const checkResult = await pool.query(checkQuery, [email.toLowerCase()]);
+    const checkResult = await pool.query(checkQuery, [validated.email.toLowerCase()]);
     if (checkResult.rows.length > 0) {
         throw new Error('Usuário já existe com este email');
     }
 
-    const hashedSenha = await bcrypt.hash(senha, 10);
+    const hashedSenha = await bcrypt.hash(validated.senha, 10);
 
     const insertQuery = `
         INSERT INTO users (email, senha, nome, role, estado)
@@ -56,15 +35,15 @@ async function createUser({
         RETURNING id, email, nome, role, estado, ativo;
     `;
     const { rows } = await pool.query(insertQuery, [
-        email.toLowerCase(),
+        validated.email.toLowerCase(),
         hashedSenha,
-        nome,
-        role,
-        estado.toLowerCase()
+        validated.nome,
+        validated.role,
+        validated.estado.toLowerCase()
     ]);
 
     const userId = rows[0].id;
-    const state = estado.toLowerCase();
+    const state = validated.estado.toLowerCase();
 
     if (branches.length > 0) {
         const branchValues = branches.map((b, i) => `($1, $${i + 2}, $${i + 3})`).join(', ');
@@ -142,7 +121,8 @@ async function listUsers(estado = 'pi') {
 
 async function updateUser(id, data, estado = 'pi') {
     const pool = cenos_pool;
-    const { nome, role, ativo } = data;
+    const validated = userUpdateSchema.parse(data);
+    const { nome, role, ativo } = validated;
     
     const updates = [];
     const params = [];
@@ -182,7 +162,8 @@ async function updateUser(id, data, estado = 'pi') {
 
 async function changePassword(id, novaSenha) {
     const pool = cenos_pool;
-    const hashedSenha = await bcrypt.hash(novaSenha, 10);
+    const validatedPassword = z.string().min(6).max(255).parse(novaSenha);
+    const hashedSenha = await bcrypt.hash(validatedPassword, 10);
 
     const query = `
         UPDATE users 

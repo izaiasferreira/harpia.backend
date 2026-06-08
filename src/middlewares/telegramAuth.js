@@ -6,39 +6,8 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 let tableChecked = false;
 
 async function ensureTelegramTokensTable() {
-    if (tableChecked) return;
-    
-    try {
-        await cenos_pool.query(`
-            CREATE TABLE IF NOT EXISTS telegram_tokens (
-                id SERIAL PRIMARY KEY,
-                token VARCHAR(255) NOT NULL UNIQUE,
-                telegram_user_id BIGINT NOT NULL,
-                agent_id VARCHAR(50),
-                expires_at TIMESTAMP NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_used_at TIMESTAMP
-            )
-        `);
-        
-        await cenos_pool.query(`
-            CREATE INDEX IF NOT EXISTS idx_telegram_tokens_token ON telegram_tokens(token)
-        `);
-
-        await cenos_pool.query(`
-            CREATE INDEX IF NOT EXISTS idx_telegram_tokens_user_id ON telegram_tokens(telegram_user_id)
-        `);
-
-        // Adicionar coluna agent_id se não existir
-        await cenos_pool.query(`
-            ALTER TABLE telegram_tokens ADD COLUMN IF NOT EXISTS agent_id VARCHAR(50)
-        `);
-        
-        console.log('[TELEGRAM] Tabela telegram_tokens verificada/criada');
-        tableChecked = true;
-    } catch (err) {
-        console.error('[TELEGRAM] Erro ao criar tabela:', err);
-    }
+    // Tabela criada via migration central (009_telegram_tokens.sql)
+    return;
 }
 
 async function telegramAuth(req, res, next) {

@@ -16,27 +16,7 @@ const {
 } = require('./serviceNotes');
 
 async function createServiceNotesChatTable() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS service_notes_chat_messages (
-            id SERIAL PRIMARY KEY,
-            group_id INTEGER REFERENCES service_groups(id) ON DELETE CASCADE,
-            role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system', 'tool')),
-            content TEXT,
-            attachments JSONB,
-            name TEXT,
-            tool_calls JSONB,
-            tool_call_id TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        )
-    `).catch(err => console.error('[DB] Erro ao criar tabela service_notes_chat_messages:', err));
-
-    await cenos_pool.query(`
-        ALTER TABLE service_notes_chat_messages ADD COLUMN IF NOT EXISTS tool_call_id TEXT;
-    `).catch(() => {});
-
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_sn_chat_messages_group_id ON service_notes_chat_messages(group_id)
-    `).catch(() => {});
+    // Tabela criada via migration central
 }
 
 async function urlToGeminiPart(url, mimeType) {
@@ -76,20 +56,41 @@ async function getChatMessages(groupId) {
     return rows;
 }
 
+const z = require('zod');
+
+const serviceNotesChatMessageSchema = z.object({
+    groupId: z.number().int(),
+    role: z.string(),
+    content: z.string().nullable().optional(),
+    attachments: z.union([z.string(), z.array(z.any())]).nullable().optional(),
+    name: z.string().nullable().optional(),
+    toolCalls: z.union([z.string(), z.array(z.any())]).nullable().optional(),
+    toolCallId: z.string().nullable().optional()
+});
+
 async function addChatMessage(groupId, role, content, attachments = null, name = null, toolCalls = null, toolCallId = null) {
     await createServiceNotesChatTable();
+    const validated = serviceNotesChatMessageSchema.parse({
+        groupId: Number(groupId),
+        role,
+        content,
+        attachments,
+        name,
+        toolCalls,
+        toolCallId
+    });
     const { rows } = await cenos_pool.query(
         `INSERT INTO service_notes_chat_messages (group_id, role, content, attachments, name, tool_calls, tool_call_id) 
          VALUES ($1, $2, $3, $4, $5, $6, $7) 
          RETURNING id, role, content, attachments, name, tool_calls, tool_call_id, created_at`,
         [
-            groupId, 
-            role, 
-            content || null, 
-            attachments ? JSON.stringify(attachments) : null, 
-            name || null, 
-            toolCalls ? JSON.stringify(toolCalls) : null,
-            toolCallId || null
+            validated.groupId, 
+            validated.role, 
+            validated.content || null, 
+            validated.attachments ? (typeof validated.attachments === 'string' ? validated.attachments : JSON.stringify(validated.attachments)) : null, 
+            validated.name || null, 
+            validated.toolCalls ? (typeof validated.toolCalls === 'string' ? validated.toolCalls : JSON.stringify(validated.toolCalls)) : null,
+            validated.toolCallId || null
         ]
     );
     return rows[0];

@@ -274,3 +274,75 @@ Recupera o ID único de conversa do Telegram associado à matrícula de um colab
 Retorna os códigos e regras de justificativa válidas para o colaborador preencher caso encontre impedimentos de leitura no campo.
 
 **Query Params:** `token`, `state`, `id` (matrícula do agente).
+
+---
+
+### `POST /api/justify_pending`
+
+Cria uma justificativa pendente em lote para múltiplas instalações. Rota auxiliar sem autenticação Telegram (apenas token simples).
+
+**Autenticação:** Token simples (`?token=API_TOKEN`)
+
+**Body (JSON):**
+```json
+{
+  "autor": "T60702",
+  "estado": "pi",
+  "quantidade": 5,
+  "tipo": "CNL",
+  "unidade_leitura": "12345",
+  "instalacao": "67890",
+  "foto": "https://..."
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `autor` | string | **sim** | Matrícula do agente |
+| `estado` | string | **sim** | Estado (`pi` ou `ma`) |
+| `quantidade` | number | **sim** | Quantidade (> 0) |
+| `tipo` | string | não | Tipo da justificativa |
+| `unidade_leitura` | string | não | Unidade de leitura |
+| `instalacao` | string | não | Instalação |
+| `foto` | string | não | URL da foto |
+
+**Resposta 201:** Objeto da justificativa criada.
+
+---
+
+## 3. Webhooks
+
+### `POST /webhook_perdas`
+
+Webhook para processar eventos de serviços concluídos do módulo de perdas. Quando um serviço de perda é completado (`service.completed`), dispara uma mensagem WhatsApp com a foto do serviço para o número configurado em `WHATSAPP_NUMBER_PERDAS`.
+
+**Nota:** Esta rota não está montada no `app.js` atualmente (código presente em `routes/webhooks.js` mas sem `require`/`app.use` na inicialização). Para ativar, adicionar ao `app.js`:
+```javascript
+const webhooksRouter = require('./routes/webhooks');
+app.use('/', webhooksRouter);
+```
+
+**Body (JSON):**
+```json
+{
+  "event": "service.completed",
+  "data": {
+    "title": "Perda na IN 12345",
+    "description": "Descrição do serviço",
+    "completionData": {
+      "foto": "https://..."
+    }
+  }
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `event` | string | **sim** | Deve ser `service.completed` |
+| `data.title` | string | **sim** | Título do serviço |
+| `data.description` | string | **sim** | Descrição |
+| `data.completionData` | object | **sim** | Objeto com URLs de fotos |
+
+**Resposta 200:** Resultado do envio WhatsApp.
+
+**Resposta 400:** `{ "error": "Evento inválido" }` (se event != `service.completed`)

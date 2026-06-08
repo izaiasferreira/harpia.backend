@@ -1,51 +1,9 @@
 const { cenos_pool, pi_pool, ma_pool } = require('../../db');
+const { chatMessageCreateSchema } = require('../../db/schemas');
 
 // Garantir que as tabelas de chat existam no PostgreSQL (cenos_pool)
 async function initChatDatabase() {
-    try {
-        await cenos_pool.query(`
-            CREATE TABLE IF NOT EXISTS chat_rooms (
-                id SERIAL PRIMARY KEY,
-                agent_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                type TEXT DEFAULT 'suporte',
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-        `);
-
-        await cenos_pool.query(`
-            CREATE TABLE IF NOT EXISTS chat_messages (
-                id SERIAL PRIMARY KEY,
-                room_id INTEGER NOT NULL REFERENCES chat_rooms(id) ON DELETE CASCADE,
-                sender_id TEXT NOT NULL,
-                sender_type TEXT NOT NULL,
-                sender_name TEXT NOT NULL,
-                message TEXT,
-                message_type TEXT NOT NULL DEFAULT 'text',
-                file_url TEXT,
-                file_name TEXT,
-                latitude NUMERIC,
-                longitude NUMERIC,
-                read BOOLEAN DEFAULT FALSE,
-                channel TEXT DEFAULT 'internal',
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-        `);
-
-        // Migration: adicionar coluna channel se não existir
-        await cenos_pool.query(`
-            ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS channel TEXT DEFAULT 'internal';
-        `);
-
-        // Migration: adicionar coluna metadata JSONB para botões/extras
-        await cenos_pool.query(`
-            ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT NULL;
-        `);
-
-        console.log('[DATABASE] Tabelas de chat verificadas/criadas com sucesso.');
-    } catch (e) {
-        console.error('[DATABASE] Erro ao inicializar tabelas de chat:', e.message);
-    }
+    // Tabelas de chat criadas via migration central
 }
 
 // Executa na importação
@@ -172,12 +130,39 @@ async function get_rooms_for_admin() {
 }
 
 async function save_chat_message(roomId, senderId, senderType, senderName, message, messageType = 'text', fileUrl = null, fileName = null, latitude = null, longitude = null, channel = 'internal', metadata = null) {
+    const validated = chatMessageCreateSchema.parse({
+        room_id: Number(roomId),
+        sender_id: senderId,
+        sender_type: senderType,
+        sender_name: senderName,
+        message,
+        message_type: messageType,
+        file_url: fileUrl,
+        file_name: fileName,
+        latitude: latitude !== null && latitude !== undefined ? Number(latitude) : null,
+        longitude: longitude !== null && longitude !== undefined ? Number(longitude) : null,
+        channel,
+        metadata
+    });
     const query = `
         INSERT INTO chat_messages (room_id, sender_id, sender_type, sender_name, message, message_type, file_url, file_name, latitude, longitude, channel, metadata)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *;
     `;
-    const values = [roomId, senderId, senderType, senderName, message, messageType, fileUrl, fileName, latitude, longitude, channel, metadata ? JSON.stringify(metadata) : null];
+    const values = [
+        validated.room_id,
+        validated.sender_id,
+        validated.sender_type,
+        validated.sender_name,
+        validated.message,
+        validated.message_type,
+        validated.file_url,
+        validated.file_name,
+        validated.latitude,
+        validated.longitude,
+        validated.channel,
+        validated.metadata ? (typeof validated.metadata === 'string' ? validated.metadata : JSON.stringify(validated.metadata)) : null
+    ];
     const { rows } = await cenos_pool.query(query, values);
     return rows[0];
 }

@@ -7,13 +7,13 @@ Este documento descreve os endpoints operacionais e administrativos de Notas de 
 ## 1. Regras Gerais de Acesso
 
 * **Autenticação do Técnico (PWA):** Header `X-Telegram-Init-Data` (autenticação de campo baseada em Telegram ou login PIN standalone).
-* **Autenticação do Admin:** Bearer token (`/admin/service-notes/*`, `/admin/service-groups/*`) + módulo `service_notes`.
+* **Autenticação do Admin:** Bearer token (`/admin/service-notes/*`) + módulo `service_notes`.
 
 ---
 
 ## 2. Gestão de Grupos de Serviços (Admin)
 
-### `GET /admin/service-groups`
+### `GET /admin/service-notes/groups`
 Retorna todos os grupos de serviços operacionais cadastrados no sistema.
 
 **Headers:** `Authorization: Bearer <token>`
@@ -43,7 +43,7 @@ Retorna todos os grupos de serviços operacionais cadastrados no sistema.
 
 ---
 
-### `POST /admin/service-groups`
+### `POST /admin/service-notes/groups`
 Cria um novo grupo de serviços e define seu formulário dinâmico, além do controle de acesso dos agentes.
 
 **Headers:** `Authorization: Bearer <token>`
@@ -75,7 +75,7 @@ Cria um novo grupo de serviços e define seu formulário dinâmico, além do con
 
 ---
 
-### `PUT /admin/service-groups/:id`
+### `PUT /admin/service-notes/groups/:id`
 Atualiza os metadados, a configuração do formulário ou as permissões de acesso de um grupo de serviços.
 
 **Headers:** `Authorization: Bearer <token>`
@@ -93,7 +93,7 @@ Atualiza os metadados, a configuração do formulário ou as permissões de aces
 
 ---
 
-### `DELETE /admin/service-groups/:id`
+### `DELETE /admin/service-notes/groups/:id`
 Exclui um grupo e remove todas as notas de serviço vinculadas.
 
 **Headers:** `Authorization: Bearer <token>`

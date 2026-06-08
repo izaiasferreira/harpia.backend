@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
+const { validate } = require('../middlewares/validate');
 const {
     get_security_reports_admin,
     create_security_report_admin,
@@ -25,7 +26,7 @@ router.get('/', verifyToken(), verifyModule('security_reports'), async (req, res
     }
 });
 
-router.post('/', verifyToken(), verifyModule('create_security_report'), async (req, res) => {
+router.post('/', verifyToken(), verifyModule('create_security_report'), validate(require('../db/schemas/security').securityReportCreateSchema), async (req, res) => {
     try {
         const { autor, motivo, observacao, latitude, longitude, estado } = req.body;
         if (!autor || !motivo) {

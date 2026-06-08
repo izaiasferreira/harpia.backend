@@ -227,10 +227,44 @@ async function firstC12ForAgent({ state = 'pi', id, date = today(), page = 1, li
     return rows;
 }
 
+// ─── firstC12Json (global) ───────────────────────────────────────────────────────
+async function firstC12Json(state = 'pi', region = 'all', dateinit = today(), dateend = today()) {
+    const params = [dateinit, dateend];
+    let query = `
+    WITH historico_agentes AS (
+        SELECT 
+            instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
+            status_ds, data_conclusao, latitude, longitude,
+            LAG(ntlei) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant,
+            LAG(status_ds) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as status_ant,
+            LAG(ntlei, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as ntlei_ant2,
+            LAG(status_ds, 2) OVER (PARTITION BY instalacao ORDER BY data_conclusao) as status_ant2
+        FROM matriz
+    )
+    SELECT instalacao, etapa, seccional, regional, ntlei, agente, nome_agente, supervisor,
+        status_ds, data_conclusao, latitude, longitude
+    FROM historico_agentes
+    WHERE data_conclusao::date BETWEEN TO_DATE($1, 'DD.MM.YYYY') AND TO_DATE($2, 'DD.MM.YYYY')
+    AND ntlei = 'C12'
+    AND status_ds = 'LG'
+    AND (ntlei_ant LIKE 'A%' OR ntlei_ant IN ('B09', 'B10', 'B15'))
+    AND (ntlei_ant2 LIKE 'A%' OR ntlei_ant2 IN ('B09', 'B10', 'B15'))
+    `;
+
+    if (region !== 'all') {
+        params.push(region.toUpperCase());
+        query += ` AND regional = $${params.length}`;
+    }
+
+    const { rows } = state === 'pi' ? await pi_pool.query(query, params) : await ma_pool.query(query, params);
+    return rows;
+}
+
 module.exports = {
     c12_Json,
     C12ToLidoJson,
     firstC12ForAgent,
     licacaoNovaC12ForAgent,
-    fastC12ForAgent
+    fastC12ForAgent,
+    firstC12Json
 };

@@ -1,30 +1,10 @@
 const { cenos_pool } = require('../../db');
 const { addBadgeToProfile } = require('./agentes');
 const { assignBadgesFromLinkedCeneducCards } = require('./ceneduc');
+const { trainingProjectCreateSchema, trainingProjectSchema } = require('../../db/schemas');
 
 async function createTrainingProjectsTable() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS training_projects (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-            name TEXT NOT NULL,
-            description TEXT,
-            badge_id INTEGER,
-            flow_data JSONB,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        )
-    `);
-
-    await cenos_pool.query(`
-        ALTER TABLE training_projects 
-        ADD COLUMN IF NOT EXISTS flow_data JSONB;
-    `).catch(() => { });
-
-    await cenos_pool.query(`
-        ALTER TABLE training_projects 
-        ADD COLUMN IF NOT EXISTS badge_id INTEGER;
-    `).catch(() => { });
+    // Tabela training_projects criada via migration central
 }
 
 async function updateTrainingFlow(id, flowData) {
@@ -45,6 +25,12 @@ async function updateTrainingFlow(id, flowData) {
 
 async function createTrainingProject({ userId, name, description, badge_id }) {
     await createTrainingProjectsTable();
+    const validated = trainingProjectCreateSchema.parse({
+        user_id: userId,
+        name,
+        description,
+        badge_id
+    });
     const pool = cenos_pool;
 
     const query = `
@@ -52,7 +38,7 @@ async function createTrainingProject({ userId, name, description, badge_id }) {
         VALUES ($1, $2, $3, $4)
         RETURNING id, user_id, name, description, badge_id, created_at, updated_at
     `;
-    const { rows } = await pool.query(query, [userId, name, description || null, badge_id || null]);
+    const { rows } = await pool.query(query, [validated.user_id, validated.name, validated.description || null, validated.badge_id || null]);
     return rows[0];
 }
 
@@ -98,24 +84,25 @@ async function listTrainingProjects(userId, page = 1, limit = 20) {
 
 async function updateTrainingProject(id, { name, description, badge_id }) {
     await createTrainingProjectsTable();
+    const validated = trainingProjectSchema.partial().parse({ name, description, badge_id });
     const pool = cenos_pool;
     const updates = [];
     const params = [];
     let paramIndex = 1;
 
-    if (name) {
+    if (validated.name !== undefined) {
         updates.push(`name = $${paramIndex}`);
-        params.push(name);
+        params.push(validated.name);
         paramIndex++;
     }
-    if (description !== undefined) {
+    if (validated.description !== undefined) {
         updates.push(`description = $${paramIndex}`);
-        params.push(description);
+        params.push(validated.description);
         paramIndex++;
     }
-    if (badge_id !== undefined) {
+    if (validated.badge_id !== undefined) {
         updates.push(`badge_id = $${paramIndex}`);
-        params.push(badge_id);
+        params.push(validated.badge_id);
         paramIndex++;
     }
 

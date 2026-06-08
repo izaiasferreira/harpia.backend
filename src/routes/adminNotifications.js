@@ -1,4 +1,7 @@
 const express = require('express');
+const { validate } = require('../middlewares/validate');
+const z = require('zod');
+
 const router = express.Router();
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
@@ -19,7 +22,17 @@ async function cleanInvalidTokens(tokens, responses) {
 }
 
 // POST /admin/notifications/send — enviar para agente(s) via Telegram, Push, ou ambos
-router.post('/send', verifyToken(), verifyModule('send_message_user_agent'), upload.single('file'), async (req, res) => {
+router.post('/send', verifyToken(), verifyModule('send_message_user_agent'), upload.single('file'), validate(z.object({
+    agent_ids: z.any().optional(),
+    title: z.string().optional(),
+    text: z.string(),
+    channels: z.any(),
+    broadcast: z.any().optional(),
+    data: z.any().optional(),
+    webAppButtonText: z.string().optional(),
+    webAppButtonUrl: z.string().optional(),
+    file: z.string().optional()
+})), async (req, res) => {
     try {
         const { agent_ids, title, text, channels, broadcast, data: extraData, webAppButtonText, webAppButtonUrl, file: fileUrl } = req.body;
 
@@ -114,7 +127,7 @@ router.post('/send', verifyToken(), verifyModule('send_message_user_agent'), upl
 });
 
 // POST /admin/notifications/broadcast — enviar para todos (mantido para compatibilidade)
-router.post('/broadcast', verifyToken(), verifyModule('send_message_user_agent'), async (req, res) => {
+router.post('/broadcast', verifyToken(), verifyModule('send_message_user_agent'), validate(z.object({ title: z.string(), body: z.string(), data: z.any().optional() })), async (req, res) => {
     try {
         const { title, body, data } = req.body;
 

@@ -17,7 +17,7 @@ describe('Forms', () => {
     let formId;
 
     beforeAll(() => {
-        token = createToken({ id: 998, email: 'user@test.com', modules: ['forms'] });
+        token = createToken({ id: 998, email: 'user@test.com', modules: ['create_form', 'forms', 'update_form', 'delete_form'] });
         adminToken = createToken({ id: 997, email: 'admin@test.com', modules: [] });
     });
 
@@ -123,7 +123,7 @@ describe('Forms', () => {
                 .send({ isActive: false });
 
             const res = await request(app)
-                .post(`/forms/submit/${formId}`)
+                .post(`/public/form/submit/${formId}`)
                 .send({ answers: {} });
 
             expect(res.status).toBe(400);
@@ -137,7 +137,7 @@ describe('Forms', () => {
                 .send({ isActive: true });
 
             const res = await request(app)
-                .post(`/forms/submit/${formId}`)
+                .post(`/public/form/submit/${formId}`)
                 .send({ answers: { q1: 'João Silva' } });
 
             expect(res.status).toBe(201);
@@ -146,7 +146,7 @@ describe('Forms', () => {
 
         test('deve validar campos obrigatórios', async () => {
             const res = await request(app)
-                .post(`/forms/submit/${formId}`)
+                .post(`/public/form/submit/${formId}`)
                 .send({ answers: {} });
 
             expect(res.status).toBe(400);
@@ -154,10 +154,10 @@ describe('Forms', () => {
         });
     });
 
-    describe('GET /forms/public/:id', () => {
+    describe('GET /public/form/:id', () => {
         test('deve retornar dados públicos do formulário', async () => {
             const res = await request(app)
-                .get(`/forms/public/${formId}`);
+                .get(`/public/form/${formId}`);
 
             expect(res.status).toBe(200);
             expect(res.body).toHaveProperty('title');

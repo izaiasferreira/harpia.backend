@@ -1,40 +1,8 @@
 const { cenos_pool } = require('../../db');
+const { permissionCreateSchema, permissionSchema } = require('../../db/schemas');
 
 async function createPermissionsTable() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS permissions (
-            id SERIAL PRIMARY KEY,
-            name TEXT NOT NULL,
-            slug TEXT NOT NULL,
-            description TEXT,
-            modules TEXT[],
-            filters JSONB DEFAULT '[]',
-            user_count INTEGER DEFAULT 0,
-            state TEXT DEFAULT 'pi',
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW(),
-            ativo BOOLEAN DEFAULT true,
-            UNIQUE(slug, state)
-        )
-    `);
-
-    // Garantir que a coluna filters existe se o banco já foi criado antes
-    try {
-        await cenos_pool.query(`ALTER TABLE permissions ADD COLUMN IF NOT EXISTS filters JSONB DEFAULT '[]'`);
-    } catch (err) {
-        console.error('Erro ao adicionar coluna filters:', err.message);
-    }
-
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS user_permissions (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL,
-            permission_id INTEGER NOT NULL,
-            state TEXT DEFAULT 'pi',
-            created_at TIMESTAMP DEFAULT NOW(),
-            UNIQUE(user_id, permission_id, state)
-        )
-    `);
+    // Tabelas permissions e user_permissions criadas via migration central
 }
 
 function generateSlug(name) {
@@ -49,12 +17,13 @@ async function createPermission({
     state = 'pi'
 }) {
     await createPermissionsTable();
+    const slug = generateSlug(name);
+    const validated = permissionCreateSchema.parse({ name, slug, description, modules, filters, state });
 
     const pool = cenos_pool;
-    const slug = generateSlug(name);
 
     const checkQuery = `SELECT id FROM permissions WHERE slug = $1 AND state = $2`;
-    const checkResult = await pool.query(checkQuery, [slug, state.toLowerCase()]);
+    const checkResult = await pool.query(checkQuery, [validated.slug, validated.state.toLowerCase()]);
     if (checkResult.rows.length > 0) {
         throw new Error('Permissão já existe com este nome');
     }
@@ -65,12 +34,12 @@ async function createPermission({
         RETURNING id, name, slug, description, modules, filters, user_count, state, ativo;
     `;
     const { rows } = await pool.query(insertQuery, [
-        name,
-        slug,
-        description,
-        modules,
-        JSON.stringify(filters),
-        state.toLowerCase()
+        validated.name,
+        validated.slug,
+        validated.description,
+        validated.modules,
+        typeof validated.filters === 'object' ? JSON.stringify(validated.filters) : validated.filters,
+        validated.state.toLowerCase()
     ]);
     return rows[0];
 }
@@ -102,7 +71,8 @@ async function listPermissions(state = 'pi') {
 
 async function updatePermission(id, data, state = 'pi') {
     const pool = cenos_pool;
-    const { name, description, modules, filters, ativo } = data;
+    const validated = permissionSchema.partial().parse(data);
+    const { name, description, modules, filters, ativo } = validated;
     
     const updates = [];
     const params = [];
@@ -126,7 +96,7 @@ async function updatePermission(id, data, state = 'pi') {
     }
     if (filters) {
         updates.push(`filters = $${paramIndex}`);
-        params.push(JSON.stringify(filters));
+        params.push(typeof filters === 'object' ? JSON.stringify(filters) : filters);
         paramIndex++;
     }
     if (typeof ativo === 'boolean') {

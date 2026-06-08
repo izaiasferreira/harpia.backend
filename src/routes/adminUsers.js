@@ -1,4 +1,8 @@
 const express = require('express');
+const { validate } = require('../middlewares/validate');
+const { userCreateSchema, userUpdateSchema, userLoginSchema } = require('../db/schemas/users');
+const z = require('zod');
+
 const router = express.Router();
 const crypto = require('crypto');
 const { cenos_pool } = require('../db');
@@ -50,7 +54,7 @@ const ADMIN_NOME = process.env.ADMIN_NOME || 'Admin Principal';
 const requireCompanyAdmin = verifyToken('COMPANY_ADMIN');
 
 // Rotas públicas
-router.post('/login', async (req, res) => {
+router.post('/login', validate(userLoginSchema), async (req, res) => {
     try {
         const { email, senha } = req.body;
 
@@ -84,7 +88,7 @@ router.post('/login', async (req, res) => {
     }
 });
 
-router.post('/register', verifyToken(), verifyModule('create_user'), async (req, res) => {
+router.post('/register', verifyToken(), verifyModule('create_user'), validate(userCreateSchema), async (req, res) => {
     try {
         const { email, senha, nome, role, estado, branches, permissions } = req.body;
 
@@ -155,7 +159,7 @@ router.get('/users/:id', verifyToken(), verifyModule('users'), async (req, res) 
     }
 });
 
-router.put('/users/:id', verifyToken(), verifyModule('update_user'), async (req, res) => {
+router.put('/users/:id', verifyToken(), verifyModule('update_user'), validate(userUpdateSchema), async (req, res) => {
     try {
         const { id } = req.params;
         const data = req.body;
@@ -170,7 +174,7 @@ router.put('/users/:id', verifyToken(), verifyModule('update_user'), async (req,
     }
 });
 
-router.put('/users/:id/password', verifyToken(), verifyModule('update_user'), async (req, res) => {
+router.put('/users/:id/password', verifyToken(), verifyModule('update_user'), validate(z.object({ senha: z.string().min(6) })), async (req, res) => {
     try {
         const { id } = req.params;
         const { senha } = req.body;
@@ -189,7 +193,7 @@ router.put('/users/:id/password', verifyToken(), verifyModule('update_user'), as
     }
 });
 
-router.put('/users/:id/permissions', verifyToken(), verifyModule('permissions'), async (req, res) => {
+router.put('/users/:id/permissions', verifyToken(), verifyModule('permissions'), validate(z.object({ permissionIds: z.array(z.number().int()) })), async (req, res) => {
     try {
         const { id } = req.params;
         const { permissionIds } = req.body;

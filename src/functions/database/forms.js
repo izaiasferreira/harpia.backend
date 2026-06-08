@@ -1,49 +1,23 @@
 const { cenos_pool } = require('../../db');
 const { addBadgeToProfile } = require('./agentes');
 const { assignBadgesFromLinkedCeneducCards } = require('./ceneduc');
+const { formCreateSchema, formSchema, formSubmitSchema } = require('../../db/schemas');
 
 async function createFormsTable() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS forms (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-            title TEXT NOT NULL,
-            description TEXT,
-            cover_url TEXT,
-            is_active BOOLEAN DEFAULT false,
-            badge_id INTEGER,
-            settings JSONB DEFAULT '{}',
-            structure JSONB NOT NULL DEFAULT '[]',
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        )
-    `);
-
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS form_responses (
-            id SERIAL PRIMARY KEY,
-            form_id INTEGER REFERENCES forms(id) ON DELETE CASCADE,
-            answers JSONB NOT NULL DEFAULT '{}',
-            submitted_at TIMESTAMP DEFAULT NOW(),
-            metadata JSONB DEFAULT '{}'
-        )
-    `);
-
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_form_responses_form_id ON form_responses(form_id)
-    `);
-
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_form_responses_submitted_at ON form_responses(submitted_at)
-    `);
-
-    await cenos_pool.query(`
-        ALTER TABLE forms ADD COLUMN IF NOT EXISTS badge_id INTEGER;
-    `).catch(() => {});
+    // Tabelas forms e form_responses criadas via migration central
 }
 
 async function createForm({ userId, title, description, coverUrl, settings, structure, badge_id }) {
     await createFormsTable();
+    const validated = formCreateSchema.parse({
+        user_id: userId,
+        title,
+        description,
+        cover_url: coverUrl,
+        badge_id,
+        settings,
+        structure
+    });
     const pool = cenos_pool;
 
     const query = `
@@ -52,13 +26,13 @@ async function createForm({ userId, title, description, coverUrl, settings, stru
         RETURNING *
     `;
     const { rows } = await pool.query(query, [
-        userId,
-        title,
-        description || null,
-        coverUrl || null,
-        badge_id || null,
-        typeof settings === 'object' ? JSON.stringify(settings) : (settings || '{}'),
-        typeof structure === 'object' ? JSON.stringify(structure) : (structure || '[]')
+        validated.user_id,
+        validated.title,
+        validated.description || null,
+        validated.cover_url || null,
+        validated.badge_id || null,
+        typeof validated.settings === 'object' ? JSON.stringify(validated.settings) : (validated.settings || '{}'),
+        typeof validated.structure === 'object' ? JSON.stringify(validated.structure) : (validated.structure || '[]')
     ]);
     return rows[0];
 }
@@ -98,44 +72,53 @@ async function listForms(userId, page = 1, limit = 20) {
 
 async function updateForm(id, { title, description, coverUrl, isActive, settings, structure, badge_id }) {
     await createFormsTable();
+    const validated = formSchema.partial().parse({
+        title,
+        description,
+        cover_url: coverUrl,
+        is_active: isActive,
+        badge_id,
+        settings,
+        structure
+    });
     const pool = cenos_pool;
     const updates = [];
     const params = [];
     let paramIndex = 1;
 
-    if (title !== undefined) {
+    if (validated.title !== undefined) {
         updates.push(`title = $${paramIndex}`);
-        params.push(title);
+        params.push(validated.title);
         paramIndex++;
     }
-    if (description !== undefined) {
+    if (validated.description !== undefined) {
         updates.push(`description = $${paramIndex}`);
-        params.push(description);
+        params.push(validated.description);
         paramIndex++;
     }
-    if (coverUrl !== undefined) {
+    if (validated.cover_url !== undefined) {
         updates.push(`cover_url = $${paramIndex}`);
-        params.push(coverUrl);
+        params.push(validated.cover_url);
         paramIndex++;
     }
-    if (typeof isActive === 'boolean') {
+    if (typeof validated.is_active === 'boolean') {
         updates.push(`is_active = $${paramIndex}`);
-        params.push(isActive);
+        params.push(validated.is_active);
         paramIndex++;
     }
-    if (badge_id !== undefined) {
+    if (validated.badge_id !== undefined) {
         updates.push(`badge_id = $${paramIndex}`);
-        params.push(badge_id);
+        params.push(validated.badge_id);
         paramIndex++;
     }
-    if (settings !== undefined) {
+    if (validated.settings !== undefined) {
         updates.push(`settings = $${paramIndex}`);
-        params.push(typeof settings === 'object' ? JSON.stringify(settings) : settings);
+        params.push(typeof validated.settings === 'object' ? JSON.stringify(validated.settings) : validated.settings);
         paramIndex++;
     }
-    if (structure !== undefined) {
+    if (validated.structure !== undefined) {
         updates.push(`structure = $${paramIndex}`);
-        params.push(typeof structure === 'object' ? JSON.stringify(structure) : structure);
+        params.push(typeof validated.structure === 'object' ? JSON.stringify(validated.structure) : validated.structure);
         paramIndex++;
     }
 
@@ -174,6 +157,14 @@ async function deleteForm(id) {
 }
 
 async function submitForm({ formId, answers, metadata }) {
+    const validated = formSubmitSchema.parse({
+        form_id: Number(formId),
+        answers,
+        metadata
+    });
+    formId = validated.form_id;
+    answers = validated.answers;
+    metadata = validated.metadata;
     const pool = cenos_pool;
     const client = await pool.connect();
 

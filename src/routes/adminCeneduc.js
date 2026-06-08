@@ -8,6 +8,7 @@ const {
     deleteCeneducCard
 } = require('../functions/database/ceneduc');
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
+const { validate } = require('../middlewares/validate');
 
 const VALID_TYPES = ['cover', 'train_item'];
 const VALID_SECTIONS = ['slider', 'banner'];
@@ -35,7 +36,7 @@ router.get('/:id', verifyToken(), verifyModule('ceneduc'), async (req, res) => {
     }
 });
 
-router.post('/', verifyToken(), verifyModule('create_ceneduc'), async (req, res) => {
+router.post('/', verifyToken(), verifyModule('create_ceneduc'), validate(require('../db/schemas/ceneduc').ceneducCardCreateSchema), async (req, res) => {
     try {
         const { card_type, section, group_title, state, sort_order, badge_id, data } = req.body;
 
@@ -62,7 +63,7 @@ router.post('/', verifyToken(), verifyModule('create_ceneduc'), async (req, res)
     }
 });
 
-router.put('/:id', verifyToken(), verifyModule('update_ceneduc'), async (req, res) => {
+router.put('/:id', verifyToken(), verifyModule('update_ceneduc'), validate(require('../db/schemas/ceneduc').ceneducCardSchema.partial()), async (req, res) => {
     console.log(req.body)
     try {
         const { id } = req.params;

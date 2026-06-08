@@ -2,6 +2,14 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
+const { validate } = require('../middlewares/validate');
+const { serviceGroupCreateSchema, serviceNoteCreateSchema } = require('../db/schemas/serviceNotes');
+const z = require('zod');
+
+const categoryCreateSchema = z.object({
+  name: z.string().min(1),
+  color: z.string().max(7).optional()
+});
 const { cenos_pool } = require('../db');
 const {
     listServiceGroups, getServiceGroupById, createServiceGroup, updateServiceGroup, deleteServiceGroup,
@@ -53,7 +61,7 @@ router.get('/groups/:id', verifyToken(), verifyModule('service_notes'), async (r
     }
 });
 
-router.post('/groups', verifyToken(), verifyModule('create_service_note'), async (req, res) => {
+router.post('/groups', verifyToken(), verifyModule('create_service_note'), validate(serviceGroupCreateSchema), async (req, res) => {
     try {
         const { name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation } = req.body;
         if (!name) return res.status(400).json({ error: 'Nome obrigatorio' });
@@ -97,7 +105,7 @@ router.get('/groups/:id/categories', verifyToken(), verifyModule('service_notes'
     }
 });
 
-router.post('/groups/:id/categories', verifyToken(), verifyModule('create_service_note'), async (req, res) => {
+router.post('/groups/:id/categories', verifyToken(), verifyModule('create_service_note'), validate(categoryCreateSchema), async (req, res) => {
     try {
         const { name, color } = req.body;
         if (!name) return res.status(400).json({ error: 'Nome obrigatorio' });
@@ -153,7 +161,7 @@ router.get('/:id', verifyToken(), verifyModule('service_notes'), async (req, res
     }
 });
 
-router.post('/', verifyToken(), verifyModule('create_service_note'), async (req, res) => {
+router.post('/', verifyToken(), verifyModule('create_service_note'), validate(serviceNoteCreateSchema), async (req, res) => {
     try {
         const { group_id, title, description, coordinates, latitude, longitude, address, marker_category_id } = req.body;
         if (!group_id || !title) return res.status(400).json({ error: 'group_id e title obrigatorios' });
@@ -164,7 +172,7 @@ router.post('/', verifyToken(), verifyModule('create_service_note'), async (req,
     }
 });
 
-router.put('/:id', verifyToken(), verifyModule('update_service_note'), async (req, res) => {
+router.put('/:id', verifyToken(), verifyModule('update_service_note'), validate(require('../db/schemas/serviceNotes').serviceNoteSchema.partial()), async (req, res) => {
     try {
         await notifyAssignedAgents([req.params.id]);
         const note = await updateServiceNote(req.params.id, req.body);

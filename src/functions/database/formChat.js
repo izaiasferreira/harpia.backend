@@ -4,22 +4,7 @@ const llm = require('../../llm');
 const axios = require('axios');
 
 async function createFormChatTable() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS form_chat_messages (
-            id SERIAL PRIMARY KEY,
-            form_id INTEGER REFERENCES forms(id) ON DELETE CASCADE,
-            role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
-            content TEXT NOT NULL,
-            attachments JSONB,
-            created_at TIMESTAMP DEFAULT NOW()
-        )
-    `);
-    await cenos_pool.query(`
-        ALTER TABLE form_chat_messages ADD COLUMN IF NOT EXISTS attachments JSONB;
-    `).catch(() => {});
-    await cenos_pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_form_chat_messages_form_id ON form_chat_messages(form_id)
-    `).catch(() => {});
+    // Tabela form_chat_messages criada via migration central
 }
 
 async function urlToGeminiPart(url, mimeType) {

@@ -1,25 +1,8 @@
 const { cenos_pool } = require('../../db');
+const { ceneducCardCreateSchema, ceneducCardSchema } = require('../../db/schemas');
 
 async function createCeneducCardsTable() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS ceneduc_cards (
-            id SERIAL PRIMARY KEY,
-            card_type VARCHAR(20) NOT NULL CHECK (card_type IN ('cover', 'train_item')),
-            section VARCHAR(20) CHECK (section IN ('slider', 'banner')),
-            group_title VARCHAR(255),
-            state VARCHAR(2),
-            sort_order INTEGER DEFAULT 0,
-            active BOOLEAN DEFAULT true,
-            badge_id INTEGER,
-            data JSONB NOT NULL DEFAULT '{}',
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `);
-
-    await cenos_pool.query(`
-        ALTER TABLE ceneduc_cards ADD COLUMN IF NOT EXISTS badge_id INTEGER;
-    `).catch(() => {});
+    // Tabela ceneduc_cards criada via migration central
 }
 
 async function listCeneducCards({ state, activeOnly = true } = {}) {
@@ -51,59 +34,69 @@ async function getCeneducCardById(id) {
 
 async function createCeneducCard({ card_type, section, group_title, state, sort_order, badge_id, data }) {
     await createCeneducCardsTable();
+    const validated = ceneducCardCreateSchema.parse({ card_type, section, group_title, state, sort_order, badge_id, data });
     const { rows } = await cenos_pool.query(
         `INSERT INTO ceneduc_cards (card_type, section, group_title, state, sort_order, badge_id, data)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
-        [card_type, section || null, group_title || null, state || null, sort_order || 0, badge_id || null, JSON.stringify(data || {})]
+        [
+            validated.card_type,
+            validated.section || null,
+            validated.group_title || null,
+            validated.state || null,
+            validated.sort_order || 0,
+            validated.badge_id || null,
+            typeof validated.data === 'string' ? validated.data : JSON.stringify(validated.data || {})
+        ]
     );
     return rows[0];
 }
 
 async function updateCeneducCard(id, { card_type, section, group_title, state, sort_order, active, badge_id, data }) {
     await createCeneducCardsTable();
+    const validated = ceneducCardSchema.partial().parse({ card_type, section, group_title, state, sort_order, active, badge_id, data });
     const updates = [];
     const params = [];
     let paramIndex = 1;
 
-    if (card_type !== undefined) {
+    if (validated.card_type !== undefined) {
         updates.push(`card_type = $${paramIndex}`);
-        params.push(card_type);
+        params.push(validated.card_type);
         paramIndex++;
     }
-    if (section !== undefined) {
+    if (validated.section !== undefined) {
         updates.push(`section = $${paramIndex}`);
-        params.push(section);
+        params.push(validated.section);
         paramIndex++;
     }
-    if (group_title !== undefined) {
+    if (validated.group_title !== undefined) {
         updates.push(`group_title = $${paramIndex}`);
-        params.push(group_title);
+        params.push(validated.group_title);
         paramIndex++;
     }
-    if (state !== undefined) {
+    if (validated.state !== undefined) {
         updates.push(`state = $${paramIndex}`);
-        params.push(state);
+        params.push(validated.state);
         paramIndex++;
     }
-    if (sort_order !== undefined) {
+    if (validated.sort_order !== undefined) {
         updates.push(`sort_order = $${paramIndex}`);
-        params.push(sort_order);
+        params.push(validated.sort_order);
         paramIndex++;
     }
-    if (active !== undefined) {
+    if (validated.active !== undefined) {
         updates.push(`active = $${paramIndex}`);
-        params.push(active);
+        params.push(validated.active);
         paramIndex++;
     }
-    if (badge_id !== undefined) {
+    if (validated.badge_id !== undefined) {
         updates.push(`badge_id = $${paramIndex}`);
-        params.push(badge_id);
+        params.push(validated.badge_id);
         paramIndex++;
     }
-    if (data !== undefined) {
+    if (validated.data !== undefined) {
         updates.push(`data = $${paramIndex}`);
-        params.push(JSON.stringify(data));
+        params.push(typeof validated.data === 'string' ? validated.data : JSON.stringify(validated.data));
         paramIndex++;
     }
 
@@ -237,15 +230,7 @@ async function getCeneducForAgent(state, userId) {
 }
 
 async function createTrainingCompletionsTable() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS agent_training_completions (
-            id SERIAL PRIMARY KEY,
-            training_id INTEGER NOT NULL,
-            agent_id VARCHAR(50) NOT NULL,
-            created_at TIMESTAMP DEFAULT NOW(),
-            UNIQUE(training_id, agent_id)
-        )
-    `);
+    // Tabela agent_training_completions criada via migration central
 }
 
 async function recordTrainingCompletion(trainingId, agentId) {

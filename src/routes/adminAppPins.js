@@ -1,4 +1,7 @@
 const express = require('express');
+const { validate } = require('../middlewares/validate');
+const z = require('zod');
+
 const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const {
@@ -11,7 +14,7 @@ const {
 } = require('../functions/database/appPins');
 
 // POST /admin/agent/generate_app_pin
-router.post('/generate_app_pin', verifyToken(), verifyModule('app_pins'), async (req, res) => {
+router.post('/generate_app_pin', verifyToken(), verifyModule('app_pins'), validate(z.object({ agent_id: z.string().min(1) })), async (req, res) => {
     try {
         const { agent_id } = req.body;
 

@@ -17,11 +17,11 @@ const {
     CNLToLidoJson
 } = require('./database/cnl');
 const {
-    c12_Json,
     C12ToLidoJson,
     firstC12ForAgent,
     licacaoNovaC12ForAgent,
-    fastC12ForAgent
+    fastC12ForAgent,
+    firstC12Json
 } = require('./database/c12');
 const {
     pendencias,
@@ -73,7 +73,8 @@ module.exports = {
     pendencias,
     pendenciasJson,
     cnl,
-    c12Json: c12_Json,
+    c12Json: require('./database/c12').c12_Json,
+    firstC12Json,
     e02Json,
     c16Json,
     notStartServices,

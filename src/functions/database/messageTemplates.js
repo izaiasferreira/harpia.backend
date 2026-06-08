@@ -1,20 +1,8 @@
 const { cenos_pool } = require('../../db');
+const { messageTemplateCreateSchema, messageTemplateSchema } = require('../../db/schemas');
 
 async function ensureTable() {
-    const pool = cenos_pool;
-    await pool.query(`
-        CREATE TABLE IF NOT EXISTS message_templates_admin (
-            id SERIAL PRIMARY KEY,
-            name TEXT NOT NULL,
-            text TEXT,
-            file TEXT,
-            web_app_button_text TEXT,
-            web_app_button_url TEXT,
-            creator_id INTEGER NOT NULL,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    `);
+    // Tabela message_templates_admin criada via migration central
 }
 
 async function get_message_templates_admin({ search, page = 1, limit = 9999, creator_id }) {
@@ -64,18 +52,20 @@ async function get_message_templates_admin({ search, page = 1, limit = 9999, cre
 
 async function save_message_template_admin({ name, text, file, webAppButtonText, webAppButtonUrl, creator_id }) {
     await ensureTable();
+    const validated = messageTemplateCreateSchema.parse({ name, text, file, webAppButtonText, webAppButtonUrl, creator_id });
     const pool = cenos_pool;
     const query = `
         INSERT INTO message_templates_admin (name, text, file, web_app_button_text, web_app_button_url, creator_id, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
         RETURNING *;
     `;
-    const { rows } = await pool.query(query, [name, text, file, webAppButtonText, webAppButtonUrl, creator_id]);
+    const { rows } = await pool.query(query, [validated.name, validated.text, validated.file, validated.webAppButtonText, validated.webAppButtonUrl, validated.creator_id]);
     return rows[0];
 }
 
 async function update_message_template_admin(id, data, creator_id) {
     await ensureTable();
+    const validated = messageTemplateSchema.partial().parse(data);
     const pool = cenos_pool;
     const fields = [];
     const params = [creator_id];
@@ -90,9 +80,9 @@ async function update_message_template_admin(id, data, creator_id) {
     };
 
     Object.keys(mapping).forEach(key => {
-        if (data[key] !== undefined) {
+        if (validated[key] !== undefined) {
             fields.push(`${mapping[key]} = $${paramIndex}`);
-            params.push(data[key]);
+            params.push(validated[key]);
             paramIndex++;
         }
     });
@@ -100,7 +90,7 @@ async function update_message_template_admin(id, data, creator_id) {
     if (fields.length === 0) return null;
 
     const query = `UPDATE message_templates_admin SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} AND creator_id = $1 RETURNING *`;
-    params.push(id);
+    params.push(parseInt(id, 10));
     const { rows } = await pool.query(query, params);
     return rows[0];
 }
@@ -108,7 +98,7 @@ async function update_message_template_admin(id, data, creator_id) {
 async function delete_message_template_admin(id, creator_id) {
     await ensureTable();
     const pool = cenos_pool;
-    const { rows } = await pool.query('DELETE FROM message_templates_admin WHERE id = $1 AND creator_id = $2 RETURNING *', [id, creator_id]);
+    const { rows } = await pool.query('DELETE FROM message_templates_admin WHERE id = $1 AND creator_id = $2 RETURNING *', [parseInt(id, 10), creator_id]);
     return rows[0];
 }
 

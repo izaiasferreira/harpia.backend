@@ -1,16 +1,8 @@
 const { cenos_pool, pi_pool, ma_pool } = require('../../db');
+const { pinCreateSchema } = require('../../db/schemas');
 
 async function ensureAppPinsTable() {
-    await cenos_pool.query(`
-        CREATE TABLE IF NOT EXISTS app_pins (
-            id SERIAL PRIMARY KEY,
-            agent_id VARCHAR(50) NOT NULL,
-            pin VARCHAR(6) NOT NULL,
-            expires_at TIMESTAMP NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            used_at TIMESTAMP
-        )
-    `);
+    // Tabela app_pins criada via migration central
 }
 
 async function findAgentById(agentId) {
@@ -48,10 +40,11 @@ async function invalidateExistingPins(agentId) {
 }
 
 async function createPin(agentId, pin, expiresAt) {
-    const normalizedId = String(agentId).trim().toUpperCase();
+    const validated = pinCreateSchema.parse({ agent_id: agentId, pin, expires_at: expiresAt });
+    const normalizedId = validated.agent_id;
     await cenos_pool.query(
         'INSERT INTO app_pins (agent_id, pin, expires_at) VALUES ($1, $2, $3)',
-        [normalizedId, pin, expiresAt]
+        [normalizedId, validated.pin, validated.expires_at]
     );
 }
 

@@ -1,4 +1,7 @@
 const express = require('express');
+const { validate } = require('../middlewares/validate');
+const { chatRoomCreateSchema } = require('../db/schemas/chat');
+
 const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const { 
@@ -64,7 +67,7 @@ router.post('/admin/chat/rooms/:roomId/read', verifyToken(), verifyModule('chat'
 });
 
 // POST /admin/chat/rooms — criar sala de suporte para um agente (se não existir)
-router.post('/admin/chat/rooms', verifyToken(), verifyModule('chat'), async (req, res) => {
+router.post('/admin/chat/rooms', verifyToken(), verifyModule('chat'), validate(chatRoomCreateSchema), async (req, res) => {
     try {
         const { agent_id } = req.body;
         if (!agent_id) {
