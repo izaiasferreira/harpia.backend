@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { cenos_pool, pi_pool, ma_pool } = require('../../db');
 const { addBadgeToProfile } = require('./agentes');
 const { assignBadgesFromLinkedCeneducCards } = require('./ceneduc');
 const { formCreateSchema, formSchema, formSubmitSchema } = require('../../db/schemas');
@@ -318,6 +318,24 @@ async function getFormResponses(formId, page = 1, limit = 20) {
     `;
     const { rows } = await pool.query(query, [formId, limit, offset]);
 
+    // Buscar dados dos agentes (nome, seccional, regional) para respostas não-anônimas
+    const agentIds = rows
+        .map(r => r.answers?.respondent_id)
+            .filter(id => id && !String(id).startsWith('ANON'));
+    const agentMap = {};
+    if (agentIds.length > 0) {
+        const placeholders = agentIds.map((_, i) => `$${i + 1}`).join(',');
+        const agentQuery = `SELECT "ID", "Nome", "seccional", "regional" FROM colaboradores WHERE "ID" IN (${placeholders})`;
+        for (const { pool: statePool, state } of [{ pool: pi_pool, state: 'PI' }, { pool: ma_pool, state: 'MA' }]) {
+            try {
+                const { rows: agentRows } = await statePool.query(agentQuery, agentIds);
+                for (const a of agentRows) {
+                    agentMap[a['ID']] = { name: a['Nome'], seccional: a['seccional'], regional: a['regional'], state };
+                }
+            } catch (_) { /* ignora erro do pool sem a tabela */ }
+        }
+    }
+
     // Calcular score para TODAS as respostas sem exceção
     const formQuery = `SELECT structure FROM forms WHERE id = $1`;
     const { rows: formRows } = await pool.query(formQuery, [formId]);
@@ -331,6 +349,17 @@ async function getFormResponses(formId, page = 1, limit = 20) {
             }
         });
     }
+
+    // Anexar dados do agente (nome, seccional, regional) quando não for anônimo
+    rows.forEach(row => {
+        const rid = row.answers?.respondent_id;
+        if (rid && !String(rid).startsWith('ANON') && agentMap[rid]) {
+            row.agent_name = agentMap[rid].name;
+            row.agent_seccional = agentMap[rid].seccional;
+            row.agent_regional = agentMap[rid].regional;
+            row.agent_state = agentMap[rid].state;
+        }
+    });
 
     return {
         data: rows,
