@@ -74,7 +74,7 @@ Webhook para receber eventos do serviço intermediário Telegram. Mensagens inbo
 ---
 
 ### `POST /public/notify`
-Endpoint público para apps externos gerarem notificações para agentes. Salva na tabela `notifications` e despacha pelos canais escolhidos.
+Endpoint público para apps externos gerarem notificações para agentes. Salva na tabela `notifications` e despacha pelos canais escolhidos. Suporta envio em massa (múltiplos agentes).
 
 **Autenticação:** `checkToken` — valida `API_TOKEN` via query param `?token=`.
 
@@ -93,7 +93,7 @@ Endpoint público para apps externos gerarem notificações para agentes. Salva 
 | Campo | Tipo | Obrigatório | Default | Descrição |
 |-------|------|-------------|---------|-----------|
 | `sender` | string | Sim | — | Identificador de quem enviou |
-| `to` | string | Sim | — | Matrícula do agente destinatário |
+| `to` | string ou string[] | Sim | — | Matrícula do agente (string) ou array de matrículas (bulk) |
 | `title` | string | Não | null | Título da notificação |
 | `body` | string | Sim | — | Conteúdo da notificação |
 | `type` | string | Não | `success` | Tipo visual: `success`, `info`, `warn`, `danger` |
@@ -108,15 +108,32 @@ Endpoint público para apps externos gerarem notificações para agentes. Salva 
 | `priority` | Envia FCM com flag `critical: true` (overlay/bolha flutuante) |
 | `internal` | Salva em `chat_messages` + emite via socket.io (chat interno) |
 
-**Resposta 200 (sucesso):**
+**Resposta 200 (sucesso) — single:**
 ```json
 {
   "success": true,
   "id": 42,
+  "agentCount": 1,
   "results": {
-    "telegram": { "success": true },
-    "push": { "success": true, "sent": 2 },
-    "internal": { "success": true, "messageId": 156 }
+    "12345": {
+      "telegram": { "success": true },
+      "push": { "success": true, "sent": 2 },
+      "internal": { "success": true, "messageId": 156 }
+    }
+  }
+}
+```
+
+**Resposta 200 (sucesso) — bulk:**
+```json
+{
+  "success": true,
+  "id": 42,
+  "agentCount": 3,
+  "results": {
+    "AGENTE1": { "telegram": { "success": true }, "push": { "success": true, "sent": 1 } },
+    "AGENTE2": { "telegram": { "success": false, "error": "sem telegram_id" }, "push": { "success": true, "sent": 1 } },
+    "AGENTE3": { "push": { "success": true, "sent": 1 } }
   }
 }
 ```
@@ -126,7 +143,7 @@ Endpoint público para apps externos gerarem notificações para agentes. Salva 
 { "error": "body é obrigatório" }
 ```
 
-**Exemplo de uso (curl):**
+**Exemplo de uso (curl) — single:**
 ```bash
 curl -X POST "https://api.izi.tec.br/public/notify?token=SEU_API_TOKEN" \
   -H "Content-Type: application/json" \
@@ -136,6 +153,20 @@ curl -X POST "https://api.izi.tec.br/public/notify?token=SEU_API_TOKEN" \
     "title": "Aviso Importante",
     "body": "Seu treinamento vence amanhã.",
     "type": "warn",
+    "method": ["push", "telegram"]
+  }'
+```
+
+**Exemplo de uso (curl) — bulk:**
+```bash
+curl -X POST "https://api.izi.tec.br/public/notify?token=SEU_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sender": "sistema_rh",
+    "to": ["AGENTE1", "AGENTE2", "AGENTE3"],
+    "title": "Comunicado Geral",
+    "body": "Todos devem revisar o procedimento.",
+    "type": "info",
     "method": ["push", "telegram"]
   }'
 ```
