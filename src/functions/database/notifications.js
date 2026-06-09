@@ -1,10 +1,6 @@
 const { cenos_pool } = require('../../db');
 const { notificationCreateSchema } = require('../../db/schemas');
 
-async function initNotificationsTable() {
-    // Tabela notifications criada via migration central
-}
-
 async function createNotification(agentId, sender, title, body, type, method, metadata) {
     const validated = notificationCreateSchema.parse({
         agent_id: agentId,
@@ -126,7 +122,6 @@ async function getAdminNotificationHistory(agentId, page = 1, limit = 30, search
 }
 
 module.exports = {
-    initNotificationsTable,
     createNotification,
     getAgentNotifications,
     markNotificationsRead,

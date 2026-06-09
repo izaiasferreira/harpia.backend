@@ -1,17 +1,12 @@
 const { cenos_pool } = require('../../db');
 const { branchCreateSchema, branchSchema } = require('../../db/schemas');
 
-async function createBranchesTable() {
-    // Tabela branches criada via migration central
-}
-
 async function createBranch({
     name,
     code,
     state = 'pi',
     parent_id = null
 }) {
-    await createBranchesTable();
 
     const validated = branchCreateSchema.parse({ name, code, state, parent_id });
 
@@ -117,7 +112,6 @@ async function deleteBranch(id, state = 'pi') {
 }
 
 module.exports = {
-    createBranchesTable,
     createBranch,
     getBranchById,
     listBranches,

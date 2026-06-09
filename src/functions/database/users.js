@@ -3,10 +3,6 @@ const bcrypt = require('bcrypt');
 const { userCreateSchema, userUpdateSchema } = require('../../db/schemas');
 const z = require('zod');
 
-async function createUsersTable() {
-    // Tabelas users e user_branches criadas via migration central
-}
-
 async function createUser({
     email,
     senha,
@@ -16,7 +12,6 @@ async function createUser({
     branches = [],
     permissions = []
 }) {
-    await createUsersTable();
     const validated = userCreateSchema.parse({ email, senha, nome, role, estado });
 
     const pool = cenos_pool;
@@ -189,7 +184,6 @@ async function deleteUser(id, estado = 'pi') {
 }
 
 module.exports = {
-    createUsersTable,
     createUser,
     verifyUser,
     getUserById,

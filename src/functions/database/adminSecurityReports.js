@@ -20,12 +20,7 @@ const getUserAllowedStatePools = (user) => {
     return available;
 };
 
-async function ensureSecurityReportTable() {
-    // Table is created by centralized migrations runner
-}
-
 async function get_security_reports_admin({ user, estado, page = 1, limit = 9999, search }) {
-    await ensureSecurityReportTable();
     const availablePools = getUserAllowedStatePools(user).map(p => p.state);
     const pool = cenos_pool;
 
@@ -110,7 +105,6 @@ async function get_security_reports_admin({ user, estado, page = 1, limit = 9999
 
 async function create_security_report_admin({ autor, motivo, observacao, latitude, longitude, estado }) {
     const validated = securityReportCreateSchema.parse({ autor, motivo, observacao, latitude, longitude, estado });
-    await ensureSecurityReportTable();
     const pool = cenos_pool;
     const query = `
         INSERT INTO security_report (autor, motivo, observacao, latitude, longitude, estado)
@@ -122,7 +116,6 @@ async function create_security_report_admin({ autor, motivo, observacao, latitud
 }
 
 async function delete_security_report_admin(id, user) {
-    await ensureSecurityReportTable();
     const pool = cenos_pool;
     const reportId = parseInt(id, 10);
     if (isNaN(reportId)) return null;

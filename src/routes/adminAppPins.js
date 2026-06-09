@@ -5,7 +5,6 @@ const z = require('zod');
 const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const {
-    ensureAppPinsTable,
     findAgentById,
     invalidateExistingPins,
     createPin,
@@ -27,7 +26,6 @@ router.post('/generate_app_pin', verifyToken(), verifyModule('app_pins'), valida
             return res.status(404).json({ error: 'Agente não encontrado' });
         }
 
-        await ensureAppPinsTable();
         await invalidateExistingPins(agent.id);
 
         const pin = String(Math.floor(100000 + Math.random() * 900000));
@@ -49,7 +47,6 @@ router.post('/generate_app_pin', verifyToken(), verifyModule('app_pins'), valida
 // GET /admin/agent/app_pins
 router.get('/app_pins', verifyToken(), verifyModule('app_pins'), async (req, res) => {
     try {
-        await ensureAppPinsTable();
         const pins = await listPins();
         res.json(pins);
     } catch (err) {

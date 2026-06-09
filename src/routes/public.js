@@ -13,7 +13,7 @@ const { minioClient, CONFIG, compressImage, ensureBucketExists, getFileUrl } = r
 
 const uploadStorage = multer.memoryStorage();
 const formUpload = multer({ storage: uploadStorage, limits: { fileSize: 10 * 1024 * 1024 } });
-const { ensureAppPinsTable, findAgentById, findValidPin, markPinAsUsed } = require('../functions/database/appPins');
+const { findAgentById, findValidPin, markPinAsUsed } = require('../functions/database/appPins');
 
 const publicLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -254,8 +254,6 @@ router.post('/app_login', appLoginLimiter, async (req, res) => {
         if (!agent) {
             return res.status(401).json({ error: 'Matrícula não encontrada' });
         }
-
-        await ensureAppPinsTable();
 
         const validPin = await findValidPin(agent.id, String(pin).trim());
         if (!validPin) {

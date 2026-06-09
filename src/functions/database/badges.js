@@ -8,12 +8,7 @@ const DEFAULT_BADGES = [
     { id: 4, title: 'Visão de Águia', description: 'Completou o treinamento atenção e prevenção a erros de leitura.', image_url: 'https://api.izi.tec.br/files/assets/emblema4.png' }
 ];
 
-async function createBadgesTable() {
-    // Tabela badges criada via migration central
-}
-
 async function seedDefaultBadges() {
-    await createBadgesTable();
     const { rows } = await cenos_pool.query('SELECT COUNT(*) as count FROM badges');
     if (parseInt(rows[0].count) === 0) {
         for (const badge of DEFAULT_BADGES) {
@@ -28,7 +23,6 @@ async function seedDefaultBadges() {
 }
 
 async function listBadges() {
-    await createBadgesTable();
     const { rows } = await cenos_pool.query('SELECT * FROM badges ORDER BY id ASC');
     return rows.map(b => ({
         id: b.id,
@@ -40,7 +34,6 @@ async function listBadges() {
 }
 
 async function getBadgeById(id) {
-    await createBadgesTable();
     const { rows } = await cenos_pool.query('SELECT * FROM badges WHERE id = $1', [id]);
     if (rows.length === 0) return null;
     const b = rows[0];
@@ -55,7 +48,6 @@ async function getBadgeById(id) {
 }
 
 async function createBadge({ title, description, image_url }) {
-    await createBadgesTable();
     const validated = badgeCreateSchema.parse({ title, description, image_url });
     const { rows } = await cenos_pool.query(
         `INSERT INTO badges (title, description, image_url)
@@ -75,7 +67,6 @@ async function createBadge({ title, description, image_url }) {
 }
 
 async function updateBadge(id, { title, description, image_url }) {
-    await createBadgesTable();
     const validated = badgeSchema.partial().parse({ title, description, image_url });
     const updates = [];
     const params = [];
@@ -119,7 +110,6 @@ async function updateBadge(id, { title, description, image_url }) {
 }
 
 async function deleteBadge(id) {
-    await createBadgesTable();
     const { rows } = await cenos_pool.query(
         'DELETE FROM badges WHERE id = $1 RETURNING *',
         [id]
@@ -135,7 +125,6 @@ async function deleteBadge(id) {
 }
 
 module.exports = {
-    createBadgesTable,
     seedDefaultBadges,
     listBadges,
     getBadgeById,

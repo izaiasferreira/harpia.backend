@@ -992,7 +992,6 @@ router.post('/training/:id/complete', telegramAuth, async (req, res) => {
 // --- Tracking: sync batch de pontos, violações e incidentes ---
 
 const {
-    ensureTrackingTables,
     insertTrackingPoints,
     insertSpeedViolations,
     insertFallIncident,
@@ -1021,7 +1020,6 @@ router.post('/fcm-token', telegramAuth, async (req, res) => {
 
 router.post('/tracking/sync', telegramAuth, async (req, res) => {
     try {
-        await ensureTrackingTables();
         const agentId = req.colaborador.id;
         const { points, violations, incidents, alerts } = req.body;
 

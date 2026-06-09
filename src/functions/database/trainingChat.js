@@ -1,12 +1,7 @@
 const { cenos_pool } = require('../../db');
 const llm = require('../../llm');
 
-async function createTrainingChatTable() {
-    // Tabela training_chat_messages criada via migration central
-}
-
 async function getChatMessages(trainingId) {
-    await createTrainingChatTable();
     const { rows } = await cenos_pool.query(
         `SELECT id, role, content, created_at FROM training_chat_messages WHERE training_id = $1 ORDER BY created_at ASC`,
         [trainingId]
@@ -15,7 +10,6 @@ async function getChatMessages(trainingId) {
 }
 
 async function addChatMessage(trainingId, role, content) {
-    await createTrainingChatTable();
     const { rows } = await cenos_pool.query(
         `INSERT INTO training_chat_messages (training_id, role, content) VALUES ($1, $2, $3) RETURNING id, role, content, created_at`,
         [trainingId, role, content]
@@ -24,12 +18,10 @@ async function addChatMessage(trainingId, role, content) {
 }
 
 async function clearChatMessages(trainingId) {
-    await createTrainingChatTable();
     await cenos_pool.query(`DELETE FROM training_chat_messages WHERE training_id = $1`, [trainingId]);
 }
 
 async function sendTrainingChatMessage(trainingId, userMessage, currentFlowData, selectedNodeIds = []) {
-    await createTrainingChatTable();
     await addChatMessage(trainingId, 'user', userMessage);
     const history = await getChatMessages(trainingId);
     const selectionContext = selectedNodeIds.length > 0 

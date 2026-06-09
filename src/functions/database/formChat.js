@@ -3,10 +3,6 @@ const { FORM_BUILDER_SYSTEM_PROMPT } = require('../../llm/prompts/formBuilder');
 const llm = require('../../llm');
 const axios = require('axios');
 
-async function createFormChatTable() {
-    // Tabela form_chat_messages criada via migration central
-}
-
 async function urlToGeminiPart(url, mimeType) {
     try {
         let response;
@@ -35,7 +31,6 @@ async function urlToGeminiPart(url, mimeType) {
 }
 
 async function getChatMessages(formId) {
-    await createFormChatTable();
     const { rows } = await cenos_pool.query(
         `SELECT id, role, content, attachments, created_at FROM form_chat_messages WHERE form_id = $1 ORDER BY created_at ASC`,
         [formId]
@@ -44,7 +39,6 @@ async function getChatMessages(formId) {
 }
 
 async function addChatMessage(formId, role, content, attachments = null) {
-    await createFormChatTable();
     const { rows } = await cenos_pool.query(
         `INSERT INTO form_chat_messages (form_id, role, content, attachments) VALUES ($1, $2, $3, $4) RETURNING id, role, content, attachments, created_at`,
         [formId, role, content, attachments ? JSON.stringify(attachments) : null]
@@ -53,12 +47,10 @@ async function addChatMessage(formId, role, content, attachments = null) {
 }
 
 async function clearChatMessages(formId) {
-    await createFormChatTable();
     await cenos_pool.query(`DELETE FROM form_chat_messages WHERE form_id = $1`, [formId]);
 }
 
 async function sendChatMessage(formId, userMessage, currentFormStructure, attachments = null) {
-    await createFormChatTable();
 
     // Save user message
     await addChatMessage(formId, 'user', userMessage, attachments);

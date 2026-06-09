@@ -1,12 +1,7 @@
 const { cenos_pool } = require('../../db');
 const { ceneducCardCreateSchema, ceneducCardSchema } = require('../../db/schemas');
 
-async function createCeneducCardsTable() {
-    // Tabela ceneduc_cards criada via migration central
-}
-
 async function listCeneducCards({ state, activeOnly = true } = {}) {
-    await createCeneducCardsTable();
 
     let query = 'SELECT * FROM ceneduc_cards WHERE 1=1';
     const params = [];
@@ -27,13 +22,11 @@ async function listCeneducCards({ state, activeOnly = true } = {}) {
 }
 
 async function getCeneducCardById(id) {
-    await createCeneducCardsTable();
     const { rows } = await cenos_pool.query('SELECT * FROM ceneduc_cards WHERE id = $1', [id]);
     return rows[0] || null;
 }
 
 async function createCeneducCard({ card_type, section, group_title, state, sort_order, badge_id, data }) {
-    await createCeneducCardsTable();
     const validated = ceneducCardCreateSchema.parse({ card_type, section, group_title, state, sort_order, badge_id, data });
     const { rows } = await cenos_pool.query(
         `INSERT INTO ceneduc_cards (card_type, section, group_title, state, sort_order, badge_id, data)
@@ -53,7 +46,6 @@ async function createCeneducCard({ card_type, section, group_title, state, sort_
 }
 
 async function updateCeneducCard(id, { card_type, section, group_title, state, sort_order, active, badge_id, data }) {
-    await createCeneducCardsTable();
     const validated = ceneducCardSchema.partial().parse({ card_type, section, group_title, state, sort_order, active, badge_id, data });
     const updates = [];
     const params = [];
@@ -113,7 +105,6 @@ async function updateCeneducCard(id, { card_type, section, group_title, state, s
 }
 
 async function deleteCeneducCard(id) {
-    await createCeneducCardsTable();
     const { rows } = await cenos_pool.query(
         'DELETE FROM ceneduc_cards WHERE id = $1 RETURNING *',
         [id]
@@ -229,12 +220,7 @@ async function getCeneducForAgent(state, userId) {
     };
 }
 
-async function createTrainingCompletionsTable() {
-    // Tabela agent_training_completions criada via migration central
-}
-
 async function recordTrainingCompletion(trainingId, agentId) {
-    await createTrainingCompletionsTable();
     await cenos_pool.query(
         `INSERT INTO agent_training_completions (training_id, agent_id)
          VALUES ($1, $2)
@@ -244,7 +230,6 @@ async function recordTrainingCompletion(trainingId, agentId) {
 }
 
 async function checkTrainingCompletion(trainingId, agentId) {
-    await createTrainingCompletionsTable();
     const { rows } = await cenos_pool.query(
         `SELECT id FROM agent_training_completions
          WHERE training_id = $1 AND agent_id = $2
@@ -362,7 +347,6 @@ async function assignBadgesFromLinkedCeneducCards(resourceType, resourceId, agen
 }
 
 module.exports = {
-    createCeneducCardsTable,
     listCeneducCards,
     getCeneducCardById,
     createCeneducCard,

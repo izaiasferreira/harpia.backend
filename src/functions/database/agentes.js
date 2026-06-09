@@ -9,13 +9,7 @@ const { fastC12ForAgent, firstC12ForAgent } = require('./c12');
 const { listBadges } = require('../badges');
 const { get_instalation_matriz, getPoolByState } = require('./commom');
 
-async function createProfilesTable() {
-    // Tabela profiles criada via migration central
-}
-
 async function getUserData({ id, state }) {
-    await createProfilesTable();
-
     let login = {};
     let colaborador = {};
     let profileData = {};
@@ -82,8 +76,6 @@ async function getUserData({ id, state }) {
 }
 
 async function addBadgeToProfile(id, badgeId) {
-    await createProfilesTable();
-
     const getQuery = `SELECT badges FROM profiles WHERE id = $1`;
     const { rows } = await cenos_pool.query(getQuery, [id]);
 
@@ -112,8 +104,6 @@ async function addBadgeToProfile(id, badgeId) {
 }
 
 async function removeBadgeFromProfile(id, badgeId) {
-    await createProfilesTable();
-
     const getQuery = `SELECT badges FROM profiles WHERE id = $1`;
     const { rows } = await cenos_pool.query(getQuery, [id]);
 
@@ -135,8 +125,6 @@ async function removeBadgeFromProfile(id, badgeId) {
 }
 
 async function updateProfilePic(id, imageUrl) {
-    await createProfilesTable();
-
     // Upsert para inserir se nao existir
     const query = `
         INSERT INTO profiles (id, "profilePicUrl", badges)
@@ -1144,10 +1132,6 @@ async function save_inventory({
 }
 
 // ─── security_report ───────────────────────────────────────────────────────────
-
-async function createSecurityReportTable() {
-    // Table is created by centralized migrations runner
-}
 
 async function create_security_report(data) {
     const validated = securityReportCreateSchema.parse(data);

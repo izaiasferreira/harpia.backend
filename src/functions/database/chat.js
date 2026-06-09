@@ -1,14 +1,6 @@
 const { cenos_pool, pi_pool, ma_pool } = require('../../db');
 const { chatMessageCreateSchema } = require('../../db/schemas');
 
-// Garantir que as tabelas de chat existam no PostgreSQL (cenos_pool)
-async function initChatDatabase() {
-    // Tabelas de chat criadas via migration central
-}
-
-// Executa na importação
-initChatDatabase();
-
 async function get_or_create_support_room(agentId, agentName) {
     const formattedId = agentId?.toUpperCase();
     // Verifica se já existe

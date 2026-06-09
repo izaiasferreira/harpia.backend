@@ -5,7 +5,6 @@ const z = require('zod');
 const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const {
-    ensureTrackingTables,
     getAgentsLastPosition,
     getAgentTrail,
     getSpeedViolations,
@@ -17,7 +16,6 @@ const {
 // GET /admin/tracking/agents — lista agentes com última posição
 router.get('/agents', verifyToken(), verifyModule('tracking'), async (req, res) => {
     try {
-        await ensureTrackingTables();
         const agents = await getAgentsLastPosition();
         res.json(agents);
     } catch (err) {
@@ -29,7 +27,6 @@ router.get('/agents', verifyToken(), verifyModule('tracking'), async (req, res) 
 // GET /admin/tracking/agent/:id/trail — trajeto de um agente
 router.get('/agent/:id/trail', verifyToken(), verifyModule('tracking'), async (req, res) => {
     try {
-        await ensureTrackingTables();
         const { id } = req.params;
         const { from, to } = req.query;
         const trail = await getAgentTrail(id, from || null, to || null);
@@ -43,7 +40,6 @@ router.get('/agent/:id/trail', verifyToken(), verifyModule('tracking'), async (r
 // GET /admin/tracking/speed_violations — lista infrações de velocidade
 router.get('/speed_violations', verifyToken(), verifyModule('tracking'), async (req, res) => {
     try {
-        await ensureTrackingTables();
         const { agent_id, from, to } = req.query;
         const violations = await getSpeedViolations({
             agentId: agent_id || null,
@@ -60,7 +56,6 @@ router.get('/speed_violations', verifyToken(), verifyModule('tracking'), async (
 // GET /admin/tracking/fall_incidents — lista incidentes de queda
 router.get('/fall_incidents', verifyToken(), verifyModule('tracking'), async (req, res) => {
     try {
-        await ensureTrackingTables();
         const { status, agent_id, from } = req.query;
         const incidents = await getFallIncidents({
             status: status || null,
@@ -99,7 +94,6 @@ router.put('/fall_incidents/:id', verifyToken(), verifyModule('tracking'), valid
 // GET /admin/tracking/alerts — log de alertas para auditoria
 router.get('/alerts', verifyToken(), verifyModule('tracking'), async (req, res) => {
     try {
-        await ensureTrackingTables();
         const { agent_id, type, from, to } = req.query;
         const alerts = await getAlertLogs({
             agentId: agent_id || null,

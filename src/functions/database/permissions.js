@@ -1,10 +1,6 @@
 const { cenos_pool } = require('../../db');
 const { permissionCreateSchema, permissionSchema } = require('../../db/schemas');
 
-async function createPermissionsTable() {
-    // Tabelas permissions e user_permissions criadas via migration central
-}
-
 function generateSlug(name) {
     return name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_');
 }
@@ -16,7 +12,6 @@ async function createPermission({
     filters = [],
     state = 'pi'
 }) {
-    await createPermissionsTable();
     const slug = generateSlug(name);
     const validated = permissionCreateSchema.parse({ name, slug, description, modules, filters, state });
 
@@ -195,7 +190,6 @@ async function userHasModule(userId, moduleId, state = 'pi') {
 }
 
 module.exports = {
-    createPermissionsTable,
     createPermission,
     getPermissionById,
     listPermissions,

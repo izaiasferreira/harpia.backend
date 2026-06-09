@@ -755,11 +755,6 @@ async function delete_justify_admin(id) {
 }
 
 // ─── justify_pending ───────────────────────────────────────────────────────────
-async function get_justify_pending_types() {
-    const pool = cenos_pool;
-    const { rows } = await pool.query("SELECT DISTINCT tipo FROM justify_pending WHERE tipo IS NOT NULL AND tipo <> '' ORDER BY tipo ASC");
-    return rows.map(r => r.tipo);
-}
 
 async function get_pending_justifies_admin({ state, autor, status = 'pendente', page = 1, limit = 9999, user, search }) {
     const allowedPools = getUserAllowedStatePools(user).map(p => p.state);
@@ -1056,7 +1051,6 @@ module.exports = {
     send_message_to_agent,
     send_bulk_message_to_agents,
     get_justify_types_admin,
-     get_justify_pending_types,
       get_user_agent_options,
       getUserAllowedStatePools,
 };

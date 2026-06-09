@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const {
     createPermission,
-    createPermissionsTable,
     getPermissionById,
     listPermissions,
     updatePermission,
@@ -22,8 +21,6 @@ const permissionCreateSchema = z.object({
     value: z.string()
   }))
 });
-
-createPermissionsTable().catch(console.error);
 
 router.get('/', verifyToken(), verifyModule('permissions'), async (req, res) => {
     try {

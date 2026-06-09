@@ -1,10 +1,6 @@
 const { cenos_pool, pi_pool, ma_pool } = require('../../db');
 const { pinCreateSchema } = require('../../db/schemas');
 
-async function ensureAppPinsTable() {
-    // Tabela app_pins criada via migration central
-}
-
 async function findAgentById(agentId) {
     const normalizedId = String(agentId).trim().toUpperCase();
     const { rows } = await cenos_pool.query(
@@ -80,7 +76,6 @@ async function markPinAsUsed(pinId) {
 }
 
 module.exports = {
-    ensureAppPinsTable,
     findAgentById,
     invalidateExistingPins,
     createPin,

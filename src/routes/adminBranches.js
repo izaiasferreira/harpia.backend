@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const {
     createBranch,
-    createBranchesTable,
     getBranchById,
     listBranches,
     updateBranch,
@@ -10,8 +9,6 @@ const {
 } = require('../functions/database/branches');
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const { validate } = require('../middlewares/validate');
-
-createBranchesTable().catch(console.error);
 
 router.get('/', verifyToken(), verifyModule('branches'), async (req, res) => {
     try {

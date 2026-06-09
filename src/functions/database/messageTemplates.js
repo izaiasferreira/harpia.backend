@@ -1,12 +1,7 @@
 const { cenos_pool } = require('../../db');
 const { messageTemplateCreateSchema, messageTemplateSchema } = require('../../db/schemas');
 
-async function ensureTable() {
-    // Tabela message_templates_admin criada via migration central
-}
-
 async function get_message_templates_admin({ search, page = 1, limit = 9999, creator_id }) {
-    await ensureTable();
     const pool = cenos_pool;
 
     let query = `SELECT * FROM message_templates_admin WHERE creator_id = $1`;
@@ -51,7 +46,6 @@ async function get_message_templates_admin({ search, page = 1, limit = 9999, cre
 }
 
 async function save_message_template_admin({ name, text, file, webAppButtonText, webAppButtonUrl, creator_id }) {
-    await ensureTable();
     const validated = messageTemplateCreateSchema.parse({ name, text, file, webAppButtonText, webAppButtonUrl, creator_id });
     const pool = cenos_pool;
     const query = `
@@ -64,7 +58,6 @@ async function save_message_template_admin({ name, text, file, webAppButtonText,
 }
 
 async function update_message_template_admin(id, data, creator_id) {
-    await ensureTable();
     const validated = messageTemplateSchema.partial().parse(data);
     const pool = cenos_pool;
     const fields = [];
@@ -96,7 +89,6 @@ async function update_message_template_admin(id, data, creator_id) {
 }
 
 async function delete_message_template_admin(id, creator_id) {
-    await ensureTable();
     const pool = cenos_pool;
     const { rows } = await pool.query('DELETE FROM message_templates_admin WHERE id = $1 AND creator_id = $2 RETURNING *', [parseInt(id, 10), creator_id]);
     return rows[0];

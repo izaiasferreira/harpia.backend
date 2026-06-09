@@ -15,10 +15,6 @@ const {
     updateServiceGroup,
 } = require('./serviceNotes');
 
-async function createServiceNotesChatTable() {
-    // Tabela criada via migration central
-}
-
 async function urlToGeminiPart(url, mimeType) {
     try {
         let resolvedUrl = url;
@@ -45,7 +41,6 @@ async function urlToGeminiPart(url, mimeType) {
 }
 
 async function getChatMessages(groupId) {
-    await createServiceNotesChatTable();
     const { rows } = await cenos_pool.query(
         `SELECT id, role, content, attachments, name, tool_calls, tool_call_id, created_at 
          FROM service_notes_chat_messages 
@@ -69,7 +64,6 @@ const serviceNotesChatMessageSchema = z.object({
 });
 
 async function addChatMessage(groupId, role, content, attachments = null, name = null, toolCalls = null, toolCallId = null) {
-    await createServiceNotesChatTable();
     const validated = serviceNotesChatMessageSchema.parse({
         groupId: Number(groupId),
         role,
@@ -97,7 +91,6 @@ async function addChatMessage(groupId, role, content, attachments = null, name =
 }
 
 async function clearChatMessages(groupId) {
-    await createServiceNotesChatTable();
     await cenos_pool.query(`DELETE FROM service_notes_chat_messages WHERE group_id = $1`, [groupId]);
 }
 
@@ -305,8 +298,6 @@ const SERVICE_NOTES_TOOLS = [
 ];
 
 async function sendServiceNotesChatMessage(groupId, userMessage, attachments = null, adminId) {
-    await createServiceNotesChatTable();
-
     // Salvar mensagem do usuário
     await addChatMessage(groupId, 'user', userMessage || '', attachments);
 

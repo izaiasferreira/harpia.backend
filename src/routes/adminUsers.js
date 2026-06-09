@@ -8,7 +8,6 @@ const crypto = require('crypto');
 const { cenos_pool } = require('../db');
 const {
     createUser,
-    createUsersTable,
     verifyUser,
     getUserById,
     updateLastLogin,
@@ -31,7 +30,6 @@ const ADMIN_NOME = process.env.ADMIN_NOME || 'Admin Principal';
 
 (async () => {
     try {
-        await createUsersTable();
         if (ADMIN_EMAIL && ADMIN_SENHA) {
             await createUser({
                 email: ADMIN_EMAIL,

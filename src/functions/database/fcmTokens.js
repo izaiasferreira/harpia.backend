@@ -1,14 +1,7 @@
 const { cenos_pool } = require('../../db');
 const { fcmTokenCreateSchema } = require('../../db/schemas');
 
-let tableChecked = false;
-
-async function ensureFcmTable() {
-    // Tabela fcm_tokens criada via migration central
-}
-
 async function upsertFcmToken(agentId, token, deviceInfo) {
-    await ensureFcmTable();
     const validated = fcmTokenCreateSchema.parse({ agent_id: agentId, token, device_info: deviceInfo });
     const normalizedAgentId = validated.agent_id;
     await cenos_pool.query(`
@@ -19,12 +12,10 @@ async function upsertFcmToken(agentId, token, deviceInfo) {
 }
 
 async function removeFcmToken(token) {
-    await ensureFcmTable();
     await cenos_pool.query('DELETE FROM fcm_tokens WHERE token = $1', [token]);
 }
 
 async function getTokensByAgent(agentId) {
-    await ensureFcmTable();
     const { rows } = await cenos_pool.query(
         'SELECT token FROM fcm_tokens WHERE upper(agent_id) = upper($1) ORDER BY updated_at DESC',
         [agentId]
@@ -33,7 +24,6 @@ async function getTokensByAgent(agentId) {
 }
 
 async function getTokensByAgents(agentIds) {
-    await ensureFcmTable();
     if (!agentIds || agentIds.length === 0) return [];
     const normalizedIds = agentIds.map(id => String(id).toUpperCase());
     console.log('[FCM] getTokensByAgents - input IDs:', agentIds, 'normalized:', normalizedIds);
@@ -46,13 +36,11 @@ async function getTokensByAgents(agentIds) {
 }
 
 async function getAllTokens() {
-    await ensureFcmTable();
     const { rows } = await cenos_pool.query('SELECT agent_id, token FROM fcm_tokens ORDER BY updated_at DESC');
     return rows;
 }
 
 module.exports = {
-    ensureFcmTable,
     upsertFcmToken,
     removeFcmToken,
     getTokensByAgent,

@@ -3,12 +3,7 @@ const { addBadgeToProfile } = require('./agentes');
 const { assignBadgesFromLinkedCeneducCards } = require('./ceneduc');
 const { formCreateSchema, formSchema, formSubmitSchema } = require('../../db/schemas');
 
-async function createFormsTable() {
-    // Tabelas forms e form_responses criadas via migration central
-}
-
 async function createForm({ userId, title, description, coverUrl, settings, structure, badge_id }) {
-    await createFormsTable();
     const validated = formCreateSchema.parse({
         user_id: userId,
         title,
@@ -38,7 +33,6 @@ async function createForm({ userId, title, description, coverUrl, settings, stru
 }
 
 async function getFormById(id) {
-    await createFormsTable();
     const pool = cenos_pool;
     const query = `SELECT * FROM forms WHERE id = $1`;
     const { rows } = await pool.query(query, [id]);
@@ -46,7 +40,6 @@ async function getFormById(id) {
 }
 
 async function listForms(userId, page = 1, limit = 20) {
-    await createFormsTable();
     const pool = cenos_pool;
     const offset = (page - 1) * limit;
 
@@ -71,7 +64,6 @@ async function listForms(userId, page = 1, limit = 20) {
 }
 
 async function updateForm(id, { title, description, coverUrl, isActive, settings, structure, badge_id }) {
-    await createFormsTable();
     const validated = formSchema.partial().parse({
         title,
         description,
@@ -137,7 +129,6 @@ async function updateForm(id, { title, description, coverUrl, isActive, settings
 }
 
 async function checkFormResponse(formId, respondentId) {
-    await createFormsTable();
     const pool = cenos_pool;
     const query = `
         SELECT id FROM form_responses 
@@ -149,7 +140,6 @@ async function checkFormResponse(formId, respondentId) {
 }
 
 async function deleteForm(id) {
-    await createFormsTable();
     const pool = cenos_pool;
     const query = `DELETE FROM forms WHERE id = $1 RETURNING *`;
     const { rows } = await pool.query(query, [id]);
@@ -199,52 +189,9 @@ async function submitForm({ formId, answers, metadata }) {
             throw new Error(errors.join('; '));
         }
 
-        // Calcular score se modo avaliação ativo
-        if (form.settings?.isAssessmentMode) {
-            let score = 0;
-            let maxScore = 0;
-            const allElements = (form.structure || []).flatMap(p => p.elements || []);
-
-            allElements.forEach(field => {
-                if (field.type === 'question' && field.points) {
-                    const pts = Number(field.points) || 0;
-                    maxScore += pts;
-                    if (field.correctAnswer !== undefined && field.correctAnswer !== '') {
-                        const userVal = answers[field.id];
-                        const correctVal = field.correctAnswer;
-
-                        let isCorrect = false;
-                        if (Array.isArray(userVal)) {
-                            const sortedUser = [...userVal].map(v => String(v).trim().toLowerCase()).sort().join(',');
-                            const sortedCorrect = String(correctVal).split(',').map(s => s.trim().toLowerCase()).sort().join(',');
-                            isCorrect = sortedUser === sortedCorrect;
-                            // Also check if user sent labels instead of values
-                            if (!isCorrect && field.options) {
-                                const correctLabels = String(correctVal).split(',').map(v => {
-                                    const opt = field.options.find(o => o.value === v.trim());
-                                    return opt ? opt.label.trim().toLowerCase() : v.trim().toLowerCase();
-                                }).sort().join(',');
-                                isCorrect = sortedUser === correctLabels;
-                            }
-                        } else {
-                            isCorrect = String(userVal || '').trim().toLowerCase() === String(correctVal || '').trim().toLowerCase();
-                            // Also check if user sent the label instead of value
-                            if (!isCorrect && field.options) {
-                                const correctOpt = field.options.find(o => o.value === correctVal);
-                                if (correctOpt) {
-                                    isCorrect = String(userVal || '').trim().toLowerCase() === correctOpt.label.trim().toLowerCase();
-                                }
-                            }
-                        }
-
-                        if (isCorrect) {
-                            score += pts;
-                        }
-                    }
-                }
-            });
-
-            metadata = { ...(metadata || {}), score, maxScore };
+        const scoreResult = calcScoreFromStructure(form.structure, answers);
+        if (scoreResult) {
+            metadata = { ...(metadata || {}), score: scoreResult.score, maxScore: scoreResult.maxScore };
         }
 
         const insertQuery = `
@@ -306,8 +253,56 @@ function validateFormStructure(structure, answers) {
     return errors;
 }
 
+function calcScoreFromStructure(structure, answers) {
+    const allElements = (structure || []).flatMap(p => p.elements || []);
+    const hasScoring = allElements.some(f => f.type === 'question' && f.points);
+
+    if (!hasScoring) return null;
+
+    let score = 0;
+    let maxScore = 0;
+
+    allElements.forEach(field => {
+        if (field.type === 'question' && field.points) {
+            const pts = Number(field.points) || 0;
+            maxScore += pts;
+            if (field.correctAnswer !== undefined && field.correctAnswer !== '') {
+                const userVal = answers[field.id];
+                const correctVal = field.correctAnswer;
+
+                let isCorrect = false;
+                if (Array.isArray(userVal)) {
+                    const sortedUser = [...userVal].map(v => String(v).trim().toLowerCase()).sort().join(',');
+                    const sortedCorrect = String(correctVal).split(',').map(s => s.trim().toLowerCase()).sort().join(',');
+                    isCorrect = sortedUser === sortedCorrect;
+                    if (!isCorrect && field.options) {
+                        const correctLabels = String(correctVal).split(',').map(v => {
+                            const opt = field.options.find(o => o.value === v.trim());
+                            return opt ? opt.label.trim().toLowerCase() : v.trim().toLowerCase();
+                        }).sort().join(',');
+                        isCorrect = sortedUser === correctLabels;
+                    }
+                } else {
+                    isCorrect = String(userVal || '').trim().toLowerCase() === String(correctVal || '').trim().toLowerCase();
+                    if (!isCorrect && field.options) {
+                        const correctOpt = field.options.find(o => o.value === correctVal);
+                        if (correctOpt) {
+                            isCorrect = String(userVal || '').trim().toLowerCase() === correctOpt.label.trim().toLowerCase();
+                        }
+                    }
+                }
+
+                if (isCorrect) {
+                    score += pts;
+                }
+            }
+        }
+    });
+
+    return { score, maxScore };
+}
+
 async function getFormResponses(formId, page = 1, limit = 20) {
-    await createFormsTable();
     const pool = cenos_pool;
     const offset = (page - 1) * limit;
 
@@ -323,59 +318,17 @@ async function getFormResponses(formId, page = 1, limit = 20) {
     `;
     const { rows } = await pool.query(query, [formId, limit, offset]);
 
-    // Recalcular score para respostas que não têm score no metadata
-    const formQuery = `SELECT structure, settings FROM forms WHERE id = $1`;
+    // Calcular score para TODAS as respostas sem exceção
+    const formQuery = `SELECT structure FROM forms WHERE id = $1`;
     const { rows: formRows } = await pool.query(formQuery, [formId]);
-    const form = formRows[0];
+    const structure = formRows[0]?.structure;
 
-    if (form && form.settings?.isAssessmentMode) {
-        const allElements = (form.structure || []).flatMap(p => p.elements || []);
-
+    if (structure) {
         rows.forEach(row => {
-            if (row.metadata && row.metadata.score !== undefined) return; // já tem score
-
-            let score = 0;
-            let maxScore = 0;
-            const answers = row.answers || {};
-
-            allElements.forEach(field => {
-                if (field.type === 'question' && field.points) {
-                    const pts = Number(field.points) || 0;
-                    maxScore += pts;
-                    if (field.correctAnswer !== undefined && field.correctAnswer !== '') {
-                        const userVal = answers[field.id];
-                        const correctVal = field.correctAnswer;
-
-                        let isCorrect = false;
-                        if (Array.isArray(userVal)) {
-                            const sortedUser = [...userVal].map(v => String(v).trim().toLowerCase()).sort().join(',');
-                            const sortedCorrect = String(correctVal).split(',').map(s => s.trim().toLowerCase()).sort().join(',');
-                            isCorrect = sortedUser === sortedCorrect;
-                            if (!isCorrect && field.options) {
-                                const correctLabels = String(correctVal).split(',').map(v => {
-                                    const opt = field.options.find(o => o.value === v.trim());
-                                    return opt ? opt.label.trim().toLowerCase() : v.trim().toLowerCase();
-                                }).sort().join(',');
-                                isCorrect = sortedUser === correctLabels;
-                            }
-                        } else {
-                            isCorrect = String(userVal || '').trim().toLowerCase() === String(correctVal || '').trim().toLowerCase();
-                            if (!isCorrect && field.options) {
-                                const correctOpt = field.options.find(o => o.value === correctVal);
-                                if (correctOpt) {
-                                    isCorrect = String(userVal || '').trim().toLowerCase() === correctOpt.label.trim().toLowerCase();
-                                }
-                            }
-                        }
-
-                        if (isCorrect) {
-                            score += pts;
-                        }
-                    }
-                }
-            });
-
-            row.metadata = { ...(row.metadata || {}), score, maxScore };
+            const scoreResult = calcScoreFromStructure(structure, row.answers || {});
+            if (scoreResult) {
+                row.metadata = { ...(row.metadata || {}), score: scoreResult.score, maxScore: scoreResult.maxScore };
+            }
         });
     }
 
@@ -389,7 +342,6 @@ async function getFormResponses(formId, page = 1, limit = 20) {
 }
 
 async function getFormStats(formId) {
-    await createFormsTable();
     const pool = cenos_pool;
 
     const formQuery = `SELECT structure FROM forms WHERE id = $1`;
@@ -461,7 +413,6 @@ async function getFormStats(formId) {
 }
 
 async function exportFormResponsesToCsv(formId) {
-    await createFormsTable();
     const pool = cenos_pool;
 
     const formQuery = `SELECT id, title, structure FROM forms WHERE id = $1`;
@@ -523,7 +474,6 @@ async function exportFormResponsesToCsv(formId) {
 }
 
 async function deleteFormResponse(id) {
-    await createFormsTable();
     const { rows } = await cenos_pool.query(
         'DELETE FROM form_responses WHERE id = $1 RETURNING *',
         [id]
@@ -532,7 +482,6 @@ async function deleteFormResponse(id) {
 }
 
 module.exports = {
-    createFormsTable,
     createForm,
     getFormById,
     listForms,

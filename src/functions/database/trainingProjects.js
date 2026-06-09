@@ -3,12 +3,7 @@ const { addBadgeToProfile } = require('./agentes');
 const { assignBadgesFromLinkedCeneducCards } = require('./ceneduc');
 const { trainingProjectCreateSchema, trainingProjectSchema } = require('../../db/schemas');
 
-async function createTrainingProjectsTable() {
-    // Tabela training_projects criada via migration central
-}
-
 async function updateTrainingFlow(id, flowData) {
-    await createTrainingProjectsTable();
     const pool = cenos_pool;
     const query = `
         UPDATE training_projects
@@ -24,7 +19,6 @@ async function updateTrainingFlow(id, flowData) {
 }
 
 async function createTrainingProject({ userId, name, description, badge_id }) {
-    await createTrainingProjectsTable();
     const validated = trainingProjectCreateSchema.parse({
         user_id: userId,
         name,
@@ -43,7 +37,6 @@ async function createTrainingProject({ userId, name, description, badge_id }) {
 }
 
 async function getTrainingProjectById(id) {
-    await createTrainingProjectsTable();
     const pool = cenos_pool;
     const query = `
         SELECT id, user_id, name, description, badge_id, flow_data, created_at, updated_at
@@ -55,7 +48,6 @@ async function getTrainingProjectById(id) {
 }
 
 async function listTrainingProjects(userId, page = 1, limit = 20) {
-    await createTrainingProjectsTable();
     const pool = cenos_pool;
     const offset = (page - 1) * limit;
 
@@ -83,7 +75,6 @@ async function listTrainingProjects(userId, page = 1, limit = 20) {
 }
 
 async function updateTrainingProject(id, { name, description, badge_id }) {
-    await createTrainingProjectsTable();
     const validated = trainingProjectSchema.partial().parse({ name, description, badge_id });
     const pool = cenos_pool;
     const updates = [];
@@ -122,7 +113,6 @@ async function updateTrainingProject(id, { name, description, badge_id }) {
 }
 
 async function deleteTrainingProject(id) {
-    await createTrainingProjectsTable();
     const pool = cenos_pool;
     const query = `
         DELETE FROM training_projects
@@ -134,7 +124,6 @@ async function deleteTrainingProject(id) {
 }
 
 async function completeTrainingAndAssignBadge(trainingId, agentId) {
-    await createTrainingProjectsTable();
     const pool = cenos_pool;
 
     const query = `SELECT id, badge_id FROM training_projects WHERE id = $1`;
@@ -159,7 +148,6 @@ async function completeTrainingAndAssignBadge(trainingId, agentId) {
 }
 
 module.exports = {
-    createTrainingProjectsTable,
     createTrainingProject,
     getTrainingProjectById,
     listTrainingProjects,

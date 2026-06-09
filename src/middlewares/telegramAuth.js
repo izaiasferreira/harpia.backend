@@ -3,13 +3,6 @@ const { cenos_pool } = require('../db');
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
-let tableChecked = false;
-
-async function ensureTelegramTokensTable() {
-    // Tabela criada via migration central (009_telegram_tokens.sql)
-    return;
-}
-
 async function telegramAuth(req, res, next) {
     const initData = req.headers['x-telegram-init-data'] || req.query.telegram_init_data;
     
@@ -65,7 +58,6 @@ async function telegramAuth(req, res, next) {
                 return res.status(403).json({ error: 'Hash inválido' });
             }
         } else {
-            await ensureTelegramTokensTable();
 
             const { rows } = await cenos_pool.query(
                 'SELECT telegram_user_id, agent_id FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',

@@ -1,14 +1,6 @@
 const { cenos_pool } = require('../../db');
 const { serviceGroupCreateSchema, serviceGroupSchema, markerCategorySchema, serviceNoteCreateSchema, serviceNoteSchema } = require('../../db/schemas');
 
-// ==========================================
-// DDL
-// ==========================================
-
-async function ensureServiceNotesTables() {
-    // Tabelas criadas via migration central
-}
-
 function validateCoordinates(coord) {
     if (!coord) return undefined;
     const strCoord = String(coord);
@@ -27,19 +19,16 @@ function validateCoordinates(coord) {
 // ==========================================
 
 async function listServiceGroups() {
-    await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query('SELECT * FROM service_groups ORDER BY created_at DESC');
     return rows;
 }
 
 async function getServiceGroupById(id) {
-    await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query('SELECT * FROM service_groups WHERE id = $1', [id]);
     return rows[0] || null;
 }
 
 async function createServiceGroup({ name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation, created_by }) {
-    await ensureServiceNotesTables();
     const validated = serviceGroupCreateSchema.parse({ name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation, created_by });
     const { rows } = await cenos_pool.query(
         `INSERT INTO service_groups (name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
@@ -57,7 +46,6 @@ async function createServiceGroup({ name, description, completion_config, allow_
 }
 
 async function updateServiceGroup(id, data) {
-    await ensureServiceNotesTables();
     const validated = serviceGroupSchema.partial().parse(data);
     const { name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation } = validated;
     const updates = [];
@@ -77,7 +65,6 @@ async function updateServiceGroup(id, data) {
 }
 
 async function deleteServiceGroup(id) {
-    await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query('DELETE FROM service_groups WHERE id = $1 RETURNING *', [id]);
     return rows[0] || null;
 }
@@ -87,13 +74,11 @@ async function deleteServiceGroup(id) {
 // ==========================================
 
 async function listCategoriesByGroup(groupId) {
-    await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query('SELECT * FROM marker_categories WHERE group_id = $1 ORDER BY name', [groupId]);
     return rows;
 }
 
 async function createCategory({ group_id, name, color }) {
-    await ensureServiceNotesTables();
     const validated = markerCategorySchema.parse({ group_id: Number(group_id), name, color });
     const { rows } = await cenos_pool.query(
         `INSERT INTO marker_categories (group_id, name, color) VALUES ($1, $2, $3) RETURNING *`,
@@ -103,7 +88,6 @@ async function createCategory({ group_id, name, color }) {
 }
 
 async function deleteCategory(id) {
-    await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query('DELETE FROM marker_categories WHERE id = $1 RETURNING *', [id]);
     return rows[0] || null;
 }
@@ -113,7 +97,6 @@ async function deleteCategory(id) {
 // ==========================================
 
 async function listServiceNotes({ groupId, status, assignedTo, archived, unassigned, categoryId, createdFrom, createdTo, completedFrom, completedTo }) {
-    await ensureServiceNotesTables();
     let query = 'SELECT sn.*, mc.name as category_name, mc.color as category_color, sg.name as group_name, sg.completion_config FROM service_notes sn LEFT JOIN marker_categories mc ON sn.marker_category_id = mc.id LEFT JOIN service_groups sg ON sn.group_id = sg.id WHERE 1=1';
     const params = [];
     let idx = 1;
@@ -134,7 +117,6 @@ async function listServiceNotes({ groupId, status, assignedTo, archived, unassig
 }
 
 async function getServiceNoteById(id) {
-    await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query(
         `SELECT sn.*, mc.name as category_name, mc.color as category_color, sg.completion_config
          FROM service_notes sn
@@ -146,7 +128,6 @@ async function getServiceNoteById(id) {
 }
 
 async function createServiceNote({ group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, custom_fields }) {
-    await ensureServiceNotesTables();
     let latVal = latitude !== undefined ? parseFloat(latitude) : null;
     let lngVal = longitude !== undefined ? parseFloat(longitude) : null;
     let coordVal = coordinates;
@@ -192,7 +173,6 @@ async function createServiceNote({ group_id, title, description, coordinates, la
 }
 
 async function updateServiceNote(id, fields) {
-    await ensureServiceNotesTables();
     const validated = serviceNoteSchema.partial().parse(fields);
     const allowed = ['title', 'description', 'coordinates', 'latitude', 'longitude', 'address', 'marker_category_id', 'status', 'group_id', 'archived'];
     const updates = [];
@@ -236,7 +216,6 @@ async function updateServiceNote(id, fields) {
 }
 
 async function deleteServiceNote(id) {
-    await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query('DELETE FROM service_notes WHERE id = $1 RETURNING *', [id]);
     return rows[0] || null;
 }
@@ -246,7 +225,6 @@ async function deleteServiceNote(id) {
 // ==========================================
 
 async function assignServiceNote(noteId, agentId, assignedBy) {
-    await ensureServiceNotesTables();
     await cenos_pool.query('UPDATE service_notes SET assigned_to = $1, updated_at = NOW() WHERE id = $2', [agentId, noteId]);
     if (agentId) {
         await cenos_pool.query('INSERT INTO service_assignments (service_note_id, agent_id, assigned_by) VALUES ($1, $2, $3)', [noteId, agentId, assignedBy || null]);
@@ -254,7 +232,6 @@ async function assignServiceNote(noteId, agentId, assignedBy) {
 }
 
 async function bulkAssign(serviceIds, agentId, assignedBy) {
-    await ensureServiceNotesTables();
     const client = await cenos_pool.connect();
     try {
         await client.query('BEGIN');
@@ -274,22 +251,18 @@ async function bulkAssign(serviceIds, agentId, assignedBy) {
 }
 
 async function bulkUpdateCategory(serviceIds, categoryId) {
-    await ensureServiceNotesTables();
     await cenos_pool.query('UPDATE service_notes SET marker_category_id = $1, updated_at = NOW() WHERE id = ANY($2::int[])', [categoryId, serviceIds]);
 }
 
 async function bulkDelete(serviceIds) {
-    await ensureServiceNotesTables();
     await cenos_pool.query('DELETE FROM service_notes WHERE id = ANY($1::int[])', [serviceIds]);
 }
 
 async function bulkArchive(serviceIds) {
-    await ensureServiceNotesTables();
     await cenos_pool.query('UPDATE service_notes SET archived = true, updated_at = NOW() WHERE id = ANY($1::int[])', [serviceIds]);
 }
 
 async function bulkUnarchive(serviceIds) {
-    await ensureServiceNotesTables();
     await cenos_pool.query('UPDATE service_notes SET archived = false, updated_at = NOW() WHERE id = ANY($1::int[])', [serviceIds]);
 }
 
@@ -298,7 +271,6 @@ async function bulkUnarchive(serviceIds) {
 // ==========================================
 
 async function completeServiceNote(noteId, { agentId, coordinates, completionData, completedAt }) {
-    await ensureServiceNotesTables();
     const validCoords = validateCoordinates(coordinates);
     const { rows } = await cenos_pool.query(
         `UPDATE service_notes 
@@ -316,8 +288,6 @@ async function completeServiceNote(noteId, { agentId, coordinates, completionDat
 }
 
 async function selfRegisterServiceNote({ groupId, agentId, title, coordinates, completionData, completedAt }) {
-    await ensureServiceNotesTables();
-
     const group = await getServiceGroupById(groupId);
     if (!group) throw new Error('Grupo nao encontrado');
 
@@ -342,8 +312,6 @@ async function selfRegisterServiceNote({ groupId, agentId, title, coordinates, c
 // ==========================================
 
 async function createAgentServiceNote({ group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, agentId, assignToSelf }) {
-    await ensureServiceNotesTables();
-
     const group = await getServiceGroupById(group_id);
     if (!group) throw new Error('Grupo nao encontrado');
 
@@ -386,7 +354,6 @@ async function createAgentServiceNote({ group_id, title, description, coordinate
 }
 
 async function listCreatableGroups(agentId) {
-    await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query(
         `SELECT * FROM service_groups
          WHERE allow_agent_creation = true
@@ -399,7 +366,6 @@ async function listCreatableGroups(agentId) {
 }
 
 async function listVisibleGroups(agentId) {
-    await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query(
         `SELECT * FROM service_groups
          WHERE allow_all_agents = true
@@ -411,7 +377,6 @@ async function listVisibleGroups(agentId) {
 }
 
 async function listVisibleGroupsWithCounts(agentId) {
-    await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query(
         `SELECT sg.*,
                 COUNT(sn.id) AS total_notes,
@@ -432,7 +397,6 @@ async function listVisibleGroupsWithCounts(agentId) {
 // ==========================================
 
 async function bulkInsertServiceNotes(groupId, notes) {
-    await ensureServiceNotesTables();
     const client = await cenos_pool.connect();
     const inserted = [];
     try {
@@ -474,7 +438,6 @@ async function bulkInsertServiceNotes(groupId, notes) {
 // ==========================================
 
 async function getAssignedNotes(agentId) {
-    await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query(
         `SELECT sn.*, mc.name as category_name, mc.color as category_color, sg.name as group_name, sg.completion_config
          FROM service_notes sn
@@ -491,8 +454,6 @@ async function getAssignedNotes(agentId) {
 // ==========================================
 
 async function getGroupNotesForAgent(groupId, agentId) {
-    await ensureServiceNotesTables();
-
     const { rows: groups } = await cenos_pool.query(
         `SELECT * FROM service_groups WHERE id = $1`, [groupId]
     );
@@ -525,7 +486,6 @@ async function getGroupNotesForAgent(groupId, agentId) {
 // ==========================================
 
 async function bulkMove(serviceIds, targetGroupId) {
-    await ensureServiceNotesTables();
     await cenos_pool.query('UPDATE service_notes SET group_id = $1, updated_at = NOW() WHERE id = ANY($2::int[])', [targetGroupId, serviceIds]);
 }
 
@@ -534,7 +494,6 @@ async function bulkMove(serviceIds, targetGroupId) {
 // ==========================================
 
 async function adminCompleteNote(noteId, { adminId, completionData }) {
-    await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query(
         `UPDATE service_notes SET status = 'CONCLUIDO', completed_by = $1, completed_at = NOW(), completion_data = $2, updated_at = NOW()
          WHERE id = $3 RETURNING *`,
@@ -548,7 +507,6 @@ async function adminCompleteNote(noteId, { adminId, completionData }) {
 // ==========================================
 
 async function restoreServiceNoteCompletion(id) {
-    await ensureServiceNotesTables();
     const { rows } = await cenos_pool.query(
         `UPDATE service_notes 
          SET status = 'PENDENTE', 
@@ -565,7 +523,6 @@ async function restoreServiceNoteCompletion(id) {
 }
 
 async function bulkRestore(serviceIds) {
-    await ensureServiceNotesTables();
     await cenos_pool.query(
         `UPDATE service_notes 
          SET status = 'PENDENTE', 
@@ -581,7 +538,6 @@ async function bulkRestore(serviceIds) {
 }
 
 module.exports = {
-    ensureServiceNotesTables,
     validateCoordinates,
     listServiceGroups, getServiceGroupById, createServiceGroup, updateServiceGroup, deleteServiceGroup,
     listCategoriesByGroup, createCategory, deleteCategory,

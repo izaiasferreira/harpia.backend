@@ -1,12 +1,6 @@
 const { cenos_pool } = require('../../db');
 const { trackingPointSchema, speedViolationSchema, fallIncidentSchema } = require('../../db/schemas');
 
-let tablesChecked = false;
-
-async function ensureTrackingTables() {
-    // Tabelas de tracking criadas via migration central
-}
-
 async function insertTrackingPoints(agentId, points) {
     if (!points || points.length === 0) return;
 
@@ -234,7 +228,6 @@ async function getAlertLogs(filters = {}) {
 }
 
 module.exports = {
-    ensureTrackingTables,
     insertTrackingPoints,
     insertSpeedViolations,
     insertFallIncident,
