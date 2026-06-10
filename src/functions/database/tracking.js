@@ -15,7 +15,7 @@ async function insertTrackingPoints(agentId, points) {
             longitude: point.lng,
             speed: point.speed,
             accuracy: point.accuracy,
-            recorded_at: point.timestamp
+            recorded_at: new Date(point.timestamp)
         });
         values.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5})`);
         params.push(
@@ -63,7 +63,7 @@ async function insertTrackingPointsExtended(agentId, points, deviceInfo) {
             device_model: point.deviceModel ?? defaultDevice.deviceModel,
             device_platform: point.devicePlatform ?? defaultDevice.devicePlatform,
             os_version: point.osVersion ?? defaultDevice.osVersion,
-            recorded_at: point.timestamp
+            recorded_at: new Date(point.timestamp)
         });
         values.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5}, $${paramIdx + 6}, $${paramIdx + 7}, $${paramIdx + 8}, $${paramIdx + 9}, $${paramIdx + 10})`);
         params.push(
@@ -102,7 +102,7 @@ async function insertSpeedViolations(agentId, violations) {
             longitude: v.lng,
             speed: v.speed,
             speed_limit: v.speedLimit || 50,
-            recorded_at: v.timestamp
+            recorded_at: new Date(v.timestamp)
         });
         values.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5})`);
         params.push(
@@ -128,7 +128,7 @@ async function insertFallIncident(agentId, incident) {
         latitude: incident.lat || null,
         longitude: incident.lng || null,
         status: 'pending',
-        recorded_at: incident.timestamp
+        recorded_at: new Date(incident.timestamp)
     });
     const { rows } = await cenos_pool.query(
         `INSERT INTO fall_incidents (agent_id, latitude, longitude, status, recorded_at)
