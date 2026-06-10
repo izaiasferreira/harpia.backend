@@ -83,7 +83,7 @@ Thread separada executa a cada **30s**:
 O `TrackingForegroundService` também executa nativamente:
 
 1. **Excesso de velocidade** (>81 km/h): salva em `speed_violations` (SQLite), envia notificação nativa, sync via HTTP batch
-2. **Proximidade de riscos de segurança** (50m de um security report): lê dados de `SharedPreferences` (escritos pelo JS ao abrir o app), calcula distância Haversine em cada GPS tick, notifica com cooldown de 20 min por ponto. Nativo nunca faz HTTP próprio.
+2. **Proximidade de riscos de segurança** (50m de um security report): lê dados de `SharedPreferences` (escritos pelo JS ao abrir o app), calcula distância Haversine em cada GPS tick, notifica com cooldown de 20 min por ponto. Nativo nunca faz HTTP próprio. No mobile, o JS (`proximityAlert.ts`) aborta se `isNative()` — só o nativo dispara. No web, o JS mantém a checagem.
 
 Ambas rodam no mesmo processo nativo, independentes do WebView.
 
