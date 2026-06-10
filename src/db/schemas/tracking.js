@@ -7,7 +7,7 @@ const trackingPointSchema = z.object({
   longitude: z.number().or(z.string().transform(Number)),
   speed: z.number().nullable().optional(),
   accuracy: z.number().nullable().optional(),
-  battery_level: z.number().nullable().optional(),
+  battery_level: z.number().or(z.string().transform(Number)).nullable().optional(),
   network_type: z.string().max(20).nullable().optional(),
   device_model: z.string().max(100).nullable().optional(),
   device_platform: z.string().max(20).nullable().optional(),

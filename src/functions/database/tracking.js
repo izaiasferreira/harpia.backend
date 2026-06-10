@@ -52,13 +52,19 @@ async function insertTrackingPointsExtended(agentId, points, deviceInfo) {
     };
 
     for (const point of points) {
+        // Normalizar battery_level: Capacitor envia 0~1, nativo envia 0~100
+        let batteryLevel = point.batteryLevel ?? defaultDevice.batteryLevel;
+        if (batteryLevel != null && batteryLevel <= 1) {
+            batteryLevel = Math.round(batteryLevel * 100);
+        }
+
         const validated = trackingPointSchema.parse({
             agent_id: agentId,
             latitude: point.lat,
             longitude: point.lng,
             speed: point.speed,
             accuracy: point.accuracy,
-            battery_level: point.batteryLevel ?? defaultDevice.batteryLevel,
+            battery_level: batteryLevel,
             network_type: point.networkType ?? defaultDevice.connectionType,
             device_model: point.deviceModel ?? defaultDevice.deviceModel,
             device_platform: point.devicePlatform ?? defaultDevice.devicePlatform,
