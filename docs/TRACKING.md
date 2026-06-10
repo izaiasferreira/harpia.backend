@@ -78,6 +78,15 @@ Thread separada executa a cada **30s**:
 4. Se falhar (rede off, servidor fora) → dados permanecem `synced = 0` e são reenviados no próximo ciclo
 5. Dados sincronizados com mais de 7 dias são deletados
 
+### Verificações em Tempo Real no Native Service
+
+O `TrackingForegroundService` também executa nativamente:
+
+1. **Excesso de velocidade** (>81 km/h): salva em `speed_violations` (SQLite), envia notificação nativa, sync via HTTP batch
+2. **Proximidade de riscos de segurança** (50m de um security report): lê dados de `SharedPreferences` (escritos pelo JS ao abrir o app), calcula distância Haversine em cada GPS tick, notifica com cooldown de 20 min por ponto. Nativo nunca faz HTTP próprio.
+
+Ambas rodam no mesmo processo nativo, independentes do WebView.
+
 ### Dados enviados por ponto
 
 | Campo | Origem | Formato |
