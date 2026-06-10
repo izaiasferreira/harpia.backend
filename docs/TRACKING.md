@@ -1,207 +1,225 @@
-# Tracking & Monitoramento — Backend
+# Tracking & Monitoramento
 
-## Visão Geral
-
-Sistema de rastreamento GPS em tempo real dos agentes de campo, com detecção de velocidade excedida (>50 km/h), incidentes de queda, e alertas de proximidade. Dados sincronizados offline-first via batch sync.
+Sistema de rastreamento GPS em tempo real dos agentes de campo. Tolerância zero a falhas — funciona offline-first, em segundo plano, sem nunca trazer o app para primeiro plano.
 
 ---
 
-## Dados do Dispositivo (Bateria, Rede, Modelo)
+## Arquitetura Geral
 
-Cada ponto de rastreamento agora inclui informações do dispositivo do agente. A coleta é feita no frontend (`trackingService.ts`) e enviada via `POST /agent/tracking/sync-v2`.
+```
+GPS (FusedLocationProviderClient — Google Play Services)
+  │
+  ├── Filtro de precisão (accuracy > 30m → rejeita)
+  ├── Filtro de distância (< 5m do último ponto → ignora)
+  │
+  └── Salva no SQLite local (synced = 0)
+        │
+        └── Thread separada a cada 30s:
+              ├── Lê batch de 50 pontos com synced = 0
+              ├── HTTP POST → /agent/tracking/sync-v2
+              ├── Se 200 OK → marca synced = 1
+              └── Se falhar → mantém synced = 0 (retry na próxima)
+```
+
+### Duas camadas independentes
+
+| Camada | Coleta | Armazenamento | Sync | Ativo quando |
+|--------|--------|---------------|------|--------------|
+| **Natina (Java)** | FusedLocationProviderClient (GPS + rede + Wi-Fi) | SQLite nativo | HTTP direto a cada 30s | **Sempre** (WebView vivo ou morto) |
+| **JS (WebView)** | Capacitor BackgroundGeolocation + watchPosition | IndexedDB | syncQueue via axios (imediato + 30s) | Quando o WebView está vivo |
+
+As duas camadas funcionam em paralelo. O backend deduplica por `point_id`.
+
+---
+
+## Serviço Nativo — TrackingForegroundService
+
+### Provedor de Localização
+
+Usa `FusedLocationProviderClient` do Google Play Services com `PRIORITY_HIGH_ACCURACY`:
+- Funde chip GPS + triangulação de ERBs (torres de celular) + redes Wi-Fi próximas
+- Mais rápido para obter o primeiro fix (sinal estável) que o `LocationManager` cru
+- Funciona melhor em túneis, ruas estreitas, sombra de árvores
+- Intervalo: **5s** entre atualizações, mínimo **2s**
+
+### Filtros de Qualidade de Dados
+
+**1. Precisão (accuracy)**
+```java
+if (!location.hasAccuracy() || location.getAccuracy() > MAX_ACCURACY_M) return;
+// MAX_ACCURACY_M = 30 metros
+```
+Rejeita pontos com sinal fraco. Evita que o mapa exiba posições imprecisas (saltos falsos).
+
+**2. Distância mínima**
+```java
+if (lastSavedLocation != null) {
+    Location.distanceBetween(..., dist);
+    if (dist[0] < MIN_DISTANCE_M) return;
+}
+// MIN_DISTANCE_M = 5 metros
+```
+Ignora pontos com deslocamento menor que 5m do último salvo. Se o agente está parado (sinal fechado, esperando pedido), não acumula centenas de pontos no mesmo lugar.
+
+### Buffering Local (Offline-First)
+
+Toda coordenada é imediatamente gravada no SQLite local com `synced = 0`:
+```sql
+INSERT INTO tracking_points (point_id, lat, lng, speed, accuracy, battery_level, network_type, device_model, device_platform, os_version, ts, synced)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+```
+
+### Sync Nativo (HTTP)
+
+Thread separada executa a cada **30s**:
+1. Lê até 50 pontos com `synced = 0` (ordenados por timestamp)
+2. Monta payload JSON e envia via `POST /agent/tracking/sync-v2`
+3. Se servidor responde 200 OK → marca `synced = 1`
+4. Se falhar (rede off, servidor fora) → dados permanecem `synced = 0` e são reenviados no próximo ciclo
+5. Dados sincronizados com mais de 7 dias são deletados
+
+### Dados enviados por ponto
+
+| Campo | Origem | Formato |
+|-------|--------|---------|
+| `lat`, `lng` | FusedLocationProviderClient | decimal degrees |
+| `speed` | Location.getSpeed() | m/s |
+| `accuracy` | Location.getAccuracy() | metros |
+| `batteryLevel` | BatteryManager (0~1) | float (backend normaliza para 0~100) |
+| `networkType` | ConnectivityManager | "wifi", "4g", "3g", "2g", "mobile", "none" |
+| `deviceModel` | Build.MODEL | string |
+| `devicePlatform` | hardcoded | "android" |
+| `osVersion` | Build.VERSION.RELEASE | string |
+| `timestamp` | Location.getTime() | epoch ms |
+
+---
+
+## Anti-Kill: Proteção 24/7
+
+O app NUNCA abre a interface sozinho. Múltiplas camadas garantem que o serviço de tracking (GPS → SQLite → HTTP) continue rodando:
+
+| Camada | Arquivo | Intervalo | Disparo |
+|--------|---------|-----------|---------|
+| START_STICKY | `TrackingForegroundService.java` | imediato | Sistema recria o Service se processo morto |
+| onTaskRemoved | `TrackingForegroundService.java` | imediato | Usuário limpa o app dos recentes |
+| onDestroy | `TrackingForegroundService.java` | imediato | Service é destruído |
+| AlarmManager | `TrackingAlarmReceiver.java` | **1 min** | `setExactAndAllowWhileIdle` (funciona em Doze) |
+| WorkManager | `TrackingWatchdogWorker.java` | **1 min** | Auto-reagendável, reinicia se morto |
+| BootReceiver | `BootReceiver.java` | boot | Dispositivo reinicia |
+| FCM Push | `FcmRestartReceiver.java` | push | Servidor envia `restart_tracking` |
+
+Nenhum desses mecanismos chama `startActivity()`. O app nunca volta para primeiro plano sozinho.
+
+### Matriz de Proteção
+
+| Cenário | Proteção | Eficácia |
+|---------|----------|----------|
+| App minimizado (background) | Foreground Service + FusedLocationProviderClient | 100% |
+| Tela desligada / bloqueada | GPS nativo independente do WebView | 100% |
+| App removido dos recentes | onTaskRemoved + START_STICKY + AlarmManager 1min + WorkManager 1min | ~99% |
+| Processo morto pelo SO | START_STICKY + AlarmManager 1min + WorkManager 1min | ~98% |
+| Boot do celular | BootReceiver inicia Service + watchdogs | 100% |
+| **Force Stop (Config > Apps)** | Nenhum app comum sobrevive. Solução: MDM | Não protegido |
+| OEM chinesa (Xiaomi, Huawei, Oppo) | AlarmManager + WorkManager + sync nativo (onTaskRemoved bloqueado pela ROM) | Parcial |
+
+---
+
+## Dados do Dispositivo
 
 ### Coleta por plataforma
 
 | Dado | Mobile (nativo) | Web (fallback) |
 |------|----------------|----------------|
-| Nível da bateria | `Device.getBatteryInfo()` (Capacitor) | `navigator.getBattery()` (Web Battery API) |
-| Tipo de rede | `Network.getStatus()` (Capacitor) | `navigator.connection.effectiveType` (Network Information API) |
-| Modelo do dispositivo | `Device.getInfo().model` | `navigator.userAgent` |
-| Plataforma | `Device.getInfo().platform` | `'web'` |
-| Versão do SO | `Device.getInfo().osVersion` | `''` |
+| Nível da bateria | `BatteryManager` (0~1) | `navigator.getBattery()` (0~1) |
+| Tipo de rede | `ConnectivityManager` | `navigator.connection.effectiveType` |
+| Modelo | `Build.MODEL` | `navigator.userAgent` |
+| Fabricante | `Build.MANUFACTURER` | — |
+| Versão Android | `Build.VERSION.RELEASE` | — |
+| IMEI / Serial | `DeviceNativePlugin` (com READ_PHONE_STATE) | — |
 
-### Comportamento
+### Normalização da bateria
 
-- Bateria e rede são atualizadas a cada **5 minutos** em background
-- Também são atualizadas **antes de cada sync**
-- Cada ponto salvo offline já contém os dados do dispositivo no momento da coleta
-- Dispositivo e plataforma/OS são estáticos (coletados uma vez na inicialização)
-
-### Sync em tempo real
-
-Para garantir que o admin veja a posição do agente o mais rápido possível:
-
-- **JS (WebView vivo)**: Sync imediato a cada novo ponto GPS (throttle 10s) + timer periódico a cada **30s** para dar flush em pontos pendentes
-- **Nativo Android (WebView morto)**: `TrackingForegroundService` coleta GPS via `LocationManager` + SQLite local + POST HTTP direto a cada **30s** (independente do WebView)
-- **Web (desktop/dev)**: WatchLocation contínuo mesmo com aba oculta (não para mais no `visibilitychange`)
-- **Retry automático**: A cada 30s, dados pendentes são reenviados
-
-### Admin
-
-O painel `/control/tracking` exibe os campos `battery_level`, `network_type`, `device_model` no card do agente e no popup do mapa. Quando o dado não está disponível, exibe `--`.
-
----
-
-## Tabelas
-
-| Tabela | Descrição |
-|--------|-----------|
-| `tracking_points` | Coordenadas GPS coletadas (agent_id, lat, lng, speed, accuracy, battery_level, network_type, device_model, device_platform, os_version, recorded_at) |
-| `speed_violations` | Infrações de velocidade >50 km/h |
-| `fall_incidents` | Incidentes de queda detectados pelo acelerômetro (status: pending/confirmed/false_positive) |
-| `agent_alerts_log` | Log de alertas genéricos (proximity_warning, speed_violation, etc.) |
-| `fcm_tokens` | Tokens FCM dos dispositivos dos agentes (para push notifications) |
+- Capacitor/navegador envia 0~1
+- Nativo envia 0~1 (convertido de `BatteryManager.getIntProperty(BATTERY_PROPERTY_CAPACITY) / 100f`)
+- Backend normaliza: `if (batteryLevel <= 1) batteryLevel = Math.round(batteryLevel * 100)`
+- Armazenado no PostgreSQL como `DECIMAL(4,2)` (0~100)
 
 ---
 
 ## Endpoints
 
-### Agente
-
-#### `POST /agent/tracking/sync`
-Batch sync de pontos, violações, incidentes e alertas coletados offline.
-
-**Body:**
-```json
-{
-  "points": [{ "lat": -5.089, "lng": -42.801, "speed": 12.5, "accuracy": 8, "timestamp": 1716000000000 }],
-  "violations": [{ "lat": -5.089, "lng": -42.801, "speed": 62.3, "speedLimit": 50, "timestamp": 1716000000000 }],
-  "incidents": [{ "lat": -5.089, "lng": -42.801, "timestamp": 1716000000000 }],
-  "alerts": [{ "type": "proximity_warning", "lat": -5.089, "lng": -42.801, "timestamp": 1716000000000, "details": {} }]
-}
-```
+### Synct (v2 — recomendado)
 
 #### `POST /agent/tracking/sync-v2`
-Batch sync com suporte a deviceInfo (bateria, rede, modelo do dispositivo). Os campos de device info podem ser enviados no `deviceInfo` do body ou diretamente em cada `point` (prioridade do ponto).
+
+Batch sync com deviceInfo e dados do dispositivo em cada ponto.
 
 **Body:**
 ```json
 {
-  "points": [{ "lat": -5.089, "lng": -42.801, "speed": 12.5, "accuracy": 8, "batteryLevel": 0.85, "networkType": "wifi", "deviceModel": "SM-S908B", "devicePlatform": "android", "osVersion": "14", "timestamp": 1716000000000 }],
-  "violations": [{ "lat": -5.089, "lng": -42.801, "speed": 62.3, "speedLimit": 50, "timestamp": 1716000000000 }],
-  "incidents": [{ "lat": -5.089, "lng": -42.801, "timestamp": 1716000000000 }],
-  "alerts": [{ "type": "proximity_warning", "lat": -5.089, "lng": -42.801, "timestamp": 1716000000000, "details": {} }],
-  "deviceInfo": { "batteryLevel": 0.85, "connectionType": "wifi", "deviceModel": "SM-S908B", "devicePlatform": "android", "osVersion": "14" }
+  "points": [
+    {
+      "lat": -5.089,
+      "lng": -42.801,
+      "speed": 12.5,
+      "accuracy": 8,
+      "batteryLevel": 0.85,
+      "networkType": "wifi",
+      "deviceModel": "SM-G998B",
+      "devicePlatform": "android",
+      "osVersion": "14",
+      "timestamp": 1716000000000
+    }
+  ],
+  "violations": [],
+  "incidents": [],
+  "alerts": [],
+  "deviceInfo": {
+    "batteryLevel": 0.85,
+    "connectionType": "wifi",
+    "deviceModel": "SM-G998B",
+    "devicePlatform": "android",
+    "osVersion": "14"
+  }
 }
 ```
 
-#### `POST /agent/fcm-token`
-Registra token FCM do dispositivo para receber push notifications.
+### Legado
 
-**Body:**
+#### `POST /agent/tracking/sync`
+Mesmo formato sem campos de dispositivo.
+
+#### `POST /agent/fcm-token`
 ```json
 { "token": "fcm_token_string", "deviceInfo": "android_..." }
 ```
 
----
-
 ### Admin
 
-#### `GET /admin/tracking/agents`
-Última posição de todos os agentes (modo Live). Retorna também `battery_level`, `network_type`, `device_model`, `device_platform`, `os_version`.
-
-#### `GET /admin/tracking/agent/:id/trail?from=&to=`
-Trajeto histórico de um agente em período específico.
-
-#### `GET /admin/tracking/speed_violations?agent_id=&from=&to=`
-Lista infrações de velocidade (>50 km/h).
-
-#### `GET /admin/tracking/fall_incidents?status=&agent_id=&from=`
-Lista incidentes de queda.
-
-#### `PUT /admin/tracking/fall_incidents/:id`
-Atualiza status do incidente (confirmed/false_positive).
-
-**Body:**
-```json
-{ "status": "confirmed", "notes": "Texto livre do gestor" }
-```
-
-#### `GET /admin/tracking/alerts?agent_id=&type=&from=&to=`
-Log de alertas para auditoria.
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/admin/tracking/agents` | Última posição de todos os agentes |
+| GET | `/admin/tracking/agent/:id/trail?from=&to=` | Trajeto histórico |
+| GET | `/admin/tracking/speed_violations` | Infrações de velocidade |
+| GET | `/admin/tracking/fall_incidents` | Incidentes de queda |
+| PUT | `/admin/tracking/fall_incidents/:id` | Atualizar status do incidente |
+| GET | `/admin/tracking/alerts` | Log de alertas |
 
 ---
 
-## Persistência Nativa Android (Anti-Kill)
+## Configurações
 
-O app não pode ser fechado pelo agente. Mecanismos em várias camadas garantem que o rastreamento continue mesmo após o usuário tentar fechar:
-
-| Mecanismo | Arquivo | Função |
-|-----------|---------|--------|
-| Foreground Service | `TrackingForegroundService.java` | `START_STICKY` com notificação persistente (`setOngoing(true)`). Se morto pelo sistema, Android re-cria automaticamente. `onTaskRemoved` e `onDestroy` reiniciam o Service em segundo plano (nunca traz Activity para primeiro plano). |
-| Task Removed Handler | `TrackingForegroundService.java` (`onTaskRemoved`) | Quando o usuário remove o app dos recentes, reinicia o Service em segundo plano. A Activity NÃO é reaberta — o app não volta sozinho. |
-| Boot Receiver | `BootReceiver.java` | Após reboot, inicia o `TrackingForegroundService` automaticamente. |
-| WorkManager Watchdog | `TrackingWatchdogWorker.java` | A cada **15 minutos**, verifica se o `TrackingForegroundService` está vivo e reinicia se necessário. |
-| FCM Silent Push | `FcmRestartReceiver.java` | Ao receber push `restart_tracking` do servidor, reinicia o Service. |
-| Chat Message Push | `FcmRestartReceiver.java` | Toda notificação de chat também reinicia o Service em segundo plano. |
-
-### Matriz de Proteção
-
-## Anti-Kill: Proteção 24/7
-
-O Cenos combina múltiplas camadas para manter o rastreamento ativo 24/7, incluindo **sync nativo** que funciona independente do WebView.
-
-| Ação do agente | Proteção implementada | Eficácia |
-|---|---|---|
-| App minimizado (background) | Foreground Service + GPS nativo via `LocationManager` (GPS contínuo, independente do WebView) | 100% |
-| Tela desligada | GPS via `LocationManager` no `TrackingForegroundService` | 100% |
-| App removido dos recentes | `onTaskRemoved` reinicia Service em segundo plano + `START_STICKY` + sync nativo via SQLite | ~99% |
-| Processo morto pelo SO (low memory) | `START_STICKY` + sync nativo via SQLite + WorkManager watchdog 15min | ~95% |
-| Boot do celular | `BootReceiver` inicia Service | 100% |
-| **Force Stop (Config > Apps)** | Nenhum app comum sobrevive. Solução: **MDM** | **Não protegido** |
-| OEM chinesa (Xiaomi, Huawei, Oppo) | `onTaskRemoved` bloqueado pela ROM; sync nativo via SQLite + HTTP direto funciona independente | Parcial |
-
-### Arquitetura de sync em camadas
-
-```
-GPS (LocationManager nativo)
-  ├── ✅ [Sempre] SQLite nativo (TrackingForegroundService)
-  │     └── HTTP POST → /agent/tracking/sync-v2 (a cada 30s, independente do WebView)
-  │
-  └── ✅ [Quando WebView vivo] Capacitor BackgroundGeolocation plugin
-        └── JS callback → IndexedDB → syncQueue → HTTP (imediato + 30s)
-```
-
-### Force Stop — única falha real
-
-O **Force Stop** (Configurações > Apps > Cenos > Forçar Parada) é o único meio do agente matar o app definitivamente. O Android sempre permite isso para qualquer app, e não há código que impeça.
-
-### Solução corporativa: MDM (Mobile Device Management)
-
-Para impedir totalmente que o agente pare o rastreamento, é necessário um **MDM** (Mobile Device Management). O Cenos é compatível com qualquer MDM que suporte Android Enterprise. Recomenda-se:
-
-| Recurso MDM | Bloqueia |
-|---|---|
-| **Kiosk Mode** (single app) | Agente não sai do Cenos |
-| **Desativar Force Stop** | Botão de forçar parada some |
-| **Bloquear desinstalação** | App não pode ser removido |
-| **Política de bateria** | OEMs não matam o app |
-
-**MDMs recomendados (gratuitos + enterprise):**
-- **Android Management API** (Google, gratuito) — `managedconfigurations@android.com`
-- **Microsoft Intune** (pago, enterprise)
-- **VMware Workspace ONE** (pago, enterprise)
-- **Miradore** (freemium)
-
-> Nota: Para usar kiosk mode, o Cenos precisa ser configurado como **Device Owner** via NFC ou QR Code na matrícula do dispositivo. O suporte a Device Owner está fora do escopo do app e deve ser configurado pelo MDM.
-
-### Limitações conhecidas (OEMs chinesas)
-Em dispositivos Xiaomi, Huawei, Oppo e outros, a agressiva otimização de bateria pode bloquear `onTaskRemoved` + `startActivity`. O app solicita `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` na inicialização, mas o usuário **deve** adicionar manualmente o app à lista de exceções de bateria do sistema.
-
-### Permissões Android necessárias
-- `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_LOCATION`
-- `ACCESS_BACKGROUND_LOCATION`
-- `RECEIVE_BOOT_COMPLETED`
-- `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`
-- `SYSTEM_ALERT_WINDOW` (overlay crítico)
-
----
-
-## Configuração
-
-- Limite de velocidade: 50 km/h (constante no frontend + default no banco)
-- Sync interval (JS): imediato (throttle 10s) + timer 30s
-- Sync interval (nativo): 30s (independente do WebView)
-- Batch size: 50 pontos por sync
-- Precisão mínima: 30m (readings com accuracy > 30m são ignorados)
-- Dados antigos: limpos após 7 dias (synced only)
+| Parâmetro | Valor | Onde |
+|-----------|-------|------|
+| Sync interval (nativo) | 30s | `TrackingForegroundService` |
+| Sync interval (JS) | imediato (throttle 10s) + timer 30s | `trackingService.ts` |
+| Batch size | 50 pontos | `TrackingForegroundService` |
+| Precisão mínima | 30m | `TrackingForegroundService` |
+| Distância mínima | 5m | `TrackingForegroundService` |
+| Intervalo de localização | 5s (mín 2s) | `TrackingForegroundService` |
+| Dados antigos (cleanup) | 7 dias | `TrackingForegroundService` |
+| Watchdog AlarmManager | 1 min | `TrackingAlarmReceiver` |
+| Watchdog WorkManager | 1 min | `TrackingWatchdogWorker` |
+| Limite de velocidade | 81 km/h | `trackingService.ts` (constante) |
+| foregroundServiceType | `location` | AndroidManifest.xml (obrigatório Android 14+) |
+| SCHEDULE_EXACT_ALARM | Manifest + runtime (Android 13+) | Fallback para setInexactRepeating se negado |
