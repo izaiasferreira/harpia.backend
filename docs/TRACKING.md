@@ -128,12 +128,12 @@ O app não pode ser fechado pelo agente. Mecanismos em várias camadas garantem 
 
 | Mecanismo | Arquivo | Função |
 |-----------|---------|--------|
-| Foreground Service | `TrackingForegroundService.java` | `START_STICKY` com notificação persistente (`setOngoing(true)`). Se morto pelo sistema, Android re-cria automaticamente. `onTaskRemoved` e `onDestroy` relançam a MainActivity. |
-| Task Removed Handler | `MainActivity.java` (`onTaskRemoved`) | Quando o usuário remove o app dos recentes, reinicia a Activity e o Foreground Service imediatamente, antes do processo morrer. |
-| Boot Receiver | `BootReceiver.java` | Após reboot, inicia Foreground Service + MainActivity automaticamente. |
-| WorkManager Watchdog | `TrackingWatchdogWorker.java` | A cada **5 minutos**, verifica se o Foreground Service e a Activity estão vivos e reinicia se necessário. |
-| FCM Silent Push | `FcmRestartReceiver.java` | Ao receber push `restart_tracking` do servidor, reinicia Foreground Service + app em background. |
-| Chat Message Push | `FcmRestartReceiver.java` | Toda notificação de chat também reabre o app em background. |
+| Foreground Service | `TrackingForegroundService.java` | `START_STICKY` com notificação persistente (`setOngoing(true)`). Se morto pelo sistema, Android re-cria automaticamente. `onTaskRemoved` e `onDestroy` reiniciam o Service em segundo plano (nunca traz Activity para primeiro plano). |
+| Task Removed Handler | `TrackingForegroundService.java` (`onTaskRemoved`) | Quando o usuário remove o app dos recentes, reinicia o Service em segundo plano. A Activity NÃO é reaberta — o app não volta sozinho. |
+| Boot Receiver | `BootReceiver.java` | Após reboot, inicia o `TrackingForegroundService` automaticamente. |
+| WorkManager Watchdog | `TrackingWatchdogWorker.java` | A cada **15 minutos**, verifica se o `TrackingForegroundService` está vivo e reinicia se necessário. |
+| FCM Silent Push | `FcmRestartReceiver.java` | Ao receber push `restart_tracking` do servidor, reinicia o Service. |
+| Chat Message Push | `FcmRestartReceiver.java` | Toda notificação de chat também reinicia o Service em segundo plano. |
 
 ### Matriz de Proteção
 
@@ -143,11 +143,11 @@ O Cenos combina múltiplas camadas para manter o rastreamento ativo 24/7, inclui
 
 | Ação do agente | Proteção implementada | Eficácia |
 |---|---|---|
-| App minimizado (background) | Foreground Service + `@capacitor-community/background-geolocation` (GPS contínuo) | 100% |
-| Tela desligada | GPS via `LocationManager` no `TrackingForegroundService` + `FusedLocationProviderClient` no plugin | 100% |
-| App removido dos recentes | `onTaskRemoved` + restart + Foreground Service `START_STICKY` + sync nativo via SQLite | ~99% |
-| Processo morto pelo SO (low memory) | `START_STICKY` + heartbeat 30s reabre app + sync nativo via SQLite | ~95% |
-| Boot do celular | `BootReceiver` inicia service + app | 100% |
+| App minimizado (background) | Foreground Service + GPS nativo via `LocationManager` (GPS contínuo, independente do WebView) | 100% |
+| Tela desligada | GPS via `LocationManager` no `TrackingForegroundService` | 100% |
+| App removido dos recentes | `onTaskRemoved` reinicia Service em segundo plano + `START_STICKY` + sync nativo via SQLite | ~99% |
+| Processo morto pelo SO (low memory) | `START_STICKY` + sync nativo via SQLite + WorkManager watchdog 15min | ~95% |
+| Boot do celular | `BootReceiver` inicia Service | 100% |
 | **Force Stop (Config > Apps)** | Nenhum app comum sobrevive. Solução: **MDM** | **Não protegido** |
 | OEM chinesa (Xiaomi, Huawei, Oppo) | `onTaskRemoved` bloqueado pela ROM; sync nativo via SQLite + HTTP direto funciona independente | Parcial |
 
@@ -205,4 +205,3 @@ Em dispositivos Xiaomi, Huawei, Oppo e outros, a agressiva otimização de bater
 - Batch size: 50 pontos por sync
 - Precisão mínima: 30m (readings com accuracy > 30m são ignorados)
 - Dados antigos: limpos após 7 dias (synced only)
-- Watchdog heartbeat: 30s (reabre app se WebView morto)
