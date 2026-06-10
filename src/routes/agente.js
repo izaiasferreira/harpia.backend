@@ -993,6 +993,7 @@ router.post('/training/:id/complete', telegramAuth, async (req, res) => {
 
 const {
     insertTrackingPoints,
+    insertTrackingPointsExtended,
     insertSpeedViolations,
     insertFallIncident,
     insertAlertLogs,
@@ -1052,6 +1053,45 @@ router.post('/tracking/sync', telegramAuth, async (req, res) => {
         });
     } catch (err) {
         console.error('[TRACKING_SYNC] Erro:', err);
+        res.status(500).json({ error: 'Erro ao sincronizar dados de rastreamento' });
+    }
+});
+
+// POST /agent/tracking/sync-v2 — sync batch com deviceInfo (bateria, rede, dispositivo)
+router.post('/tracking/sync-v2', telegramAuth, async (req, res) => {
+    try {
+        const agentId = req.colaborador.id;
+        const { points, violations, incidents, alerts, deviceInfo } = req.body;
+
+        if (points && points.length > 0) {
+            await insertTrackingPointsExtended(agentId, points, deviceInfo || null);
+        }
+
+        if (violations && violations.length > 0) {
+            await insertSpeedViolations(agentId, violations);
+        }
+
+        if (incidents && incidents.length > 0) {
+            for (const incident of incidents) {
+                await insertFallIncident(agentId, incident);
+            }
+        }
+
+        if (alerts && alerts.length > 0) {
+            await insertAlertLogs(agentId, alerts);
+        }
+
+        res.json({
+            success: true,
+            synced: {
+                points: points?.length || 0,
+                violations: violations?.length || 0,
+                incidents: incidents?.length || 0,
+                alerts: alerts?.length || 0,
+            }
+        });
+    } catch (err) {
+        console.error('[TRACKING_SYNC_V2] Erro:', err);
         res.status(500).json({ error: 'Erro ao sincronizar dados de rastreamento' });
     }
 });

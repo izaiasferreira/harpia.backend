@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { cenos_pool, pi_pool, ma_pool } = require('../../db');
 const { trackingPointSchema, speedViolationSchema, fallIncidentSchema } = require('../../db/schemas');
 
 async function insertTrackingPoints(agentId, points) {
@@ -31,6 +31,59 @@ async function insertTrackingPoints(agentId, points) {
 
     await cenos_pool.query(
         `INSERT INTO tracking_points (agent_id, latitude, longitude, speed, accuracy, recorded_at) VALUES ${values.join(',')}`,
+        params
+    );
+}
+
+async function insertTrackingPointsExtended(agentId, points, deviceInfo) {
+    if (!points || points.length === 0) return;
+
+    const values = [];
+    const params = [];
+    let paramIdx = 1;
+
+    const defaultDevice = {
+        batteryLevel: null,
+        connectionType: null,
+        deviceModel: null,
+        devicePlatform: null,
+        osVersion: null,
+        ...(deviceInfo || {})
+    };
+
+    for (const point of points) {
+        const validated = trackingPointSchema.parse({
+            agent_id: agentId,
+            latitude: point.lat,
+            longitude: point.lng,
+            speed: point.speed,
+            accuracy: point.accuracy,
+            battery_level: point.batteryLevel ?? defaultDevice.batteryLevel,
+            network_type: point.networkType ?? defaultDevice.connectionType,
+            device_model: point.deviceModel ?? defaultDevice.deviceModel,
+            device_platform: point.devicePlatform ?? defaultDevice.devicePlatform,
+            os_version: point.osVersion ?? defaultDevice.osVersion,
+            recorded_at: point.timestamp
+        });
+        values.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5}, $${paramIdx + 6}, $${paramIdx + 7}, $${paramIdx + 8}, $${paramIdx + 9}, $${paramIdx + 10})`);
+        params.push(
+            validated.agent_id,
+            validated.latitude,
+            validated.longitude,
+            validated.speed,
+            validated.accuracy,
+            validated.battery_level,
+            validated.network_type,
+            validated.device_model,
+            validated.device_platform,
+            validated.os_version,
+            validated.recorded_at
+        );
+        paramIdx += 11;
+    }
+
+    await cenos_pool.query(
+        `INSERT INTO tracking_points (agent_id, latitude, longitude, speed, accuracy, battery_level, network_type, device_model, device_platform, os_version, recorded_at) VALUES ${values.join(',')}`,
         params
     );
 }
@@ -87,17 +140,52 @@ async function insertFallIncident(agentId, incident) {
 
 async function getAgentsLastPosition() {
     const { rows } = await cenos_pool.query(`
-        SELECT DISTINCT ON (agent_id)
-            agent_id, latitude, longitude, speed, accuracy, recorded_at
-        FROM tracking_points
-        ORDER BY agent_id, recorded_at DESC
+        SELECT DISTINCT ON (tp.agent_id)
+            tp.agent_id, tp.latitude, tp.longitude, tp.speed, tp.accuracy, tp.battery_level, tp.network_type, tp.device_model, tp.device_platform, tp.os_version, tp.recorded_at,
+            l.estado as agent_estado
+        FROM tracking_points tp
+        LEFT JOIN login l ON l.id = tp.agent_id
+        ORDER BY tp.agent_id, tp.recorded_at DESC
     `);
-    return rows;
+
+    if (rows.length === 0) return rows;
+
+    // Enriquecer com dados do colaborador (nome, regional, seccional, gestor)
+    const piIds = rows.filter(r => r.agent_estado === 'pi').map(r => r.agent_id.toUpperCase());
+    const maIds = rows.filter(r => r.agent_estado === 'ma').map(r => r.agent_id.toUpperCase());
+
+    const colLookup = async (pool, ids) => {
+        if (ids.length === 0) return {};
+        const { rows: cols } = await pool.query(
+            `SELECT "ID", "Nome", "seccional", "regional", "GESTOR IMEDIATO" FROM colaboradores WHERE "ID" = ANY($1)`,
+            [ids]
+        );
+        const map = {};
+        cols.forEach(c => map[c.ID.toUpperCase()] = c);
+        return map;
+    };
+
+    const [piCols, maCols] = await Promise.all([
+        colLookup(pi_pool, piIds),
+        colLookup(ma_pool, maIds),
+    ]);
+
+    return rows.map(r => {
+        const id = r.agent_id.toUpperCase();
+        const col = piCols[id] || maCols[id] || {};
+        return {
+            ...r,
+            nome: col['Nome'] || null,
+            regional: col['regional'] || null,
+            seccional: col['seccional'] || null,
+            gestor: col['GESTOR IMEDIATO'] || null,
+        };
+    });
 }
 
 async function getAgentTrail(agentId, dateFrom, dateTo) {
     const params = [agentId];
-    let query = `SELECT latitude, longitude, speed, accuracy, recorded_at
+    let query = `SELECT latitude, longitude, speed, accuracy, battery_level, network_type, device_model, device_platform, os_version, recorded_at
                  FROM tracking_points WHERE agent_id = $1`;
 
     if (dateFrom) {
@@ -117,7 +205,10 @@ async function getAgentTrail(agentId, dateFrom, dateTo) {
 
 async function getSpeedViolations(filters = {}) {
     const params = [];
-    let query = 'SELECT sv.*, l.estado as agent_estado FROM speed_violations sv LEFT JOIN login l ON l.id = sv.agent_id WHERE 1=1';
+    let query = `SELECT sv.*, l.estado as agent_estado
+                 FROM speed_violations sv
+                 LEFT JOIN login l ON l.id = sv.agent_id
+                 WHERE 1=1`;
 
     if (filters.agentId) {
         params.push(filters.agentId);
@@ -135,7 +226,39 @@ async function getSpeedViolations(filters = {}) {
     query += ' ORDER BY sv.recorded_at DESC LIMIT 200';
 
     const { rows } = await cenos_pool.query(query, params);
-    return rows;
+    if (rows.length === 0) return rows;
+
+    // Enriquecer com dados do colaborador
+    const piIds = rows.filter(r => r.agent_estado === 'pi').map(r => r.agent_id.toUpperCase());
+    const maIds = rows.filter(r => r.agent_estado === 'ma').map(r => r.agent_id.toUpperCase());
+
+    const colLookup = async (pool, ids) => {
+        if (ids.length === 0) return {};
+        const { rows: cols } = await pool.query(
+            `SELECT "ID", "Nome", "seccional", "regional", "GESTOR IMEDIATO" FROM colaboradores WHERE "ID" = ANY($1)`,
+            [ids]
+        );
+        const map = {};
+        cols.forEach(c => map[c.ID.toUpperCase()] = c);
+        return map;
+    };
+
+    const [piCols, maCols] = await Promise.all([
+        colLookup(pi_pool, piIds),
+        colLookup(ma_pool, maIds),
+    ]);
+
+    return rows.map(r => {
+        const id = r.agent_id.toUpperCase();
+        const col = piCols[id] || maCols[id] || {};
+        return {
+            ...r,
+            nome: col['Nome'] || null,
+            regional: col['regional'] || null,
+            seccional: col['seccional'] || null,
+            gestor: col['GESTOR IMEDIATO'] || null,
+        };
+    });
 }
 
 async function getFallIncidents(filters = {}) {
@@ -229,6 +352,7 @@ async function getAlertLogs(filters = {}) {
 
 module.exports = {
     insertTrackingPoints,
+    insertTrackingPointsExtended,
     insertSpeedViolations,
     insertFallIncident,
     insertAlertLogs,
