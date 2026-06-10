@@ -10,7 +10,7 @@ const {
 
 router.post('/justify_pending', async (req, res) => {
     try {
-        if (!checkToken(req, res)) return;
+        if (!await checkToken(req, res)) return;
 
         const { autor, estado, quantidade, tipo, unidade_leitura, instalacao, foto } = req.body;
 

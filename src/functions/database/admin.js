@@ -451,6 +451,30 @@ async function send_message_to_agent({ id, agent: providedAgent, text, file, web
     return result;
 }
 
+async function send_telegram_to_agent_by_id(agentId, text, webAppButtonText, webAppButtonUrl) {
+    // telegram_id fica na tabela login (cenos_pool)
+    const { rows: loginRows } = await cenos_pool.query(
+        `SELECT telegram_id FROM login WHERE id = $1 AND telegram_id IS NOT NULL`,
+        [agentId.toUpperCase()]
+    );
+    if (!loginRows.length) return { error: 'Agente não encontrado ou sem Telegram ID vinculado' };
+    const telegramId = loginRows[0].telegram_id;
+
+    const payload = { chatId: telegramId, text };
+    if (webAppButtonText && webAppButtonUrl) {
+        payload.webAppButtonText = webAppButtonText;
+        payload.webAppButtonUrl = webAppButtonUrl;
+    }
+    try {
+        const headers = { 'Authorization': `Bearer ${process.env.TELEGRAM_API_TOKEN}` };
+        const response = await axios.post(`${process.env.TELEGRAM_API_URL}/sendMessage`, payload, { headers });
+        return { message: 'Mensagem enviada com sucesso', telegramResponse: response.data };
+    } catch (error) {
+        console.error('Erro ao enviar mensagem via Telegram (public):', error.response?.data || error.message);
+        return { error: 'Falha ao enviar mensagem via Telegram API', details: error.response?.data || error.message };
+    }
+}
+
 async function send_bulk_message_to_agents({ ids, text, file, webAppButtonText, webAppButtonUrl, options, user }) {
     if (!Array.isArray(ids)) throw new Error('O campo ids deve ser um array');
 
@@ -1049,6 +1073,7 @@ module.exports = {
     update_user_agent_admin,
     delete_user_agent_admin,
     send_message_to_agent,
+    send_telegram_to_agent_by_id,
     send_bulk_message_to_agents,
     get_justify_types_admin,
       get_user_agent_options,

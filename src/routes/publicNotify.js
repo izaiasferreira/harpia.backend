@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { checkToken } = require('../functions/middlewares');
 const { createNotification } = require('../functions/database/notifications');
-const { send_message_to_agent } = require('../functions/database/admin');
+const { send_telegram_to_agent_by_id } = require('../functions/database/admin');
 const { sendToMultiple } = require('../functions/firebase');
 const { getTokensByAgent, removeFcmToken } = require('../functions/database/fcmTokens');
 const { get_or_create_support_room, save_chat_message } = require('../functions/database/chat');
@@ -18,12 +18,28 @@ async function cleanInvalidTokens(tokens, responses) {
     }
 }
 
+async function saveToChat(agentId, sender, title, body, channel, metadata = null) {
+    const room = await get_or_create_support_room(agentId, agentId);
+    const savedMsg = await save_chat_message(
+        room.id, sender, 'admin', sender,
+        title ? `[${title}] ${body}` : body,
+        'text', null, null, null, null, channel, metadata
+    );
+    if (global.io) {
+        global.io.to(`room_${room.id}`).emit('receive_message', savedMsg);
+        global.io.emit('admin_new_chat_message', {
+            roomId: room.id, agentId, message: savedMsg
+        });
+    }
+    return savedMsg;
+}
+
 // POST /public/notify
 router.post('/notify', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
 
     try {
-        const { sender, to, title, body, type, method } = req.body;
+        const { sender, to, title, body, type, method, webAppButtonText, webAppButtonUrl } = req.body;
 
         if (!sender) return res.status(400).json({ error: 'sender é obrigatório' });
         if (!to) return res.status(400).json({ error: 'to é obrigatório' });
@@ -58,16 +74,27 @@ router.post('/notify', async (req, res) => {
                 switch (m) {
                     case 'telegram': {
                         try {
-                            const telegramResult = await send_message_to_agent({
-                                id: agentId,
-                                text: title ? `*${title}*\n${body}` : body,
-                            });
+                            const telegramResult = await send_telegram_to_agent_by_id(
+                                agentId,
+                                title ? `*${title}*\n${body}` : body,
+                                webAppButtonText,
+                                webAppButtonUrl
+                            );
                             results.telegram = telegramResult.error
                                 ? { success: false, error: telegramResult.error }
                                 : { success: true };
                         } catch (err) {
                             results.telegram = { success: false, error: err.message };
                         }
+                        try {
+                            await saveToChat(
+                                agentId, sender, title, body, 'telegram',
+                                webAppButtonText || webAppButtonUrl
+                                    ? { webAppButtonText, webAppButtonUrl }
+                                    : null
+                            );
+                        }
+                        catch (chatErr) { console.error('[PUBLIC NOTIFY] Erro chat telegram:', chatErr.message); }
                         break;
                     }
 
@@ -85,6 +112,8 @@ router.post('/notify', async (req, res) => {
                         } catch (err) {
                             results.push = { success: false, error: err.message };
                         }
+                        try { await saveToChat(agentId, sender, title, body, 'push'); }
+                        catch (chatErr) { console.error('[PUBLIC NOTIFY] Erro chat push:', chatErr.message); }
                         break;
                     }
 
@@ -106,32 +135,14 @@ router.post('/notify', async (req, res) => {
                         } catch (err) {
                             results.priority = { success: false, error: err.message };
                         }
+                        try { await saveToChat(agentId, sender, title, body, 'push'); }
+                        catch (chatErr) { console.error('[PUBLIC NOTIFY] Erro chat priority:', chatErr.message); }
                         break;
                     }
 
                     case 'internal': {
                         try {
-                            const room = await get_or_create_support_room(agentId, agentId);
-                            const savedMsg = await save_chat_message(
-                                room.id,
-                                sender,
-                                'admin',
-                                sender,
-                                title ? `[${title}] ${body}` : body,
-                                'text',
-                                null, null, null, null,
-                                'internal'
-                            );
-
-                            if (global.io) {
-                                global.io.to(`room_${room.id}`).emit('receive_message', savedMsg);
-                                global.io.emit('admin_new_chat_message', {
-                                    roomId: room.id,
-                                    agentId,
-                                    message: savedMsg
-                                });
-                            }
-
+                            const savedMsg = await saveToChat(agentId, sender, title, body, 'internal');
                             results.internal = { success: true, messageId: savedMsg.id };
                         } catch (err) {
                             results.internal = { success: false, error: err.message };

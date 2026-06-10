@@ -170,7 +170,7 @@ Substitui o endpoint de notificações para uso integrado com o chat. Toda mensa
 
 Recebe eventos do serviço intermediário Telegram. Mensagens inbound de agentes são salvas em `chat_messages` e emitidas via socket.io para admins.
 
-**Autenticação:** Middleware `checkToken` — valida `API_TOKEN` via query param `?token=` ou header.
+**Autenticação:** Middleware `checkToken` — valida token via query param `?token=` ou header `X-API-Token` (tokens gerenciáveis no admin).
 
 **Payload esperado (JSON):**
 ```json
@@ -214,14 +214,13 @@ Recebe eventos do serviço intermediário Telegram. Mensagens inbound de agentes
 
 **Configuração:**
 ```env
-API_TOKEN=token_padrao_da_api
 TELEGRAM_BOT_TOKEN=token_do_bot_para_download_de_midia
 ```
 
 **URL para configurar no serviço Telegram:**
 ```
 https://api.izi.tec.br/public/telegram-webhook
-Header: X-Webhook-Secret = <API_TOKEN>
+Header: X-Webhook-Secret = <seu_token_api>
 ```
 
 ---

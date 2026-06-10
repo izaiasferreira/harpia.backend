@@ -92,7 +92,9 @@ const AVAILABLE_MODULES = [
     // Configurações
     { id: 'configs', name: 'Configurações' },
     // Chat Suporte
-    { id: 'chat', name: 'Chat Suporte Técnico' }
+    { id: 'chat', name: 'Chat Suporte Técnico' },
+    // Admin (API Tokens e configs internas)
+    { id: 'admin', name: 'Admin (Tokens de API)' }
 ];
 
 async function listModules() {

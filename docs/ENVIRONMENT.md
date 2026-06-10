@@ -10,7 +10,7 @@ Este documento descreve as variáveis de ambiente necessárias para o pleno func
 |---|---|---|
 | `PORT` | Porta na qual o servidor Express principal será executado. | `3040` |
 | `JWT_SECRET` | Segredo alfanumérico utilizado para assinar e validar tokens JWT do Painel de Controle Admin. | `minha_chave_secreta_jwt_admin` |
-| `API_TOKEN` | Token estático utilizado para autenticação simples de consultas gerais de relatórios. | `meu_token_estatico_relatorios` |
+| *(removido)* | `API_TOKEN` não é mais usado. Tokens são gerenciados via tabela `api_tokens` no banco, com hash SHA-256. | — |
 | `LOGS_PASSWORD` | Senha estática utilizada no cabeçalho `Authorization` para leitura e expurgo de logs. | `senha_secreta_logs` |
 
 ---

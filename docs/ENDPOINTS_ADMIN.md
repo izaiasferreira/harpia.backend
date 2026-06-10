@@ -2020,3 +2020,118 @@ Remove um relatório de segurança.
 **Resposta 403:** `{ "error": "Você não tem permissão para deletar relatórios deste estado" }`
 
 **Resposta 404:** `{ "error": "Relatório não encontrado" }`
+
+---
+
+## 23. Tokens de API (Admin)
+
+Gerencia tokens de API para integração com sistemas externos. Os tokens são armazenados com hash SHA-256 e podem ser revogados individualmente.
+
+**Módulo Requerido:** `admin`
+
+### `GET /admin/api-tokens`
+
+Lista todos os tokens cadastrados (sem o token completo).
+
+**Resposta 200:**
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "token_identifier": "abc123...",
+      "label": "Integração Sistema X",
+      "created_by": "1",
+      "created_by_name": "Admin",
+      "created_at": "2025-01-01T00:00:00.000Z",
+      "expires_at": null,
+      "revoked_at": null,
+      "revoked_by": null,
+      "last_used_at": null,
+      "last_used_ip": null
+    }
+  ]
+}
+```
+
+### `POST /admin/api-tokens`
+
+Cria um novo token de API. O token completo é retornado **apenas nesta resposta**.
+
+**Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `label` | string | **sim** | Nome descritivo do token |
+| `expiresAt` | string | não | Data de expiração ISO (ex: `2026-12-31T23:59:00.000Z`) |
+
+**Resposta 201:**
+```json
+{
+  "id": 1,
+  "token_identifier": "abc123...",
+  "label": "Integração Sistema X",
+  "created_by": "1",
+  "created_by_name": "Admin",
+  "created_at": "2025-01-01T00:00:00.000Z",
+  "expires_at": null,
+  "revoked_at": null,
+  "last_used_at": null,
+  "raw_token": "cenos_..."
+}
+```
+
+### `POST /admin/api-tokens/:id/revoke`
+
+Revoga um token ativo. O token não poderá mais ser usado para autenticação.
+
+**Path Params:** `id` — ID numérico do token
+
+**Resposta 200:** Objeto do token com `revoked_at` preenchido.
+
+### `POST /admin/api-tokens/:id/unrevoke`
+
+Reativa um token revogado.
+
+**Path Params:** `id` — ID numérico do token
+
+**Resposta 200:** Objeto do token com `revoked_at` como `null`.
+
+### `DELETE /admin/api-tokens/:id`
+
+Exclui permanentemente um token. Esta ação é irreversível.
+
+**Path Params:** `id` — ID numérico do token
+
+**Resposta 200:** `{ "success": true }`
+
+### `GET /admin/api-tokens/:id/usage`
+
+Retorna os logs de uso de um token específico (paginação).
+
+**Path Params:** `id` — ID numérico do token
+
+**Query Params:**
+| Campo | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `page` | number | 1 | Página atual |
+| `limit` | number | 50 | Itens por página (max 100) |
+
+**Resposta 200:**
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "endpoint": "/public/notify",
+      "method": "POST",
+      "ip": "192.168.1.1",
+      "user_agent": "axios/1.7.0",
+      "accessed_at": "2025-01-01T00:00:00.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 50,
+  "totalPages": 1
+}
+```

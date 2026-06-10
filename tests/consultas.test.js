@@ -3,7 +3,13 @@ const request = require('supertest');
 const { pi_pool, ma_pool } = require('../src/db');
 
 describe('Consultas Routes (E2E)', () => {
-    const token = process.env.API_TOKEN;
+    const token = process.env.TEST_API_TOKEN;
+
+    beforeAll(() => {
+        if (!token) {
+            console.warn('⚠ TEST_API_TOKEN não definido no .env — testes de consultas pularão validação de token');
+        }
+    });
 
     afterAll(async () => {
         await pi_pool.end();
@@ -38,11 +44,11 @@ describe('Consultas Routes (E2E)', () => {
             } else {
                 expect(res.body).toHaveProperty('type', 'text');
             }
-        }, 90000); // 90s timeout per E2E test
+        }, 90000);
     });
 
     it('should return token error if invalid token', async () => {
-        const res = await request(app).get('/api/pendencias_json?token=wrong');
-        expect(res.body).toHaveProperty('error', 'Token inválido');
+        const res = await request(app).get('/api/pendencias_json?token=invalido_ou_sem_prefixo');
+        expect(res.statusCode).toEqual(401);
     });
 });

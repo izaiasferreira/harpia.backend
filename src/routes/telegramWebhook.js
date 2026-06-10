@@ -12,7 +12,7 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_API_TOK
 // POST /public/telegram-webhook
 router.post('/telegram-webhook', async (req, res) => {
 
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
 
 
     try {

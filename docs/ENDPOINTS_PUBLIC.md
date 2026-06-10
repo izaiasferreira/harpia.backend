@@ -47,7 +47,7 @@ Gera tokens de acesso temporário de uso estritamente interno e controle de test
 ### `POST /public/telegram-webhook`
 Webhook para receber eventos do serviço intermediário Telegram. Mensagens inbound de agentes são salvas no chat unificado e emitidas via socket.io para admins.
 
-**Autenticação:** Middleware `checkToken` — valida `API_TOKEN` via query param `?token=` ou header.
+**Autenticação:** Middleware `checkToken` — valida token via query param `?token=` ou header `X-API-Token` (tokens gerenciáveis no admin).
 
 **Body (JSON):** Payload estruturado do serviço Telegram:
 ```json
@@ -76,7 +76,7 @@ Webhook para receber eventos do serviço intermediário Telegram. Mensagens inbo
 ### `POST /public/notify`
 Endpoint público para apps externos gerarem notificações para agentes. Salva na tabela `notifications` e despacha pelos canais escolhidos. Suporta envio em massa (múltiplos agentes).
 
-**Autenticação:** `checkToken` — valida `API_TOKEN` via query param `?token=`.
+**Autenticação:** `checkToken` — valida token via query param `?token=` (tokens gerenciáveis no admin).
 
 **Body (JSON):**
 ```json
@@ -145,7 +145,7 @@ Endpoint público para apps externos gerarem notificações para agentes. Salva 
 
 **Exemplo de uso (curl) — single:**
 ```bash
-curl -X POST "https://api.izi.tec.br/public/notify?token=SEU_API_TOKEN" \
+curl -X POST "https://api.izi.tec.br/public/notify?token=cenos_seu_token_aqui" \
   -H "Content-Type: application/json" \
   -d '{
     "sender": "sistema_rh",
@@ -159,7 +159,7 @@ curl -X POST "https://api.izi.tec.br/public/notify?token=SEU_API_TOKEN" \
 
 **Exemplo de uso (curl) — bulk:**
 ```bash
-curl -X POST "https://api.izi.tec.br/public/notify?token=SEU_API_TOKEN" \
+curl -X POST "https://api.izi.tec.br/public/notify?token=cenos_seu_token_aqui" \
   -H "Content-Type: application/json" \
   -d '{
     "sender": "sistema_rh",
@@ -254,17 +254,17 @@ Endpoint público para upload de arquivos/imagens anexados a formulários dinâm
 
 ---
 
-## 2. Consultas Gerais (Token Simples)
+## 2. Consultas Gerais (API Token)
 
 Estas rotas são desenhadas para extração em lote e integrações automáticas com ferramentas de BI.
 
-* **Autenticação Requerida:** Token simples (`?token=API_TOKEN`) no formato query string.
+* **Autenticação Requerida:** Token da API (`?token=cenos_...`) no formato query string. Gerencie tokens no painel admin em `/control/api-tokens`.
 
 ### Parâmetros Comuns Suportados:
 
 | Parâmetro | Tipo | Padrão | Descrição |
 |---|---|---|---|
-| `token` | string | — | **Obrigatório** (deve bater com `API_TOKEN` no `.env`). |
+| `token` | string | — | **Obrigatório** (token gerenciável com prefixo `cenos_`). |
 | `state` | string | `pi` | Estado federativo (`pi` ou `ma`). |
 | `regional` | string | `all` | Regional de distribuição de energia ou `all`. |
 | `dateinit` | string | data de hoje | Data inicial no formato `DD.MM.YYYY`. |
@@ -312,7 +312,7 @@ Retorna os códigos e regras de justificativa válidas para o colaborador preenc
 
 Cria uma justificativa pendente em lote para múltiplas instalações. Rota auxiliar sem autenticação Telegram (apenas token simples).
 
-**Autenticação:** Token simples (`?token=API_TOKEN`)
+**Autenticação:** API Token (`?token=cenos_...`) gerenciável no admin
 
 **Body (JSON):**
 ```json

@@ -203,7 +203,7 @@ router.post('/form/submit/:id', publicLimiter, async (req, res) => {
 
 router.get('/generate_token', async (req, res) => {
     try {
-        if (!checkToken(req, res)) return;
+        if (!await checkToken(req, res)) return;
 
         const telegramId = req.query.id;
 

@@ -4,16 +4,17 @@ Este documento descreve detalhadamente os 5 métodos de autenticação da API Ce
 
 ---
 
-## 1. Token Simples (Query Param)
+## 1. API Token (Query Param / Header)
 
-Utilizado exclusivamente em rotas internas de integrações automatizadas e relatórios consolidados em formato JSON.
+Utilizado em rotas de integrações automatizadas e consultas de relatórios consolidados.
 
-* **Parâmetro:** `token` (via query string).
-* **Configuração:** O token esperado pelo backend é definido na variável `API_TOKEN` no arquivo `.env`.
+* **Parâmetro:** `token` via query string ou header `X-API-Token` ou `Authorization: Bearer <token>`.
+* **Gerenciamento:** Os tokens são criados, listados e revogados no painel admin em `/control/api-tokens`. São armazenados com hash SHA-256.
+* **Formato:** Todos os tokens possuem o prefixo `cenos_`.
 
 **Exemplo de Requisição:**
 ```bash
-curl "http://localhost:3040/api/pendencias?token=API_TOKEN_DEFINIDO"
+curl "http://localhost:3040/api/pendencias?token=cenos_abc123..."
 ```
 
 ---

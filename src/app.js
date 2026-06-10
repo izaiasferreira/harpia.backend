@@ -172,6 +172,10 @@ app.use('/public', telegramWebhookRouter)
 const publicNotifyRouter = require('./routes/publicNotify')
 app.use('/public', publicNotifyRouter)
 
+// API Tokens (/admin/api-tokens)
+const adminApiTokensRouter = require('./routes/adminApiTokens')
+app.use('/admin/api-tokens', adminApiTokensRouter)
+
 
 // Swagger UI
 const swaggerUi = require('swagger-ui-express');

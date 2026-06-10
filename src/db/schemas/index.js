@@ -21,6 +21,25 @@ const fcmTokens = require('./fcmTokens');
 const config = require('./config');
 
 module.exports = {
+  ...login,
+  ...inventory,
+  ...justify,
+  ...dailyReport,
+  ...chat,
+  ...notifications,
+  ...badges,
+  ...permissions,
+  ...users,
+  ...forms,
+  ...training,
+  ...ceneduc,
+  ...serviceNotes,
+  ...tracking,
+  ...security,
+  ...branches,
+  ...appPins,
+  ...sentMessages,
+  ...messageTemplates,
   ...fcmTokens,
   ...config
 };

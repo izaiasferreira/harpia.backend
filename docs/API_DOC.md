@@ -43,7 +43,7 @@ Health check simples (sem prefixo).
 | `POST /public/app_login` | Login app nativo (matrícula + PIN) |
 | `POST /public/app_refresh_token` | Refresh de token do app nativo |
 
-### `/api/*` — Token Simples (`?token=API_TOKEN`)
+### `/api/*` — API Token (`?token=cenos_...`)
 | Rota | Descrição |
 |------|-----------|
 | `GET /api/last_update` | Data da última sincronização |

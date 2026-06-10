@@ -30,7 +30,7 @@ function today() {
 
 
 router.get('/last_update', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const result = await lastUpdate(state);
@@ -41,7 +41,7 @@ router.get('/last_update', async (req, res) => {
 });
 
 router.get('/pendencias', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -53,7 +53,7 @@ router.get('/pendencias', async (req, res) => {
 });
 
 router.get('/pontualidade', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -65,7 +65,7 @@ router.get('/pontualidade', async (req, res) => {
 });
 
 router.get('/pendencias_json', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -77,7 +77,7 @@ router.get('/pendencias_json', async (req, res) => {
 });
 
 router.get('/cnl', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -91,7 +91,7 @@ router.get('/cnl', async (req, res) => {
 });
 
 router.get('/pontualidade_json', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -103,7 +103,7 @@ router.get('/pontualidade_json', async (req, res) => {
 });
 
 router.get('/cnl_to_lido_json', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -116,7 +116,7 @@ router.get('/cnl_to_lido_json', async (req, res) => {
 });
 
 router.get('/first_cnl_json', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -130,7 +130,7 @@ router.get('/first_cnl_json', async (req, res) => {
 });
 
 router.get('/c12_json', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -144,7 +144,7 @@ router.get('/c12_json', async (req, res) => {
 });
 
 router.get('/c12_to_lido_json', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -157,7 +157,7 @@ router.get('/c12_to_lido_json', async (req, res) => {
 });
 
 router.get('/first_c12_json', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -171,7 +171,7 @@ router.get('/first_c12_json', async (req, res) => {
 });
 
 router.get('/fast_c12_json', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -185,7 +185,7 @@ router.get('/fast_c12_json', async (req, res) => {
 });
 
 router.get('/licacao_nova_c12_json', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -199,7 +199,7 @@ router.get('/licacao_nova_c12_json', async (req, res) => {
 });
 
 router.get('/e02_json', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -213,7 +213,7 @@ router.get('/e02_json', async (req, res) => {
 });
 
 router.get('/c16_json', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -227,7 +227,7 @@ router.get('/c16_json', async (req, res) => {
 });
 
 router.get('/perdas', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -241,7 +241,7 @@ router.get('/perdas', async (req, res) => {
 });
 
 router.get('/perdas_json', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const regional = req.query.regional || 'all';
@@ -255,7 +255,7 @@ router.get('/perdas_json', async (req, res) => {
 });
 
 router.get('/not_start_services', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const result = await notStartServices(state);
@@ -266,7 +266,7 @@ router.get('/not_start_services', async (req, res) => {
 });
 
 router.get('/completed_services', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const result = await completedServices(state);
@@ -277,7 +277,7 @@ router.get('/completed_services', async (req, res) => {
 });
 
 router.get('/incompleted_services', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const result = await incompletedServices(state);
@@ -288,7 +288,7 @@ router.get('/incompleted_services', async (req, res) => {
 });
 
 router.get('/agent_telegram_id', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const id = req.query.id;
@@ -305,7 +305,7 @@ router.get('/agent_telegram_id', async (req, res) => {
 });
 
 router.post('/justification_codes', async (req, res) => {
-    if (!checkToken(req, res)) return;
+    if (!await checkToken(req, res)) return;
     try {
         const state = req.query.state || 'pi';
         const id = req.query.id;
