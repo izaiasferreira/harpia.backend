@@ -79,7 +79,7 @@ router.post('/send', verifyToken(), upload.single('file'), async (req, res) => {
 
                 const savedMsg = await save_chat_message(
                     room.id,
-                    req.user.id || req.user.matricula || 'ADMIN',
+                    String(req.user.id || req.user.matricula || 'ADMIN'),
                     'admin',
                     req.user.nome || req.user.email || 'Admin',
                     text || null,
@@ -137,7 +137,7 @@ router.post('/send', verifyToken(), upload.single('file'), async (req, res) => {
 
                 const savedMsg = await save_chat_message(
                     room.id,
-                    req.user.id || req.user.matricula || 'ADMIN',
+                    String(req.user.id || req.user.matricula || 'ADMIN'),
                     'admin',
                     req.user.nome || req.user.email || 'Admin',
                     text || `[${isCritical ? 'Alerta Crítico' : 'Push'}] ${title || ''}`.trim(),
@@ -157,7 +157,7 @@ router.post('/send', verifyToken(), upload.single('file'), async (req, res) => {
             if (parsedChannels.includes('internal')) {
                 const savedMsg = await save_chat_message(
                     room.id,
-                    req.user.id || req.user.matricula || 'ADMIN',
+                    String(req.user.id || req.user.matricula || 'ADMIN'),
                     'admin',
                     req.user.nome || req.user.email || 'Admin',
                     text || null,
@@ -179,7 +179,7 @@ router.post('/send', verifyToken(), upload.single('file'), async (req, res) => {
             // --- Registrar na tabela notifications (auditoria) ---
             await createNotification(
                 formattedId,
-                req.user.id || req.user.matricula || 'ADMIN',
+                String(req.user.id || req.user.matricula || 'ADMIN'),
                 title || null,
                 text || '[Arquivo]',
                 'info',
