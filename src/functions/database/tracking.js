@@ -356,6 +356,14 @@ async function getAlertLogs(filters = {}) {
     return rows;
 }
 
+async function deleteSpeedViolation(id) {
+    const { rows } = await cenos_pool.query(
+        'DELETE FROM speed_violations WHERE id = $1 RETURNING *',
+        [id]
+    );
+    return rows[0] || null;
+}
+
 module.exports = {
     insertTrackingPoints,
     insertTrackingPointsExtended,
@@ -368,4 +376,5 @@ module.exports = {
     getFallIncidents,
     updateFallIncidentStatus,
     getAlertLogs,
+    deleteSpeedViolation,
 };

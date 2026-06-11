@@ -124,7 +124,7 @@ O app NUNCA abre a interface sozinho. Múltiplas camadas garantem que o serviço
 | onTaskRemoved | `TrackingForegroundService.java` | imediato | Usuário limpa o app dos recentes |
 | onDestroy | `TrackingForegroundService.java` | imediato | Service é destruído |
 | AlarmManager | `TrackingAlarmReceiver.java` | **1 min** | `setAlarmClock` (funciona em Doze) |
-| WorkManager | `TrackingWatchdogWorker.java` | **1 min** | Auto-reagendável com `setHighPriority()`, fallback para AlarmManager se service falhar ao iniciar |
+| WorkManager | `TrackingWatchdogWorker.java` | **1 min** | Auto-reagendável, Backup via AlarmManager se service falhar |
 | BootReceiver | `BootReceiver.java` | boot | Dispositivo reinicia |
 | FCM Push | `FcmRestartReceiver.java` | push | Servidor envia `restart_tracking` |
 
@@ -221,6 +221,7 @@ Mesmo formato sem campos de dispositivo.
 | GET | `/admin/tracking/agents` | Última posição de todos os agentes |
 | GET | `/admin/tracking/agent/:id/trail?from=&to=` | Trajeto histórico |
 | GET | `/admin/tracking/speed_violations` | Infrações de velocidade |
+| DELETE | `/admin/tracking/speed_violations/:id` | Excluir infração (requer `COMPANY_ADMIN`) |
 | GET | `/admin/tracking/fall_incidents` | Incidentes de queda |
 | PUT | `/admin/tracking/fall_incidents/:id` | Atualizar status do incidente |
 | GET | `/admin/tracking/alerts` | Log de alertas |

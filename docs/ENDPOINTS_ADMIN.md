@@ -492,6 +492,14 @@ Retorna as coordenadas históricas (trilha) percorridas por um agente específic
 ### `GET /admin/tracking/speed_violations`
 Lista as infrações de limite de velocidade (> 50 km/h) disparadas em campo.
 
+### `DELETE /admin/tracking/speed_violations/:id`
+Exclui uma infração de velocidade. Requer role `COMPANY_ADMIN`.
+
+**Response 200:**
+```json
+{ "message": "Violação excluída com sucesso", "violation": { ... } }
+```
+
 ---
 
 ### `GET /admin/tracking/fall_incidents`

@@ -11,6 +11,7 @@ const {
     getFallIncidents,
     updateFallIncidentStatus,
     getAlertLogs,
+    deleteSpeedViolation,
 } = require('../functions/database/tracking');
 
 // GET /admin/tracking/agents — lista agentes com última posição
@@ -50,6 +51,21 @@ router.get('/speed_violations', verifyToken(), verifyModule('tracking'), async (
     } catch (err) {
         console.error('[TRACKING] Erro ao listar violações:', err);
         res.status(500).json({ error: 'Erro ao listar violações de velocidade' });
+    }
+});
+
+// DELETE /admin/tracking/speed_violations/:id — exclui infração (admin only)
+router.delete('/speed_violations/:id', verifyToken('COMPANY_ADMIN'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deleted = await deleteSpeedViolation(id);
+        if (!deleted) {
+            return res.status(404).json({ error: 'Infração não encontrada' });
+        }
+        res.json({ success: true, id: deleted.id });
+    } catch (err) {
+        console.error('[TRACKING] Erro ao deletar violação:', err);
+        res.status(500).json({ error: 'Erro ao deletar violação de velocidade' });
     }
 });
 
