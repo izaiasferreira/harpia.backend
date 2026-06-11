@@ -123,8 +123,8 @@ O app NUNCA abre a interface sozinho. Múltiplas camadas garantem que o serviço
 | START_STICKY | `TrackingForegroundService.java` | imediato | Sistema recria o Service se processo morto |
 | onTaskRemoved | `TrackingForegroundService.java` | imediato | Usuário limpa o app dos recentes |
 | onDestroy | `TrackingForegroundService.java` | imediato | Service é destruído |
-| AlarmManager | `TrackingAlarmReceiver.java` | **1 min** | `setExactAndAllowWhileIdle` (funciona em Doze) |
-| WorkManager | `TrackingWatchdogWorker.java` | **1 min** | Auto-reagendável, reinicia se morto |
+| AlarmManager | `TrackingAlarmReceiver.java` | **1 min** | `setAlarmClock` (funciona em Doze) |
+| WorkManager | `TrackingWatchdogWorker.java` | **1 min** | Auto-reagendável com `setHighPriority()`, fallback para AlarmManager se service falhar ao iniciar |
 | BootReceiver | `BootReceiver.java` | boot | Dispositivo reinicia |
 | FCM Push | `FcmRestartReceiver.java` | push | Servidor envia `restart_tracking` |
 

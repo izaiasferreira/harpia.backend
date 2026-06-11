@@ -325,7 +325,25 @@ Permite ao colaborador reportar geograficamente um local ou instalação perigos
 ---
 
 ### `GET /agent/security_report`
-Lista os relatórios de segurança do agente.
+Lista os relatórios de segurança do agente, incluindo status de resolução.
+
+**Resposta 200:**
+```json
+{
+  "risks_list": ["Risco 1", "Risco 2"],
+  "points": [
+    {
+      "motivo": "Queda de poste",
+      "observacao": "Poste na Rua A",
+      "latitude": "-5.089",
+      "longitude": "-42.801",
+      "created_at": "2026-05-01T10:00:00.000Z",
+      "resolvido": true,
+      "descricao_solucao": "Poste removido pela SEFAZ"
+    }
+  ]
+}
+```
 
 ---
 

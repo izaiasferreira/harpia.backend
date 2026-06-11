@@ -57,6 +57,7 @@ const AVAILABLE_MODULES = [
     { id: 'security_reports', name: 'Consultar Relatórios de Segurança' },
     { id: 'create_security_report', name: 'Criar Relatório de Segurança' },
     { id: 'delete_security_report', name: 'Deletar Relatório de Segurança' },
+    { id: 'resolve_security_report', name: 'Resolver / Validar Relatório de Segurança' },
     // Formulários Dinâmicos
     { id: 'forms', name: 'Consultar Formulários' },
     { id: 'create_form', name: 'Criar Formulário' },

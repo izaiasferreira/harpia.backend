@@ -1184,7 +1184,9 @@ async function get_security_reports({ user }) {
         observacao: point.observacao,
         latitude: point.latitude,
         longitude: point.longitude,
-        created_at: point.created_at
+        created_at: point.created_at,
+        resolvido: point.resolvido || false,
+        descricao_solucao: point.descricao_solucao || null
     }))
     if (locals.length > 0) {
         const municipios = [...new Set(locals.map(l => l.municipio))];

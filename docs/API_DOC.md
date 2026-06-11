@@ -156,7 +156,7 @@ Health check simples (sem prefixo).
 | `ceneduc`, `create_ceneduc`, `update_ceneduc`, `delete_ceneduc` | CenEduc |
 | `trainings`, `create_training`, `update_training`, `delete_training` | Treinamentos |
 | `configs` | Configurações |
-| `security_reports`, `create_security_report`, `delete_security_report` | Segurança |
+| `security_reports`, `create_security_report`, `delete_security_report`, `resolve_security_report` | Segurança |
 | `services_consult` | Consulta de serviços |
 | `message_templates` | Modelos de mensagem |
 | `notifications` | Notificações |

@@ -2028,6 +2028,111 @@ Remove um relatório de segurança.
 
 ---
 
+### `GET /admin/security_reports/dashboard`
+
+Retorna estatísticas do dashboard de segurança.
+
+**Módulo Requerido:** `security_reports`
+
+**Query Params:**
+| Parâmetro | Tipo | Default | Descrição |
+|-----------|------|---------|-----------|
+| `estado` | string | — | Filtrar por estado (`pi` ou `ma`) |
+
+**Resposta 200:**
+```json
+{
+  "total": 100,
+  "resolvidos": 45,
+  "pendentes": 55,
+  "taxaResolucao": 45,
+  "porTipo": [
+    { "motivo": "Queda de poste", "count": 30 }
+  ],
+  "porAgente": [
+    { "autor": "T60702", "count": 15 }
+  ],
+  "tendenciaMensal": [
+    { "mes": "2026-04-01T00:00:00.000Z", "total": 20 }
+  ]
+}
+```
+
+---
+
+### `POST /admin/security_reports/:id/resolver`
+
+Marca um relatório como resolvido com descrição da solução e evidências.
+
+**Módulo Requerido:** `resolve_security_report`
+
+**Path Params:** `id` — ID numérico do relatório
+
+**Body (JSON):**
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `descricao_solucao` | string | **sim** | Descrição detalhada de como foi solucionado |
+| `evidencias` | array | **sim** | Lista de evidências (mínimo 1) |
+| `evidencias[].nome_arquivo` | string | **sim** | Nome do arquivo |
+| `evidencias[].tipo` | string | **sim** | Tipo (`imagem` ou `documento`) |
+| `evidencias[].caminho` | string | **sim** | URL pública do arquivo (via `/admin/upload`) |
+
+**Resposta 200:**
+```json
+{
+  "success": true,
+  "report": { "id": 1, "resolvido": true, "resolvido_por": "42", "resolvido_por_nome": "João Admin", "resolvido_em": "2026-06-11T...", "descricao_solucao": "..." },
+  "evidencias": [{ "id": 1, "report_id": 1, "nome_arquivo": "foto.jpg", "tipo": "imagem", "caminho": "..." }]
+}
+```
+
+> **Nota:** Evidências são obrigatórias exceto quando `motivo = "Sem Risco"`.
+
+---
+
+### `POST /admin/security_reports/:id/reabrir`
+
+Reabre um relatório previamente resolvido, limpando os campos de solução.
+
+**Módulo Requerido:** `resolve_security_report`
+
+**Path Params:** `id` — ID numérico do relatório
+
+**Resposta 200:** `{ "success": true, "report": { ... } }`
+
+---
+
+### `GET /admin/security_reports/:id/evidencias`
+
+Lista as evidências de um relatório.
+
+**Módulo Requerido:** `security_reports`
+
+**Path Params:** `id` — ID numérico do relatório
+
+**Resposta 200:** Array de evidências.
+
+---
+
+### `POST /admin/security_reports/:id/evidencias`
+
+Adiciona uma evidência a um relatório existente.
+
+**Módulo Requerido:** `resolve_security_report`
+
+**Path Params:** `id` — ID numérico do relatório
+
+**Body (JSON):**
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `nome_arquivo` | string | **sim** | Nome do arquivo |
+| `tipo` | string | **sim** | Tipo (`imagem` ou `documento`) |
+| `caminho` | string | **sim** | URL pública do arquivo |
+
+**Resposta 201:** Objeto da evidência criada.
+
+---
+
 ## 23. Tokens de API (Admin)
 
 Gerencia tokens de API para integração com sistemas externos. Os tokens são armazenados com hash SHA-256 e podem ser revogados individualmente.

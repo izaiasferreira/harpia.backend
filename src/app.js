@@ -104,6 +104,10 @@ app.use('/agent', agenteRouter)
 // Admin Security Reports (/admin/security_reports/*)
 app.use('/admin/security_reports', adminSecurityReportsRouter)
 
+// Admin Security Reports Validation (/admin/security_reports/*)
+const adminSecurityReportsValidationRouter = require('./routes/adminSecurityReportsValidation')
+app.use('/admin/security_reports', adminSecurityReportsValidationRouter)
+
 // Interativos (/admin/training/*)
 app.use('/admin/training', trainingProjectsRouter)
 
