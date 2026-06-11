@@ -136,6 +136,10 @@ app.use('/admin/agent', adminAppPinsRouter)
 const adminTrackingRouter = require('./routes/adminTracking')
 app.use('/admin/tracking', adminTrackingRouter)
 
+// Heartbeat tracking (/admin/tracking/*)
+const adminHeartbeatRouter = require('./routes/adminHeartbeat')
+app.use('/admin/tracking', adminHeartbeatRouter)
+
 // Notifications (/admin/notifications/*)
 const adminNotificationsRouter = require('./routes/adminNotifications')
 app.use('/admin/notifications', adminNotificationsRouter)

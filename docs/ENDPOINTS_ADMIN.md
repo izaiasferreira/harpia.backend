@@ -475,7 +475,12 @@ Invocado pelo aplicativo do agente a cada 5 minutos (offline-first batch sync) p
 ---
 
 ### `GET /admin/tracking/agents`
-Retorna todos os agentes operacionais com a última posição conhecida traçada em mapa.
+Retorna todos os agentes operacionais com a última posição conhecida traçada em mapa (baseado em `tracking_points` — compatível com web/PWA).
+
+---
+
+### `GET /admin/tracking/agents-v2`
+Retorna agentes com heartbeat (nativo Android) — contém `last_heartbeat_at`, `last_heartbeat_lat`, `last_heartbeat_lng`. Usado pelo admin para determinar online/offline de agentes APK.
 
 ---
 

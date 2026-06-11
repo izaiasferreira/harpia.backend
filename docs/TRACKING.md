@@ -14,12 +14,23 @@ GPS (FusedLocationProviderClient — Google Play Services)
   │
   └── Salva no SQLite local (synced = 0)
         │
-        └── Thread separada a cada 30s:
-              ├── Lê batch de 50 pontos com synced = 0
-              ├── HTTP POST → /agent/tracking/sync-v2
-              ├── Se 200 OK → marca synced = 1
-              └── Se falhar → mantém synced = 0 (retry na próxima)
+  └── Thread separada a cada 30s:
+        ├── Lê batch de 50 pontos com synced = 0
+        ├── HTTP POST → /agent/tracking/sync-v2
+        ├── Se 200 OK → marca synced = 1 + envia heartbeat (POST /agent/tracking/heartbeat)
+        └── Se falhar → mantém synced = 0 (retry na próxima)
 ```
+
+### Heartbeat (presença online)
+
+O serviço nativo envia um heartbeat leve (`POST /agent/tracking/heartbeat`) após cada sync bem-sucedido (a cada 30s), contendo apenas `{ lat, lng }`. O backend atualiza `login.last_heartbeat_at`, `last_heartbeat_lat` e `last_heartbeat_lng`.
+
+O admin frontend consulta `GET /admin/tracking/agents-v2` para obter o heartbeat dos agentes. A determinação de online/offline no admin é:
+
+| Origem | Online se |
+|--------|-----------|
+| **Natino (APK)** | `last_heartbeat_at` < 5 min (enviado pelo próprio serviço a cada 30s) |
+| **Web (PWA)** | `recorded_at` do último `tracking_points` < 5 min (comportamento legado) |
 
 ### Duas camadas independentes
 

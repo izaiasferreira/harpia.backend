@@ -1096,6 +1096,28 @@ router.post('/tracking/sync-v2', telegramAuth, async (req, res) => {
     }
 });
 
+// --- Heartbeat (nativo) ---
+const { updateHeartbeat } = require('../functions/database/heartbeat');
+
+// POST /agent/tracking/heartbeat — nativo envia presença + localização
+router.post('/tracking/heartbeat', telegramAuth, async (req, res) => {
+    try {
+        const agentId = req.colaborador.id;
+        const { lat, lng } = req.body;
+
+        if (lat == null || lng == null) {
+            return res.status(400).json({ error: 'lat e lng são obrigatórios' });
+        }
+
+        await updateHeartbeat(agentId, lat, lng);
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[HEARTBEAT] Erro:', err);
+        res.status(500).json({ error: 'Erro ao registrar heartbeat' });
+    }
+});
+
 // --- Notificações ---
 const {
     getAgentNotifications,
