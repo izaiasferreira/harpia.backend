@@ -1096,6 +1096,98 @@ router.post('/tracking/sync-v2', telegramAuth, async (req, res) => {
     }
 });
 
+const {
+    insertUnifiedPoints,
+    getAgentSpeedLimit,
+    upsertAgentSpeedLimit,
+    getGlobalSpeedLimit,
+    upsertGlobalSpeedLimit,
+    getAgentsLastPositionUnified,
+    getAgentTrailUnified,
+    getSpeedViolationsFromUnified,
+} = require('../functions/database/trackingUnified');
+
+// POST /agent/tracking/sync-unified — ponto unificado com status do dispositivo
+router.post('/tracking/sync-unified', telegramAuth, async (req, res) => {
+    try {
+        const agentId = req.colaborador.id;
+        const { points } = req.body;
+
+        if (!points || !Array.isArray(points) || points.length === 0) {
+            return res.status(400).json({ error: 'points é obrigatório' });
+        }
+
+        const speedLimit = await getAgentSpeedLimit(agentId);
+        const result = await insertUnifiedPoints(agentId, points, speedLimit);
+
+        res.json({
+            success: true,
+            synced: result.inserted,
+            violations: result.violations,
+            speedLimitApplied: speedLimit,
+        });
+    } catch (err) {
+        console.error('[SYNC_UNIFIED] Erro:', err);
+        res.status(500).json({ error: 'Erro ao sincronizar dados unificados' });
+    }
+});
+
+// GET /agent/tracking/config — configurações de tracking do agente
+router.get('/tracking/config', telegramAuth, async (req, res) => {
+    try {
+        const agentId = req.colaborador.id;
+        const [agentLimit, globalLimit] = await Promise.all([
+            getAgentSpeedLimit(agentId),
+            getGlobalSpeedLimit(),
+        ]);
+        res.json({
+            agentSpeedLimit: agentLimit,
+            globalSpeedLimit: globalLimit,
+        });
+    } catch (err) {
+        console.error('[TRACKING_CONFIG GET] Erro:', err);
+        res.status(500).json({ error: 'Erro ao buscar configurações' });
+    }
+});
+
+// PUT /agent/tracking/config — atualizar configuração de tracking do agente
+router.put('/tracking/config', telegramAuth, async (req, res) => {
+    try {
+        const agentId = req.colaborador.id;
+        const { speedLimitKmh } = req.body;
+
+        if (speedLimitKmh != null) {
+            const limit = Number(speedLimitKmh);
+            if (isNaN(limit) || limit < 1 || limit > 300) {
+                return res.status(400).json({ error: 'speedLimitKmh deve ser entre 1 e 300' });
+            }
+            await upsertAgentSpeedLimit(agentId, limit, agentId);
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[TRACKING_CONFIG PUT] Erro:', err);
+        res.status(500).json({ error: 'Erro ao salvar configuração' });
+    }
+});
+
+// GET /admin/tracking/speed-violations — listar violações da tabela unificada
+router.get('/admin/tracking/speed-violations', async (req, res) => {
+    try {
+        const { agentId, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
+        const offset = (parseInt(page) - 1) * Math.min(parseInt(limit), 200);
+        const filters = { agentId, dateFrom, dateTo };
+        const [rows, totalResult] = await Promise.all([
+            getSpeedViolationsFromUnified(filters),
+            cenos_pool.query(`SELECT COUNT(*) FROM tracking_session_points WHERE is_speed_violation = TRUE`),
+        ]);
+        res.json({ data: rows.slice(offset, offset + parseInt(limit)), total: Number(totalResult.rows[0].count) });
+    } catch (err) {
+        console.error('[SPEED_VIOLATIONS] Erro:', err);
+        res.status(500).json({ error: 'Erro ao buscar violações' });
+    }
+});
+
 // --- Heartbeat (nativo) ---
 const { updateHeartbeat } = require('../functions/database/heartbeat');
 
