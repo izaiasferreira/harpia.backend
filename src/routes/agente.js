@@ -1108,6 +1108,7 @@ const {
 } = require('../functions/database/trackingUnified');
 
 // POST /agent/tracking/sync-unified — ponto unificado com status do dispositivo
+// Atualiza last_heartbeat_at automaticamente (tanto nativo quanto web)
 router.post('/tracking/sync-unified', telegramAuth, async (req, res) => {
     try {
         const agentId = req.colaborador.id;
@@ -1119,6 +1120,10 @@ router.post('/tracking/sync-unified', telegramAuth, async (req, res) => {
 
         const speedLimit = await getAgentSpeedLimit(agentId);
         const result = await insertUnifiedPoints(agentId, points, speedLimit);
+
+        // Atualizar heartbeat com o último ponto recebido (sempre online quando sync)
+        const lastPoint = points[points.length - 1];
+        await updateHeartbeat(agentId, lastPoint.lat, lastPoint.lng);
 
         res.json({
             success: true,
