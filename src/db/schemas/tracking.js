@@ -1,5 +1,7 @@
 const z = require('zod');
 
+const maxStr = (max) => z.string().transform(v => v.length > max ? v.slice(0, max) : v);
+
 const trackingPointSchema = z.object({
   id: z.number().int().optional(),
   agent_id: z.string().min(1).max(50).transform(v => v.toUpperCase()),
@@ -11,7 +13,7 @@ const trackingPointSchema = z.object({
   is_charging: z.boolean().nullable().optional(),
   network_type: z.string().max(20).nullable().optional(),
   gps_enabled: z.boolean().nullable().optional(),
-  device_model: z.string().max(100).nullable().optional(),
+  device_model: maxStr(200).nullable().optional(),
   device_platform: z.string().max(20).nullable().optional(),
   os_version: z.string().max(20).nullable().optional(),
   recorded_at: z.date().or(z.string().transform(v => new Date(v))),
@@ -28,7 +30,7 @@ const unifiedPointSchema = z.object({
   isCharging: z.boolean().nullable().optional(),
   networkType: z.string().max(20).nullable().optional(),
   gpsEnabled: z.boolean().nullable().optional(),
-  deviceModel: z.string().max(100).nullable().optional(),
+  deviceModel: maxStr(200).nullable().optional(),
   devicePlatform: z.string().max(20).nullable().optional(),
   osVersion: z.string().max(20).nullable().optional(),
   timestamp: z.number().or(z.string().transform(Number)),
