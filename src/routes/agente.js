@@ -1101,9 +1101,6 @@ const {
     getAgentSpeedLimit,
     upsertAgentSpeedLimit,
     getGlobalSpeedLimit,
-    upsertGlobalSpeedLimit,
-    getAgentsLastPositionUnified,
-    getAgentTrailUnified,
     getSpeedViolationsFromUnified,
 } = require('../functions/database/trackingUnified');
 
@@ -1124,13 +1121,13 @@ router.post('/tracking/sync-unified', telegramAuth, async (req, res) => {
         // Atualizar heartbeat com o último ponto recebido (sempre online quando sync)
         const lastPoint = points[points.length - 1];
         await updateHeartbeat(agentId, lastPoint.lat, lastPoint.lng);
-
-        res.json({
-            success: true,
+        const response = {
             synced: result.inserted,
             violations: result.violations,
             speedLimitApplied: speedLimit,
-        });
+        }
+        console.log('SYNC_UNIFIED - response', response)
+        res.json(response);
     } catch (err) {
         console.error('[SYNC_UNIFIED] Erro:', err);
         res.status(500).json({ error: 'Erro ao sincronizar dados unificados' });
