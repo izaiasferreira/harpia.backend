@@ -1114,8 +1114,8 @@ router.post('/tracking/sync-unified', telegramAuth, async (req, res) => {
         if (!points || !Array.isArray(points) || points.length === 0) {
             return res.status(400).json({ error: 'points é obrigatório' });
         }
-
-        console.log('SYNC_UNIFIED - points', points[0])
+        console.log('SYNC_UNIFIED - points from', agentId)
+        console.log('SYNC_UNIFIED - points first', points[0])
         console.log('SYNC_UNIFIED - points last', points[points.length - 1])
 
         const speedLimit = await getAgentSpeedLimit(agentId);
