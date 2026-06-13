@@ -1206,7 +1206,7 @@ router.post('/tracking/heartbeat', telegramAuth, async (req, res) => {
         if (lat == null || lng == null) {
             return res.status(400).json({ error: 'lat e lng são obrigatórios' });
         }
-
+        console.log('[HEARTBEAT] Recebido:', agentId, lat, lng);
         await updateHeartbeat(agentId, lat, lng);
 
         res.json({ success: true });
