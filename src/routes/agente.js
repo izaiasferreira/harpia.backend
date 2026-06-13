@@ -1112,6 +1112,7 @@ router.post('/tracking/sync-unified', telegramAuth, async (req, res) => {
         const { points } = req.body;
 
         if (!points || !Array.isArray(points) || points.length === 0) {
+            console.log('SYNC_UNIFIED - points invalid', agentId, points)
             return res.status(400).json({ error: 'points é obrigatório' });
         }
         console.log('SYNC_UNIFIED - points from', agentId)
