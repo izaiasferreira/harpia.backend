@@ -1572,6 +1572,37 @@ Consulta histórico de notificações de um agente específico com filtros.
 
 ---
 
+### `GET /admin/service-notes/nearest-agents`
+
+Retorna agentes com heartbeat mais próximos de um ponto central (centroide de notas selecionadas).
+
+**Módulo Requerido:** `service_notes`
+
+**Query Params:**
+| Parâmetro | Tipo | Padrão | Descrição |
+|-----------|------|--------|-----------|
+| `lat` | number | **obrigatório** | Latitude do centroide |
+| `lng` | number | **obrigatório** | Longitude do centroide |
+| `limit` | number | 10 | Máximo de agentes a retornar |
+| `radiusKm` | number | 10 | Raio de busca em quilômetros |
+
+**Resposta 200:**
+```json
+[
+  {
+    "agent_id": "T60702",
+    "nome": "João da Silva",
+    "estado": "pi",
+    "last_heartbeat_at": "2026-06-10T15:00:00.000Z",
+    "latitude": -5.089,
+    "longitude": -42.801,
+    "distance": 2.345
+  }
+]
+```
+
+---
+
 ## 18. Módulo de Badges (Emblemas)
 
 Gerencia o catálogo global de insígnias visuais da plataforma.

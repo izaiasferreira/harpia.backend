@@ -180,13 +180,14 @@ async function getColaboradoresNames(agentIds) {
 // ==========================================
 router.get('/nearest-agents', verifyToken(), verifyModule('service_notes'), async (req, res) => {
     try {
-        const { lat, lng, limit } = req.query;
+        const { lat, lng, limit, radiusKm } = req.query;
         if (!lat || !lng) {
             return res.status(400).json({ error: 'Latitude (lat) e Longitude (lng) sao obrigatorios' });
         }
 
         const redisClient = require('../redis');
         const maxLimit = parseInt(limit) || 10;
+        const radius = parseFloat(radiusKm) || 10;
         let results = [];
 
         if (redisClient.isOpen) {
@@ -194,7 +195,7 @@ router.get('/nearest-agents', verifyToken(), verifyModule('service_notes'), asyn
                 results = await redisClient.geoSearchWith(
                     'agents:locations',
                     { latitude: Number(lat), longitude: Number(lng) },
-                    { radius: 5000, unit: 'km' },
+                    { radius, unit: 'km' },
                     ['WITHDIST', 'WITHCOORD'],
                     { SORT: 'ASC', COUNT: maxLimit }
                 );
@@ -214,11 +215,18 @@ router.get('/nearest-agents', verifyToken(), verifyModule('service_notes'), asyn
                     last_heartbeat_lng
                  FROM login
                  WHERE last_heartbeat_lat IS NOT NULL AND last_heartbeat_lng IS NOT NULL
+                   AND (
+                     6371 * acos(
+                       cos(radians($1)) * cos(radians(last_heartbeat_lat)) *
+                       cos(radians(last_heartbeat_lng) - radians($2)) +
+                       sin(radians($1)) * sin(radians(last_heartbeat_lat))
+                     )
+                   ) <= $3
                  ORDER BY (
-                     point(last_heartbeat_lng, last_heartbeat_lat) <-> point($1, $2)
+                     point(last_heartbeat_lng, last_heartbeat_lat) <-> point($2, $1)
                  ) ASC
-                 LIMIT $3`,
-                 [Number(lng), Number(lat), maxLimit]
+                 LIMIT $4`,
+                 [Number(lat), Number(lng), radius, maxLimit]
             );
             
             const agentIds = rows.map(r => r.agent_id);
