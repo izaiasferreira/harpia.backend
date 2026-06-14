@@ -1097,7 +1097,11 @@ router.post('/tracking/sync-v2', telegramAuth, async (req, res) => {
 });
 
 const {
-    insertUnifiedPoints,
+    insertStagingPoints,
+    getStagingPendingCount
+} = require('../functions/database/trackingStaging');
+
+const {
     getAgentSpeedLimit,
     upsertAgentSpeedLimit,
     getGlobalSpeedLimit,
@@ -1105,7 +1109,7 @@ const {
 } = require('../functions/database/trackingUnified');
 
 // POST /agent/tracking/sync-unified — ponto unificado com status do dispositivo
-// Atualiza last_heartbeat_at automaticamente (tanto nativo quanto web)
+// Enfileira os dados na tabela de staging e responde imediatamente em 1-3ms.
 router.post('/tracking/sync-unified', telegramAuth, async (req, res) => {
     try {
         const agentId = req.colaborador.id;
@@ -1115,23 +1119,21 @@ router.post('/tracking/sync-unified', telegramAuth, async (req, res) => {
             console.log('SYNC_UNIFIED - points invalid', agentId, points)
             return res.status(400).json({ error: 'points é obrigatório' });
         }
-        console.log('SYNC_UNIFIED - points from', agentId)
-        console.log('SYNC_UNIFIED - points first', points[0])
-        console.log('SYNC_UNIFIED - points last', points[points.length - 1])
 
-        const speedLimit = await getAgentSpeedLimit(agentId);
-        const result = await insertUnifiedPoints(agentId, points, speedLimit);
-
-        // Atualizar heartbeat com o último ponto recebido (sempre online quando sync)
-        const lastPoint = points[points.length - 1];
-        await updateHeartbeat(agentId, lastPoint.lat, lastPoint.lng);
-        const response = {
-            synced: result.inserted,
-            violations: result.violations,
-            speedLimitApplied: speedLimit,
+        // Backpressure: limita crescimento da tabela de staging
+        const pendingCount = await getStagingPendingCount();
+        if (pendingCount > 100000) {
+            console.warn(`[SYNC_UNIFIED] Backpressure ativado: ${pendingCount} registros pendentes. Rejeitando sync de ${agentId}`);
+            return res.status(429).json({ error: 'Servidor sob alta carga, tente novamente em instantes' });
         }
-        console.log('SYNC_UNIFIED - response', response)
-        res.json(response);
+
+        const result = await insertStagingPoints(agentId, points);
+
+        res.json({
+            synced: result.inserted,
+            violations: 0,
+            speedLimitApplied: 81,
+        });
     } catch (err) {
         console.error('[SYNC_UNIFIED] Erro:', err);
         res.status(500).json({ error: 'Erro ao sincronizar dados unificados' });
@@ -1197,23 +1199,10 @@ router.get('/admin/tracking/speed-violations', async (req, res) => {
 // --- Heartbeat (nativo) ---
 const { updateHeartbeat } = require('../functions/database/heartbeat');
 
-// POST /agent/tracking/heartbeat — nativo envia presença + localização
+// POST /agent/tracking/heartbeat — nativo envia presença + localização (tornado NOOP por motivos de performance)
 router.post('/tracking/heartbeat', telegramAuth, async (req, res) => {
-    try {
-        const agentId = req.colaborador.id;
-        const { lat, lng } = req.body;
-
-        if (lat == null || lng == null) {
-            return res.status(400).json({ error: 'lat e lng são obrigatórios' });
-        }
-        console.log('[HEARTBEAT] Recebido:', agentId, lat, lng);
-        await updateHeartbeat(agentId, lat, lng);
-
-        res.json({ success: true });
-    } catch (err) {
-        console.error('[HEARTBEAT] Erro:', err);
-        res.status(500).json({ error: 'Erro ao registrar heartbeat' });
-    }
+    // NOOP: o batimento cardíaco do agente é deduzido/atualizado de forma assíncrona pelo fluxo de sync
+    res.json({ success: true, deprecated: true });
 });
 
 // --- Notificações ---

@@ -15,7 +15,9 @@ app.set('trust proxy', true);
 
 // Only use morgan logger if not in test environment - deve vir ANTES do CORS para registrar as requisições
 if (process.env.NODE_ENV !== 'test') {
-    app.use(morgan('[:date[clf]] IP: :remote-addr | HOST: :req[host] | :method :url :status :res[content-length] - :response-time ms'));
+    app.use(morgan('[:date[clf]] IP: :remote-addr | HOST: :req[host] | :method :url :status :res[content-length] - :response-time ms', {
+        skip: (req) => req.path && (req.path.startsWith('/agent/tracking') || req.path.startsWith('/agent/tracking/'))
+    }));
 }
 
 // CORS — origens permitidas via variável de ambiente (separadas por vírgula)
