@@ -1,10 +1,23 @@
 const { cenos_pool } = require('../../db');
+const redisClient = require('../../redis');
 
 async function updateHeartbeat(agentId, lat, lng) {
     await cenos_pool.query(
         `UPDATE login SET last_heartbeat_at = NOW(), last_heartbeat_lat = $1, last_heartbeat_lng = $2 WHERE id = $3`,
         [lat, lng, agentId]
     );
+
+    try {
+        if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+            await redisClient.geoAdd('agents:locations', {
+                longitude: Number(lng),
+                latitude: Number(lat),
+                member: String(agentId)
+            });
+        }
+    } catch (err) {
+        console.error('[REDIS] Erro ao atualizar geolocalização no Redis:', err);
+    }
 }
 
 async function getAgentsHeartbeat() {

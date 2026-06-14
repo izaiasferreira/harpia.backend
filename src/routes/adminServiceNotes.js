@@ -10,7 +10,7 @@ const categoryCreateSchema = z.object({
   name: z.string().min(1),
   color: z.string().max(7).optional()
 });
-const { cenos_pool } = require('../db');
+const { cenos_pool, pi_pool, ma_pool } = require('../db');
 const {
     listServiceGroups, getServiceGroupById, createServiceGroup, updateServiceGroup, deleteServiceGroup,
     listCategoriesByGroup, createCategory, deleteCategory,
@@ -147,6 +147,134 @@ router.get('/', verifyToken(), verifyModule('service_notes'), async (req, res) =
         });
         res.json(notes);
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Helper to get names of agents from state databases (colaboradores table)
+async function getColaboradoresNames(agentIds) {
+    if (!agentIds || agentIds.length === 0) return {};
+    try {
+        const uppercaseIds = agentIds.map(id => id.toUpperCase());
+        const [piRes, maRes] = await Promise.all([
+            pi_pool.query(`SELECT "ID" AS id, "Nome" AS nome FROM colaboradores WHERE "ID" = ANY($1::varchar[])`, [uppercaseIds]),
+            ma_pool.query(`SELECT "ID" AS id, "Nome" AS nome FROM colaboradores WHERE "ID" = ANY($1::varchar[])`, [uppercaseIds])
+        ]);
+        
+        const namesMap = {};
+        piRes.rows.forEach(r => {
+            if (r.id) namesMap[r.id.toUpperCase()] = r.nome;
+        });
+        maRes.rows.forEach(r => {
+            if (r.id) namesMap[r.id.toUpperCase()] = r.nome;
+        });
+        return namesMap;
+    } catch (err) {
+        console.warn('[DB] Erro ao obter nomes de colaboradores:', err.message);
+        return {};
+    }
+}
+
+// ==========================================
+// BUSCA DE AGENTES MAIS PROXIMOS (REDIS)
+// ==========================================
+router.get('/nearest-agents', verifyToken(), verifyModule('service_notes'), async (req, res) => {
+    try {
+        const { lat, lng, limit } = req.query;
+        if (!lat || !lng) {
+            return res.status(400).json({ error: 'Latitude (lat) e Longitude (lng) sao obrigatorios' });
+        }
+
+        const redisClient = require('../redis');
+        const maxLimit = parseInt(limit) || 10;
+        let results = [];
+
+        if (redisClient.isOpen) {
+            try {
+                results = await redisClient.geoSearchWith(
+                    'agents:locations',
+                    { latitude: Number(lat), longitude: Number(lng) },
+                    { radius: 5000, unit: 'km' },
+                    ['WITHDIST', 'WITHCOORD'],
+                    { SORT: 'ASC', COUNT: maxLimit }
+                );
+            } catch (redisErr) {
+                console.error('[REDIS] Erro ao buscar agentes proximos:', redisErr);
+            }
+        }
+
+        if (!results || results.length === 0) {
+            // Se nao houver resultados no Redis, buscar do Postgres como fallback
+            const { rows } = await cenos_pool.query(
+                `SELECT 
+                    id AS agent_id,
+                    estado,
+                    last_heartbeat_at,
+                    last_heartbeat_lat,
+                    last_heartbeat_lng
+                 FROM login
+                 WHERE last_heartbeat_lat IS NOT NULL AND last_heartbeat_lng IS NOT NULL
+                 ORDER BY (
+                     point(last_heartbeat_lng, last_heartbeat_lat) <-> point($1, $2)
+                 ) ASC
+                 LIMIT $3`,
+                 [Number(lng), Number(lat), maxLimit]
+            );
+            
+            const agentIds = rows.map(r => r.agent_id);
+            const namesMap = await getColaboradoresNames(agentIds);
+
+            const formatted = rows.map(r => {
+                const R = 6371; // km
+                const dLat = (r.last_heartbeat_lat - Number(lat)) * Math.PI / 180;
+                const dLon = (r.last_heartbeat_lng - Number(lng)) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                          Math.cos(Number(lat) * Math.PI / 180) * Math.cos(r.last_heartbeat_lat * Math.PI / 180) *
+                          Math.sin(dLon/2) * Math.sin(dLon/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                const dist = R * c;
+
+                return {
+                    agent_id: r.agent_id,
+                    nome: namesMap[r.agent_id.toUpperCase()] || `Agente ${r.agent_id}`,
+                    estado: r.estado,
+                    last_heartbeat_at: r.last_heartbeat_at,
+                    latitude: Number(r.last_heartbeat_lat),
+                    longitude: Number(r.last_heartbeat_lng),
+                    distance: Number(dist.toFixed(3))
+                };
+            });
+            return res.json(formatted);
+        }
+
+        const agentIds = results.map(r => r.member);
+        const { rows: dbAgents } = await cenos_pool.query(
+            `SELECT id AS agent_id, estado, last_heartbeat_at FROM login WHERE id = ANY($1::varchar[])`,
+            [agentIds]
+        );
+        const namesMap = await getColaboradoresNames(agentIds);
+
+        const agentMap = {};
+        dbAgents.forEach(a => {
+            agentMap[a.agent_id] = a;
+        });
+
+        const formatted = results.map(r => {
+            const dbAgent = agentMap[r.member] || {};
+            return {
+                agent_id: r.member,
+                nome: namesMap[r.member.toUpperCase()] || `Agente ${r.member}`,
+                estado: dbAgent.estado || null,
+                last_heartbeat_at: dbAgent.last_heartbeat_at || null,
+                latitude: Number(r.coordinates.latitude),
+                longitude: Number(r.coordinates.longitude),
+                distance: Number(r.distance)
+            };
+        });
+
+        res.json(formatted);
+    } catch (err) {
+        console.log('[SERVICE_NOTES] Erro buscar agentes proximos:', err);
         res.status(500).json({ error: err.message });
     }
 });
