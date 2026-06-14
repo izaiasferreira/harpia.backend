@@ -36,12 +36,10 @@ function normalizePoint(agentId, raw, speedLimit) {
         batteryLevel = Math.round(batteryLevel * 100);
     }
 
-    // Normalizar velocidade
+    // Normalizar velocidade: GPS e Web enviam em m/s (metros por segundo) -> converter para km/h (* 3.6)
     let speedKmh = point.speed ?? null;
-    if (speedKmh != null) {
-        if (speedKmh > 50 && speedKmh < 150 && Number.isInteger(speedKmh)) {
-            speedKmh = Math.round(speedKmh * 3.6);
-        }
+    if (speedKmh != null && speedKmh > 0) {
+        speedKmh = Math.round(speedKmh * 3.6);
     }
 
     const isViolation = speedKmh != null && speedKmh > speedLimitNum;

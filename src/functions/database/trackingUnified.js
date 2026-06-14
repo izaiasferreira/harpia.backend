@@ -19,13 +19,10 @@ async function insertUnifiedPoints(agentId, points, speedLimit) {
             batteryLevel = Math.round(batteryLevel * 100);
         }
 
-        // Normalizar velocidade: Android GPS retorna m/s, nativo envia km/h
-        // Heuristic: valores > 50 e inteiros provavelmente m/s → converter
+        // Normalizar velocidade: Android GPS e Web retornam m/s -> converter para km/h (* 3.6)
         let speedKmh = point.speed ?? null;
-        if (speedKmh != null) {
-            if (speedKmh > 50 && speedKmh < 150 && Number.isInteger(speedKmh)) {
-                speedKmh = Math.round(speedKmh * 3.6);
-            }
+        if (speedKmh != null && speedKmh > 0) {
+            speedKmh = Math.round(speedKmh * 3.6);
         }
 
         const isViolation = speedKmh != null && speedKmh > speedLimitNum;
