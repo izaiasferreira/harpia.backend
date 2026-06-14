@@ -17,3 +17,7 @@ CREATE INDEX IF NOT EXISTS idx_tracking_staging_worker
 
 -- Acelerar inserções na tabela de staging não gerando logs WAL
 ALTER TABLE tracking_staging SET UNLOGGED;
+
+-- Garantir que as colunas necessárias existam caso a tabela já tenha sido criada anteriormente
+ALTER TABLE tracking_staging ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tracking_staging ADD COLUMN IF NOT EXISTS error_message TEXT;

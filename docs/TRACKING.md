@@ -6,9 +6,9 @@ Sistema de rastreamento GPS em tempo real dos agentes de campo. Tolerância zero
 
 ## Arquitetura Geral
 
-### Modelo Unificado (v3 — atual)
+### Modelo Unificado com Staging-First (v3 — atual)
 
-A partir desta versão, todos os dados de tracking são unificados. Cada ponto carrega localização **e** status do dispositivo. A validação de velocidade (limite excedido) é feita **no backend** — não mais no cliente.
+A partir da atualização de Junho/2026, o sistema utiliza uma **tabela de staging temporária** (`tracking_staging`) para gravação imediata dos pontos em 1-3ms, liberando a requisição HTTP de forma assíncrona. O processamento definitivo, incluindo validações de velocidade e atualização de status, é executado em background pelo worker.
 
 ```
 GPS (FusedLocationProviderClient — Google Play Services)
@@ -24,13 +24,17 @@ GPS (FusedLocationProviderClient — Google Play Services)
         │   Payload: { points: [{ lat, lng, speed, accuracy,
         │                   batteryLevel, isCharging, networkType,
         │                   gpsEnabled, deviceModel, osVersion, timestamp }] }
-        ├── Backend: valida velocidade contra limite do agente
-        │            → insere em tracking_session_points
-        │            → marca is_speed_violation = TRUE se speed > limit
-        ├── Resposta: { success, synced, violations, speedLimitApplied }
-        ├── Se 200 OK → marca synced = 1 + emite trackingSync event (frontend)
-        │             + envia heartbeat (POST /agent/tracking/heartbeat)
-        └── Se falhar → mantém synced = 0 (retry na próxima)
+        ├── Backend:
+        │   ├── Valida backpressure (recusa se staging > 100k pontos pendentes)
+        │   ├── Insere diretamente em `tracking_staging` (UNLOGGED, sem índices complexos)
+        │   └── Retorna imediatamente 200 OK com { synced }
+        │
+        └── Em background (Worker a cada 5s):
+            ├── Busca lote de até 5000 pontos (`FOR UPDATE SKIP LOCKED`)
+            ├── Resolve speed limit por agente (com cache em memória de 30s)
+            ├── Normaliza e insere em `tracking_session_points` (marcando violações)
+            ├── Atualiza `login.last_heartbeat_at/lat/lng`
+            └── Limpa staging antigo (> 24h)
 ```
 
 ### Camadas de Coleta
@@ -44,11 +48,13 @@ As duas camadas funcionam em paralelo. O backend deduplica por `point_id` (nativ
 
 ### Heartbeat (presença online)
 
-O serviço nativo envia um heartbeat leve (`POST /agent/tracking/heartbeat`) após cada sync bem-sucedido (a cada 30s), contendo apenas `{ lat, lng }`. O backend atualiza `login.last_heartbeat_at`, `last_heartbeat_lat` e `last_heartbeat_lng`.
+Para otimização de performance e redução de conexões simultâneas, a rota de heartbeat (`POST /agent/tracking/heartbeat`) foi transformada em **NOOP (No Operation)** no backend. Ela retorna sucesso de forma imediata sem tocar no banco de dados. 
+
+A atualização real do status "Online" e do último batimento (`last_heartbeat_at/lat/lng`) agora é feita de forma **assíncrona** pelo worker em background a partir do último ponto processado no lote de sincronização.
 
 | Origem | Online se |
 |--------|-----------|
-| **Nativo (APK)** | `last_heartbeat_at` < 5 min |
+| **Nativo (APK)** | `last_heartbeat_at` < 5 min (atualizado pelo worker) |
 | **Web (PWA)** | Último ponto em `tracking_session_points` < 5 min |
 
 ---
@@ -134,9 +140,9 @@ O limite é buscado por agente (`tracking_agent_config`) ou usa o global (`track
 
 ### Agente (nativo + web)
 
-#### `POST /agent/tracking/sync-unified` (recomendado)
+#### `POST /agent/tracking/sync-unified` (Recomendado)
 
-Payload unificado — cada ponto contém localização + status do dispositivo.
+Enfileira de forma ultra-rápida (1-3ms) os pontos geográficos na tabela de staging para processamento assíncrono. Retorna imediatamente.
 
 **Body:**
 ```json
@@ -161,12 +167,13 @@ Payload unificado — cada ponto contém localização + status do dispositivo.
 **Resposta:**
 ```json
 {
-  "success": true,
-  "synced": 12,
-  "violations": 1,
+  "synced": 1,
+  "violations": 0,
   "speedLimitApplied": 81.0
 }
 ```
+
+*Nota: `violations` sempre retornará 0 no momento do sync, já que o processamento real de velocidade é realizado em segundo plano pelo worker.*
 
 #### `GET /agent/tracking/config`
 Retorna `{ agentSpeedLimit, globalSpeedLimit }` — limites de velocidade configurados.
@@ -174,8 +181,8 @@ Retorna `{ agentSpeedLimit, globalSpeedLimit }` — limites de velocidade config
 #### `PUT /agent/tracking/config`
 Atualiza o limite de velocidade do agente: `{ speedLimitKmh: 90 }`.
 
-#### `POST /agent/tracking/heartbeat`
-Envia presença online: `{ lat, lng }`. Atualiza `login.last_heartbeat_at/lat/lng`.
+#### `POST /agent/tracking/heartbeat` (Legado — NOOP)
+Rota de compatibilidade com aplicativos antigos. O servidor responde `{ success: true, deprecated: true }` imediatamente sem tocar no banco. A atualização de presença do agente é realizada pelo worker a partir do fluxo de sincronização.
 
 ### Admin
 

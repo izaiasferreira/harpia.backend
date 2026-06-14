@@ -91,6 +91,7 @@ async function batchInsertPoints(points) {
              device_model, device_platform, os_version, recorded_at,
              speed_limit_applied, is_speed_violation)
         VALUES ${values.join(', ')}
+        ON CONFLICT (agent_id, recorded_at) DO NOTHING
     `, params);
 }
 
