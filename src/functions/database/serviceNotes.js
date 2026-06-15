@@ -14,6 +14,81 @@ function validateCoordinates(coord) {
     return `${lat},${lon}`;
 }
 
+async function processBase64Files(completionData, agentId) {
+    if (!completionData) return completionData;
+    let dataObj = completionData;
+    if (typeof completionData === 'string') {
+        try {
+            dataObj = JSON.parse(completionData);
+        } catch (e) {
+            return completionData;
+        }
+    }
+
+    if (typeof dataObj !== 'object' || dataObj === null) return completionData;
+
+    const { minioClient, CONFIG, ensureBucketExists, getFileUrl, compressImage } = require('../minio');
+    const processed = { ...dataObj };
+
+    for (const [key, value] of Object.entries(processed)) {
+        if (typeof value === 'string') {
+            if (value.startsWith('data:') && value.includes(';base64,')) {
+                try {
+                    const matches = value.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+                    if (matches && matches.length === 3) {
+                        const mimeType = matches[1];
+                        const base64Data = matches[2];
+                        let buffer = Buffer.from(base64Data, 'base64');
+
+                        await ensureBucketExists();
+                        const timestamp = Date.now();
+                        const ext = mimeType.split('/')[1] || 'jpg';
+                        const fileName = `${timestamp}-${agentId}-${Math.random().toString(36).substring(7)}.${ext}`;
+                        const fullPath = `agents/${agentId}/${fileName}`;
+
+                        if (['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(mimeType)) {
+                            buffer = await compressImage(buffer, mimeType);
+                        }
+
+                        await minioClient.putObject(CONFIG.bucket, fullPath, buffer, { 'Content-Type': mimeType });
+                        processed[key] = getFileUrl(fullPath);
+                    }
+                } catch (err) {
+                    console.error('[processBase64Files] Erro ao processar base64:', err);
+                }
+            } else if (value.includes(';base64,')) {
+                try {
+                    const parsed = JSON.parse(value);
+                    if (parsed && typeof parsed.data === 'string' && parsed.data.startsWith('data:') && parsed.data.includes(';base64,')) {
+                        const matches = parsed.data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+                        if (matches && matches.length === 3) {
+                            const mimeType = matches[1];
+                            const base64Data = matches[2];
+                            let buffer = Buffer.from(base64Data, 'base64');
+
+                            await ensureBucketExists();
+                            const timestamp = Date.now();
+                            const ext = parsed.name ? parsed.name.split('.').pop() : (mimeType.split('/')[1] || 'bin');
+                            const fileName = `${timestamp}-${agentId}-${Math.random().toString(36).substring(7)}.${ext}`;
+                            const fullPath = `agents/${agentId}/${fileName}`;
+
+                            if (['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(mimeType)) {
+                                buffer = await compressImage(buffer, mimeType);
+                            }
+
+                            await minioClient.putObject(CONFIG.bucket, fullPath, buffer, { 'Content-Type': mimeType });
+                            parsed.data = getFileUrl(fullPath);
+                            processed[key] = JSON.stringify(parsed);
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+    }
+
+    return typeof completionData === 'string' ? JSON.stringify(processed) : processed;
+}
+
 // ==========================================
 // GRUPOS
 // ==========================================
@@ -272,6 +347,7 @@ async function bulkUnarchive(serviceIds) {
 
 async function completeServiceNote(noteId, { agentId, coordinates, completionData, completedAt }) {
     const validCoords = validateCoordinates(coordinates);
+    const processedCompletionData = await processBase64Files(completionData, agentId);
     const { rows } = await cenos_pool.query(
         `UPDATE service_notes 
          SET status = 'CONCLUIDO', 
@@ -282,7 +358,7 @@ async function completeServiceNote(noteId, { agentId, coordinates, completionDat
               completion_data = $4, 
               updated_at = NOW()
           WHERE id = $5 AND status = 'PENDENTE' AND (assigned_to = $1 OR assigned_to IS NULL) RETURNING *`,
-        [agentId, completedAt || new Date().toISOString(), validCoords || null, completionData ? JSON.stringify(completionData) : null, noteId]
+        [agentId, completedAt || new Date().toISOString(), validCoords || null, processedCompletionData ? JSON.stringify(processedCompletionData) : null, noteId]
     );
     return rows[0] || null;
 }
@@ -299,10 +375,11 @@ async function selfRegisterServiceNote({ groupId, agentId, title, coordinates, c
 
     const validCoords = validateCoordinates(coordinates);
     const autoTitle = title || `Registro – ${group.name} – ${new Date().toLocaleDateString('pt-BR')}`;
+    const processedCompletionData = await processBase64Files(completionData, agentId);
     const { rows } = await cenos_pool.query(
         `INSERT INTO service_notes (group_id, title, coordinates, status, assigned_to, completed_by, completed_at, completion_coordinates, completion_data, self_registered)
          VALUES ($1, $2, $3, 'CONCLUIDO', $4, $4, $5, $3, $6, true) RETURNING *`,
-        [groupId, autoTitle, validCoords || null, agentId, completedAt || new Date().toISOString(), completionData ? JSON.stringify(completionData) : null]
+        [groupId, autoTitle, validCoords || null, agentId, completedAt || new Date().toISOString(), processedCompletionData ? JSON.stringify(processedCompletionData) : null]
     );
     return rows[0];
 }

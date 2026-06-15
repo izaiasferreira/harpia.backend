@@ -415,6 +415,35 @@ Todas as queries do agente passam por `cachedGet()` que:
 3. Se online, busca do backend e atualiza cache
 4. Se offline, retorna cache (mesmo que stale)
 
+### Upload de Fotos e Mídias
+Diferentemente do sistema anterior (que usava `photo://pending/` + `photoQueue` separada), o fluxo atual unifica mídia e dados:
+
+**Compressão client-side (`compressImage()`):**
+- Redimensiona para 800px no lado maior, mantendo proporção
+- Qualidade JPEG 70%
+- Usada em todos os pontos de captura (câmera, galeria, input file)
+
+**Roteamento inteligente:**
+- **Online:** Upload direto para MinIO → URL real no `completionData`
+- **Offline:** Bloco comprimido → base64 inline (`data:image/jpeg;base64,...`) no `completionData`
+
+**Processamento no backend (`processBase64Files()`):**
+- Localizada em `back/src/functions/database/serviceNotes.js`
+- Chamada automaticamente por `PUT /agent/service-notes/:id/complete` e `POST /agent/service-notes/self-register`
+- Varre o JSONB de `completionData` em busca de strings base64
+- Faz upload para MinIO, substitui o base64 pelo link público
+- Persiste o JSONB atualizado no banco
+
+**Próximo fetch do agente:**
+- O agente recebe o registro com os links reais
+- Substitui os dados base64 locais pelos URLs do servidor
+
+**Vantagens:**
+- Sem fila separada de fotos (`photoQueue` removida)
+- Sem placeholders frágeis (`photo://pending/`)
+- Sem risco de sync travar por upload de foto pendente
+- Dados e mídias sincronizados atomicamente
+
 ### Fila de Sincronização (Sync Queue)
 Operações offline (conclusão, auto-registro) são enfileiradas no IndexedDB:
 - **`service_note_complete`**: Conclusão de nota
@@ -442,8 +471,7 @@ Itens `synced` só são removidos após chamada explícita a `clearSynced()`, ga
 **Ao ficar online:**
 ```
 online event → syncManager.onReconnect()
-  → photoQueue.uploadPending()     (fotos pendentes)
-  → syncQueue.process()            (envia conclusões)
+  → syncQueue.process()            (envia conclusões com base64 inline)
   → syncQueue.clearSynced()         (limpa apenas sucessos)
 ```
 
