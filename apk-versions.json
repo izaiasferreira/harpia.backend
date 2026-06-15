@@ -1,13 +1,21 @@
 {
   "latest": {
-    "changelog": "Tracking unificado e estabilidade no envio",
-    "versionName": "1.0.10",
-    "versionCode": 10,
-    "releaseDate": "2026-06-14T00:20:28.721Z",
+    "changelog": "Melhorias no mapa",
+    "versionName": "1.0.11",
+    "versionCode": 11,
+    "releaseDate": "2026-06-15T12:36:40.885Z",
     "forceUpdate": false,
-    "url": "/files/apk/app-1.0.10.apk"
+    "url": "/files/apk/app-1.0.11.apk"
   },
   "history": [
+    {
+      "changelog": "Tracking unificado e estabilidade no envio",
+      "versionName": "1.0.10",
+      "versionCode": 10,
+      "releaseDate": "2026-06-14T00:20:28.721Z",
+      "forceUpdate": false,
+      "url": "/files/apk/app-1.0.10.apk"
+    },
     {
       "changelog": "Versão Inicial",
       "versionName": "1.0.9",
