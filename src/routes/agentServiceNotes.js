@@ -185,4 +185,46 @@ router.post('/create', telegramAuth, async (req, res) => {
     }
 });
 
+// POST /agent/service-notes/resolve-pending-photos — curar registros antigos com placeholders de fotos
+router.post('/resolve-pending-photos', telegramAuth, async (req, res) => {
+    try {
+        const { urlMap } = req.body;
+        if (!urlMap || typeof urlMap !== 'object') {
+            return res.status(400).json({ error: 'urlMap invalido' });
+        }
+
+        const { cenos_pool } = require('../db');
+        let updatedCount = 0;
+
+        for (const [photoId, realUrl] of Object.entries(urlMap)) {
+            const placeholder = `photo://pending/${photoId}`;
+
+            // 1. Atualizar em completion_data
+            const queryJson = `
+                UPDATE service_notes 
+                SET completion_data = CAST(REPLACE(CAST(completion_data AS TEXT), $1, $2) AS JSONB),
+                    updated_at = NOW()
+                WHERE completion_data IS NOT NULL AND CAST(completion_data AS TEXT) LIKE $3
+            `;
+            const resJson = await cenos_pool.query(queryJson, [placeholder, realUrl, `%${placeholder}%`]);
+            updatedCount += resJson.rowCount;
+
+            // 2. Atualizar em description
+            const queryDesc = `
+                UPDATE service_notes 
+                SET description = REPLACE(description, $1, $2),
+                    updated_at = NOW()
+                WHERE description IS NOT NULL AND description LIKE $3
+            `;
+            const resDesc = await cenos_pool.query(queryDesc, [placeholder, realUrl, `%${placeholder}%`]);
+            updatedCount += resDesc.rowCount;
+        }
+
+        res.json({ success: true, updatedCount });
+    } catch (err) {
+        console.error('[AGENT_SERVICE_NOTES] Erro ao curar fotos pendentes:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
