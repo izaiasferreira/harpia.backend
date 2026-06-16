@@ -21,6 +21,4 @@ EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'SKIP daily_report_autor_fkey: %', SQLER
 
 DO $$ BEGIN
     ALTER TABLE service_notes DROP CONSTRAINT IF EXISTS service_notes_completed_by_fkey;
-    ALTER TABLE service_notes ADD CONSTRAINT service_notes_completed_by_fkey
-        FOREIGN KEY (completed_by) REFERENCES login(id) ON DELETE SET NULL NOT VALID;
-EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'SKIP service_notes_completed_by_fkey: %', SQLERRM; END $$;
+EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'SKIP drop service_notes_completed_by_fkey: %', SQLERRM; END $$;

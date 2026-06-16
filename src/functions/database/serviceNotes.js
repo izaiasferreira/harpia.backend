@@ -571,10 +571,11 @@ async function bulkMove(serviceIds, targetGroupId) {
 // ==========================================
 
 async function adminCompleteNote(noteId, { adminId, completionData }) {
+    const processedCompletionData = await processBase64Files(completionData, adminId);
     const { rows } = await cenos_pool.query(
         `UPDATE service_notes SET status = 'CONCLUIDO', completed_by = $1, completed_at = NOW(), completion_data = $2, updated_at = NOW()
          WHERE id = $3 RETURNING *`,
-        [adminId, completionData ? JSON.stringify(completionData) : null, noteId]
+        [adminId, processedCompletionData ? JSON.stringify(processedCompletionData) : null, noteId]
     );
     return rows[0] || null;
 }

@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS service_notes (
     address TEXT,
     status VARCHAR(50) NOT NULL DEFAULT 'PENDENTE' CHECK (status IN ('PENDENTE', 'CONCLUIDO')),
     assigned_to VARCHAR(50) REFERENCES login(id) ON DELETE SET NULL,
-    completed_by VARCHAR(50) REFERENCES login(id) ON DELETE SET NULL,
+    completed_by VARCHAR(50),
     completed_at TIMESTAMP,
     completion_coordinates VARCHAR(100),
     completion_data JSONB,
