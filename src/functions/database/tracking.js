@@ -1,4 +1,4 @@
-const { cenos_pool, pi_pool, ma_pool } = require('../../db');
+const { cenos_pool } = require('../../db');
 const { trackingPointSchema, speedViolationSchema, fallIncidentSchema } = require('../../db/schemas');
 
 async function insertTrackingPoints(agentId, points) {
@@ -157,12 +157,9 @@ async function getAgentsLastPosition() {
     if (rows.length === 0) return rows;
 
     // Enriquecer com dados do colaborador (nome, regional, seccional, gestor)
-    const piIds = rows.filter(r => r.agent_estado === 'pi').map(r => r.agent_id.toUpperCase());
-    const maIds = rows.filter(r => r.agent_estado === 'ma').map(r => r.agent_id.toUpperCase());
-
-    const colLookup = async (pool, ids) => {
+    const colLookup = async (ids) => {
         if (ids.length === 0) return {};
-        const { rows: cols } = await pool.query(
+        const { rows: cols } = await cenos_pool.query(
             `SELECT "ID", "Nome", "seccional", "regional", "GESTOR IMEDIATO" FROM colaboradores WHERE "ID" = ANY($1)`,
             [ids]
         );
@@ -171,14 +168,12 @@ async function getAgentsLastPosition() {
         return map;
     };
 
-    const [piCols, maCols] = await Promise.all([
-        colLookup(pi_pool, piIds),
-        colLookup(ma_pool, maIds),
-    ]);
+    const allIds = [...new Set(rows.map(r => r.agent_id.toUpperCase()))];
+    const cols = await colLookup(allIds);
 
     return rows.map(r => {
         const id = r.agent_id.toUpperCase();
-        const col = piCols[id] || maCols[id] || {};
+        const col = cols[id] || {};
         return {
             ...r,
             nome: col['Nome'] || null,
@@ -235,12 +230,9 @@ async function getSpeedViolations(filters = {}) {
     if (rows.length === 0) return rows;
 
     // Enriquecer com dados do colaborador
-    const piIds = rows.filter(r => r.agent_estado === 'pi').map(r => r.agent_id.toUpperCase());
-    const maIds = rows.filter(r => r.agent_estado === 'ma').map(r => r.agent_id.toUpperCase());
-
-    const colLookup = async (pool, ids) => {
+    const colLookup = async (ids) => {
         if (ids.length === 0) return {};
-        const { rows: cols } = await pool.query(
+        const { rows: cols } = await cenos_pool.query(
             `SELECT "ID", "Nome", "seccional", "regional", "GESTOR IMEDIATO" FROM colaboradores WHERE "ID" = ANY($1)`,
             [ids]
         );
@@ -249,14 +241,12 @@ async function getSpeedViolations(filters = {}) {
         return map;
     };
 
-    const [piCols, maCols] = await Promise.all([
-        colLookup(pi_pool, piIds),
-        colLookup(ma_pool, maIds),
-    ]);
+    const allIds = [...new Set(rows.map(r => r.agent_id.toUpperCase()))];
+    const cols = await colLookup(allIds);
 
     return rows.map(r => {
         const id = r.agent_id.toUpperCase();
-        const col = piCols[id] || maCols[id] || {};
+        const col = cols[id] || {};
         return {
             ...r,
             nome: col['Nome'] || null,

@@ -1,4 +1,4 @@
-const { cenos_pool, pi_pool, ma_pool } = require('../../db');
+const { cenos_pool } = require('../../db');
 const { SERVICE_NOTES_SYSTEM_PROMPT } = require('../../llm/prompts/serviceNotes');
 const llm = require('../../llm');
 const axios = require('axios');
@@ -96,24 +96,20 @@ async function clearChatMessages(groupId) {
 
 async function listAgents() {
     const agents = [];
-    const fetchAgents = async (pool, state) => {
-        try {
-            const { rows } = await pool.query(`SELECT "ID" as id, "Nome" as nome, "regional", "seccional" FROM colaboradores`);
-            rows.forEach(r => {
-                agents.push({
-                    id: r.id?.toUpperCase(),
-                    nome: r.nome,
-                    regional: r.regional || null,
-                    seccional: r.seccional || null,
-                    estado: state
-                });
+    try {
+        const { rows } = await cenos_pool.query(`SELECT "ID" as id, "Nome" as nome, "regional", "seccional", estado FROM colaboradores`);
+        rows.forEach(r => {
+            agents.push({
+                id: r.id?.toUpperCase(),
+                nome: r.nome,
+                regional: r.regional || null,
+                seccional: r.seccional || null,
+                estado: r.estado
             });
-        } catch (e) {
-            console.error(`Erro ao buscar colaboradores para chat no estado ${state}:`, e.message);
-        }
-    };
-    await fetchAgents(pi_pool, 'pi');
-    await fetchAgents(ma_pool, 'ma');
+        });
+    } catch (e) {
+        console.error('Erro ao buscar colaboradores:', e.message);
+    }
     return agents;
 }
 

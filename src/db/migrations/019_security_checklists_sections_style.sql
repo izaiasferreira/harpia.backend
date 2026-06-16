@@ -1,0 +1,3 @@
+ALTER TABLE checklist_sections
+ADD COLUMN IF NOT EXISTS section_color VARCHAR(7) DEFAULT '#3B82F6',
+ADD COLUMN IF NOT EXISTS section_icon VARCHAR(50) DEFAULT 'ShieldCheck';

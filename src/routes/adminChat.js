@@ -74,21 +74,18 @@ router.post('/admin/chat/rooms', verifyToken(), verifyModule('chat'), validate(c
             return res.status(400).json({ error: 'agent_id é obrigatório' });
         }
 
-        const { pi_pool, ma_pool } = require('../db');
+        const { cenos_pool: chatCenosPool } = require('../db');
         let agentInfo = null;
         let state = null;
 
-        // Busca agente em ambos os pools
-        for (const [pool, st] of [[pi_pool, 'pi'], [ma_pool, 'ma']]) {
-            const { rows } = await pool.query(
-                `SELECT "ID", "Nome", "regional", "seccional" FROM colaboradores WHERE "ID" = $1`,
-                [agent_id.toUpperCase()]
-            );
-            if (rows.length > 0) {
-                agentInfo = rows[0];
-                state = st;
-                break;
-            }
+        // Busca agente no cenos_pool
+        const { rows: agentRows } = await chatCenosPool.query(
+            `SELECT "ID", "Nome", "regional", "seccional", estado FROM colaboradores WHERE "ID" = $1`,
+            [agent_id.toUpperCase()]
+        );
+        if (agentRows.length > 0) {
+            agentInfo = agentRows[0];
+            state = agentRows[0].estado;
         }
 
         const agentName = agentInfo?.Nome || agent_id;

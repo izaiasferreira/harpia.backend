@@ -24,11 +24,9 @@ async function getUserData({ id, state }) {
         login = loginMatches[0];
     }
 
-    const pool_state = getPoolByState(state);
-
-    const { rows: colaboradorMatches } = await pool_state.query(
-        `SELECT * FROM colaboradores WHERE lower("ID") = $1`,
-        [id.toLowerCase()]
+    const { rows: colaboradorMatches } = await cenos_pool.query(
+        `SELECT * FROM colaboradores WHERE lower("ID") = $1 AND estado = $2`,
+        [id.toLowerCase(), state]
     );
 
     if (colaboradorMatches.length > 0) {

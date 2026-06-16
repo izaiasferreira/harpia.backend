@@ -26,10 +26,10 @@ beforeAll(async () => {
         "INSERT INTO login (id, estado, telegram_id) VALUES ('T12345', 'pi', $1) ON CONFLICT (id) DO UPDATE SET telegram_id = $1, estado = 'pi'",
         [TEST_TELEGRAM_ID]
     );
-    await pi_pool.query("DELETE FROM colaboradores WHERE \"ID\" = 'T12345'").catch(() => {});
-    await pi_pool.query(
-        `INSERT INTO colaboradores ("ID", "MAT", "Nome", "GESTOR IMEDIATO", "Cargo") 
-         VALUES ('T12345', '12345', 'Agente de Teste', 'Victor', 'AG.COMER LEITURISTA/MOTOCICLIS')`
+    await cenos_pool.query("DELETE FROM colaboradores WHERE \"ID\" = 'T12345'").catch(() => {});
+    await cenos_pool.query(
+        `INSERT INTO colaboradores ("ID", "MAT", "Nome", "GESTOR IMEDIATO", "Cargo", "estado") 
+         VALUES ('T12345', '12345', 'Agente de Teste', 'Victor', 'AG.COMER LEITURISTA/MOTOCICLIS', 'pi')`
     ).catch(() => {});
     // Criar token de teste programaticamente
     AUTH_TOKEN = crypto.randomBytes(32).toString('hex');
@@ -51,7 +51,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await cenos_pool.query("DELETE FROM login WHERE id = 'T12345'").catch(() => {});
-    await pi_pool.query("DELETE FROM colaboradores WHERE \"ID\" = 'T12345'").catch(() => {});
+    await cenos_pool.query("DELETE FROM colaboradores WHERE \"ID\" = 'T12345'").catch(() => {});
     // Limpar token de teste
     await cenos_pool.query('DELETE FROM telegram_tokens WHERE token = $1', [AUTH_TOKEN]).catch(() => {});
 

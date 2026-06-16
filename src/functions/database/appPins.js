@@ -1,4 +1,4 @@
-const { cenos_pool, pi_pool, ma_pool } = require('../../db');
+const { cenos_pool } = require('../../db');
 const { pinCreateSchema } = require('../../db/schemas');
 
 async function findAgentById(agentId) {
@@ -12,10 +12,9 @@ async function findAgentById(agentId) {
     const agent = rows[0];
     agent.id = agent.id.toUpperCase();
 
-    // Buscar nome na tabela colaboradores (PI ou MA)
-    const pool = (agent.estado || 'pi').toLowerCase() === 'ma' ? ma_pool : pi_pool;
+    // Buscar nome na tabela colaboradores (cenos_pool)
     try {
-        const { rows: colabRows } = await pool.query(
+        const { rows: colabRows } = await cenos_pool.query(
             `SELECT "Nome" FROM colaboradores WHERE upper("ID") = $1`,
             [normalizedId]
         );

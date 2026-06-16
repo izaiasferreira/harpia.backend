@@ -1,4 +1,4 @@
-const { cenos_pool, pi_pool, ma_pool } = require('../../db');
+const { cenos_pool } = require('../../db');
 const { chatMessageCreateSchema } = require('../../db/schemas');
 
 async function get_or_create_support_room(agentId, agentName) {
@@ -49,28 +49,23 @@ async function get_rooms_for_agent(agentId) {
 }
 
 async function get_rooms_for_admin() {
-    // Carrega todos os agentes de ambos os pools
+    // Carrega todos os agentes do cenos_pool
     const agentsMap = new Map();
 
-    const fetchAgents = async (pool, state) => {
-        try {
-            const { rows } = await pool.query(`SELECT "ID", "Nome", "regional", "seccional" FROM colaboradores`);
-            rows.forEach(r => {
-                agentsMap.set(r.ID?.toUpperCase(), {
-                    id: r.ID?.toUpperCase(),
-                    nome: r.Nome,
-                    regional: r.regional || null,
-                    seccional: r.seccional || null,
-                    estado: state
-                });
+    try {
+        const { rows } = await cenos_pool.query(`SELECT "ID", "Nome", "regional", "seccional", estado FROM colaboradores`);
+        rows.forEach(r => {
+            agentsMap.set(r.ID?.toUpperCase(), {
+                id: r.ID?.toUpperCase(),
+                nome: r.Nome,
+                regional: r.regional || null,
+                seccional: r.seccional || null,
+                estado: r.estado
             });
-        } catch (e) {
-            console.error(`Erro ao buscar colaboradores para chat no estado ${state}:`, e.message);
-        }
-    };
-
-    await fetchAgents(pi_pool, 'pi');
-    await fetchAgents(ma_pool, 'ma');
+        });
+    } catch (e) {
+        console.error('Erro ao buscar colaboradores para chat:', e.message);
+    }
 
     // Carrega todas as salas de suporte existentes
     const { rows: rooms } = await cenos_pool.query(

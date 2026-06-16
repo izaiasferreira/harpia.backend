@@ -1,6 +1,6 @@
 const express = require('express');
 const { validate } = require('../middlewares/validate');
-const { userCreateSchema, userUpdateSchema } = require('../db/schemas/users');
+const { userCreateSchema, userUpdateSchema, agentCreateSchema, agentUpdateSchema } = require('../db/schemas/users');
 const { justificativaCreateSchema, justifyPendingCreateSchema, justificativaSchema, justifyPendingSchema } = require('../db/schemas/justify');
 const { dailyReportCreateSchema, dailyReportSchema } = require('../db/schemas/dailyReport');
 const { inventoryCreateSchema, inventorySchema } = require('../db/schemas/inventory');
@@ -298,11 +298,11 @@ router.get('/users_agents/:id', verifyToken(), verifyModule('users_agents'), asy
     }
 });
 
-router.post('/users_agents', verifyToken(), verifyModule('create_user_agent'), validate(userCreateSchema), async (req, res) => {
+router.post('/users_agents', verifyToken(), verifyModule('create_user_agent'), validate(agentCreateSchema), async (req, res) => {
     try {
-        const { id, matricula, nome, estado, gestor, cargo, seccional, regional } = req.body;
+        const { id, matricula, nome, estado, gestor, cargo, seccional, regional, status, situacao } = req.body;
         const user = req.user;
-        const result = await create_user_agent_admin({ id, matricula, nome, estado, gestor, cargo, seccional, regional, user });
+        const result = await create_user_agent_admin({ id, matricula, nome, estado, gestor, cargo, seccional, regional, status, situacao, user });
         res.json(result);
     } catch (error) {
         console.log(error)
@@ -310,12 +310,31 @@ router.post('/users_agents', verifyToken(), verifyModule('create_user_agent'), v
     }
 });
 
-router.put('/users_agents/:id', verifyToken(), verifyModule('update_user_agent'), validate(userUpdateSchema), async (req, res) => {
+router.put('/users_agents/:id', verifyToken(), verifyModule('update_user_agent'), validate(agentUpdateSchema), async (req, res) => {
     try {
         const { id } = req.params;
-        const { nome, gestor, cargo, seccional, regional } = req.body;
+        const { nome, gestor, cargo, seccional, regional, estado, status, situacao } = req.body;
         const user = req.user;
-        const result = await update_user_agent_admin({ id, nome, gestor, cargo, seccional, regional, user });
+
+        if (estado !== undefined || status !== undefined || situacao !== undefined) {
+            const hasManageAgents = user.role.toLowerCase().includes('admin') || (user.modules || []).includes('manage_agents');
+            if (!hasManageAgents) {
+                const existing = await get_users_agents_admin({ user, ids: [id] });
+                if (existing && existing.length > 0) {
+                    const agent = existing[0];
+                    const changedEstado = estado !== undefined && estado !== null && estado.toLowerCase() !== (agent.estado || '').toLowerCase();
+                    const changedStatus = status !== undefined && status !== null && status !== agent.status;
+                    const changedSituacao = situacao !== undefined && situacao !== null && situacao !== agent.situacao;
+                    if (changedEstado || changedStatus || changedSituacao) {
+                        return res.status(403).json({ error: 'Você não tem permissão (módulo manage_agents) para alterar o estado, status ou situação do colaborador.' });
+                    }
+                } else {
+                    return res.status(404).json({ error: 'Usuário não encontrado' });
+                }
+            }
+        }
+
+        const result = await update_user_agent_admin({ id, nome, gestor, cargo, seccional, regional, estado, status, situacao, user });
         res.json(result);
     } catch (error) {
         console.log(error)

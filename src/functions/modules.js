@@ -95,7 +95,12 @@ const AVAILABLE_MODULES = [
     // Chat Suporte
     { id: 'chat', name: 'Chat Suporte Técnico' },
     // Admin (API Tokens e configs internas)
-    { id: 'admin', name: 'Admin (Tokens de API)' }
+    { id: 'admin', name: 'Admin (Tokens de API)' },
+    // Checklists
+    { id: 'checklists', name: 'Consultar Checklists de Segurança' },
+    { id: 'create_checklist', name: 'Responder / Criar Checklist' },
+    { id: 'manage_checklist_templates', name: 'Gerenciar Templates de Checklist' },
+    { id: 'manage_agents', name: 'Gerenciar Status/Situação de Agentes' }
 ];
 
 async function listModules() {

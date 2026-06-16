@@ -86,204 +86,146 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
         console.error('Erro ao buscar chats não lidos:', e.message);
     }
 
-    // Busca total primeiro (COUNT em cada pool)
-    let grandTotal = 0;
-    for (const { state, pool } of targetPools) {
-        let countQuery = `SELECT COUNT(*) as total FROM colaboradores WHERE 1=1`;
-        const countParams = [];
-        let paramIdx = 1;
+    const allowedStates = targetPools.map(p => p.state);
 
-        if (search) {
-            const conditions = [`"Nome" ILIKE $1`, `"ID" ILIKE $1`];
-            countParams.push(`%${search}%`);
-            paramIdx++;
-            if (searchIdsFromLogin.length > 0) {
-                conditions.push(`"ID" = ANY($2)`);
-                countParams.push(searchIdsFromLogin);
-                paramIdx++;
-            }
-            countQuery += ` AND (${conditions.join(' OR ')})`;
-        }
-        if (ids && ids.length > 0) {
-            countQuery += ` AND "ID" = ANY($${paramIdx})`;
-            countParams.push(ids.map(id => id.toUpperCase()));
-            paramIdx++;
-        }
-        if (regional) {
-            countQuery += ` AND "regional" ILIKE $${paramIdx}`;
-            countParams.push(`%${regional}%`);
-            paramIdx++;
-        }
-        if (seccional) {
-            countQuery += ` AND "seccional" ILIKE $${paramIdx}`;
-            countParams.push(`%${seccional}%`);
-            paramIdx++;
-        }
-        if (gestor) {
-            countQuery += ` AND "GESTOR IMEDIATO" ILIKE $${paramIdx}`;
-            countParams.push(`%${gestor}%`);
-            paramIdx++;
-        }
+    // Busca total (COUNT único em cenos_pool)
+    let countQuery = `SELECT COUNT(*) as total FROM colaboradores WHERE estado = ANY($1)`;
+    const countParams = [allowedStates];
+    let paramIdx = 2;
 
-        const { rows: countRows } = await pool.query(countQuery, countParams);
-        grandTotal += parseInt(countRows[0]?.total || 0);
+    if (search) {
+        const conditions = [`"Nome" ILIKE $2`, `"ID" ILIKE $2`];
+        countParams.push(`%${search}%`);
+        paramIdx++;
+        if (searchIdsFromLogin.length > 0) {
+            conditions.push(`"ID" = ANY($${paramIdx})`);
+            countParams.push(searchIdsFromLogin);
+            paramIdx++;
+        }
+        countQuery += ` AND (${conditions.join(' OR ')})`;
+    }
+    if (ids && ids.length > 0) {
+        countQuery += ` AND "ID" = ANY($${paramIdx})`;
+        countParams.push(ids.map(id => id.toUpperCase()));
+        paramIdx++;
+    }
+    if (regional) {
+        countQuery += ` AND "regional" ILIKE $${paramIdx}`;
+        countParams.push(`%${regional}%`);
+        paramIdx++;
+    }
+    if (seccional) {
+        countQuery += ` AND "seccional" ILIKE $${paramIdx}`;
+        countParams.push(`%${seccional}%`);
+        paramIdx++;
+    }
+    if (gestor) {
+        countQuery += ` AND "GESTOR IMEDIATO" ILIKE $${paramIdx}`;
+        countParams.push(`%${gestor}%`);
+        paramIdx++;
     }
 
-    // Busca dados paginados (limit + offset por pool, ordenado depois)
+    const { rows: countRows } = await cenos_pool.query(countQuery, countParams);
+    const grandTotal = parseInt(countRows[0]?.total || 0);
+
+    // Busca dados paginados (query única em cenos_pool)
     const limitVal = parseInt(limit) || 50;
     const offsetVal = (parseInt(page) - 1) * limitVal;
-    let rowsACC = [];
-    let accumulated = 0;
 
-    for (const { state, pool } of targetPools) {
-        let poolCountQuery = `SELECT COUNT(*) as total FROM colaboradores WHERE 1=1`;
-        const poolCountParams = [];
-        let pcIdx = 1;
-        if (search) {
-            const conditions = [`"Nome" ILIKE $1`, `"ID" ILIKE $1`];
-            poolCountParams.push(`%${search}%`);
-            pcIdx++;
-            if (searchIdsFromLogin.length > 0) {
-                conditions.push(`"ID" = ANY($2)`);
-                poolCountParams.push(searchIdsFromLogin);
-                pcIdx++;
-            }
-            poolCountQuery += ` AND (${conditions.join(' OR ')})`;
+    let colabQuery = `SELECT * FROM colaboradores WHERE estado = ANY($1)`;
+    const colabParams = [allowedStates];
+    let cpIdx = 2;
+
+    if (search) {
+        const conditions = [`"Nome" ILIKE $2`, `"ID" ILIKE $2`];
+        colabParams.push(`%${search}%`);
+        cpIdx++;
+        if (searchIdsFromLogin.length > 0) {
+            conditions.push(`"ID" = ANY($${cpIdx})`);
+            colabParams.push(searchIdsFromLogin);
+            cpIdx++;
         }
-        if (ids && ids.length > 0) {
-            poolCountQuery += ` AND "ID" = ANY($${pcIdx})`;
-            poolCountParams.push(ids.map(id => id.toUpperCase()));
-            pcIdx++;
-        }
-        if (regional) {
-            poolCountQuery += ` AND "regional" ILIKE $${pcIdx}`;
-            poolCountParams.push(`%${regional}%`);
-            pcIdx++;
-        }
-        if (seccional) {
-            poolCountQuery += ` AND "seccional" ILIKE $${pcIdx}`;
-            poolCountParams.push(`%${seccional}%`);
-            pcIdx++;
-        }
-        if (gestor) {
-            poolCountQuery += ` AND "GESTOR IMEDIATO" ILIKE $${pcIdx}`;
-            poolCountParams.push(`%${gestor}%`);
-            pcIdx++;
-        }
-
-        const { rows: pcRows } = await pool.query(poolCountQuery, poolCountParams);
-        const poolTotal = parseInt(pcRows[0]?.total || 0);
-
-        if (poolTotal === 0) continue;
-
-        // Calcula offset para este pool
-        if (offsetVal >= accumulated + poolTotal) {
-            accumulated += poolTotal;
-            continue; // pool todo pula
-        }
-
-        let colabQuery = `SELECT * FROM colaboradores WHERE 1=1`;
-        const colabParams = [];
-        let paramIdx = 1;
-
-        if (search) {
-            const conditions = [`"Nome" ILIKE $1`, `"ID" ILIKE $1`];
-            colabParams.push(`%${search}%`);
-            paramIdx++;
-            if (searchIdsFromLogin.length > 0) {
-                conditions.push(`"ID" = ANY($2)`);
-                colabParams.push(searchIdsFromLogin);
-                paramIdx++;
-            }
-            colabQuery += ` AND (${conditions.join(' OR ')})`;
-        }
-        if (ids && ids.length > 0) {
-            colabQuery += ` AND "ID" = ANY($${paramIdx})`;
-            colabParams.push(ids.map(id => id.toUpperCase()));
-            paramIdx++;
-        }
-        if (regional) {
-            colabQuery += ` AND "regional" ILIKE $${paramIdx}`;
-            colabParams.push(`%${regional}%`);
-            paramIdx++;
-        }
-        if (seccional) {
-            colabQuery += ` AND "seccional" ILIKE $${paramIdx}`;
-            colabParams.push(`%${seccional}%`);
-            paramIdx++;
-        }
-        if (gestor) {
-            colabQuery += ` AND "GESTOR IMEDIATO" ILIKE $${paramIdx}`;
-            colabParams.push(`%${gestor}%`);
-            paramIdx++;
-        }
-
-        // LIMIT + OFFSET por pool
-        const poolOffset = Math.max(0, offsetVal - accumulated);
-        colabQuery += ` ORDER BY "Nome" ASC LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`;
-        colabParams.push(limitVal, poolOffset);
-
-        const { rows } = await pool.query(colabQuery, colabParams);
-
-        const result = rows.map(r => {
-            const mapped = {
-                ...r,
-                gestor: r['GESTOR IMEDIATO'],
-                matricula: `${parseInt(r['MAT'])}`,
-                nome: r['Nome'],
-                id: (r['ID']).toUpperCase(),
-                estado: state
-            };
-
-            delete mapped['GESTOR IMEDIATO'];
-            delete mapped['MAT'];
-            delete mapped['Nome'];
-            delete mapped['ID'];
-
-            let cargo = r?.Cargo;
-            let setor_key = Object.keys(setor).find(k => cargo?.includes(k));
-            let veiculo_key = Object.keys(veiculo).find(k => cargo?.includes(k));
-
-            mapped['setor'] = setor[setor_key] || null;
-            mapped['cargo'] = veiculo[veiculo_key] || null;
-            delete mapped['Cargo'];
-
-            return mapped;
-        });
-
-        // Enriquecimento com login data
-        if (result.length > 0) {
-            const { rows: loginData } = await cenos_pool.query(
-                `SELECT * FROM login WHERE id IN (${result.map((_, i) => `$${i + 1}`).join(',')})`,
-                result.map(r => r.id)
-            );
-
-            result.forEach(r => {
-                const login = loginData.find(l => l.id === r.id);
-                r.telegram_id = login?.telegram_id || null;
-                // Garante valores null para campos vazios
-                r.seccional = r.seccional || null;
-                r.regional = r.regional || null;
-                r.has_inventory = inventoryAgentsSet.has(r.id);
-                r.unread_chat_count = unreadChatsSet.get(r.id) || 0;
-            });
-        }
-
-        rowsACC.push(...result);
-        accumulated += poolTotal;
+        colabQuery += ` AND (${conditions.join(' OR ')})`;
+    }
+    if (ids && ids.length > 0) {
+        colabQuery += ` AND "ID" = ANY($${cpIdx})`;
+        colabParams.push(ids.map(id => id.toUpperCase()));
+        cpIdx++;
+    }
+    if (regional) {
+        colabQuery += ` AND "regional" ILIKE $${cpIdx}`;
+        colabParams.push(`%${regional}%`);
+        cpIdx++;
+    }
+    if (seccional) {
+        colabQuery += ` AND "seccional" ILIKE $${cpIdx}`;
+        colabParams.push(`%${seccional}%`);
+        cpIdx++;
+    }
+    if (gestor) {
+        colabQuery += ` AND "GESTOR IMEDIATO" ILIKE $${cpIdx}`;
+        colabParams.push(`%${gestor}%`);
+        cpIdx++;
     }
 
-    // Ordenação básica
-    rowsACC.sort((a, b) => a.nome.localeCompare(b.nome));
+    colabQuery += ` ORDER BY "Nome" ASC LIMIT $${cpIdx} OFFSET $${cpIdx + 1}`;
+    colabParams.push(limitVal, offsetVal);
+
+    const { rows } = await cenos_pool.query(colabQuery, colabParams);
+
+    const result = rows.map(r => {
+        const mapped = {
+            ...r,
+            gestor: r['GESTOR IMEDIATO'],
+            matricula: `${parseInt(r['MAT'])}`,
+            nome: r['Nome'],
+            id: (r['ID']).toUpperCase(),
+            estado: r['estado']
+        };
+
+        delete mapped['GESTOR IMEDIATO'];
+        delete mapped['MAT'];
+        delete mapped['Nome'];
+        delete mapped['ID'];
+
+        let cargo = r?.Cargo;
+        let setor_key = Object.keys(setor).find(k => cargo?.includes(k));
+        let veiculo_key = Object.keys(veiculo).find(k => cargo?.includes(k));
+
+        mapped['setor'] = setor[setor_key] || null;
+        mapped['cargo'] = veiculo[veiculo_key] || null;
+        delete mapped['Cargo'];
+
+        return mapped;
+    });
+
+    // Enriquecimento com login data
+    if (result.length > 0) {
+        const { rows: loginData } = await cenos_pool.query(
+            `SELECT * FROM login WHERE id IN (${result.map((_, i) => `$${i + 1}`).join(',')})`,
+            result.map(r => r.id)
+        );
+
+        result.forEach(r => {
+            const login = loginData.find(l => l.id === r.id);
+            r.telegram_id = login?.telegram_id || null;
+            r.seccional = r.seccional || null;
+            r.regional = r.regional || null;
+            r.has_inventory = inventoryAgentsSet.has(r.id);
+            r.unread_chat_count = unreadChatsSet.get(r.id) || 0;
+        });
+    }
+
+    let filteredResult = result;
 
     if (filterUser && !userIsAdmin(user)) {
-        rowsACC = rowsACC.filter(r => {
+        filteredResult = filteredResult.filter(r => {
             return r[filterUser.type] === filterUser.value;
         });
     }
 
     return {
-        data: rowsACC,
+        data: filteredResult,
         total: grandTotal,
         page: parseInt(page),
         limit: limitVal
@@ -302,8 +244,8 @@ async function get_user_agent_options({ estado }) {
         regionais: [],
         seccionais: []
     };
-    const query = `SELECT DISTINCT "GESTOR IMEDIATO" FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL`;
-    const { rows } = await estado === 'pi' ? await pi_pool.query(query) : await ma_pool.query(query);
+    const query = `SELECT DISTINCT "GESTOR IMEDIATO" FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL AND estado = $1`;
+    const { rows } = await cenos_pool.query(query, [estado]);
     result.gestores = rows.map(r => r['GESTOR IMEDIATO']);
 
 
@@ -315,27 +257,45 @@ async function get_user_agent_options({ estado }) {
     const { rows: rows3 } = await estado === 'pi' ? await pi_pool.query(query3) : await ma_pool.query(query3);
     result.regionais = rows3.map(r => r['regional']);
 
-    const query4 = `SELECT DISTINCT "Cargo" FROM colaboradores WHERE "Cargo" IS NOT NULL`;
-    const { rows: rows4 } = await estado === 'pi' ? await pi_pool.query(query4) : await ma_pool.query(query4);
+    const query4 = `SELECT DISTINCT "Cargo" FROM colaboradores WHERE "Cargo" IS NOT NULL AND estado = $1`;
+    const { rows: rows4 } = await cenos_pool.query(query4, [estado]);
     result.cargos = rows4.map(r => r['Cargo']);
 
     return result;
 }
 
-async function create_user_agent_admin({ id, matricula, nome, estado, gestor, cargo, user, seccional, regional }) {
+async function create_user_agent_admin({ id, matricula, nome, estado: inputEstado, gestor, cargo, user, seccional, regional, status = true, situacao = 'active' }) {
     const allowedPools = getUserAllowedStatePools(user);
-    const target = allowedPools.find(p => p.state === estado.toLowerCase());
+    const target = allowedPools.find(p => p.state === inputEstado.toLowerCase());
 
     if (!target) {
-        return { error: `Você não tem permissão para cadastrar agentes no estado ${estado.toUpperCase()}` };
+        return { error: `Você não tem permissão para cadastrar agentes no estado ${inputEstado.toUpperCase()}` };
     }
 
-    const query = `INSERT INTO colaboradores ("ID", "MAT", "Nome", "GESTOR IMEDIATO", "Cargo", "seccional", "regional") VALUES ($1, $2, $3, $4, $5, $6, $7)`;
-    const params = [id?.toUpperCase(), matricula, nome, gestor, cargo, seccional, regional];
+    const query = `
+        INSERT INTO colaboradores ("ID", "MAT", "Nome", "GESTOR IMEDIATO", "Cargo", "seccional", "regional", "estado", "status", "situacao")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `;
+    const params = [
+        id?.toUpperCase(),
+        matricula,
+        nome,
+        gestor,
+        cargo,
+        seccional,
+        regional,
+        inputEstado.toLowerCase(),
+        status !== undefined ? status : true,
+        situacao !== undefined ? situacao : 'active'
+    ];
 
     try {
-        await target.pool.query(query, params);
-        const result = await get_users_agents_admin({ user, ids: [id], estado });
+        await cenos_pool.query(query, params);
+        await cenos_pool.query(
+            `INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET estado = EXCLUDED.estado`,
+            [id?.toUpperCase(), inputEstado.toLowerCase()]
+        );
+        const result = await get_users_agents_admin({ user, ids: [id], estado: inputEstado });
         return result[0];
     } catch (err) {
         console.error('Erro ao criar usuário:', err.message);
@@ -516,7 +476,7 @@ async function delete_user_agent_admin({ id, user, deleteLogin = false }) {
     }
 
     try {
-        await target.pool.query(`DELETE FROM colaboradores WHERE "ID" = $1`, [id?.toUpperCase()]);
+        await cenos_pool.query(`DELETE FROM colaboradores WHERE "ID" = $1`, [id?.toUpperCase()]);
 
         if (deleteLogin) {
             await cenos_pool.query(`DELETE FROM login WHERE id = $1`, [id?.toUpperCase()]);
@@ -529,7 +489,7 @@ async function delete_user_agent_admin({ id, user, deleteLogin = false }) {
     }
 }
 
-async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, regional, user }) {
+async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, regional, estado, status, situacao, user }) {
     const userData = await get_users_agents_admin({ user, ids: [id] });
     if (!userData.length) return { error: 'Usuário não encontrado' };
 
@@ -541,12 +501,31 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
         return { error: `Você não tem permissão para atualizar agentes no estado ${agent.estado.toUpperCase()}` };
     }
 
-    const query = `UPDATE colaboradores SET "Nome" = $1, "GESTOR IMEDIATO" = $2, "Cargo" = $3, "seccional" = $4, "regional" = $5 WHERE "ID" = $6`;
-    const params = [nome, gestor, cargo, seccional, regional, id?.toUpperCase()];
+    const query = `
+        UPDATE colaboradores 
+        SET "Nome" = $1, "GESTOR IMEDIATO" = $2, "Cargo" = $3, "seccional" = $4, "regional" = $5,
+            "estado" = COALESCE($6, "estado"), "status" = COALESCE($7, "status"), "situacao" = COALESCE($8, "situacao")
+        WHERE "ID" = $9
+    `;
+    const params = [
+        nome,
+        gestor,
+        cargo,
+        seccional,
+        regional,
+        estado !== undefined ? estado.toLowerCase() : null,
+        status !== undefined ? status : null,
+        situacao !== undefined ? situacao : null,
+        id?.toUpperCase()
+    ];
 
     try {
-        await target.pool.query(query, params);
-        const result = await get_users_agents_admin({ user, ids: [id], estado: agent.estado });
+        await cenos_pool.query(query, params);
+        await cenos_pool.query(
+            `INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET estado = EXCLUDED.estado`,
+            [id?.toUpperCase(), estado !== undefined ? estado.toLowerCase() : agent.estado.toLowerCase()]
+        );
+        const result = await get_users_agents_admin({ user, ids: [id], estado: estado || agent.estado });
         return result[0];
     } catch (err) {
         console.error('Erro ao atualizar usuário:', err.message);

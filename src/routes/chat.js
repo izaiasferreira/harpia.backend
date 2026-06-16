@@ -73,10 +73,7 @@ router.get('/api/chat/rooms', chatAuth, async (req, res) => {
         const agentId = req.colaborador.id?.toUpperCase();
         
         // Pega os dados do agente para dar o nome correto à sala de suporte
-        const state = req.colaborador.estado;
-        const pool = state === 'pi' ? require('../db').pi_pool : require('../db').ma_pool;
-        
-        const { rows: agentData } = await pool.query(
+        const { rows: agentData } = await cenos_pool.query(
             `SELECT "Nome" FROM colaboradores WHERE "ID" = $1`, 
             [agentId]
         );

@@ -1,28 +1,20 @@
 {
   "latest": {
-    "changelog": "Melhorias no mapa",
-    "versionName": "1.0.11",
-    "versionCode": 11,
-    "releaseDate": "2026-06-15T12:36:40.885Z",
+    "versionCode": 2,
+    "versionName": "1.0.1",
+    "url": "/files/apk/app-1.0.1.apk",
+    "changelog": "Correcao de bugs",
     "forceUpdate": false,
-    "url": "/files/apk/app-1.0.11.apk"
+    "releaseDate": "2025-06-03T00:00:00.000Z"
   },
   "history": [
     {
-      "changelog": "Tracking unificado e estabilidade no envio",
-      "versionName": "1.0.10",
-      "versionCode": 10,
-      "releaseDate": "2026-06-14T00:20:28.721Z",
+      "versionCode": 1,
+      "versionName": "1.0.0",
+      "url": "/files/apk/app-1.0.0.apk",
+      "changelog": "Versao inicial",
       "forceUpdate": false,
-      "url": "/files/apk/app-1.0.10.apk"
-    },
-    {
-      "changelog": "Versão Inicial",
-      "versionName": "1.0.9",
-      "versionCode": 9,
-      "releaseDate": "2026-06-10T18:30:31.673Z",
-      "forceUpdate": false,
-      "url": "/files/apk/app-1.0.9.apk"
+      "releaseDate": "2025-01-01T00:00:00.000Z"
     }
   ]
 }

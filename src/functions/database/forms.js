@@ -1,4 +1,4 @@
-const { cenos_pool, pi_pool, ma_pool } = require('../../db');
+const { cenos_pool } = require('../../db');
 const { addBadgeToProfile } = require('./agentes');
 const { assignBadgesFromLinkedCeneducCards } = require('./ceneduc');
 const { formCreateSchema, formSchema, formSubmitSchema } = require('../../db/schemas');
@@ -325,15 +325,13 @@ async function getFormResponses(formId, page = 1, limit = 20) {
     const agentMap = {};
     if (agentIds.length > 0) {
         const placeholders = agentIds.map((_, i) => `$${i + 1}`).join(',');
-        const agentQuery = `SELECT "ID", "Nome", "seccional", "regional" FROM colaboradores WHERE "ID" IN (${placeholders})`;
-        for (const { pool: statePool, state } of [{ pool: pi_pool, state: 'PI' }, { pool: ma_pool, state: 'MA' }]) {
-            try {
-                const { rows: agentRows } = await statePool.query(agentQuery, agentIds);
-                for (const a of agentRows) {
-                    agentMap[a['ID']] = { name: a['Nome'], seccional: a['seccional'], regional: a['regional'], state };
-                }
-            } catch (_) { /* ignora erro do pool sem a tabela */ }
-        }
+        const agentQuery = `SELECT "ID", "Nome", "seccional", "regional", estado FROM colaboradores WHERE "ID" IN (${placeholders})`;
+        try {
+            const { rows: agentRows } = await cenos_pool.query(agentQuery, agentIds);
+            for (const a of agentRows) {
+                agentMap[a['ID']] = { name: a['Nome'], seccional: a['seccional'], regional: a['regional'], state: a['estado']?.toUpperCase() };
+            }
+        } catch (_) { /* ignora erro */ }
     }
 
     // Calcular score para TODAS as respostas sem exceção

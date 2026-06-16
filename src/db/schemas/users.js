@@ -28,10 +28,36 @@ const userLoginSchema = z.object({
   senha: z.string().min(1)
 });
 
+const agentCreateSchema = z.object({
+  id: z.string().min(1).max(255),
+  matricula: z.string().min(1).max(255),
+  nome: z.string().min(1).max(255),
+  estado: z.string().min(2).max(2),
+  gestor: z.string().max(255).optional().nullable(),
+  cargo: z.string().max(255).optional().nullable(),
+  seccional: z.string().max(255).optional().nullable(),
+  regional: z.string().max(255).optional().nullable(),
+  status: z.boolean().optional(),
+  situacao: z.enum(['active', 'vocation', 'inactive', 'away']).optional()
+});
+
+const agentUpdateSchema = z.object({
+  nome: z.string().min(1).max(255).optional(),
+  gestor: z.string().max(255).optional().nullable(),
+  cargo: z.string().max(255).optional().nullable(),
+  seccional: z.string().max(255).optional().nullable(),
+  regional: z.string().max(255).optional().nullable(),
+  estado: z.string().max(2).optional().nullable(),
+  status: z.boolean().optional(),
+  situacao: z.enum(['active', 'vocation', 'inactive', 'away']).optional()
+});
+
 module.exports = {
   userSchema,
   userCreateSchema,
   userUpdateSchema,
   userLoginSchema,
-  userBranchesSchema
+  userBranchesSchema,
+  agentCreateSchema,
+  agentUpdateSchema
 };

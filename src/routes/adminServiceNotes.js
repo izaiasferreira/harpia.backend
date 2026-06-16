@@ -10,7 +10,7 @@ const categoryCreateSchema = z.object({
   name: z.string().min(1),
   color: z.string().max(7).optional()
 });
-const { cenos_pool, pi_pool, ma_pool } = require('../db');
+const { cenos_pool } = require('../db');
 const {
     listServiceGroups, getServiceGroupById, createServiceGroup, updateServiceGroup, deleteServiceGroup,
     listCategoriesByGroup, createCategory, deleteCategory,
@@ -151,21 +151,17 @@ router.get('/', verifyToken(), verifyModule('service_notes'), async (req, res) =
     }
 });
 
-// Helper to get names of agents from state databases (colaboradores table)
+// Helper to get names of agents from colaboradores table (cenos_pool)
 async function getColaboradoresNames(agentIds) {
     if (!agentIds || agentIds.length === 0) return {};
     try {
         const uppercaseIds = agentIds.map(id => id.toUpperCase());
-        const [piRes, maRes] = await Promise.all([
-            pi_pool.query(`SELECT "ID" AS id, "Nome" AS nome FROM colaboradores WHERE "ID" = ANY($1::varchar[])`, [uppercaseIds]),
-            ma_pool.query(`SELECT "ID" AS id, "Nome" AS nome FROM colaboradores WHERE "ID" = ANY($1::varchar[])`, [uppercaseIds])
-        ]);
+        const { rows } = await cenos_pool.query(
+            `SELECT "ID" AS id, "Nome" AS nome FROM colaboradores WHERE "ID" = ANY($1::varchar[])`, [uppercaseIds]
+        );
         
         const namesMap = {};
-        piRes.rows.forEach(r => {
-            if (r.id) namesMap[r.id.toUpperCase()] = r.nome;
-        });
-        maRes.rows.forEach(r => {
+        rows.forEach(r => {
             if (r.id) namesMap[r.id.toUpperCase()] = r.nome;
         });
         return namesMap;
