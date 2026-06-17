@@ -3,17 +3,6 @@
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. Renomeia tabelas antigas (preserva dados)
-ALTER TABLE IF EXISTS checklist_templates      RENAME TO checklist_templates_old;
-ALTER TABLE IF EXISTS checklist_sections       RENAME TO checklist_sections_old;
-ALTER TABLE IF EXISTS checklist_questions      RENAME TO checklist_questions_old;
-ALTER TABLE IF EXISTS checklists               RENAME TO checklists_old;
-ALTER TABLE IF EXISTS checklist_answers        RENAME TO checklist_answers_old;
-ALTER TABLE IF EXISTS checklist_media          RENAME TO checklist_media_old;
-
--- 2. Chat messages — recria com FK para a nova tabela
-DROP TABLE IF EXISTS checklist_template_chat_messages CASCADE;
-
 -- 3. Nova tabela de templates (seções + perguntas aninhadas em data JSONB)
 CREATE TABLE IF NOT EXISTS checklist_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

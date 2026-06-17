@@ -369,6 +369,17 @@ async function saveChecklistSubmission(agentId, data) {
             if (hasCriticalNonCompliant) break;
           }
         }
+        // Validate observation when required
+        for (const ans of answers) {
+          if (ans.is_compliant === false && ans.question_uuid) {
+            for (const sec of sections) {
+              const found = (sec.questions || []).find(q => q.uuid === ans.question_uuid);
+              if (found && found.requires_observation_if_nc && found.observation_required && (!ans.observation || !ans.observation.trim())) {
+                throw { status: 400, message: `Observação obrigatória para a pergunta: ${found.label}` };
+              }
+            }
+          }
+        }
       }
     }
 

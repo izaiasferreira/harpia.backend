@@ -12,6 +12,7 @@ const {
   getChecklistById,
   getChecklistsStats,
 } = require('../functions/database/checklists');
+const { getUserData } = require('../functions/database/agentes');
 
 // ==========================================
 // TEMPLATES
@@ -131,7 +132,11 @@ router.get('/', verifyToken(), verifyModule('checklists'), async (req, res) => {
 router.get('/:id', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
     const checklist = await getChecklistById(req.params.id);
+    
     if (!checklist) return res.status(404).json({ error: 'Checklist não encontrado' });
+
+    // const user = await getUserData({ id: req.user.id, state: req.user.estado })
+    console.log("AQUI", checklist)
     res.json(checklist);
   } catch (err) {
     console.error('[ADMIN_CHECKLISTS] Erro GET /:id:', err);
