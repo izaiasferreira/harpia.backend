@@ -100,6 +100,7 @@ const AVAILABLE_MODULES = [
     { id: 'checklists', name: 'Consultar Checklists de Segurança' },
     { id: 'create_checklist', name: 'Responder / Criar Checklist' },
     { id: 'manage_checklist_templates', name: 'Gerenciar Templates de Checklist' },
+    { id: 'delete_checklist', name: 'Excluir Checklist' },
     { id: 'manage_agents', name: 'Gerenciar Status/Situação de Agentes' }
 ];
 

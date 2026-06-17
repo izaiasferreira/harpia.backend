@@ -447,6 +447,11 @@ async function saveChecklistSubmission(agentId, data) {
   }
 }
 
+async function deleteChecklist(id) {
+  const { rowCount } = await cenos_pool.query('DELETE FROM checklists WHERE id = $1', [id]);
+  return rowCount > 0;
+}
+
 module.exports = {
   listTemplatesAdmin,
   listTemplatesForAgent,
@@ -460,4 +465,5 @@ module.exports = {
   listChecklistsAdmin,
   getChecklistsStats,
   saveChecklistSubmission,
+  deleteChecklist,
 };

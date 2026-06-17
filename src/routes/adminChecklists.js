@@ -11,6 +11,7 @@ const {
   listChecklistsAdmin,
   getChecklistById,
   getChecklistsStats,
+  deleteChecklist,
 } = require('../functions/database/checklists');
 const { getUserData } = require('../functions/database/agentes');
 
@@ -140,6 +141,17 @@ router.get('/:id', verifyToken(), verifyModule('checklists'), async (req, res) =
     res.json(checklist);
   } catch (err) {
     console.error('[ADMIN_CHECKLISTS] Erro GET /:id:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/:id', verifyToken(), verifyModule('delete_checklist'), async (req, res) => {
+  try {
+    const deleted = await deleteChecklist(req.params.id);
+    if (!deleted) return res.status(404).json({ error: 'Checklist não encontrado' });
+    res.json({ message: 'Checklist excluído com sucesso' });
+  } catch (err) {
+    console.error('[ADMIN_CHECKLISTS] Erro DELETE /:id:', err);
     res.status(500).json({ error: err.message });
   }
 });
