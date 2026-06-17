@@ -39,7 +39,7 @@ function generateChecklistPdf(checklist) {
       const dateLabel = checklist.date
         ? new Date(checklist.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
         : '-';
-      const typeLabel = checklist.type === 'official' ? 'Oficial' : 'Avulso';
+      const typeLabel = checklist.type === 'official' ? 'Diário' : 'Atualização';
 
       doc.fontSize(10).fillColor('white').font('Helvetica')
         .text(`Data: ${dateLabel}`, doc.page.width - 200, 25, { width: 160, align: 'right' })

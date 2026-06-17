@@ -1,0 +1,1 @@
+ALTER TABLE colaboradores ADD COLUMN IF NOT EXISTS processo VARCHAR(50);

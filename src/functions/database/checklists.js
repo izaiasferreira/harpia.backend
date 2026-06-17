@@ -15,7 +15,7 @@ async function listTemplatesAdmin() {
 
 async function listTemplatesForAgent(agentEstado) {
   const { rows } = await cenos_pool.query(
-    'SELECT * FROM checklist_templates WHERE is_active = true AND (estado IS NULL OR estado = $1) ORDER BY created_at DESC',
+    'SELECT * FROM checklist_templates WHERE is_active = true AND (UPPER(estado) = UPPER($1)) OR estado IS NULL ORDER BY created_at DESC',
     [agentEstado]
   );
   return rows;
@@ -130,7 +130,13 @@ async function updateSection(id, { title, order_index, section_color, section_ic
       section_color = COALESCE($4, section_color),
       section_icon = COALESCE($5, section_icon)
      WHERE id = $1 RETURNING *`,
-    [id, title, order_index, section_color, section_icon]
+    [
+      id,
+      title !== undefined ? title : null,
+      order_index !== undefined ? order_index : null,
+      section_color !== undefined ? section_color : null,
+      section_icon !== undefined ? section_icon : null
+    ]
   );
   return rows[0];
 }
@@ -147,16 +153,16 @@ async function deleteSection(id) {
 // QUESTIONS (Admin)
 // ==========================================
 
-async function createQuestion(sectionId, templateId, { label, required, requires_photo, severity, exemption_days, order_index, question_type = 'binary', options = null }) {
+async function createQuestion(sectionId, templateId, { label, required, requires_photo, requires_photo_always = false, severity, exemption_days, order_index, question_type = 'binary', options = null }) {
   const { rows } = await cenos_pool.query(
-    `INSERT INTO checklist_questions (section_id, template_id, label, required, requires_photo, severity, exemption_days, order_index, question_type, options)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-    [sectionId, templateId, label, required, requires_photo, severity, exemption_days, order_index, question_type, options ? JSON.stringify(options) : null]
+    `INSERT INTO checklist_questions (section_id, template_id, label, required, requires_photo, requires_photo_always, severity, exemption_days, order_index, question_type, options)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+    [sectionId, templateId, label, required, requires_photo, requires_photo_always, severity, exemption_days, order_index, question_type, options ? JSON.stringify(options) : null]
   );
   return rows[0];
 }
 
-async function updateQuestion(id, { label, required, requires_photo, severity, exemption_days, order_index, question_type, options }) {
+async function updateQuestion(id, { label, required, requires_photo, requires_photo_always, severity, exemption_days, order_index, question_type, options }) {
   const opts = options === undefined ? undefined : JSON.stringify(options);
   const { rows } = await cenos_pool.query(
     `UPDATE checklist_questions
@@ -167,9 +173,21 @@ async function updateQuestion(id, { label, required, requires_photo, severity, e
          exemption_days = COALESCE($6, exemption_days),
          order_index = COALESCE($7, order_index),
          question_type = COALESCE($8, question_type),
-         options = COALESCE($9, options)
+         options = COALESCE($9, options),
+         requires_photo_always = COALESCE($10, requires_photo_always)
      WHERE id = $1 RETURNING *`,
-    [id, label, required, requires_photo, severity, exemption_days, order_index, question_type, opts]
+    [
+      id,
+      label !== undefined ? label : null,
+      required !== undefined ? required : null,
+      requires_photo !== undefined ? requires_photo : null,
+      severity !== undefined ? severity : null,
+      exemption_days !== undefined ? exemption_days : null,
+      order_index !== undefined ? order_index : null,
+      question_type !== undefined ? question_type : null,
+      opts !== undefined ? opts : null,
+      requires_photo_always !== undefined ? requires_photo_always : null
+    ]
   );
   return rows[0];
 }
@@ -241,12 +259,15 @@ async function getAgentTodayChecklist(agentId, dateStr) {
 }
 
 async function getChecklistById(id) {
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  const whereClause = isUUID ? 'c.id = $1' : 'c.local_id = $1';
+
   const query = `
     SELECT c.*, t.title as template_title, l.id as agent_id, l.estado as agent_estado
     FROM checklists c
     LEFT JOIN checklist_templates t ON c.template_id = t.id
     LEFT JOIN login l ON c.agent_id = l.id
-    WHERE c.id = $1
+    WHERE ${whereClause}
   `;
   const { rows } = await cenos_pool.query(query, [id]);
   if (rows.length === 0) return null;
@@ -368,12 +389,9 @@ async function listChecklistsAdmin({ page = 1, limit = 10, regional_id, sectiona
   const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
 
   const query = `
-    SELECT c.*, t.title as template_title,
-           br.name as regional_name, bs.name as sectional_name
+    SELECT c.*, t.title as template_title
     FROM checklists c
     LEFT JOIN checklist_templates t ON c.template_id = t.id
-    LEFT JOIN branches br ON c.regional_id = br.id
-    LEFT JOIN branches bs ON c.sectional_id = bs.id
     ${whereClause}
     ORDER BY c.submitted_at DESC, c.date DESC
     LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -404,11 +422,7 @@ async function getChecklistsStats({ regional_id, date_from, date_to }) {
   let paramIndex = 1;
   const filters = ['c.status = \'submitted\''];
 
-  if (regional_id) {
-    filters.push(`c.regional_id = $${paramIndex}`);
-    params.push(regional_id);
-    paramIndex++;
-  }
+  // regional_id parameter kept but ignored as column is removed
 
   // Se nenhuma data fornecida, assume hoje para contagem superior
   const todayStr = new Date().toISOString().split('T')[0];
@@ -532,22 +546,6 @@ async function saveChecklistSubmission(agentId, data) {
       }
     }
 
-    // 2. Fetch regional/sectional branch of agent
-    let regional_id = null;
-    let sectional_id = null;
-    const { rows: agentBranchRows } = await client.query(
-      `SELECT regional, seccional FROM inventory WHERE agente = $1 LIMIT 1`,
-      [agentId]
-    );
-    if (agentBranchRows.length > 0) {
-      const regName = agentBranchRows[0].regional;
-      const secName = agentBranchRows[0].seccional;
-      const { rows: rIdRows } = await client.query('SELECT id FROM branches WHERE name = $1 LIMIT 1', [regName]);
-      const { rows: sIdRows } = await client.query('SELECT id FROM branches WHERE name = $1 LIMIT 1', [secName]);
-      if (rIdRows.length > 0) regional_id = rIdRows[0].id;
-      if (sIdRows.length > 0) sectional_id = sIdRows[0].id;
-    }
-
     let checklistId = id || crypto.randomUUID();
     let isEditing = false;
 
@@ -607,10 +605,10 @@ async function saveChecklistSubmission(agentId, data) {
       checklist = rows[0];
     } else {
       const { rows } = await client.query(
-        `INSERT INTO checklists (id, template_id, agent_id, type, parent_checklist_id, date, status, signature_url, selfie_url, submitted_at, local_id, regional_id, sectional_id, latitude, longitude, coordinates, has_critical_non_compliant)
-         VALUES ($1, $2, $3, $4, $5, $6, 'submitted', $7, $8, NOW(), $9, $10, $11, $12, $13, $14, $15)
+        `INSERT INTO checklists (id, template_id, agent_id, type, parent_checklist_id, date, status, signature_url, selfie_url, submitted_at, local_id, latitude, longitude, coordinates, has_critical_non_compliant)
+         VALUES ($1, $2, $3, $4, $5, $6, 'submitted', $7, $8, NOW(), $9, $10, $11, $12, $13)
          RETURNING *`,
-        [checklistId, template_id, agentId, type, parent_checklist_id, date, signature_url, selfie_url, local_id, regional_id, sectional_id, latitude, longitude, coordinates, hasCriticalNonCompliant]
+        [checklistId, template_id, agentId, type, parent_checklist_id, date, signature_url, selfie_url, local_id, latitude, longitude, coordinates, hasCriticalNonCompliant]
       );
       checklist = rows[0];
     }
@@ -671,6 +669,93 @@ async function saveChecklistSubmission(agentId, data) {
   }
 }
 
+async function syncTemplate(id, templateData) {
+  const client = await cenos_pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Update Template
+    await client.query(
+      `UPDATE checklist_templates SET title = $2, description = $3, estado = $4 WHERE id = $1`,
+      [id, templateData.title, templateData.description, templateData.estado || null]
+    );
+
+    const activeSectionIds = [];
+    const activeQuestionIds = [];
+
+    // 2. Upsert Sections
+    for (let i = 0; i < (templateData.sections || []).length; i++) {
+      const sec = templateData.sections[i];
+      let sectionId = sec.id;
+      
+      if (typeof sectionId === 'string' && sectionId.startsWith('temp_')) {
+        const { rows: secRows } = await client.query(
+          `INSERT INTO checklist_sections (template_id, title, order_index, section_color, section_icon)
+           VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+          [id, sec.title, i, sec.section_color || '#3B82F6', sec.section_icon || 'ShieldCheck']
+        );
+        sectionId = secRows[0].id;
+      } else {
+        await client.query(
+          `UPDATE checklist_sections SET title = $2, order_index = $3, section_color = $4, section_icon = $5 WHERE id = $1`,
+          [sectionId, sec.title, i, sec.section_color || '#3B82F6', sec.section_icon || 'ShieldCheck']
+        );
+      }
+      activeSectionIds.push(sectionId);
+
+      // 3. Upsert Questions
+      for (let j = 0; j < (sec.questions || []).length; j++) {
+        const q = sec.questions[j];
+        let questionId = q.id;
+        const opts = q.options === undefined ? null : JSON.stringify(q.options);
+        
+        if (typeof questionId === 'string' && questionId.startsWith('temp_')) {
+          const { rows: qRows } = await client.query(
+            `INSERT INTO checklist_questions (section_id, template_id, label, required, requires_photo, requires_photo_always, severity, exemption_days, order_index, question_type, options)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+            [sectionId, id, q.label, q.required ?? true, q.requires_photo ?? false, q.requires_photo_always ?? false, q.severity || 'medium', q.exemption_days || 0, j, q.question_type || 'binary', opts]
+          );
+          questionId = qRows[0].id;
+        } else {
+          await client.query(
+            `UPDATE checklist_questions SET section_id = $11, label = $2, required = $3, requires_photo = $4, requires_photo_always = $5, severity = $6, exemption_days = $7, order_index = $8, question_type = $9, options = $10 WHERE id = $1`,
+            [questionId, q.label, q.required ?? true, q.requires_photo ?? false, q.requires_photo_always ?? false, q.severity || 'medium', q.exemption_days || 0, j, q.question_type || 'binary', opts, sectionId]
+          );
+        }
+        activeQuestionIds.push(questionId);
+      }
+    }
+
+    // 4. Delete removed questions
+    if (activeQuestionIds.length > 0) {
+      await client.query(
+        `DELETE FROM checklist_questions WHERE template_id = $1 AND id != ALL($2::uuid[])`,
+        [id, activeQuestionIds]
+      );
+    } else {
+      await client.query(`DELETE FROM checklist_questions WHERE template_id = $1`, [id]);
+    }
+
+    // 5. Delete removed sections
+    if (activeSectionIds.length > 0) {
+      await client.query(
+        `DELETE FROM checklist_sections WHERE template_id = $1 AND id != ALL($2::uuid[])`,
+        [id, activeSectionIds]
+      );
+    } else {
+      await client.query(`DELETE FROM checklist_sections WHERE template_id = $1`, [id]);
+    }
+
+    await client.query('COMMIT');
+    return true;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   listTemplatesAdmin,
   listTemplatesForAgent,
@@ -678,6 +763,7 @@ module.exports = {
   createTemplate,
   updateTemplate,
   deleteTemplate,
+  syncTemplate,
   createSection,
   updateSection,
   deleteSection,

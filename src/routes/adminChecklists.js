@@ -7,6 +7,7 @@ const {
   createTemplate,
   updateTemplate,
   deleteTemplate,
+  syncTemplate,
   createSection,
   updateSection,
   deleteSection,
@@ -78,6 +79,19 @@ router.put('/templates/:id', verifyToken(), verifyModule('manage_checklist_templ
   }
 });
 
+// PUT /admin/checklists/templates/:id/sync — Sincronizar template completo
+router.put('/templates/:id/sync', verifyToken(), verifyModule('manage_checklist_templates'), async (req, res) => {
+  try {
+    const { templateData } = req.body;
+    await syncTemplate(req.params.id, templateData);
+    const updatedTemplate = await getTemplateById(req.params.id);
+    res.json(updatedTemplate);
+  } catch (err) {
+    console.error('[ADMIN_CHECKLISTS] Erro PUT /templates/:id/sync:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /admin/checklists/templates/:id — desativar template
 router.delete('/templates/:id', verifyToken(), verifyModule('manage_checklist_templates'), async (req, res) => {
   try {
@@ -139,13 +153,14 @@ router.delete('/sections/:sectionId', verifyToken(), verifyModule('manage_checkl
 // POST /admin/checklists/sections/:sectionId/questions — criar pergunta
 router.post('/sections/:sectionId/questions', verifyToken(), verifyModule('manage_checklist_templates'), async (req, res) => {
   try {
-    const { label, required = true, requires_photo = false, severity = 'medium', exemption_days = 0, order_index = 0, template_id, question_type = 'binary', options = null } = req.body;
+    const { label, required = true, requires_photo = false, requires_photo_always = false, severity = 'medium', exemption_days = 0, order_index = 0, template_id, question_type = 'binary', options = null } = req.body;
     if (!label || !label.trim()) return res.status(400).json({ error: 'label é obrigatório' });
     if (!template_id) return res.status(400).json({ error: 'template_id é obrigatório' });
     const question = await createQuestion(req.params.sectionId, template_id, {
       label: label.trim(),
       required,
       requires_photo,
+      requires_photo_always,
       severity,
       exemption_days,
       order_index,
@@ -162,8 +177,8 @@ router.post('/sections/:sectionId/questions', verifyToken(), verifyModule('manag
 // PUT /admin/checklists/questions/:questionId — atualizar pergunta
 router.put('/questions/:questionId', verifyToken(), verifyModule('manage_checklist_templates'), async (req, res) => {
   try {
-    const { label, required, requires_photo, severity, exemption_days, order_index, question_type, options } = req.body;
-    const question = await updateQuestion(req.params.questionId, { label, required, requires_photo, severity, exemption_days, order_index, question_type, options });
+    const { label, required, requires_photo, requires_photo_always, severity, exemption_days, order_index, question_type, options } = req.body;
+    const question = await updateQuestion(req.params.questionId, { label, required, requires_photo, requires_photo_always, severity, exemption_days, order_index, question_type, options });
     if (!question) return res.status(404).json({ error: 'Pergunta não encontrada' });
     res.json(question);
   } catch (err) {

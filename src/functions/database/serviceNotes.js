@@ -617,6 +617,7 @@ async function bulkRestore(serviceIds) {
 
 module.exports = {
     validateCoordinates,
+    processBase64Files,
     listServiceGroups, getServiceGroupById, createServiceGroup, updateServiceGroup, deleteServiceGroup,
     listCategoriesByGroup, createCategory, deleteCategory,
     listServiceNotes, getServiceNoteById, createServiceNote, updateServiceNote, deleteServiceNote,

@@ -190,10 +190,9 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
 
         let cargo = r?.Cargo;
         let setor_key = Object.keys(setor).find(k => cargo?.includes(k));
-        let veiculo_key = Object.keys(veiculo).find(k => cargo?.includes(k));
-
-        mapped['setor'] = setor[setor_key] || null;
-        mapped['cargo'] = veiculo[veiculo_key] || null;
+        
+        mapped['setor'] = r?.processo;
+        mapped['cargo'] = r?.Cargo;
         delete mapped['Cargo'];
 
         return mapped;
@@ -264,7 +263,7 @@ async function get_user_agent_options({ estado }) {
     return result;
 }
 
-async function create_user_agent_admin({ id, matricula, nome, estado: inputEstado, gestor, cargo, user, seccional, regional, status = true, situacao = 'active' }) {
+async function create_user_agent_admin({ id, matricula, nome, estado: inputEstado, gestor, cargo, user, seccional, regional, status = true, situacao = 'active', processo }) {
     const allowedPools = getUserAllowedStatePools(user);
     const target = allowedPools.find(p => p.state === inputEstado.toLowerCase());
 
@@ -273,8 +272,8 @@ async function create_user_agent_admin({ id, matricula, nome, estado: inputEstad
     }
 
     const query = `
-        INSERT INTO colaboradores ("ID", "MAT", "Nome", "GESTOR IMEDIATO", "Cargo", "seccional", "regional", "estado", "status", "situacao")
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO colaboradores ("ID", "MAT", "Nome", "GESTOR IMEDIATO", "Cargo", "seccional", "regional", "estado", "status", "situacao", "processo")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     `;
     const params = [
         id?.toUpperCase(),
@@ -286,7 +285,8 @@ async function create_user_agent_admin({ id, matricula, nome, estado: inputEstad
         regional,
         inputEstado.toLowerCase(),
         status !== undefined ? status : true,
-        situacao !== undefined ? situacao : 'active'
+        situacao !== undefined ? situacao : 'active',
+        processo
     ];
 
     try {
@@ -310,8 +310,6 @@ async function send_message_to_agent({ id, agent: providedAgent, text, file, web
         if (!userData.length) return { error: 'Usuário não encontrado' };
         agent = userData[0];
     }
-    if (!agent.telegram_id) return { error: 'Este agente não possui Telegram ID vinculado' };
-
     const allowedPools = getUserAllowedStatePools(user);
     if (!allowedPools.find(p => p.state === agent.estado.toLowerCase())) {
         return { error: `Você não tem permissão para enviar mensagens para agentes do estado ${agent.estado.toUpperCase()}` };
@@ -319,61 +317,63 @@ async function send_message_to_agent({ id, agent: providedAgent, text, file, web
 
     let payload;
     let contentType = 'application/json';
+    let result = { message: 'Mensagem salva no sistema (agente sem Telegram vinculado)' };
 
-    // Se o arquivo for um objeto vindo do Multer (buffer), usamos FormData
-    if (file && typeof file === 'object' && file.buffer) {
-        const formData = new FormData();
-        formData.append('chatId', agent.telegram_id);
-        if (text) formData.append('text', text);
-        if (webAppButtonText) formData.append('webAppButtonText', webAppButtonText);
-        if (webAppButtonUrl) formData.append('webAppButtonUrl', webAppButtonUrl);
-        if (options) formData.append('options', typeof options === 'string' ? options : JSON.stringify(options));
+    if (agent.telegram_id) {
+        // Se o arquivo for um objeto vindo do Multer (buffer), usamos FormData
+        if (file && typeof file === 'object' && file.buffer) {
+            const formData = new FormData();
+            formData.append('chatId', agent.telegram_id);
+            if (text) formData.append('text', text);
+            if (webAppButtonText) formData.append('webAppButtonText', webAppButtonText);
+            if (webAppButtonUrl) formData.append('webAppButtonUrl', webAppButtonUrl);
+            if (options) formData.append('options', typeof options === 'string' ? options : JSON.stringify(options));
 
-        let mediaType = 'document';
-        const mimetype = file.mimetype || '';
-        if (mimetype.startsWith('image/')) mediaType = 'image';
-        else if (mimetype.startsWith('video/')) mediaType = 'video';
-        else if (mimetype.startsWith('audio/')) mediaType = 'audio';
+            let mediaType = 'document';
+            const mimetype = file.mimetype || '';
+            if (mimetype.startsWith('image/')) mediaType = 'image';
+            else if (mimetype.startsWith('video/')) mediaType = 'video';
+            else if (mimetype.startsWith('audio/')) mediaType = 'audio';
 
-        formData.append('mediaType', mediaType);
-        formData.append('media', new Blob([file.buffer]), file.originalname);
+            formData.append('mediaType', mediaType);
+            formData.append('media', new Blob([file.buffer]), file.originalname);
 
-        payload = formData;
-        contentType = undefined; // Deixa o axios definir o boundary
-    } else {
-        // Envio via JSON (Texto e/ou mídias por URL)
-        payload = {
-            chatId: agent.telegram_id,
-            text,
-            webAppButtonText,
-            webAppButtonUrl,
-            options
-        };
+            payload = formData;
+            contentType = undefined; // Deixa o axios definir o boundary
+        } else {
+            // Envio via JSON (Texto e/ou mídias por URL)
+            payload = {
+                chatId: agent.telegram_id,
+                text,
+                webAppButtonText,
+                webAppButtonUrl,
+                options
+            };
 
-        if (file && typeof file === 'string' && file.startsWith('http')) {
-            const ext = file.split('.').pop().toLowerCase();
-            if (['jpg', 'jpeg', 'png'].includes(ext)) {
-                payload.photo = file;
-            } else if (['mp4', 'mov', 'avi'].includes(ext)) {
-                payload.video = file;
-            } else {
-                payload.document = file;
+            if (file && typeof file === 'string' && file.startsWith('http')) {
+                const ext = file.split('.').pop().toLowerCase();
+                if (['jpg', 'jpeg', 'png'].includes(ext)) {
+                    payload.photo = file;
+                } else if (['mp4', 'mov', 'avi'].includes(ext)) {
+                    payload.video = file;
+                } else {
+                    payload.document = file;
+                }
             }
         }
-    }
 
-    let result;
-    try {
-        const headers = {
-            'Authorization': `Bearer ${process.env.TELEGRAM_API_TOKEN}`
-        };
-        if (contentType) headers['Content-Type'] = contentType;
+        try {
+            const headers = {
+                'Authorization': `Bearer ${process.env.TELEGRAM_API_TOKEN}`
+            };
+            if (contentType) headers['Content-Type'] = contentType;
 
-        const response = await axios.post(`${process.env.TELEGRAM_API_URL}/sendMessage`, payload, { headers });
-        result = { message: 'Mensagem enviada com sucesso', telegramResponse: response.data };
-    } catch (error) {
-        console.error('Erro ao enviar mensagem via Telegram:', error.response?.data || error.message);
-        result = { error: 'Falha ao enviar mensagem via Telegram API', details: error.response?.data || error.message };
+            const response = await axios.post(`${process.env.TELEGRAM_API_URL}/sendMessage`, payload, { headers });
+            result = { message: 'Mensagem enviada com sucesso', telegramResponse: response.data };
+        } catch (error) {
+            console.error('Erro ao enviar mensagem via Telegram:', error.response?.data || error.message);
+            result = { error: 'Falha ao enviar mensagem via Telegram API', details: error.response?.data || error.message };
+        }
     }
 
     // Gravar log no banco cenos_pool
@@ -489,7 +489,7 @@ async function delete_user_agent_admin({ id, user, deleteLogin = false }) {
     }
 }
 
-async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, regional, estado, status, situacao, user }) {
+async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, regional, estado, status, situacao, processo, user }) {
     const userData = await get_users_agents_admin({ user, ids: [id] });
     if (!userData.length) return { error: 'Usuário não encontrado' };
 
@@ -504,7 +504,7 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
     const query = `
         UPDATE colaboradores 
         SET "Nome" = $1, "GESTOR IMEDIATO" = $2, "Cargo" = $3, "seccional" = $4, "regional" = $5,
-            "estado" = COALESCE($6, "estado"), "status" = COALESCE($7, "status"), "situacao" = COALESCE($8, "situacao")
+            "estado" = COALESCE($6, "estado"), "status" = COALESCE($7, "status"), "situacao" = COALESCE($8, "situacao"), "processo" = COALESCE($10, "processo")
         WHERE "ID" = $9
     `;
     const params = [
@@ -516,7 +516,8 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
         estado !== undefined ? estado.toLowerCase() : null,
         status !== undefined ? status : null,
         situacao !== undefined ? situacao : null,
-        id?.toUpperCase()
+        id?.toUpperCase(),
+        processo !== undefined ? processo : null
     ];
 
     try {

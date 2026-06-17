@@ -1,4 +1,4 @@
-const { link } = require("../routes/agente");
+
 
 function generateCustomLinks({ state, id, user }) {
 
@@ -9,8 +9,17 @@ function generateCustomLinks({ state, id, user }) {
             "description": "Meu perfil",
             "url": `/profile`,
             "emoji": "User",
-            "color": "text-green-600",
+            "color": "text-indigo-600",
             "states": ['pi', 'ma']
+        },
+        {
+            "id": "security-checklist-app",
+            "label": "Checklist de Segurança",
+            "description": "Faça seu checklist",
+            "url": `/checklists`,
+            "emoji": "ShieldCheck",
+            "color": "text-green-600",
+            "states": ['pi']
         },
         {
             "id": "security-report-app",
@@ -18,7 +27,7 @@ function generateCustomLinks({ state, id, user }) {
             "description": "Consulte perigos na rota",
             "url": `/security-reports`,
             "emoji": "Shield",
-            "color": "text-red-600",
+            "color": "text-orange-600",
             "states": ['pi']
         },
         {
@@ -27,7 +36,7 @@ function generateCustomLinks({ state, id, user }) {
             "description": "Cursos",
             "url": `/ceneduc`,
             "emoji": "BookOpen",
-            "color": "text-red-600",
+            "color": "text-blue-600",
             "states": ['pi', 'ma']
         },
         {
@@ -36,7 +45,7 @@ function generateCustomLinks({ state, id, user }) {
             "description": "Converse com o suporte",
             "url": '/chat',
             "emoji": "MessageCircle",
-            "color": "text-blue-600",
+            "color": "text-purple-600",
             "states": ['pi', 'ma']
         },
         {
@@ -45,7 +54,7 @@ function generateCustomLinks({ state, id, user }) {
             "description": "Meus serviços atribuídos",
             "url": '/service-notes',
             "emoji": "Smartphone",
-            "color": "text-blue-600",
+            "color": "text-yellow-600",
             "states": ['pi']
         },
         {
@@ -54,7 +63,7 @@ function generateCustomLinks({ state, id, user }) {
             "description": "Encontre instalações",
             "url": `/search`,
             "emoji": "MapPinned",
-            "color": "text-green-600",
+            "color": "text-red-600",
             "states": ['pi', 'ma']
         },
         {
@@ -72,7 +81,7 @@ function generateCustomLinks({ state, id, user }) {
             "description": "Como foi seu dia?",
             "url": `/daily-report`,
             "emoji": "Newspaper",
-            "color": "text-blue-600",
+            "color": "text-green-600",
             "states": ['pi', 'ma']
         },
         {
@@ -81,10 +90,9 @@ function generateCustomLinks({ state, id, user }) {
             "description": "Justifique suas pendências",
             "url": `/justify-pending`,
             "emoji": "AlertTriangle",
-            "color": "text-red-600",
+            "color": "text-indigo-600",
             "states": ['pi', 'ma']
         }
-
     ]
 
     let links_filtered = links.filter(link => link.states.includes(state));

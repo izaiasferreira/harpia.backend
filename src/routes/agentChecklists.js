@@ -46,6 +46,7 @@ router.get('/history', telegramAuth, async (req, res) => {
       limit: parseInt(limit, 10),
       agent_name: agentId,
     });
+    console.log(result)
     res.json(result);
   } catch (err) {
     console.error('[AGENT_CHECKLISTS] Erro /history:', err);
