@@ -9,7 +9,6 @@ const {
   listChecklistsAdmin,
   listTemplatesForAgent,
 } = require('../functions/database/checklists');
-const { generateChecklistPdf } = require('../utils/pdf');
 
 // GET /agent/checklists/today — checklist oficial do agente hoje
 router.get('/today', telegramAuth, async (req, res) => {
@@ -75,24 +74,6 @@ router.get('/:id', telegramAuth, async (req, res) => {
     res.json(checklist);
   } catch (err) {
     console.error('[AGENT_CHECKLISTS] Erro /:id:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /agent/checklists/:id/pdf — PDF do checklist
-router.get('/:id/pdf', telegramAuth, async (req, res) => {
-  try {
-    const checklist = await getChecklistById(req.params.id);
-    if (!checklist) return res.status(404).json({ error: 'Checklist não encontrado' });
-    const pdfBuffer = await generateChecklistPdf(checklist);
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="checklist-${checklist.id}.pdf"`,
-      'Content-Length': pdfBuffer.length,
-    });
-    res.end(pdfBuffer);
-  } catch (err) {
-    console.error('[AGENT_CHECKLISTS] Erro /:id/pdf:', err);
     res.status(500).json({ error: err.message });
   }
 });
