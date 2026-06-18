@@ -1,7 +1,6 @@
-const { seedDefaultBadges, listBadges: listBadgesFromDB } = require('./database/badges');
+const { listBadges: listBadgesFromDB } = require('./database/badges');
 
 async function listBadges() {
-    await seedDefaultBadges();
     return listBadgesFromDB();
 }
 

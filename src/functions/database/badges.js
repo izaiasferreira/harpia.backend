@@ -1,27 +1,6 @@
 const { cenos_pool } = require('../../db');
 const { badgeCreateSchema, badgeSchema } = require('../../db/schemas');
 
-const DEFAULT_BADGES = [
-    { id: 1, title: 'Limpador de Rota', description: 'Completou o treinamento de abertura de notas de Desligamento', image_url: 'https://api.izi.tec.br/files/assets/emblema1.png' },
-    { id: 2, title: 'Roteirizador Master', description: 'Completou o treinamento de abertura de notas de Remanejamento', image_url: 'https://api.izi.tec.br/files/assets/emblema3.png' },
-    { id: 3, title: 'Amigo da Segurança', description: 'Completou o treinamento de reporte de perigos na rota', image_url: 'https://api.izi.tec.br/files/assets/emblema2.png' },
-    { id: 4, title: 'Visão de Águia', description: 'Completou o treinamento atenção e prevenção a erros de leitura.', image_url: 'https://api.izi.tec.br/files/assets/emblema4.png' }
-];
-
-async function seedDefaultBadges() {
-    const { rows } = await cenos_pool.query('SELECT COUNT(*) as count FROM badges');
-    if (parseInt(rows[0].count) === 0) {
-        for (const badge of DEFAULT_BADGES) {
-            await cenos_pool.query(
-                `INSERT INTO badges (id, title, description, image_url)
-                 VALUES ($1, $2, $3, $4)
-                 ON CONFLICT (id) DO NOTHING`,
-                [badge.id, badge.title, badge.description, badge.image_url]
-            );
-        }
-    }
-}
-
 async function listBadges() {
     const { rows } = await cenos_pool.query('SELECT * FROM badges ORDER BY id ASC');
     return rows.map(b => ({
@@ -125,7 +104,6 @@ async function deleteBadge(id) {
 }
 
 module.exports = {
-    seedDefaultBadges,
     listBadges,
     getBadgeById,
     createBadge,
