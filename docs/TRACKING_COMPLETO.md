@@ -1,4 +1,4 @@
-# 🗺️ Sistema de Tracking — Cenos
+# 🗺️ Sistema de Tracking — Gedai
 
 ## Sumário
 1. [Visão Geral da Arquitetura](#1-visão-geral-da-arquitetura)
@@ -156,7 +156,7 @@ GPS (celular do agente)
 
 ### 3.1 Camada Nativa (Java) — Funciona 24/7
 
-O **TrackingForegroundService.java** roda como foreground service com `START_STICKY` e notificação persistente "Cenos — Rastreamento ativo". Independe completamente do WebView.
+O **TrackingForegroundService.java** roda como foreground service com `START_STICKY` e notificação persistente "Gedai — Rastreamento ativo". Independe completamente do WebView.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐

@@ -15,7 +15,7 @@ async function cleanInvalidTokens(tokens, responses) {
     for (let i = 0; i < responses.length; i++) {
         if (responses[i].error &&
             (responses[i].error.code === 'messaging/registration-token-not-registered' ||
-             responses[i].error.code === 'messaging/invalid-registration-token')) {
+                responses[i].error.code === 'messaging/invalid-registration-token')) {
             await removeFcmToken(tokens[i]);
         }
     }
@@ -103,7 +103,7 @@ router.post('/send', verifyToken(), upload.single('file'), async (req, res) => {
             // --- Push ---
             if (parsedChannels.includes('push') || parsedChannels.includes('overlay')) {
                 const isCritical = parsedChannels.includes('overlay') || critical === 'true' || critical === true;
-                const pushTitle = title || 'Cenos';
+                const pushTitle = title || 'Gedai';
                 const channel = isCritical ? 'overlay' : 'push';
 
                 try {

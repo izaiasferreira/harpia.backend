@@ -7,10 +7,20 @@ function validate(schema, source = 'body') {
             next();
         } catch (err) {
             if (err instanceof ZodError) {
+                const issues = err.issues || err.errors || [];
                 return res.status(400).json({
                     error: 'Dados inválidos',
-                    details: err.errors.map(e => ({
-                        campo: e.path.join('.'),
+                    details: issues.map(e => ({
+                        campo: e.path?.join('.') || e.path || '',
+                        mensagem: e.message
+                    }))
+                });
+            }
+            if (err && typeof err === 'object' && err.issues) {
+                return res.status(400).json({
+                    error: 'Dados inválidos',
+                    details: err.issues.map(e => ({
+                        campo: e.path?.join('.') || '',
                         mensagem: e.message
                     }))
                 });

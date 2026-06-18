@@ -1,8 +1,8 @@
 openapi: "3.0.3"
 info:
-  title: Cenos API
+  title: Gedai API
   description: |
-    API do ecossistema Cenos para gestão de agentes de campo (leituristas)
+    API do ecossistema Gedai para gestão de agentes de campo (leituristas)
     das concessionárias de energia do Piauí (PI) e Maranhão (MA).
 
     ## Autenticação
@@ -16,7 +16,7 @@ info:
     Consulte a documentação detalhada em `docs/` para cada módulo.
   version: "2.0.0"
   contact:
-    name: Cenos Suporte
+    name: Gedai Suporte
     url: https://cenos.com.br
 servers:
   - url: http://localhost:3040

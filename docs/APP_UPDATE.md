@@ -1,6 +1,6 @@
 # App Update (Auto-Update Android)
 
-API para gerenciamento de auto-update do aplicativo Android Cenos via self-hosted APK.
+API para gerenciamento de auto-update do aplicativo Android Gedai via self-hosted APK.
 
 Os APKs sao armazenados no bucket `apk` do MinIO e servidos via proxy da API em `/files/apk/:filename`.
 

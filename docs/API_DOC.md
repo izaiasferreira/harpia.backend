@@ -1,4 +1,4 @@
-# Documentação da API — Cenos Backend
+# Documentação da API — Gedai Backend
 
 ## Índice Rápido
 

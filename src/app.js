@@ -110,6 +110,10 @@ app.use('/admin/security_reports', adminSecurityReportsRouter)
 const adminSecurityReportsValidationRouter = require('./routes/adminSecurityReportsValidation')
 app.use('/admin/security_reports', adminSecurityReportsValidationRouter)
 
+// Admin Security Accidents (/admin/security_reports/accidents/*)
+const adminSecurityAccidentsRouter = require('./routes/adminSecurityAccidents')
+app.use('/admin/security_reports/accidents', adminSecurityAccidentsRouter)
+
 // Interativos (/admin/training/*)
 app.use('/admin/training', trainingProjectsRouter)
 
@@ -204,7 +208,7 @@ try {
     const swaggerDocument = YAML.load(path.join(__dirname, '..', 'docs', 'openapi.yaml'));
     app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
         customCss: '.swagger-ui .topbar { display: none }',
-        customSiteTitle: 'Cenos API Docs',
+        customSiteTitle: 'Gedai API Docs',
     }));
     // Serve raw openapi.yaml
     app.get('/docs/openapi.yaml', (req, res) => {

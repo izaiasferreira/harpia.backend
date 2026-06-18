@@ -1,6 +1,6 @@
 # Métodos de Autenticação da API
 
-Este documento descreve detalhadamente os 5 métodos de autenticação da API Cenos, permitindo interações seguras tanto de agentes em campo quanto de administradores da central de controle.
+Este documento descreve detalhadamente os 5 métodos de autenticação da API Gedai, permitindo interações seguras tanto de agentes em campo quanto de administradores da central de controle.
 
 ---
 

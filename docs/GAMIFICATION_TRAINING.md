@@ -1,6 +1,6 @@
 # Gamificação e Plataforma de Treinamentos (CenEduc & Interativos)
 
-Este documento detalha o funcionamento da arquitetura de Gamificação e Treinamentos do ecossistema Cenos, cobrindo o Construtor de Treinamentos Administrativo, o player de execução e a entrega de Badges (emblemas) aos técnicos de campo.
+Este documento detalha o funcionamento da arquitetura de Gamificação e Treinamentos do ecossistema Gedai, cobrindo o Construtor de Treinamentos Administrativo, o player de execução e a entrega de Badges (emblemas) aos técnicos de campo.
 
 ---
 

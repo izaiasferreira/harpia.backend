@@ -4,7 +4,7 @@ Este documento foi criado para guiar outra LLM a entender rapidamente o reposit�
 
 ## 1. Visão Geral do Projeto
 
-A **API Banco** é o backend do ecossistema Cenos, servindo tanto os agentes de campo (via Telegram Mini App / APK nativo) quanto o painel administrativo (Control Panel). Atua como camada única de API REST com suporte a WebSockets (Socket.io) para chat em tempo real, múltiplos bancos PostgreSQL (PI, MA e corporativo), cache Redis, armazenamento MinIO/S3 e push notifications via Firebase Cloud Messaging.
+A **API Banco** é o backend do ecossistema Gedai, servindo tanto os agentes de campo (via Telegram Mini App / APK nativo) quanto o painel administrativo (Control Panel). Atua como camada única de API REST com suporte a WebSockets (Socket.io) para chat em tempo real, múltiplos bancos PostgreSQL (PI, MA e corporativo), cache Redis, armazenamento MinIO/S3 e push notifications via Firebase Cloud Messaging.
 
 ## 2. Stack Tecnológica
 

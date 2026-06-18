@@ -15,7 +15,7 @@ async function cleanInvalidTokens(tokens, responses) {
     for (let i = 0; i < responses.length; i++) {
         if (responses[i].error &&
             (responses[i].error.code === 'messaging/registration-token-not-registered' ||
-             responses[i].error.code === 'messaging/invalid-registration-token')) {
+                responses[i].error.code === 'messaging/invalid-registration-token')) {
             await removeFcmToken(tokens[i]);
         }
     }
@@ -93,7 +93,7 @@ router.post('/send', verifyToken(), verifyModule('send_message_user_agent'), upl
         // --- Push FCM ---
         if (parsedChannels.includes('push')) {
             try {
-                const pushTitle = title || 'Cenos';
+                const pushTitle = title || 'Gedai';
                 let tokens;
 
                 if (parsedBroadcast) {

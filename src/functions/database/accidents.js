@@ -35,6 +35,29 @@ async function get_accidents_by_agent(autor) {
     return rows;
 }
 
+// ─── Agent: listar acidentes do estado (sem autor) ─────────────────────────
+
+async function get_accidents_for_agent_state(estado) {
+    const query = `
+        SELECT
+            a.id,
+            a.tipo,
+            a.descricao,
+            a.latitude,
+            a.longitude,
+            a.created_at,
+            a.resolvido,
+            a.descricao_solucao
+        FROM accidents a
+        WHERE a.estado = $1
+          AND a.latitude IS NOT NULL
+          AND a.longitude IS NOT NULL
+        ORDER BY a.created_at DESC
+    `;
+    const { rows } = await cenos_pool.query(query, [estado]);
+    return rows;
+}
+
 // ─── Admin: listar todos os acidentes ─────────────────────────────────────────
 
 async function get_accidents_admin({ user, estado, status, search, page = 1, limit = 50 }) {
@@ -170,13 +193,29 @@ async function get_accident_by_id(id) {
     return rows[0] || null;
 }
 
+// ─── Admin: deletar acidente ────────────────────────────────────────────────────
+
+async function delete_accident_admin(id, user) {
+    const pool = cenos_pool;
+    const accidentId = parseInt(id, 10);
+    if (isNaN(accidentId)) return null;
+
+    const { rows: existing } = await pool.query('SELECT * FROM accidents WHERE id = $1', [accidentId]);
+    if (existing.length === 0) return null;
+
+    const { rows } = await pool.query('DELETE FROM accidents WHERE id = $1 RETURNING *', [accidentId]);
+    return rows[0];
+}
+
 module.exports = {
     create_accident,
     get_accidents_by_agent,
+    get_accidents_for_agent_state,
     get_accidents_admin,
     resolve_accident,
     reopen_accident,
     add_accident_evidencia,
     get_accident_evidencias,
     get_accident_by_id,
+    delete_accident_admin,
 };

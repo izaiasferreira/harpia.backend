@@ -1,6 +1,6 @@
 # 📚 Central de Documentação da API Banco
 
-Bem-vindo à documentação oficial do ecossistema backend Cenos. Para otimizar a manutenção e facilitar a leitura, as especificações técnicas da API foram divididas em módulos independentes descritos abaixo.
+Bem-vindo à documentação oficial do ecossistema backend Gedai. Para otimizar a manutenção e facilitar a leitura, as especificações técnicas da API foram divididas em módulos independentes descritos abaixo.
 
 ---
 

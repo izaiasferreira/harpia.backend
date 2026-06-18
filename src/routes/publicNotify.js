@@ -12,7 +12,7 @@ async function cleanInvalidTokens(tokens, responses) {
     for (let i = 0; i < responses.length; i++) {
         if (responses[i].error &&
             (responses[i].error.code === 'messaging/registration-token-not-registered' ||
-             responses[i].error.code === 'messaging/invalid-registration-token')) {
+                responses[i].error.code === 'messaging/invalid-registration-token')) {
             await removeFcmToken(tokens[i]);
         }
     }
@@ -103,7 +103,7 @@ router.post('/notify', async (req, res) => {
                             const tokenRows = await getTokensByAgent(agentId);
                             const tokens = (tokenRows || []).map(r => r.token || r);
                             if (tokens.length > 0) {
-                                const fcmResult = await sendToMultiple(tokens, title || 'Cenos', body, {});
+                                const fcmResult = await sendToMultiple(tokens, title || 'Gedai', body, {});
                                 await cleanInvalidTokens(tokens, fcmResult?.responses);
                                 results.push = { success: true, sent: fcmResult?.successCount || 0 };
                             } else {

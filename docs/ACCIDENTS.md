@@ -87,55 +87,46 @@ Lista acidentes do agente autenticado.
 
 ## 3. Endpoints Admin
 
-Prefixo: `/admin/tracking/*` — Autenticação: JWT + módulo `tracking`
+### Rotas Legado — Prefixo: `/admin/tracking/*` (módulo `tracking`)
 
-### `GET /admin/tracking/accidents`
+| Método | Path | Descrição |
+|---|---|---|
+| `GET` | `/admin/tracking/accidents` | Lista paginada com filtros |
+| `GET` | `/admin/tracking/accidents/:id` | Detalhe + evidências |
+| `POST` | `/admin/tracking/accidents/:id/resolve` | Marcar como tratado |
+| `POST` | `/admin/tracking/accidents/:id/reopen` | Reabrir |
 
-Lista acidentes com paginação e filtros.
+**Query params (GET list):** `estado`, `status` (`pendente`|`tratado`), `search`, `page`, `limit`
 
-**Query params:** `estado`, `status` (`pendente`|`tratado`), `search`, `page`, `limit`
-
-**Response 200:**
-```json
-{
-  "accidents": [ { "id": 1, ..., "agent_nome": "João" } ],
-  "total": 1,
-  "page": 1,
-  "limit": 50
-}
-```
-
-### `GET /admin/tracking/accidents/:id`
-
-Obtém um acidente com evidências.
-
-**Response 200:**
-```json
-{
-  "id": 1,
-  "tipo": "...",
-  "evidencias": [ { "id": 1, "nome_arquivo": "foto.jpg", "caminho": "..." } ]
-}
-```
-
-### `POST /admin/tracking/accidents/:id/resolve`
-
-Marca acidente como tratado. Requer descrição + ao menos 1 evidência.
-
-**Body:**
+**POST /admin/tracking/accidents/:id/resolve — Body:**
 ```json
 {
   "descricao_solucao": "Agente levado ao hospital, sem gravidade.",
-  "evidencias": [
-    { "nome_arquivo": "foto.jpg", "tipo": "imagem", "caminho": "https://minio.cenos.com.br/..." }
-  ]
+  "evidencias": [{ "nome_arquivo": "foto.jpg", "tipo": "imagem", "caminho": "https://minio.cenos.com.br/..." }]
 }
 ```
 
-**Response 200:** Accident object com `evidencias` array.
+### Rotas Novas — Prefixo: `/admin/security_reports/accidents/*` (módulo `security_reports`)
 
-### `POST /admin/tracking/accidents/:id/reopen`
+Arquivo: `back/src/routes/adminSecurityAccidents.js`
 
-Reabre um acidente tratado.
+| Método | Path | Descrição |
+|---|---|---|
+| `GET` | `/admin/security_reports/accidents` | Lista paginada com filtros |
+| `GET` | `/admin/security_reports/accidents/:id` | Detalhe + evidências |
+| `POST` | `/admin/security_reports/accidents/:id/resolve` | Marcar como tratado |
+| `POST` | `/admin/security_reports/accidents/:id/reopen` | Reabrir |
 
-**Response 200:** Accident object atualizado.
+**Query params (GET list)**: `estado`, `status`, `search`, `page`, `limit`
+
+**POST /admin/security_reports/accidents/:id/resolve — Body:**
+```json
+{
+  "descricao_solucao": "Agente levado ao hospital, sem gravidade.",
+  "evidencias": [{ "nome_arquivo": "foto.jpg", "tipo": "imagem", "caminho": "https://minio.cenos.com.br/..." }]
+}
+```
+
+**Response 200** (ambas): Accident object com `evidencias` array.
+
+> Nota: As rotas novas compartilham as mesmas funções de banco (`resolve_accident`, `reopen_accident`, etc.) — são apenas uma re-exposição sob o módulo `security_reports` para uso no SecurityReportsAdmin unificado.

@@ -42,7 +42,7 @@ const {
     get_security_check_today,
     getLeiturasForAgentInDateInterval
 } = require('../functions/postgresFunctions');
-const { create_accident, get_accidents_by_agent } = require('../functions/database/accidents');
+const { create_accident, get_accidents_by_agent, get_accidents_for_agent_state } = require('../functions/database/accidents');
 const { minioClient, CONFIG, ensureBucketExists, getFileUrl, compressImage } = require('../functions/minio');
 const { telegramAuth } = require('../middlewares/telegramAuth');
 const { today, parse_date } = require('../utils/dates');
@@ -914,14 +914,30 @@ router.get('/security_report', telegramAuth, async (req, res) => {
     try {
         const user = req.colaborador;
 
+        const result = await get_security_reports({ user });
 
-        const result = await get_security_reports({
-            user
-        });
+        // Merge accidents into points with tipo_ponto field
+        const accidents = await get_accidents_for_agent_state(user.estado);
+        const accidentPoints = accidents.map(a => ({
+            motivo: a.tipo,
+            observacao: a.descricao,
+            latitude: a.latitude,
+            longitude: a.longitude,
+            created_at: a.created_at,
+            resolvido: a.resolvido || false,
+            descricao_solucao: a.descricao_solucao || null,
+            tipo_ponto: 'acidente',
+        }));
 
-        res.status(201).json(result);
+        // Tag existing security report points
+        result.points = result.points.map(p => ({ ...p, tipo_ponto: 'perigo' }));
+
+        // Merge both arrays
+        result.points = [...result.points, ...accidentPoints];
+
+        res.status(200).json(result);
     } catch (err) {
-        console.error('Erro ao criar reporte de segurança:', err);
+        console.error('Erro ao buscar reportes de segurança:', err);
         res.status(500).json({ error: err.message });
     }
 });
