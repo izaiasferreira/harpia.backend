@@ -4,6 +4,7 @@ const { justifyCreateSchema } = require('../db/schemas/justify');
 const { dailyReportSchema } = require('../db/schemas/dailyReport');
 const { inventoryCreateSchema } = require('../db/schemas/inventory');
 const { securityReportCreateSchema, securityCheckCreateSchema } = require('../db/schemas/security');
+const { accidentCreateSchema } = require('../db/schemas/accidents');
 
 const router = express.Router();
 require('dotenv').config();
@@ -41,6 +42,7 @@ const {
     get_security_check_today,
     getLeiturasForAgentInDateInterval
 } = require('../functions/postgresFunctions');
+const { create_accident, get_accidents_by_agent } = require('../functions/database/accidents');
 const { minioClient, CONFIG, ensureBucketExists, getFileUrl, compressImage } = require('../functions/minio');
 const { telegramAuth } = require('../middlewares/telegramAuth');
 const { today, parse_date } = require('../utils/dates');
@@ -1250,3 +1252,44 @@ router.post('/notifications/read', telegramAuth, async (req, res) => {
 });
 
 module.exports = router;
+
+// ─── Acidentes ─────────────────────────────────────────────────────────────────
+
+// POST /agent/accident — registrar acidente
+router.post('/accident', telegramAuth, validate(accidentCreateSchema), async (req, res) => {
+    try {
+        const autor = req.colaborador.id;
+        const estado = req.colaborador.estado || 'pi';
+        const { tipo, descricao, latitude, longitude } = req.body;
+
+        if (!tipo) {
+            return res.status(400).json({ error: 'Tipo é obrigatório' });
+        }
+
+        const result = await create_accident({
+            autor,
+            tipo,
+            descricao,
+            latitude,
+            longitude,
+            estado,
+        });
+
+        res.status(201).json(result);
+    } catch (err) {
+        console.error('[ACCIDENT] Erro ao criar acidente:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /agent/accident — listar acidentes do agente
+router.get('/accident', telegramAuth, async (req, res) => {
+    try {
+        const autor = req.colaborador.id;
+        const accidents = await get_accidents_by_agent(autor);
+        res.json(accidents);
+    } catch (err) {
+        console.error('[ACCIDENT] Erro ao listar acidentes:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
