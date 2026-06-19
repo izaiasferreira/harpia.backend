@@ -136,9 +136,9 @@ router.get('/:id', verifyToken(), verifyModule('checklists'), async (req, res) =
     
     if (!checklist) return res.status(404).json({ error: 'Checklist não encontrado' });
 
-    // const user = await getUserData({ id: req.user.id, state: req.user.estado })
-    console.log("AQUI", checklist)
-    res.json(checklist);
+    const agent = await getUserData({ id: checklist.agent_id})
+    
+    res.json({...checklist, agent});
   } catch (err) {
     console.error('[ADMIN_CHECKLISTS] Erro GET /:id:', err);
     res.status(500).json({ error: err.message });

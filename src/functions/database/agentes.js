@@ -9,7 +9,7 @@ const { fastC12ForAgent, firstC12ForAgent } = require('./c12');
 const { listBadges } = require('../badges');
 const { get_instalation_matriz, getPoolByState } = require('./commom');
 
-async function getUserData({ id, state }) {
+async function getUserData({ id }) {
     let login = {};
     let colaborador = {};
     let profileData = {};
@@ -25,8 +25,8 @@ async function getUserData({ id, state }) {
     }
 
     const { rows: colaboradorMatches } = await cenos_pool.query(
-        `SELECT * FROM colaboradores WHERE lower("ID") = $1 AND estado = $2`,
-        [id.toLowerCase(), state]
+        `SELECT * FROM colaboradores WHERE lower("ID") = $1`,
+        [id.toLowerCase()]
     );
 
     if (colaboradorMatches.length > 0) {
@@ -36,7 +36,6 @@ async function getUserData({ id, state }) {
         colaborador.matricula = `${parseInt(colaborador['MAT'])}`;
         colaborador.nome = colaborador['Nome'];
         colaborador.id = (colaborador['ID']).toUpperCase();
-        colaborador.estado = state;
         colaborador.cargo = colaborador['Cargo'] || 'Sem cargo';
 
         delete colaborador['GESTOR IMEDIATO'];
