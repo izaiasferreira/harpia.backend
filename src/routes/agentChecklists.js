@@ -9,6 +9,7 @@ const {
   listChecklistsAdmin,
   listTemplatesForAgent,
 } = require('../functions/database/checklists');
+const { getUserData } = require('../functions/database/agentes');
 
 // GET /agent/checklists/today — checklist oficial do agente hoje
 router.get('/today', telegramAuth, async (req, res) => {
@@ -71,7 +72,8 @@ router.get('/:id', telegramAuth, async (req, res) => {
   try {
     const checklist = await getChecklistById(req.params.id);
     if (!checklist) return res.status(404).json({ error: 'Checklist não encontrado' });
-    res.json(checklist);
+    const agent = await getUserData({ id: checklist.agent_id})
+    res.json({...checklist, agent});
   } catch (err) {
     console.error('[AGENT_CHECKLISTS] Erro /:id:', err);
     res.status(500).json({ error: err.message });
