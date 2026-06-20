@@ -326,6 +326,38 @@ O sistema possui controle geográfico e de ciclo de vida sobre os templates de c
 
 ---
 
+## Filtros de Visibilidade por Seção
+
+Cada seção de um template pode ser configurada com filtros que determinam quais agentes podem visualizar aquela seção ao preencher o formulário.
+
+Os filtros são armazenados no JSONB `checklist_templates.data` como `section.filters`:
+
+```json
+{
+  "cargo": ["NEG", "TEC"],
+  "regional": ["NORTE"],
+  "seccional": ["UAC01"],
+  "processo": ["PROC_A"]
+}
+```
+
+### Regras
+
+- **AND entre categorias**: o agente precisa bater em **todas** as categorias definidas (cargo E regional E seccional E processo).
+- **OR dentro de cada categoria**: basta o agente ter **um** dos valores da lista (ex: cargo = "NEG" OU "TEC").
+- **Sem filtro** (`null` ou omitido): a seção fica visível para todos os agentes.
+- **Filtragem server-side**: ocorre na função `getTemplateById(id, agentId)` chamada pela rota `GET /agent/checklists/form/:templateId`. O perfil do agente é buscado na tabela `colaboradores` (colunas `Cargo`, `seccional`, `regional`, `processo`) e as seções são filtradas antes de retornar.
+
+### Admin UI
+
+No editor de template (`SectionEditModal`), o administrador vê 4 multi-selects para configurar os filtros:
+- **Cargo**: populado da tabela `colaboradores`
+- **Regional**: populado da tabela `localidades`
+- **Seccional (UAC)**: populado da tabela `localidades`
+- **Processo**: populado da tabela `colaboradores`
+
+---
+
 ## Assistente de IA para Templates de Checklist
 
 Permite que administradores utilizem um chat com inteligência artificial (Gemini) para sugerir, criar e estruturar templates de checklist de forma interativa.
