@@ -260,6 +260,10 @@ async function get_user_agent_options({ estado }) {
     const { rows: rows4 } = await cenos_pool.query(query4, [estado]);
     result.cargos = rows4.map(r => r['Cargo']);
 
+    const query5 = `SELECT DISTINCT "processo" FROM colaboradores WHERE "processo" IS NOT NULL AND estado = $1`;
+    const { rows: rows5 } = await cenos_pool.query(query5, [estado]);
+    result.processos = rows5.map(r => r['processo']);
+
     return result;
 }
 

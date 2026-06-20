@@ -32,7 +32,27 @@ async function getTemplateById(id, agentId = null) {
   const template = rows[0];
 
   if (agentId) {
+    const { rows: profileRows } = await cenos_pool.query(
+      `SELECT col."Cargo", col."seccional", col."regional", col."processo"
+       FROM login l
+       LEFT JOIN colaboradores col ON l.id = col."ID"
+       WHERE l.id = $1`,
+      [agentId]
+    );
+
+    const agentProfile = profileRows[0] || {};
+
     const sections = template.data?.sections || [];
+    template.data.sections = sections.filter(sec => {
+      const f = sec.filters;
+      if (!f) return true;
+      const matchCargo = !f.cargo?.length || f.cargo.some(c => agentProfile['Cargo']?.toUpperCase() === c.toUpperCase());
+      const matchRegional = !f.regional?.length || f.regional.some(r => agentProfile.regional?.toUpperCase() === r.toUpperCase());
+      const matchSeccional = !f.seccional?.length || f.seccional.some(s => agentProfile.seccional?.toUpperCase() === s.toUpperCase());
+      const matchProcesso = !f.processo?.length || f.processo.some(p => agentProfile.processo?.toUpperCase() === p.toUpperCase());
+      return matchCargo && matchRegional && matchSeccional && matchProcesso;
+    });
+
     for (const sec of sections) {
       for (const q of (sec.questions || [])) {
         q.is_exempt = false;
@@ -209,7 +229,7 @@ async function listChecklistsAdmin({ page = 1, limit = 10, regional_id, sectiona
 
   const query = `
     SELECT c.id, c.agent_id, c.type, c.date, c.status, c.has_critical_non_compliant,
-           c.submitted_at, c.local_id, t.title as template_title,
+           c.submitted_at, c.local_id, c.parent_checklist_id, t.title as template_title,
            c.data->'compliance_summary' as compliance_summary
     FROM checklists c
     LEFT JOIN checklist_templates t ON c.template_id = t.id

@@ -14,6 +14,13 @@ Cada seção possui:
 - title (string): título da seção
 - color (string, opcional): cor em formato Hex (ex: '#3B82F6', '#10B981', '#EF4444', '#F97316', '#8B5CF6')
 - icon (string, opcional): ícone da seção (opções: 'ShieldCheck', 'Shield', 'Lock', 'Eye', 'AlertTriangle', 'Flame', 'Droplets', 'Zap', 'Tool', 'HardHat', 'ClipboardCheck', 'FileText', 'MapPin', 'Car', 'Users', 'Building', 'Door', 'Key', 'Camera', 'Bell', 'Radio', 'Wind', 'Thermometer', 'Package', 'Wifi', 'Power', 'Heart')
+- filters (object, opcional): filtros de visibilidade para controlar quais agentes podem ver esta seção. Estrutura:
+  - cargo (array string, opcional): lista de cargos que podem ver a seção (ex: ["ELETRICISTA", "TÉC. SEGURANÇA"])
+  - regional (array string, opcional): lista de regionais
+  - seccional (array string, opcional): lista de seccionais
+  - processo (array string, opcional): lista de processos
+  - Se omitido ou null, a seção fica visível para todos os agentes.
+  - Múltiplos filtros são combinados com AND entre categorias e OR dentro de cada categoria.
 - questions (array de questões)
 
 ### Questão

@@ -66,6 +66,7 @@ async function sendChatMessage(templateId, userMessage, currentTemplateStructure
             title: sec.title,
             color: sec.color || '#3B82F6',
             icon: sec.icon || 'ShieldCheck',
+            filters: sec.filters || null,
             questions: (sec.questions || []).map((q, qIdx) => ({
                 ...(q.uuid ? { uuid: q.uuid } : {}),
                 label: q.label,
@@ -155,6 +156,7 @@ async function applyTemplateStructure(templateId, structure) {
         order: sIdx,
         color: sec.section_color || sec.color || '#3B82F6',
         icon: sec.section_icon || sec.icon || 'ShieldCheck',
+        filters: sec.filters || null,
         questions: (sec.questions || []).map((q, qIdx) => {
             let options = q.options || null;
             if (q.question_type === 'multiple_choice' && Array.isArray(options)) {
