@@ -114,6 +114,10 @@ app.use('/admin/security_reports', adminSecurityReportsValidationRouter)
 const adminSecurityAccidentsRouter = require('./routes/adminSecurityAccidents')
 app.use('/admin/security_reports/accidents', adminSecurityAccidentsRouter)
 
+// Crash Detection (/admin/crash-detection/*)
+const adminCrashDetectionRouter = require('./routes/adminCrashDetection')
+app.use('/admin/crash-detection', adminCrashDetectionRouter)
+
 // Interativos (/admin/training/*)
 app.use('/admin/training', trainingProjectsRouter)
 

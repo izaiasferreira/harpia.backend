@@ -101,7 +101,11 @@ const AVAILABLE_MODULES = [
     { id: 'create_checklist', name: 'Responder / Criar Checklist' },
     { id: 'manage_checklist_templates', name: 'Gerenciar Templates de Checklist' },
     { id: 'delete_checklist', name: 'Excluir Checklist' },
-    { id: 'manage_agents', name: 'Gerenciar Status/Situação de Agentes' }
+    { id: 'manage_agents', name: 'Gerenciar Status/Situação de Agentes' },
+    // Detecção de Quedas / Acidentes
+    { id: 'crash_detection', name: 'Consultar Incidentes de Queda' },
+    { id: 'update_crash_incident', name: 'Atualizar Incidente de Queda' },
+    { id: 'resolve_crash_incident', name: 'Resolver / Validar Incidente de Queda' }
 ];
 
 async function listModules() {

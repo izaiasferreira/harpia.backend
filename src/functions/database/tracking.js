@@ -1,5 +1,5 @@
 const { cenos_pool } = require('../../db');
-const { trackingPointSchema, speedViolationSchema, fallIncidentSchema } = require('../../db/schemas');
+const { trackingPointSchema, speedViolationSchema, fallIncidentSchema, crashIncidentSyncSchema } = require('../../db/schemas');
 
 async function insertTrackingPoints(agentId, points) {
     if (!points || points.length === 0) return;
@@ -129,17 +129,63 @@ async function insertSpeedViolations(agentId, violations) {
 }
 
 async function insertFallIncident(agentId, incident) {
-    const validated = fallIncidentSchema.parse({
+    const validated = crashIncidentSyncSchema.parse({
+        ...incident,
         agent_id: agentId,
-        latitude: incident.lat || null,
-        longitude: incident.lng || null,
-        status: 'pending',
-        recorded_at: new Date(incident.timestamp)
     });
     const { rows } = await cenos_pool.query(
-        `INSERT INTO fall_incidents (agent_id, latitude, longitude, status, recorded_at)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [validated.agent_id, validated.latitude, validated.longitude, validated.status, validated.recorded_at]
+        `INSERT INTO fall_incidents (
+            agent_id, latitude, longitude, status, recorded_at,
+            free_fall_gravity, impact_gravity,
+            gyro_rotation_x, gyro_rotation_y, gyro_rotation_z, gyro_rotation_total,
+            gps_speed_kmh, gps_accuracy_m,
+            phase_free_fall, phase_impact, phase_rotation, phase_immobility,
+            speed_drop_confirmed,
+            free_fall_duration_ms, impact_latency_ms,
+            user_cancelled, user_cancelled_at,
+            device_model, os_version, battery_level, is_charging, network_type,
+            sensor_raw
+        ) VALUES (
+            $1, $2, $3, 'pending', $4,
+            $5, $6,
+            $7, $8, $9, $10,
+            $11, $12,
+            $13, $14, $15, $16,
+            $17,
+            $18, $19,
+            $20, $21,
+            $22, $23, $24, $25, $26,
+            $27
+        ) RETURNING *`,
+        [
+            agentId,
+            validated.lat ?? null,
+            validated.lng ?? null,
+            validated.timestamp ? new Date(validated.timestamp) : new Date(),
+            validated.freeFallGravity ?? null,
+            validated.impactGravity ?? null,
+            validated.gyroRotationX ?? null,
+            validated.gyroRotationY ?? null,
+            validated.gyroRotationZ ?? null,
+            validated.gyroRotationTotal ?? null,
+            validated.gpsSpeedKmh ?? null,
+            validated.gpsAccuracyM ?? null,
+            validated.phaseFreeFall ?? false,
+            validated.phaseImpact ?? false,
+            validated.phaseRotation ?? false,
+            validated.phaseImmobility ?? false,
+            validated.speedDropConfirmed ?? false,
+            validated.freeFallDurationMs ?? null,
+            validated.impactLatencyMs ?? null,
+            validated.userCancelled ?? false,
+            validated.userCancelledAt ? new Date(validated.userCancelledAt) : null,
+            validated.deviceModel ?? null,
+            validated.osVersion ?? null,
+            validated.batteryLevel ?? null,
+            validated.isCharging ?? null,
+            validated.networkType ?? null,
+            validated.sensorRaw ? JSON.stringify(validated.sensorRaw) : null,
+        ]
     );
     return rows[0];
 }
@@ -259,7 +305,17 @@ async function getSpeedViolations(filters = {}) {
 
 async function getFallIncidents(filters = {}) {
     const params = [];
-    let query = 'SELECT fi.*, l.estado as agent_estado FROM fall_incidents fi LEFT JOIN login l ON l.id = fi.agent_id WHERE 1=1';
+    let query = `
+        SELECT
+            fi.*,
+            l.estado as agent_estado,
+            c."Nome" as agent_nome,
+            c."regional" as agent_regional,
+            c."seccional" as agent_seccional
+        FROM fall_incidents fi
+        LEFT JOIN login l ON l.id = fi.agent_id
+        LEFT JOIN colaboradores c ON c."ID" = fi.agent_id
+        WHERE 1=1`;
 
     if (filters.status) {
         params.push(filters.status);
@@ -273,8 +329,15 @@ async function getFallIncidents(filters = {}) {
         params.push(filters.dateFrom);
         query += ` AND fi.recorded_at >= $${params.length}`;
     }
+    if (filters.dateTo) {
+        params.push(filters.dateTo);
+        query += ` AND fi.recorded_at <= $${params.length}`;
+    }
+    if (filters.speedDropConfirmed === true) {
+        query += ` AND fi.speed_drop_confirmed = TRUE`;
+    }
 
-    query += ' ORDER BY fi.recorded_at DESC LIMIT 100';
+    query += ' ORDER BY fi.recorded_at DESC LIMIT 200';
 
     const { rows } = await cenos_pool.query(query, params);
     return rows;

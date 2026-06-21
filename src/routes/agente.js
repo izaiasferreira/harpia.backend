@@ -1134,7 +1134,6 @@ router.post('/tracking/sync-unified', telegramAuth, async (req, res) => {
         const { points } = req.body;
 
         if (!points || !Array.isArray(points) || points.length === 0) {
-            console.log('SYNC_UNIFIED - points invalid', agentId, points)
             return res.status(400).json({ error: 'points é obrigatório' });
         }
 
@@ -1155,6 +1154,35 @@ router.post('/tracking/sync-unified', telegramAuth, async (req, res) => {
     } catch (err) {
         console.error('[SYNC_UNIFIED] Erro:', err);
         res.status(500).json({ error: 'Erro ao sincronizar dados unificados' });
+    }
+});
+
+// ─── Crash Incidents ──────────────────────────────────────────────────────────
+
+// POST /agent/tracking/crash-incidents/sync — recebe crash incidents do nativo
+router.post('/tracking/crash-incidents/sync', telegramAuth, async (req, res) => {
+    try {
+        const agentId = req.colaborador.id;
+        const { incidents } = req.body;
+
+        if (!incidents || !Array.isArray(incidents)) {
+            return res.status(400).json({ error: 'incidents é obrigatório' });
+        }
+
+        let synced = 0;
+        for (const incident of incidents) {
+            try {
+                await insertFallIncident(agentId, incident);
+                synced++;
+            } catch (crashErr) {
+                console.error('[CRASH_SYNC] Erro ao inserir crash incident:', crashErr);
+            }
+        }
+
+        res.json({ success: true, synced });
+    } catch (err) {
+        console.error('[CRASH_SYNC] Erro:', err);
+        res.status(500).json({ error: 'Erro ao sincronizar crash incidents' });
     }
 });
 
