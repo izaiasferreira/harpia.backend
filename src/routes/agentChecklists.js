@@ -11,13 +11,34 @@ const {
 } = require('../functions/database/checklists');
 const { getUserData } = require('../functions/database/agentes');
 
+// Cargos que devem obrigatoriamente realizar o checklist diário
+const CHECKLIST_REQUIRED_CARGOS = [
+  'LEITURISTA A PÉ',
+  'NEGOCIADOR MOTOCICLISTA',
+  'LEITURISTA MOTOCICLISTA',
+  'COBRADOR MOTOCICLISTA',
+];
+
+/**
+ * Verifica se o colaborador é obrigado a fazer o checklist diário.
+ * Critérios: situacao = 'active' E cargo em CHECKLIST_REQUIRED_CARGOS.
+ */
+function isChecklistRequired(colaborador) {
+  if (!colaborador) return false;
+  const situacao = (colaborador.situacao || '').toLowerCase();
+  const cargo = (colaborador.cargo || colaborador['Cargo'] || '').toUpperCase().trim();
+  if (situacao !== 'active') return false;
+  return CHECKLIST_REQUIRED_CARGOS.some(c => c.toUpperCase() === cargo);
+}
+
 // GET /agent/checklists/today — checklist oficial do agente hoje
 router.get('/today', telegramAuth, async (req, res) => {
   try {
     const agentId = req.colaborador.id;
     const todayStr = new Date().toISOString().split('T')[0];
     const checklist = await getAgentTodayChecklist(agentId, todayStr);
-    res.json({ checklist });
+    const checklist_required = isChecklistRequired(req.colaborador);
+    res.json({ checklist, checklist_required });
   } catch (err) {
     console.error('[AGENT_CHECKLISTS] Erro /today:', err);
     res.status(500).json({ error: err.message });

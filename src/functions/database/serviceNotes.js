@@ -14,6 +14,26 @@ function validateCoordinates(coord) {
     return `${lat},${lon}`;
 }
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function withRetry(fn, maxAttempts = 4, baseDelayMs = 1000) {
+    let lastError;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            lastError = err;
+            if (attempt < maxAttempts) {
+                console.warn(`[withRetry] Tentativa ${attempt}/${maxAttempts} falhou, retentando em ${baseDelayMs * Math.pow(2, attempt - 1)}ms:`, err.message);
+                await sleep(baseDelayMs * Math.pow(2, attempt - 1));
+            }
+        }
+    }
+    throw lastError;
+}
+
 async function processBase64Files(completionData, agentId) {
     if (!completionData) return completionData;
     let dataObj = completionData;
@@ -50,11 +70,12 @@ async function processBase64Files(completionData, agentId) {
                             buffer = await compressImage(buffer, mimeType);
                         }
 
-                        await minioClient.putObject(CONFIG.bucket, fullPath, buffer, { 'Content-Type': mimeType });
+                        await withRetry(() => minioClient.putObject(CONFIG.bucket, fullPath, buffer, { 'Content-Type': mimeType }));
                         processed[key] = getFileUrl(fullPath);
                     }
                 } catch (err) {
-                    console.error('[processBase64Files] Erro ao processar base64:', err);
+                    console.error('[processBase64Files] Erro ao processar base64 após retries:', err);
+                    throw err;
                 }
             } else if (value.includes(';base64,')) {
                 try {
@@ -76,12 +97,15 @@ async function processBase64Files(completionData, agentId) {
                                 buffer = await compressImage(buffer, mimeType);
                             }
 
-                            await minioClient.putObject(CONFIG.bucket, fullPath, buffer, { 'Content-Type': mimeType });
+                            await withRetry(() => minioClient.putObject(CONFIG.bucket, fullPath, buffer, { 'Content-Type': mimeType }));
                             parsed.data = getFileUrl(fullPath);
                             processed[key] = JSON.stringify(parsed);
                         }
                     }
-                } catch (e) {}
+                } catch (e) {
+                    console.error('[processBase64Files] Erro ao processar base64 (JSON) após retries:', e);
+                    throw e;
+                }
             }
         }
     }
