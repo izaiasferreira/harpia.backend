@@ -417,6 +417,34 @@ async function deleteSpeedViolation(id) {
     return rows[0] || null;
 }
 
+async function insertProximityAlerts(agentId, alerts) {
+    if (!alerts || alerts.length === 0) return;
+
+    const values = [];
+    const params = [];
+    let paramIdx = 1;
+
+    for (const a of alerts) {
+        values.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5}, $${paramIdx + 6}, $${paramIdx + 7})`);
+        params.push(
+            a.id,
+            agentId,
+            a.lat || null,
+            a.lng || null,
+            a.motivo || 'Risco de segurança',
+            a.distance || 0,
+            a.actionTaken || 'unknown',
+            a.recordedAt ? new Date(a.recordedAt) : new Date()
+        );
+        paramIdx += 8;
+    }
+
+    await cenos_pool.query(
+        `INSERT INTO agent_proximity_alerts (id, agent_id, latitude, longitude, motivo, distance, action_taken, recorded_at) VALUES ${values.join(',')}`,
+        params
+    );
+}
+
 module.exports = {
     insertTrackingPoints,
     insertTrackingPointsExtended,
@@ -430,4 +458,5 @@ module.exports = {
     updateFallIncidentStatus,
     getAlertLogs,
     deleteSpeedViolation,
+    insertProximityAlerts,
 };

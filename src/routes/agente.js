@@ -1015,6 +1015,7 @@ const {
     insertSpeedViolations,
     insertFallIncident,
     insertAlertLogs,
+    insertProximityAlerts,
 } = require('../functions/database/tracking');
 
 const { upsertFcmToken } = require('../functions/database/fcmTokens');
@@ -1183,6 +1184,25 @@ router.post('/tracking/crash-incidents/sync', telegramAuth, async (req, res) => 
     } catch (err) {
         console.error('[CRASH_SYNC] Erro:', err);
         res.status(500).json({ error: 'Erro ao sincronizar crash incidents' });
+    }
+});
+
+// POST /agent/tracking/proximity-alerts/sync — recebe logs de alerta de proximidade do nativo
+router.post('/tracking/proximity-alerts/sync', telegramAuth, async (req, res) => {
+    try {
+        const agentId = req.colaborador.id;
+        const { alerts } = req.body;
+
+        if (!alerts || !Array.isArray(alerts)) {
+            return res.status(400).json({ error: 'alerts é obrigatório' });
+        }
+
+        await insertProximityAlerts(agentId, alerts);
+
+        res.json({ success: true, synced: alerts.length });
+    } catch (err) {
+        console.error('[PROXIMITY_SYNC] Erro:', err);
+        res.status(500).json({ error: 'Erro ao sincronizar alertas de proximidade' });
     }
 });
 
