@@ -34,6 +34,12 @@ const unifiedPointSchema = z.object({
   devicePlatform: z.string().max(20).nullable().optional(),
   osVersion: z.string().max(20).nullable().optional(),
   timestamp: z.number().or(z.string().transform(Number)),
+  // Dead Reckoning / estimativa
+  isEstimated: z.boolean().optional().default(false),
+  estimatedFromLat: z.number().nullable().optional(),
+  estimatedFromLng: z.number().nullable().optional(),
+  deadReckonDrift: z.number().nullable().optional(),
+  deltaTSeconds: z.number().int().nullable().optional(),
 });
 
 const speedViolationSchema = z.object({

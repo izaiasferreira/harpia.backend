@@ -257,3 +257,85 @@ O app NUNCA abre a interface sozinho.
 | Limite de velocidade padrão | 81 km/h | `tracking_global_config` |
 | foregroundServiceType | `location` | AndroidManifest.xml (obrigatório Android 14+) |
 | SCHEDULE_EXACT_ALARM | Manifest + runtime (Android 13+) | Fallback para setInexactRepeating se negado |
+
+---
+
+## Dead Reckoning (Estimativa de Posição) & Anti-Doze
+
+A partir de Julho/2026, o sistema de tracking conta com duas camadas para eliminar lacunas de localização causadas pelo modo **Doze** do Android:
+
+### Anti-Doze (Android)
+
+O Android Doze restringe `FusedLocationProviderClient.requestLocationUpdates()` mesmo para foreground services após longos períodos de tela desligada. As seguintes medidas foram implementadas:
+
+1. **`setMaxUpdateDelayMillis(10_000)`** — Android 12+: limita o delay máximo entre atualizações de localização a 10s, mesmo em Doze.
+
+2. **Watchdog via AlarmManager (`setAndAllowWhileIdle`) a cada 15s** — receptor unificado `TrackingWatchdogReceiver` que:
+   - Verifica stall do GPS: se `recorded_at` (último ponto real) > 5 min atrás → re-registra `requestLocationUpdates()` + solicita uma localização única (`requestSingleLocation()`)
+   - Dispara `estimatePosition()` se o último ponto real está entre 15-60s atrás (janela de estimação)
+   - Executa em processo estático (`onWatchdogTick()` lê `lastRealGpsTimestamp` do `SharedPreferences`)
+
+3. **`requestDisableBatteryOptimization()`** — solicitação única na primeira inicialização para reduzir chance de Doze profundo.
+
+### Algoritmo de Dead Reckoning
+
+Quando o GPS falha brevemente (< 60s), a posição é extrapolada linearmente:
+
+```
+estimatePosition():
+  delta_t = agora - lastRealGpsTimestamp
+  se delta_t > 60s → aborta (não estima)
+  heading = bearing(lastRealLat, lastRealLng, lastGpsLat, lastGpsLng)
+  dist = speed_kmh * (delta_t / 3600)  // km percorridos no intervalo
+  lat, lng = haversineStep(lastRealLat, lastRealLng, heading, dist)
+  salva como is_estimated=true, estimated_from_lat/lng apontando para o último GPS real
+```
+
+**Limitações:**
+- Teto de 60s de estimação (após isso, para de estimar e aguarda GPS)
+- Não usa acelerômetro/giroscópio (step detection via inércia é imprevisível — 20-30% de erro com celular no bolso/mão/mesa)
+- Desvio (`dead_reckon_drift`) é calculado quando o GPS retorna: distância haversine entre posição real e estimada
+
+### Stop Detection (Backend)
+
+A rota `GET /admin/tracking/agent/:id/trail-extended` executa detecção de paradas no backend:
+
+```
+getAgentTrailWithStops(agentId, dateFrom, dateTo):
+  points = getAgentTrailUnified(...)
+  para cada ponto consecutivo:
+    agrupa por proximidade geográfica (< 20m do primeiro do cluster)
+    se cluster >= 3 pontos:
+      velocidade média < 2 km/h → confirma parada
+      duração > 60s → registra como stop
+  retorna { points, stops }
+```
+
+Cada stop contém: `lat, lng, stopped_at, resumed_at, duration_seconds, n_points, accuracy_avg, speed_avg`.
+
+### Novas Colunas em `tracking_session_points` (migration 022)
+
+```sql
+ALTER TABLE tracking_session_points
+  ADD COLUMN IF NOT EXISTS is_estimated BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS estimated_from_lat DECIMAL(10,7),
+  ADD COLUMN IF NOT EXISTS estimated_from_lng DECIMAL(10,7),
+  ADD COLUMN IF NOT EXISTS dead_reckon_drift DECIMAL(6,2),
+  ADD COLUMN IF NOT EXISTS heading_at_estimation DECIMAL(5,1);
+```
+
+### Novos Endpoints
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/admin/tracking/agent/:id/trail-extended?from=&to=` | Pontos + paradas detectadas (`{ points, stops }`) |
+
+### Frontend — HistoryTab (Painel Admin)
+
+A aba de histórico agora renderiza:
+
+- **Pontos estimados**: `CircleMarker` com `fillOpacity: 0.1` (oco) e borda âmbar; trecho da polyline tracejada (`dashArray: '8, 8'`, opacidade reduzida)
+- **Paradas**: marcadores roxos (#7C3AED) com tooltip mostrando duração, velocidade média e precisão
+- **Sinal perdido**: gaps > 60s entre pontos consecutivos → marcador laranja pulsante (CSS `signal-lost-pulse`) na última posição conhecida; gaps > 5min exibem badge "⚠ Sinal perdido > 5min"
+- **Legenda**: toggles Eye/EyeOff para controlar visibilidade de pontos estimados, paradas e sinal perdido
+- **Badge de estimados**: contagem de pontos estimados exibida nas abas de trajeto (amarelo)

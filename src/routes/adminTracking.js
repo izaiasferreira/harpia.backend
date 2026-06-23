@@ -5,20 +5,15 @@ const z = require('zod');
 const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const {
-    getAgentsLastPosition,
-    getAgentTrail,
-    getSpeedViolations,
     getFallIncidents,
     updateFallIncidentStatus,
     getAlertLogs,
-    deleteSpeedViolation,
 } = require('../functions/database/tracking');
 const {
     getAgentsLastPositionUnified,
     getAgentTrailUnified,
+    getAgentTrailWithStops,
     getSpeedViolationsFromUnified,
-    getGlobalSpeedLimit,
-    upsertGlobalSpeedLimit,
 } = require('../functions/database/trackingUnified');
 const {
     get_accidents_admin,
@@ -50,6 +45,19 @@ router.get('/agent/:id/trail', verifyToken(), verifyModule('tracking'), async (r
         res.json(trail);
     } catch (err) {
         console.error('[TRACKING] Erro ao buscar trajeto:', err);
+        res.status(500).json({ error: 'Erro ao buscar trajeto' });
+    }
+});
+
+// GET /admin/tracking/agent/:id/trail-extended — trajeto + paradas detectadas
+router.get('/agent/:id/trail-extended', verifyToken(), verifyModule('tracking'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { from, to } = req.query;
+        const result = await getAgentTrailWithStops(id, from || null, to || null);
+        res.json(result);
+    } catch (err) {
+        console.error('[TRACKING] Erro ao buscar trajeto extendido:', err);
         res.status(500).json({ error: 'Erro ao buscar trajeto' });
     }
 });

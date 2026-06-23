@@ -405,13 +405,15 @@ front/src/admin/pages/tracking/
 │                                                          │
 │  ┌──────────────────────┐   Trajetos ativos:             │
 │  │                      │   ┌─ 🟦 João Silva (12/06)   │
-│  │      MAPA            │   │   ● 142 pontos           │
+│  │      MAPA            │   │   ● 142 pts, 3 est.      │
 │  │    FULL SCREEN       │   │   [X] Remover            │
 │  │                      │   │                           │
-│  │  🟦 🟦 🟦            │   └───────────────────────────┘
-│  │   🟦 🟦              │                               │
-│  │    🟦🟦              │   📊 [Mostrar gráfico]        │
-│  │  🔴 (violação)       │                               │
+│  │  🟦━🟦━🟦━🟦━━━━     │   │ 👁️ Estimado             │
+│  │   🟦━🟦 🟦━🟦        │   │ 👁️ Paradas 🟣           │
+│  │    🟦━🟦━🟦━🟦      │   │ 👁️ Sinal perdido 🟠     │
+│  │  🔴 (violação)       │   │                           │
+│  │  🟣 (parada)         │   │ 📊 [Mostrar gráfico]      │
+│  │  🟠 (sinal perdido)  │   │                           │
 │  └──────────────────────┘   ──────▰▰▰▰▰▰▰▰▰──────      │
 │                                   ▶ [Play]  0:42        │
 │                                  ↑ slider temporal       │
@@ -430,11 +432,17 @@ front/src/admin/pages/tracking/
 - Busca de agente com **autocomplete** (debounce 300ms, mínimo 2 caracteres, `fetchUserAgents`)
 - **Data específica** (T00:00:00 até T23:59:59)
 - **Múltiplos trajetos** simultâneos, cada um com cor distinta (array `TRAIL_COLORS` com 8 cores)
+- **Dead Reckoning**: pontos estimados renderizados como `CircleMarker` oco (fillOpacity 0.1, borda âmbar) com polyline tracejada (`dashArray: '8, 8'`); contagem exibida em badge amarelo nas abas de trajeto
+- **Stop Detection**: paradas detectadas exibidas como marcadores roxos com tooltip de duração, velocidade média e precisão
+- **Signal Loss**: gaps > 60s entre pontos exibem marcador laranja pulsante; gaps > 5min mostram badge "⚠ Sinal perdido > 5min"
+- **Legend toggles**: Eye/EyeOff para controlar visibilidade de pontos estimados, paradas e sinal perdido
 - Cada ponto do trajeto renderizado como `CircleMarker` — **🔴 vermelho** se `is_speed_violation = true`
 - **Slider temporal** na parte inferior — controla qual ponto atual é exibido no mapa
 - **Play/Pause** — animação percorre os pontos a 200ms de intervalo
 - **Gráfico de velocidade** — Recharts `LineChart` (km/h × índice do ponto)
 - Remove trajetos individuais ou limpa todos
+
+**Endpoint utilizado:** `GET /admin/tracking/agent/:id/trail-extended?from=&to=` (retorna `{ points, stops }`)
 
 ### 6.4 Aba SPEED — Infrações de Velocidade
 
@@ -623,7 +631,11 @@ CREATE TABLE tracking_session_points (
     recorded_at     TIMESTAMP NOT NULL DEFAULT NOW(),
     synced_at       TIMESTAMP DEFAULT NOW(),
     speed_limit_applied DOUBLE PRECISION,        -- qual limite foi usado
-    is_speed_violation  BOOLEAN DEFAULT FALSE    -- TRUE se speed > speed_limit_applied
+    is_speed_violation  BOOLEAN DEFAULT FALSE,   -- TRUE se speed > speed_limit_applied
+    is_estimated        BOOLEAN DEFAULT FALSE,   -- TRUE = ponto gerado por dead reckoning
+    estimated_from_lat  DOUBLE PRECISION,        -- último GPS real lat (para calcular drift)
+    estimated_from_lng  DOUBLE PRECISION,        -- último GPS real lng
+    dead_reckon_drift   DOUBLE PRECISION         -- distância estimada entre real e estimado (m)
 );
 ```
 
@@ -960,6 +972,7 @@ last_heartbeat_at
 | **GET** | `/admin/tracking/agents` | — | Todos agentes com última posição | LIVE |
 | **GET** | `/admin/tracking/agents-v2` | — | Heartbeat (online/offline) | LIVE |
 | **GET** | `/admin/tracking/agent/:id/trail` | `?from=&to=` | Pontos históricos do trajeto | HISTORY |
+| **GET** | `/admin/tracking/agent/:id/trail-extended` | `?from=&to=` | Pontos + paradas detectadas (`{ points, stops }`) | HISTORY |
 | **GET** | `/admin/tracking/speed_violations` | `?agent_id=&from=&to=` | Infrações de velocidade | SPEED |
 | **DELETE** | `/admin/tracking/speed_violations/:id` | — | Excluir infração (só COMPANY_ADMIN) | SPEED |
 | **GET** | `/admin/tracking/global-config` | — | Configuração global | SETTINGS |

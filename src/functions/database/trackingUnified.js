@@ -28,7 +28,7 @@ async function insertUnifiedPoints(agentId, points, speedLimit) {
         const isViolation = speedKmh != null && speedKmh > speedLimitNum;
         if (isViolation) violations++;
 
-        values.push(`($${paramIdx},$${paramIdx+1},$${paramIdx+2},$${paramIdx+3},$${paramIdx+4},$${paramIdx+5},$${paramIdx+6},$${paramIdx+7},$${paramIdx+8},$${paramIdx+9},$${paramIdx+10},$${paramIdx+11},$${paramIdx+12},$${paramIdx+13},$${paramIdx+14})`);
+        values.push(`($${paramIdx},$${paramIdx+1},$${paramIdx+2},$${paramIdx+3},$${paramIdx+4},$${paramIdx+5},$${paramIdx+6},$${paramIdx+7},$${paramIdx+8},$${paramIdx+9},$${paramIdx+10},$${paramIdx+11},$${paramIdx+12},$${paramIdx+13},$${paramIdx+14},$${paramIdx+15},$${paramIdx+16},$${paramIdx+17},$${paramIdx+18})`);
         params.push(
             agentId,
             point.lat,
@@ -44,9 +44,13 @@ async function insertUnifiedPoints(agentId, points, speedLimit) {
             point.osVersion ?? null,
             new Date(point.timestamp),
             speedLimitNum,
-            isViolation
+            isViolation,
+            point.isEstimated ?? false,
+            point.estimatedFromLat ?? null,
+            point.estimatedFromLng ?? null,
+            point.deadReckonDrift ?? null
         );
-        paramIdx += 15;
+        paramIdx += 19;
     }
 
     await cenos_pool.query(`
@@ -54,7 +58,8 @@ async function insertUnifiedPoints(agentId, points, speedLimit) {
             (agent_id, latitude, longitude, speed, accuracy,
              battery_level, is_charging, network_type, gps_enabled,
              device_model, device_platform, os_version, recorded_at,
-             speed_limit_applied, is_speed_violation)
+             speed_limit_applied, is_speed_violation,
+             is_estimated, estimated_from_lat, estimated_from_lng, dead_reckon_drift)
         VALUES ${values.join(',')}
     `, params);
 
@@ -176,7 +181,8 @@ async function getAgentTrailUnified(agentId, dateFrom, dateTo) {
         SELECT latitude, longitude, speed, accuracy,
                battery_level, is_charging, network_type, gps_enabled,
                device_model, device_platform, os_version,
-               speed_limit_applied, is_speed_violation, recorded_at
+               speed_limit_applied, is_speed_violation, recorded_at,
+               is_estimated, estimated_from_lat, estimated_from_lng, dead_reckon_drift
         FROM tracking_session_points WHERE agent_id = $1`;
 
     if (dateFrom) {
@@ -249,6 +255,106 @@ async function getSpeedViolationsFromUnified(filters = {}) {
     });
 }
 
+/**
+ * Retorna trail com detecção de paradas.
+ * Algoritmo:
+ *   - Agrupa pontos consecutivos por proximidade geográfica (< 20m)
+ *   - Se cluster tem >= 3 pontos consecutivos → potential stop
+ *   - Speed média do cluster < 2 km/h → confirma parada
+ *   - Duração > 60s → registra como Stop
+ */
+async function getAgentTrailWithStops(agentId, dateFrom, dateTo) {
+    const points = await getAgentTrailUnified(agentId, dateFrom, dateTo);
+    if (points.length === 0) return { points: [], stops: [] };
+
+    const stops = [];
+    let clusterStart = null;
+    let clusterPoints = [];
+
+    for (let i = 0; i < points.length; i++) {
+        const pt = points[i];
+        const lat = parseFloat(pt.latitude);
+        const lng = parseFloat(pt.longitude);
+
+        if (clusterStart === null) {
+            clusterStart = { lat, lng, idx: i };
+            clusterPoints = [pt];
+            continue;
+        }
+
+        // Calcula distância do cluster start
+        const d = haversineKm(clusterStart.lat, clusterStart.lng, lat, lng);
+
+        if (d < 0.02) { // < 20m
+            clusterPoints.push(pt);
+        } else {
+            // Finalizou o cluster — avalia se é parada
+            evaluateStop(clusterPoints, clusterStart, stops);
+            clusterStart = { lat, lng, idx: i };
+            clusterPoints = [pt];
+        }
+    }
+
+    // Último cluster
+    if (clusterPoints.length >= 3) {
+        evaluateStop(clusterPoints, clusterStart, stops);
+    }
+
+    return { points, stops };
+}
+
+function evaluateStop(clusterPoints, clusterStart, stops) {
+    if (clusterPoints.length < 3) return;
+
+    const speeds = clusterPoints
+        .map(p => parseFloat(p.speed))
+        .filter(s => s != null && !isNaN(s));
+    const avgSpeed = speeds.length > 0
+        ? speeds.reduce((a, b) => a + b, 0) / speeds.length
+        : 0;
+
+    // Confirma parada: speed média < 2 km/h (auxiliar, não bloqueante)
+    if (avgSpeed > 2 && speeds.length > 0) return;
+
+    const first = clusterPoints[0];
+    const last = clusterPoints[clusterPoints.length - 1];
+    const durationMs = new Date(last.recorded_at) - new Date(first.recorded_at);
+
+    if (durationMs < 60_000) return; // < 60s não conta
+
+    const accuracies = clusterPoints
+        .map(p => parseFloat(p.accuracy))
+        .filter(a => a != null && !isNaN(a) && a > 0);
+    const accuracyAvg = accuracies.length > 0
+        ? accuracies.reduce((a, b) => a + b, 0) / accuracies.length
+        : null;
+
+    stops.push({
+        lat: clusterStart.lat,
+        lng: clusterStart.lng,
+        stopped_at: first.recorded_at,
+        resumed_at: last.recorded_at,
+        duration_seconds: Math.round(durationMs / 1000),
+        n_points: clusterPoints.length,
+        accuracy_avg: accuracyAvg ? Math.round(accuracyAvg * 10) / 10 : null,
+        speed_avg: Math.round(avgSpeed * 100) / 100,
+    });
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+            + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2))
+            * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function toRad(deg) {
+    return deg * (Math.PI / 180);
+}
+
 module.exports = {
     insertUnifiedPoints,
     getAgentSpeedLimit,
@@ -257,5 +363,6 @@ module.exports = {
     upsertGlobalSpeedLimit,
     getAgentsLastPositionUnified,
     getAgentTrailUnified,
+    getAgentTrailWithStops,
     getSpeedViolationsFromUnified,
 };

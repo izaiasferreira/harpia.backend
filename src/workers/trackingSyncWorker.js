@@ -60,6 +60,12 @@ function normalizePoint(agentId, raw, speedLimit) {
         timestamp: new Date(point.timestamp),
         speedLimitApplied: speedLimitNum,
         isViolation,
+        // Dead Reckoning
+        isEstimated: point.isEstimated ?? false,
+        estimatedFromLat: point.estimatedFromLat ?? null,
+        estimatedFromLng: point.estimatedFromLng ?? null,
+        deadReckonDrift: point.deadReckonDrift ?? null,
+        deltaTSeconds: point.deltaTSeconds ?? null,
     };
 }
 
@@ -72,14 +78,15 @@ async function batchInsertPoints(points) {
     let paramIdx = 1;
 
     for (const p of points) {
-        values.push(`($${paramIdx},$${paramIdx+1},$${paramIdx+2},$${paramIdx+3},$${paramIdx+4},$${paramIdx+5},$${paramIdx+6},$${paramIdx+7},$${paramIdx+8},$${paramIdx+9},$${paramIdx+10},$${paramIdx+11},$${paramIdx+12},$${paramIdx+13},$${paramIdx+14})`);
+        values.push(`($${paramIdx},$${paramIdx+1},$${paramIdx+2},$${paramIdx+3},$${paramIdx+4},$${paramIdx+5},$${paramIdx+6},$${paramIdx+7},$${paramIdx+8},$${paramIdx+9},$${paramIdx+10},$${paramIdx+11},$${paramIdx+12},$${paramIdx+13},$${paramIdx+14},$${paramIdx+15},$${paramIdx+16},$${paramIdx+17},$${paramIdx+18})`);
         params.push(
             p.agentId, p.lat, p.lng, p.speed, p.accuracy,
             p.batteryLevel, p.isCharging, p.networkType, p.gpsEnabled,
             p.deviceModel, p.devicePlatform, p.osVersion,
-            p.timestamp, p.speedLimitApplied, p.isViolation
+            p.timestamp, p.speedLimitApplied, p.isViolation,
+            p.isEstimated, p.estimatedFromLat, p.estimatedFromLng, p.deadReckonDrift
         );
-        paramIdx += 15;
+        paramIdx += 19;
     }
 
     await cenos_pool.query(`
@@ -87,7 +94,8 @@ async function batchInsertPoints(points) {
             (agent_id, latitude, longitude, speed, accuracy,
              battery_level, is_charging, network_type, gps_enabled,
              device_model, device_platform, os_version, recorded_at,
-             speed_limit_applied, is_speed_violation)
+             speed_limit_applied, is_speed_violation,
+             is_estimated, estimated_from_lat, estimated_from_lng, dead_reckon_drift)
         VALUES ${values.join(', ')}
         ON CONFLICT (agent_id, recorded_at) DO NOTHING
     `, params);

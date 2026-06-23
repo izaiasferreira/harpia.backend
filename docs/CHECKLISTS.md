@@ -51,6 +51,58 @@ Lista templates ativos para o agente, filtrados pelo estado do agente.
 
 ---
 
+## GET /agent/checklists/today
+
+Retorna o checklist do dia para o agente, ou indica que o cargo é isento.
+
+### Response 200 — Com checklist pendente
+```json
+{
+  "checklist": {
+    "id": "uuid",
+    "template_id": "uuid",
+    "status": "pending",
+    ...
+  }
+}
+```
+
+### Response 200 — Cargo isento (sem checklist)
+```json
+{
+  "checklist_required": false
+}
+```
+
+### Fluxo de Isenção (checklist_required)
+
+O campo `checklist_required` é definido com base no cargo do agente:
+- **`false`** — o cargo do agente **não exige** preenchimento de checklist diário. O frontend e o nativo ignoram completamente o reminder.
+- **Ausente/`true`** — o cargo exige checklist. O sistema de reminder agressivo (nativo + frontend) é ativado.
+
+### Como a isenção é propagada
+
+```
+Backend (GET /agent/checklists/today)
+    │
+    ├── retorna { checklist_required: false }
+    │
+    ▼
+Frontend (dataService.getTodayChecklist)
+    │
+    ├── detecta checklist_required === false
+    ├── escreve 'exempt' no Capacitor Preferences (checklist_today_status)
+    └── DailyChecklistGuard libera o agente sem bloqueio
+    │
+    ▼
+Mobile Nativo (TrackingForegroundService.checkChecklistAndAct)
+    │
+    ├── lê status 'exempt' do CapacitorPreferences
+    └── trata como 'done' — cancela notificação e não abre o app
+```
+
+---
+
 ## POST /admin/checklists/templates/:id/sections
 
 Cria uma nova seção em um template.
@@ -461,3 +513,5 @@ Limpa todo o histórico de conversação do assistente IA para o template.
   "success": true
 }
 ```
+
+
