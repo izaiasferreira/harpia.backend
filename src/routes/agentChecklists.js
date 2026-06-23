@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { cenos_pool } = require('../db');
 const { telegramAuth } = require('../middlewares/telegramAuth');
 const {
   getTemplateById,
@@ -35,6 +36,19 @@ function isChecklistRequired(colaborador) {
 router.get('/today', telegramAuth, async (req, res) => {
   try {
     const agentId = req.colaborador.id;
+
+    // Buscar situação e cargo da tabela colaboradores (via login.id = colaboradores."ID")
+    const { rows: profileRows } = await cenos_pool.query(
+      `SELECT c.situacao, c."Cargo" AS cargo
+       FROM login l
+       LEFT JOIN colaboradores c ON l.id = c."ID"
+       WHERE l.id = $1`,
+      [agentId]
+    );
+    const profile = profileRows[0] || {};
+    req.colaborador.situacao = profile.situacao;
+    req.colaborador.cargo = profile.cargo;
+
     const todayStr = new Date().toISOString().split('T')[0];
     const checklist = await getAgentTodayChecklist(agentId, todayStr);
     const checklist_required = isChecklistRequired(req.colaborador);
