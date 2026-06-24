@@ -1044,16 +1044,17 @@ async function getDashboardAlertsV2({
 
   const { rows } = await cenos_pool.query(
     `SELECT c.id as checklist_id, c.agent_id, col."Nome" as agent_nome,
-            a.item->>'question_label' as question, a.item->>'severity' as severity,
-            c.date, a.item->>'observation' as observation,
+            col."ID" as agent_matricula, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
+            a.item->>'question_label' as question, COALESCE(a.item->>'severity', 'critical') as severity,
+            c.date, c.submitted_at, a.item->>'observation' as observation,
             a.item->>'photo_url' as photo_url
      FROM checklists c
      ${colJoin},
      jsonb_array_elements(c.data->'answers') a(item)
      ${cWhere}
-       AND a.item->>'is_compliant' = 'false'
-       AND a.item->>'severity' IN ('critical', 'alert')
-     ORDER BY c.date DESC, severity ASC
+       AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
+       AND COALESCE(a.item->>'severity', 'critical') IN ('critical', 'alert')
+     ORDER BY COALESCE(c.submitted_at, c.date) DESC, severity ASC
      LIMIT 50`,
     dParams
   );
