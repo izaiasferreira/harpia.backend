@@ -241,7 +241,8 @@ async function get_user_agent_options({ estado }) {
         gestores: [],
         cargos: [],
         regionais: [],
-        seccionais: []
+        seccionais: [],
+        estados: []
     };
     const query = `SELECT DISTINCT "GESTOR IMEDIATO" FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL AND estado = $1`;
     const { rows } = await cenos_pool.query(query, [estado]);
@@ -263,6 +264,10 @@ async function get_user_agent_options({ estado }) {
     const query5 = `SELECT DISTINCT "processo" FROM colaboradores WHERE "processo" IS NOT NULL AND estado = $1`;
     const { rows: rows5 } = await cenos_pool.query(query5, [estado]);
     result.processos = rows5.map(r => r['processo']);
+
+    const query6 = `SELECT DISTINCT estado FROM colaboradores WHERE estado IS NOT NULL ORDER BY estado`;
+    const { rows: rows6 } = await cenos_pool.query(query6);
+    result.estados = rows6.map(r => r.estado);
 
     return result;
 }

@@ -9,6 +9,8 @@ const {
   saveChecklistSubmission,
   listChecklistsAdmin,
   listTemplatesForAgent,
+  listTemplatesForAgentWithProfile,
+  getAgentTemplatesStatus,
 } = require('../functions/database/checklists');
 const { getUserData } = require('../functions/database/agentes');
 
@@ -67,6 +69,40 @@ router.get('/templates', telegramAuth, async (req, res) => {
     res.json(templates);
   } catch (err) {
     console.error('[AGENT_CHECKLISTS] Erro /templates:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /agent/checklists/templates-with-filters — templates filtrados pelo perfil completo do agente
+router.get('/templates-with-filters', telegramAuth, async (req, res) => {
+  try {
+    const agentId = req.colaborador.id;
+    const agentEstado = req.colaborador.estado;
+    const { rows } = await cenos_pool.query(
+      `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo
+       FROM login l
+       LEFT JOIN colaboradores col ON l.id = col."ID"
+       WHERE l.id = $1`,
+      [agentId]
+    );
+    const agentProfile = rows[0] || {};
+    const templates = await listTemplatesForAgentWithProfile(agentEstado, agentProfile);
+    res.json(templates);
+  } catch (err) {
+    console.error('[AGENT_CHECKLISTS] Erro /templates-with-filters:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /agent/checklists/requirements — templates obrigatórios para o agente hoje
+router.get('/requirements', telegramAuth, async (req, res) => {
+  try {
+    const agentId = req.colaborador.id;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const status = await getAgentTemplatesStatus(agentId, todayStr);
+    res.json(status);
+  } catch (err) {
+    console.error('[AGENT_CHECKLISTS] Erro /requirements:', err);
     res.status(500).json({ error: err.message });
   }
 });

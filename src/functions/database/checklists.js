@@ -23,6 +23,19 @@ async function listTemplatesForAgent(agentEstado) {
   return rows;
 }
 
+async function listTemplatesForAgentWithProfile(agentEstado, agentProfile) {
+  const templates = await listTemplatesForAgent(agentEstado);
+  return templates.filter(t => {
+    const f = t.data?.filters;
+    if (!f) return true;
+    const matchCargo = !f.cargo?.length || f.cargo.some(c => (agentProfile.cargo || '').toUpperCase() === c.toUpperCase());
+    const matchRegional = !f.regional?.length || f.regional.some(r => (agentProfile.regional || '').toUpperCase() === r.toUpperCase());
+    const matchSeccional = !f.seccional?.length || f.seccional.some(s => (agentProfile.seccional || '').toUpperCase() === s.toUpperCase());
+    const matchProcesso = !f.processo?.length || f.processo.some(p => (agentProfile.processo || '').toUpperCase() === p.toUpperCase());
+    return matchCargo && matchRegional && matchSeccional && matchProcesso;
+  });
+}
+
 async function getTemplateById(id, agentId = null) {
   const { rows } = await cenos_pool.query(
     'SELECT * FROM checklist_templates WHERE id = $1',
@@ -33,7 +46,7 @@ async function getTemplateById(id, agentId = null) {
 
   if (agentId) {
     const { rows: profileRows } = await cenos_pool.query(
-      `SELECT col."Cargo", col."seccional", col."regional", col."processo"
+      `SELECT col."Cargo", col."seccional", col."regional", col."processo", col.estado
        FROM login l
        LEFT JOIN colaboradores col ON l.id = col."ID"
        WHERE l.id = $1`,
@@ -46,11 +59,12 @@ async function getTemplateById(id, agentId = null) {
     template.data.sections = sections.filter(sec => {
       const f = sec.filters;
       if (!f) return true;
+      const matchEstado = !f.estado?.length || f.estado.some(e => (agentProfile.estado || '').toUpperCase() === e.toUpperCase());
       const matchCargo = !f.cargo?.length || f.cargo.some(c => agentProfile['Cargo']?.toUpperCase() === c.toUpperCase());
       const matchRegional = !f.regional?.length || f.regional.some(r => agentProfile.regional?.toUpperCase() === r.toUpperCase());
       const matchSeccional = !f.seccional?.length || f.seccional.some(s => agentProfile.seccional?.toUpperCase() === s.toUpperCase());
       const matchProcesso = !f.processo?.length || f.processo.some(p => agentProfile.processo?.toUpperCase() === p.toUpperCase());
-      return matchCargo && matchRegional && matchSeccional && matchProcesso;
+      return matchEstado && matchCargo && matchRegional && matchSeccional && matchProcesso;
     });
 
     for (const sec of sections) {
@@ -88,7 +102,7 @@ async function createTemplate({ title, description, created_by, estado, data }) 
   const { rows } = await cenos_pool.query(
     `INSERT INTO checklist_templates (title, created_by, estado, data)
      VALUES ($1, $2, $3, $4) RETURNING *`,
-    [title, created_by, estado || null, { description, sections: data?.sections || [] }]
+    [title, created_by, estado || null, { description, sections: data?.sections || [], filters: data?.filters || null }]
   );
   return rows[0];
 }
@@ -123,7 +137,8 @@ async function deleteTemplate(id) {
 async function syncTemplate(id, templateData) {
   const data = {
     description: templateData.description || null,
-    sections: templateData.sections || []
+    sections: templateData.sections || [],
+    filters: templateData.filters || null
   };
   await cenos_pool.query(
     `UPDATE checklist_templates SET title = $2, estado = $3, data = $4, updated_at = NOW() WHERE id = $1`,
@@ -353,8 +368,8 @@ async function saveChecklistSubmission(agentId, data) {
 
     if (type === 'official') {
       const { rows: existingOfficial } = await client.query(
-        'SELECT * FROM checklists WHERE agent_id = $1 AND date = $2 AND type = \'official\'',
-        [agentId, date]
+        'SELECT * FROM checklists WHERE agent_id = $1 AND date = $2 AND type = \'official\' AND template_id = $3',
+        [agentId, date, template_id]
       );
       if (existingOfficial.length > 0) {
         const existing = existingOfficial[0];
@@ -472,9 +487,88 @@ async function deleteChecklist(id) {
   return rowCount > 0;
 }
 
+// ==========================================
+// DYNAMIC TEMPLATE MATCHING (Agent)
+// ==========================================
+
+/**
+ * Returns the list of templates that an agent is REQUIRED to complete,
+ * based on matching the agent's profile (cargo, regional, seccional, processo, estado)
+ * against active templates with data.filters.
+ *
+ * Templates without filters (null or empty) match ALL active agents.
+ */
+async function getRequiredTemplatesForAgent(agentId) {
+  const { rows: profileRows } = await cenos_pool.query(
+    `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo,
+            col.estado, col.situacao
+     FROM login l
+     LEFT JOIN colaboradores col ON l.id = col."ID"
+     WHERE l.id = $1`,
+    [agentId]
+  );
+  const profile = profileRows[0] || {};
+  if ((profile.situacao || '').toLowerCase() !== 'active') return [];
+
+  const { rows: templates } = await cenos_pool.query(
+    `SELECT id, title, data FROM checklist_templates
+     WHERE is_active = true AND (estado IS NULL OR UPPER(estado) = UPPER($1))
+     ORDER BY created_at DESC`,
+    [profile.estado || null]
+  );
+
+  return templates.filter(t => {
+    const f = t.data?.filters;
+    if (!f) return true;
+    const matchCargo = !f.cargo?.length || f.cargo.some(c => (profile.cargo || '').toUpperCase() === c.toUpperCase());
+    const matchRegional = !f.regional?.length || f.regional.some(r => (profile.regional || '').toUpperCase() === r.toUpperCase());
+    const matchSeccional = !f.seccional?.length || f.seccional.some(s => (profile.seccional || '').toUpperCase() === s.toUpperCase());
+    const matchProcesso = !f.processo?.length || f.processo.some(p => (profile.processo || '').toUpperCase() === p.toUpperCase());
+    return matchCargo && matchRegional && matchSeccional && matchProcesso;
+  }).map(t => ({ id: t.id, title: t.title }));
+}
+
+/**
+ * Wrapper that returns the status of all required templates for an agent on a given date.
+ * Returns { checklist_required, required_templates: [{ id, title, submitted }] }
+ */
+async function getAgentTemplatesStatus(agentId, dateStr) {
+  const required = await getRequiredTemplatesForAgent(agentId);
+  if (required.length === 0) {
+    return { checklist_required: false, required_templates: [] };
+  }
+
+  // Check which templates already have submitted checklists today
+  const ids = required.map(t => t.id);
+  const { rows: submittedRows } = await cenos_pool.query(
+    `SELECT DISTINCT template_id FROM checklists
+     WHERE agent_id = $1 AND date = $2 AND type = 'official' AND status = 'submitted'
+     AND template_id = ANY($3::uuid[])`,
+    [agentId, dateStr, ids]
+  );
+  const submittedIds = new Set(submittedRows.map(r => r.template_id));
+
+  const requiredTemplates = required.map(t => ({
+    id: t.id,
+    title: t.title,
+    submitted: submittedIds.has(t.id),
+  }));
+
+  const allSubmitted = requiredTemplates.every(t => t.submitted);
+
+  return {
+    checklist_required: true,
+    all_submitted: allSubmitted,
+    total_required: requiredTemplates.length,
+    total_submitted: requiredTemplates.filter(t => t.submitted).length,
+    required_templates: requiredTemplates,
+  };
+}
+
 module.exports = {
   listTemplatesAdmin,
   listTemplatesForAgent,
+  listTemplatesForAgentWithProfile,
   getTemplateById,
   createTemplate,
   updateTemplate,
@@ -486,4 +580,6 @@ module.exports = {
   getChecklistsStats,
   saveChecklistSubmission,
   deleteChecklist,
+  getRequiredTemplatesForAgent,
+  getAgentTemplatesStatus,
 };

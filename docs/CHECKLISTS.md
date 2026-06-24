@@ -704,4 +704,206 @@ Limpa todo o histórico de conversação do assistente IA para o template.
 }
 ```
 
+---
+
+## Sistema de Filtros Dinâmicos (V2)
+
+O sistema foi evoluído para usar **filtros dinâmicos baseados em templates** em vez de cargos fixos. Cada template pode definir `data.filters` que determinam quais agentes são obrigados a preenchê-lo.
+
+### Fluxo de Obrigatoriedade
+
+```
+GET /agent/checklists/requirements
+    │
+    ├── Backend (getAgentTemplatesStatus)
+    │   ├── Busca perfil do agente (cargo, regional, seccional, processo, estado)
+    │   ├── Busca templates ativos filtrados pelo estado
+    │   ├── Para cada template, verifica se data.filters batem com perfil
+    │   ├── Templates sem filters → OBRIGA todos agentes ativos
+    │   └── Retorna { checklist_required, all_submitted, required_templates: [...] }
+    │
+    ▼
+Frontend (DailyChecklistGuard)
+    ├── Se checklist_required === false → libera (exempt)
+    ├── Se all_submitted === true → libera (done)  
+    └── Se não → bloqueia com overlay pendente
+```
+
+### Template sem filtros
+
+Se um template não possui `data.filters` (ou está vazio), ele obriga **todos** os agentes ativos independentemente de cargo.
+
+### Múltiplos templates
+
+Um agente pode ser obrigado a preencher **vários templates**. O `DailyChecklistGuard` só libera quando todos forem submetidos. O `ChecklistNew` filtra da lista os templates já submetidos no dia.
+
+---
+
+## GET /agent/checklists/requirements
+
+Retorna os templates obrigatórios para o agente hoje, baseado no matching dinâmico.
+
+### Response 200
+```json
+{
+  "checklist_required": true,
+  "all_submitted": false,
+  "total_required": 2,
+  "total_submitted": 1,
+  "required_templates": [
+    { "id": "uuid", "title": "Checklist Diário", "submitted": true },
+    { "id": "uuid", "title": "Checklist Semanal", "submitted": false }
+  ]
+}
+```
+
+### Regras de Matching
+
+- **AND entre dimensões**: o agente precisa bater em **todas** as dimensões definidas no filtro
+- **OR dentro de cada dimensão**: basta o agente ter **um** dos valores
+- Template **sem filters**: obriga todos agentes ativos (qualquer cargo, regional, etc.)
+
+---
+
+## Dashboard V2 — `/admin/dashboard/v2/*`
+
+Endpoints que usam **filtros dinâmicos dos templates** em vez de cargos fixos. Todos os endpoints V2 respeitam as permissões de estado do admin via `getUserAllowedStatePools`.
+
+### GET /admin/dashboard/v2/templates
+
+Lista templates ativos respeitando permissões de estado do admin.
+
+#### Response 200
+```json
+[
+  { "id": "uuid", "title": "Checklist Diário", "estado": null },
+  { "id": "uuid", "title": "Checklist PI", "estado": "PI" }
+]
+```
+
+---
+
+### GET /admin/dashboard/v2/stats
+
+KPIs por template. Se `template_id` for informado, retorna apenas dados daquele template.  
+Se `template_id` não for informado, agrega todos os templates que o admin tem permissão de ver.
+
+#### Query Params
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| date_from | string | Data inicial (YYYY-MM-DD) |
+| date_to | string | Data final (YYYY-MM-DD) |
+| template_id | string | Filtrar por template específico |
+| regional | string | Filtrar por regional |
+| sectional | string | Filtrar por seccional |
+| estado | string | Filtrar por estado |
+| gestor | string | Filtrar por gestor |
+
+#### Response 200
+```json
+{
+  "active_agents": 150,
+  "total_checklists": 120,
+  "compliant": 90,
+  "non_compliant": 30,
+  "compliance_rate": 75,
+  "templates_breakdown": [
+    {
+      "template_id": "uuid",
+      "template_title": "Checklist Diário",
+      "active_agents": 100,
+      "total_checklists": 80,
+      "compliant": 60,
+      "non_compliant": 20,
+      "compliance_rate": 75
+    }
+  ],
+  "regional_breakdown": [
+    { "regional": "NORTE", "total_agents": 50, "submitted": 40, "pending": 10, "percentage": 20 }
+  ],
+  "pending_agents": [...]
+}
+```
+
+---
+
+### GET /admin/dashboard/v2/non-compliant-items
+
+Lista itens não conformes agregados (para gráfico de barras), baseada nos filtros dos templates e permissões do admin.
+
+#### Query Params
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| date_from | string | Data inicial (YYYY-MM-DD) |
+| date_to | string | Data final (YYYY-MM-DD) |
+| template_id | string | Filtrar por template (opcional) |
+| regional | string | Filtrar por regional |
+| sectional | string | Filtrar por seccional |
+| estado | string | Filtrar por estado |
+| gestor | string | Filtrar por gestor |
+
+#### Response 200
+```json
+[
+  { "label": "Uso de EPIs", "count": 15 },
+  { "label": "Sinalização", "count": 8 }
+]
+```
+
+---
+
+### GET /admin/dashboard/v2/alerts
+
+Lista itens críticos/alerta com severidade, baseada nos filtros dos templates.
+
+#### Query Params
+Mesmos parâmetros de filtro do `/v2/non-compliant-items`.
+
+#### Response 200
+```json
+[
+  {
+    "checklist_id": "uuid",
+    "agent_id": "123",
+    "agent_nome": "João",
+    "question": "Ferramenta danificada",
+    "severity": "critical",
+    "date": "2026-06-24",
+    "observation": "Martelo com cabo solto",
+    "photo_url": "https://..."
+  }
+]
+```
+
+---
+
+### GET /admin/dashboard/v2/pending-agents
+
+Lista paginada de agentes que não enviaram checklist, baseada nos filtros dos templates e permissões do admin.
+
+#### Query Params
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| page | integer | Página (padrão: 1) |
+| limit | integer | Itens por página (padrão: 20) |
+| template_id | string | Filtrar por template (opcional) |
+| agent_name | string | Filtrar por nome (ILIKE) |
+| regional | string | Filtrar por regional |
+| sectional | string | Filtrar por seccional |
+| estado | string | Filtrar por estado |
+| gestor | string | Filtrar por gestor |
+
+#### Response 200
+```json
+{
+  "data": [
+    { "agent_id": "456", "nome": "Maria", "cargo": "LEITURISTA A PÉ", ... }
+  ],
+  "total": 5,
+  "page": 1,
+  "limit": 20,
+  "totalPages": 1
+}
+```
+
 
