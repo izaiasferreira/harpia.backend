@@ -175,6 +175,8 @@ const adminChecklistsRouter = require('./routes/adminChecklists')
 app.use('/admin/checklists', adminChecklistsRouter)
 const checklistTemplateChatRouter = require('./routes/checklistTemplateChat')
 app.use('/admin/checklists/templates', checklistTemplateChatRouter)
+const adminChecklistDashboardRouter = require('./routes/adminChecklistDashboard')
+app.use('/admin/dashboard', adminChecklistDashboardRouter)
 const agentChecklistsRouter = require('./routes/agentChecklists')
 app.use('/agent/checklists', agentChecklistsRouter)
 

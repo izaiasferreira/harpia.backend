@@ -28,8 +28,198 @@ Cria um novo template de checklist.
 
 ---
 
-## PUT /admin/checklists/templates/:id
+## Dashboard de Checklists (Admin)
 
+Endpoints administrativos montados em `/admin/dashboard/*` com autenticação JWT e módulo `checklists`.
+
+### GET /admin/dashboard/filter-options
+
+Retorna listas de valores únicos para os filtros do dashboard.
+
+#### Response 200
+```json
+{
+  "regionais": ["NORTE", "SUL", "LESTE"],
+  "seccionais": ["UAC01", "UAC02"],
+  "estados": ["PI", "MA"],
+  "gestores": ["CARLOS SILVA", "MARIA SOUZA"]
+}
+```
+
+---
+
+### GET /admin/dashboard/stats
+
+Retorna KPIs consolidados do dashboard.
+
+#### Query Params
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| date_from | string | Data inicial (YYYY-MM-DD). Padrão: hoje |
+| date_to | string | Data final (YYYY-MM-DD). Padrão: hoje |
+| regional | string | Filtrar por regional |
+| sectional | string | Filtrar por seccional |
+| estado | string | Filtrar por estado |
+| gestor | string | Filtrar por gestor |
+
+#### Response 200
+```json
+{
+  "active_agents": 150,
+  "total_checklists": 120,
+  "compliant": 90,
+  "non_compliant": 30,
+  "compliance_rate": 75,
+  "regional_breakdown": [
+    { "regional": "NORTE", "total_agents": 50, "submitted": 40, "pending": 10, "percentage": 20 }
+  ],
+  "pending_agents": [
+    { "agent_id": "123", "nome": "João", "regional": "NORTE", "seccional": "UAC01", "estado": "PI", "cargo": "LEITURISTA A PÉ" }
+  ]
+}
+```
+
+---
+
+### GET /admin/dashboard/non-compliant-items
+
+Lista itens não conformes agregados (para gráfico de barras).
+
+#### Query Params
+Mesmos parâmetros de filtro do `/stats`.
+
+#### Response 200
+```json
+[
+  { "label": "Uso de EPIs", "count": 15 },
+  { "label": "Sinalização", "count": 8 }
+]
+```
+
+---
+
+### GET /admin/dashboard/alerts
+
+Lista itens críticos/alerta com severidade.
+
+#### Query Params
+Mesmos parâmetros de filtro do `/stats`.
+
+#### Response 200
+```json
+[
+  {
+    "checklist_id": "uuid",
+    "agent_id": "123",
+    "agent_nome": "João",
+    "question": "Ferramenta danificada",
+    "severity": "critical",
+    "date": "2026-06-24",
+    "observation": "Martelo com cabo solto",
+    "photo_url": "https://..."
+  }
+]
+```
+
+---
+
+### GET /admin/dashboard/checklists
+
+Lista paginada de checklists com dados enriquecidos do agente.
+
+#### Query Params
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| page | integer | Página (padrão: 1) |
+| limit | integer | Itens por página (padrão: 15) |
+| agent_name | string | Filtrar por nome ou ID do agente |
+| date_from | string | Data inicial |
+| date_to | string | Data final |
+| type | string | `official` ou `supplementary` |
+| severity_alert | string | `true` para apenas críticos |
+| status | string | Status do checklist |
+| regional | string | Filtrar por regional |
+| sectional | string | Filtrar por seccional |
+| estado | string | Filtrar por estado |
+| gestor | string | Filtrar por gestor |
+
+#### Response 200
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "agent_id": "123",
+      "agent_nome": "João Silva",
+      "agent_cargo": "LEITURISTA A PÉ",
+      "agent_regional": "NORTE",
+      "agent_seccional": "UAC01",
+      "agent_estado": "PI",
+      "agent_gestor": "CARLOS SILVA",
+      "type": "official",
+      "date": "2026-06-24",
+      "status": "submitted",
+      "has_critical_non_compliant": false,
+      "submitted_at": "2026-06-24T10:30:00Z",
+      "template_title": "Checklist Diário",
+      "compliant_count": 8,
+      "non_compliant_count": 2,
+      "total_count": 10
+    }
+  ],
+  "total": 100,
+  "page": 1,
+  "limit": 15,
+  "totalPages": 7
+}
+```
+
+---
+
+### GET /admin/dashboard/pending-agents
+
+Lista paginada de agentes com cargo obrigatório que **não** enviaram checklist no período.
+
+Regras:
+- Apenas agentes com `situacao = 'active'`
+- Apenas cargos obrigatórios: `LEITURISTA A PÉ`, `NEGOCIADOR MOTOCICLISTA`, `LEITURISTA MOTOCICLISTA`, `COBRADOR MOTOCICLISTA`
+- Exclui agentes que já possuem checklist submetido na data do período
+
+#### Query Params
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| page | integer | Página (padrão: 1) |
+| limit | integer | Itens por página (padrão: 20) |
+| agent_name | string | Filtrar por nome do agente (ILIKE) |
+| date_from | string | Data inicial (padrão: hoje) |
+| date_to | string | Data final (padrão: hoje) |
+| regional | string | Filtrar por regional |
+| sectional | string | Filtrar por seccional |
+| estado | string | Filtrar por estado |
+| gestor | string | Filtrar por gestor |
+
+#### Response 200
+```json
+{
+  "data": [
+    {
+      "agent_id": "456",
+      "nome": "Maria Oliveira",
+      "regional": "SUL",
+      "seccional": "UAC03",
+      "estado": "MA",
+      "cargo": "COBRADOR MOTOCICLISTA",
+      "gestor": "PEDRO SANTOS"
+    }
+  ],
+  "total": 5,
+  "page": 1,
+  "limit": 20,
+  "totalPages": 1
+}
+```
+
+---
 Atualiza um template existente.
 
 ### Body (todos opcionais)

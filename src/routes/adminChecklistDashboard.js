@@ -1,0 +1,95 @@
+const express = require('express');
+const router = express.Router();
+const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
+const {
+  getDashboardFilterOptions,
+  getDashboardStats,
+  getDashboardNonCompliantItems,
+  getDashboardAlerts,
+  listDashboardChecklists,
+  getDashboardPendingAgents,
+} = require('../functions/database/checklistDashboard');
+
+router.get('/filter-options', verifyToken(), verifyModule('checklists'), async (req, res) => {
+  try {
+    const options = await getDashboardFilterOptions();
+    res.json(options);
+  } catch (err) {
+    console.error('[DASHBOARD] Erro GET /filter-options:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/stats', verifyToken(), verifyModule('checklists'), async (req, res) => {
+  try {
+    const { date_from, date_to, regional, sectional, estado, gestor } = req.query;
+    const stats = await getDashboardStats({ date_from, date_to, regional, sectional, estado, gestor });
+    res.json(stats);
+  } catch (err) {
+    console.error('[DASHBOARD] Erro GET /stats:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/non-compliant-items', verifyToken(), verifyModule('checklists'), async (req, res) => {
+  try {
+    const { date_from, date_to, regional, sectional, estado, gestor } = req.query;
+    const items = await getDashboardNonCompliantItems({ date_from, date_to, regional, sectional, estado, gestor });
+    res.json(items);
+  } catch (err) {
+    console.error('[DASHBOARD] Erro GET /non-compliant-items:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/alerts', verifyToken(), verifyModule('checklists'), async (req, res) => {
+  try {
+    const { date_from, date_to, regional, sectional, estado, gestor } = req.query;
+    const alerts = await getDashboardAlerts({ date_from, date_to, regional, sectional, estado, gestor });
+    res.json(alerts);
+  } catch (err) {
+    console.error('[DASHBOARD] Erro GET /alerts:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/checklists', verifyToken(), verifyModule('checklists'), async (req, res) => {
+  try {
+    const {
+      page, limit, agent_name, date_from, date_to,
+      type, severity_alert, status,
+      regional, sectional, estado, gestor
+    } = req.query;
+    const result = await listDashboardChecklists({
+      page: parseInt(page || 1, 10),
+      limit: parseInt(limit || 15, 10),
+      agent_name, date_from, date_to, type, severity_alert, status,
+      regional, sectional, estado, gestor,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[DASHBOARD] Erro GET /checklists:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/pending-agents', verifyToken(), verifyModule('checklists'), async (req, res) => {
+  try {
+    const {
+      page, limit, agent_name, date_from, date_to,
+      regional, sectional, estado, gestor,
+    } = req.query;
+    const result = await getDashboardPendingAgents({
+      page: parseInt(page || 1, 10),
+      limit: parseInt(limit || 20, 10),
+      agent_name, date_from, date_to,
+      regional, sectional, estado, gestor,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[DASHBOARD] Erro GET /pending-agents:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;
