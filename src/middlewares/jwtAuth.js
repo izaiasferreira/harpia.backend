@@ -86,8 +86,11 @@ function verifyModule(moduleId) {
             return next();
         }
         
+        const requiredModules = Array.isArray(moduleId) ? moduleId : [moduleId];
+        const hasAccess = requiredModules.some(mod => modules.includes(mod));
+        
         // Se o módulo não estiver na lista de módulos do usuário, ele não tem acesso
-        if (!modules.includes(moduleId)) {
+        if (!hasAccess) {
             return res.status(403).json({ error: `Módulo não autorizado` });
         }
         

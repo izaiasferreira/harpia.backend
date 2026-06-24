@@ -272,7 +272,7 @@ router.get('/perdas', verifyToken(), verifyModule('perdas'), async (req, res) =>
     }
 });
 
-router.get('/users_agents/options', verifyToken(), verifyModule('users_agents'), async (req, res) => {
+router.get('/users_agents/options', verifyToken(), verifyModule(['users_agents', 'checklists']), async (req, res) => {
     try {
         const { estado } = req.query;
         const result = await get_user_agent_options({ estado: estado || req.user.estado });
