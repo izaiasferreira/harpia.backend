@@ -160,6 +160,24 @@ router.post('/', telegramAuth, async (req, res) => {
     if (!data.template_id) return res.status(400).json({ error: 'template_id é obrigatório' });
     if (!data.date) return res.status(400).json({ error: 'date é obrigatório' });
 
+    // Validate authorization
+    const agentEstado = req.colaborador.estado;
+    const { rows } = await cenos_pool.query(
+      `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo
+       FROM login l
+       LEFT JOIN colaboradores col ON l.id = col."ID"
+       WHERE l.id = $1`,
+      [agentId]
+    );
+    const agentProfile = rows[0] || {};
+    const templates = await listTemplatesForAgentWithProfile(agentEstado, agentProfile);
+    const isAllowed = templates.some(t => t.id === data.template_id);
+
+    if (!isAllowed) {
+      console.warn(`[AGENT_CHECKLISTS] Agente ${agentId} tentou enviar checklist não autorizado: ${data.template_id}. Descartando silenciosamente.`);
+      return res.status(201).json({ success: true, checklist: { id: data.id || 'fake-id', status: 'completed', date: data.date } });
+    }
+
     const checklist = await saveChecklistSubmission(agentId, data);
     res.status(201).json({ success: true, checklist });
   } catch (err) {
@@ -177,6 +195,24 @@ router.post('/:id/sync', telegramAuth, async (req, res) => {
 
     if (!data.template_id) return res.status(400).json({ error: 'template_id é obrigatório' });
     if (!data.date) return res.status(400).json({ error: 'date é obrigatório' });
+
+    // Validate authorization
+    const agentEstado = req.colaborador.estado;
+    const { rows } = await cenos_pool.query(
+      `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo
+       FROM login l
+       LEFT JOIN colaboradores col ON l.id = col."ID"
+       WHERE l.id = $1`,
+      [agentId]
+    );
+    const agentProfile = rows[0] || {};
+    const templates = await listTemplatesForAgentWithProfile(agentEstado, agentProfile);
+    const isAllowed = templates.some(t => t.id === data.template_id);
+
+    if (!isAllowed) {
+      console.warn(`[AGENT_CHECKLISTS] Agente ${agentId} tentou sincronizar checklist não autorizado: ${data.template_id}. Descartando silenciosamente.`);
+      return res.json({ success: true, checklist: { id: data.id || 'fake-id', status: 'completed', date: data.date } });
+    }
 
     const checklist = await saveChecklistSubmission(agentId, data);
     res.json({ success: true, checklist });

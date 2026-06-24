@@ -1063,8 +1063,9 @@ module.exports = {
     delete_user_agent_admin,
     send_message_to_agent,
     send_telegram_to_agent_by_id,
-    send_bulk_message_to_agents,
     get_justify_types_admin,
-      get_user_agent_options,
-      getUserAllowedStatePools,
+    get_user_agent_options,
+    getUserAllowedStatePools,
+    getFilterUser,
+    userIsAdmin,
 };

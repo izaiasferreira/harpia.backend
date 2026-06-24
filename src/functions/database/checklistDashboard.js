@@ -1,5 +1,28 @@
 const { cenos_pool } = require('../../db');
-const { getUserAllowedStatePools } = require('./admin');
+const { getUserAllowedStatePools, getFilterUser, userIsAdmin } = require('./admin');
+
+function buildUserPermissionSQL(user, params, idx) {
+  const conditions = [];
+  if (user && !userIsAdmin(user)) {
+    const filterUser = getFilterUser(user);
+    if (filterUser) {
+      const colName = filterUser.type === 'gestor' ? '"GESTOR IMEDIATO"' : `"${filterUser.type}"`;
+      conditions.push(`UPPER(col.${colName}) = UPPER($${idx})`);
+      params.push(filterUser.value);
+      idx++;
+    }
+    const allowedPools = getUserAllowedStatePools(user);
+    const allowedStates = allowedPools.map(p => p.state.toUpperCase());
+    if (allowedStates.length > 0) {
+      conditions.push(`UPPER(col.estado) = ANY($${idx}::varchar[])`);
+      params.push(allowedStates);
+      idx++;
+    } else {
+      conditions.push(`1 = 0`);
+    }
+  }
+  return { conditions, params, idx };
+}
 
 async function getDashboardFilterOptions() {
   const regionais = await cenos_pool.query(
@@ -35,13 +58,20 @@ function buildColaboradorJoins() {
   return `LEFT JOIN colaboradores col ON c.agent_id = col."ID"`;
 }
 
-function buildColaboradorFilters({ regional, sectional, estado, gestor, agent_name, params, idx }) {
+function buildColaboradorFilters({ regional, sectional, estado, gestor, agent_name, params, idx, user }) {
   const filters = [];
   if (regional) { filters.push(`col.regional = $${idx}`); params.push(regional); idx++; }
   if (sectional) { filters.push(`col.seccional = $${idx}`); params.push(sectional); idx++; }
   if (estado) { filters.push(`col.estado = $${idx}`); params.push(estado); idx++; }
   if (gestor) { filters.push(`col."GESTOR IMEDIATO" = $${idx}`); params.push(gestor); idx++; }
   if (agent_name) { filters.push(`col."Nome" ILIKE $${idx}`); params.push(`%${agent_name}%`); idx++; }
+
+  const perm = buildUserPermissionSQL(user, params, idx);
+  if (perm.conditions.length > 0) {
+    filters.push(...perm.conditions);
+  }
+  idx = perm.idx;
+
   return { filters, idx };
 }
 
@@ -214,7 +244,7 @@ async function listDashboardChecklists({
   page = 1, limit = 15, agent_name, date_from, date_to,
   type, severity_alert, status,
   regional, sectional, estado, gestor
-}) {
+}, user) {
   const offset = (page - 1) * limit;
   const params = [];
   let idx = 1;
@@ -225,7 +255,7 @@ async function listDashboardChecklists({
 
   const colJoin = buildColaboradorJoins();
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
-    regional, sectional, estado, gestor, agent_name, params, idx
+    regional, sectional, estado, gestor, agent_name, params, idx, user
   });
   idx = colIdx;
 
@@ -435,7 +465,7 @@ function buildTemplateAgentMatchSQL(templateData, params, idx) {
  * Helper: get all active agent IDs that match ANY of the given templates.
  * Returns a Set of agent ID strings.
  */
-async function getAgentsMatchingTemplates(templates) {
+async function getAgentsMatchingTemplates(templates, user) {
   const allAgentIds = new Set();
 
   for (const tmpl of templates) {
@@ -444,6 +474,9 @@ async function getAgentsMatchingTemplates(templates) {
     const match = buildTemplateAgentMatchSQL(tmpl, params, idx);
     idx = match.idx;
 
+    const perm = buildUserPermissionSQL(user, params, idx);
+    idx = perm.idx;
+
     let estadoClause = '';
     if (tmpl.estado) {
       estadoClause = `AND UPPER(col.estado) = UPPER($${idx})`;
@@ -451,8 +484,8 @@ async function getAgentsMatchingTemplates(templates) {
       idx++;
     }
 
-    // Template matches ALL agents (no filters, no estado restriction)
-    if (match.conditions.length === 0 && !estadoClause) {
+    // Template matches ALL agents (no filters, no estado restriction, no user permission restrictions)
+    if (match.conditions.length === 0 && !estadoClause && perm.conditions.length === 0) {
       const { rows } = await cenos_pool.query(
         `SELECT col."ID" FROM colaboradores col WHERE col.situacao = 'active'`
       );
@@ -462,6 +495,7 @@ async function getAgentsMatchingTemplates(templates) {
 
     const whereClause = ['col.situacao = \'active\''];
     if (match.conditions.length > 0) whereClause.push(match.conditions.join(' AND '));
+    if (perm.conditions.length > 0) whereClause.push(perm.conditions.join(' AND '));
     if (estadoClause) whereClause.push(estadoClause.replace('AND ', ''));
 
     if (whereClause.length > 1) {
@@ -479,12 +513,12 @@ async function getAgentsMatchingTemplates(templates) {
 /**
  * Compute regional breakdown for V2: group template-matched agents by regional.
  */
-async function computeV2RegionalBreakdown(templates, date_from, date_to) {
+async function computeV2RegionalBreakdown(templates, date_from, date_to, user) {
   const todayStr = new Date().toISOString().split('T')[0];
   const from = date_from || todayStr;
   const to = date_to || todayStr;
 
-  const agentIdSet = await getAgentsMatchingTemplates(templates);
+  const agentIdSet = await getAgentsMatchingTemplates(templates, user);
   if (agentIdSet.size === 0) return [];
 
   const agentIds = Array.from(agentIdSet);
@@ -581,7 +615,7 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
 
   const colJoin = buildColaboradorJoins();
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
-    regional, sectional, estado, gestor, params: dParams, idx: dIdx
+    regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
   });
   dIdx = colIdx;
 
@@ -591,54 +625,63 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
   for (const tId of templateIds) {
     const tmpl = templatesMap[tId];
 
-    // Build agent matching conditions from template filters
-    const tParams = [];
-    let tIdx = 1;
+    // Create a copy of global params (which include dates, user permissions, and UI filters)
+    const tParams = [...dParams];
+    let tIdx = dIdx;
+
+    // Append template specific match conditions
     const tMatch = buildTemplateAgentMatchSQL(tmpl, tParams, tIdx);
     tIdx = tMatch.idx;
 
-    const agentWhere = tMatch.conditions.length > 0
-      ? `AND ${tMatch.conditions.join(' AND ')}`
-      : '';
-
-    const tmplDateFilter = buildDateFilter({ date_from, date_to, params: tParams, idx: tIdx });
-    tIdx = tmplDateFilter.nextIdx;
-
-    // Check if template has estado restriction (for agent matching)
+    // Check if template has its own estado restriction
     let estadoCondition = '';
     if (tmpl.estado) {
-      estadoCondition = `AND UPPER(col.estado) = UPPER($${tIdx})`;
+      estadoCondition = `UPPER(col.estado) = UPPER($${tIdx})`;
       tParams.push(tmpl.estado);
       tIdx++;
     }
 
-    // Active agents matching this template
+    // Combine all agent filtering conditions: Template matches + UI Filters + User Permissions + Template Estado
+    const combinedColFilters = [...colFilters];
+    if (tMatch.conditions.length > 0) combinedColFilters.push(...tMatch.conditions);
+    if (estadoCondition) combinedColFilters.push(estadoCondition);
+
+    const colWhereClause = combinedColFilters.length > 0 ? `AND ${combinedColFilters.join(' AND ')}` : '';
+
+    // Active agents matching this template AND user permissions AND UI filters
     const activeRes = await cenos_pool.query(
       `SELECT COUNT(*) as total FROM colaboradores col
-       WHERE col.situacao = 'active' ${tMatch.conditions.length > 0 ? 'AND ' + tMatch.conditions.join(' AND ') : ''} ${estadoCondition}`,
-      tMatch.conditions.length > 0 || tmpl.estado ? tParams : []
+       WHERE col.situacao = 'active' AND $1::text=$1::text AND $2::text=$2::text ${colWhereClause}`,
+      tParams
     );
     const activeAgents = parseInt(activeRes.rows[0].total, 10);
 
-    // Submitted checklists for this template
-    // date params were pushed at indices tMatch.idx-1 and tMatch.idx (0-indexed)
-    // $1 is always template_id, so dates start at $2
-    const dateIdxStart = 2;
+    // Submitted checklists for this template (using colJoin so combinedColFilters can reference col.*)
+    const combinedCFilters = [
+      `c.template_id = $${tIdx}`,
+      `c.status = 'submitted'`,
+      ...dateFilters,
+      ...combinedColFilters
+    ];
+    tParams.push(tId);
+    const templateIdIdx = tIdx;
+    tIdx++;
+
     const submittedRes = await cenos_pool.query(
-      `SELECT COUNT(*) as total FROM checklists c
-       WHERE c.template_id = $1 AND c.status = 'submitted'
-       AND c.date >= $${dateIdxStart} AND c.date <= $${dateIdxStart + 1}`,
-      [tId, tParams[tMatch.idx - 1], tParams[tMatch.idx]]
+      `SELECT COUNT(c.id) as total FROM checklists c
+       ${colJoin}
+       WHERE ${combinedCFilters.join(' AND ')}`,
+      tParams
     );
     const totalSubmitted = parseInt(submittedRes.rows[0].total, 10);
 
     // Compliant (zero non_compliant)
     const compliantRes = await cenos_pool.query(
-      `SELECT COUNT(*) as total FROM checklists c
-       WHERE c.template_id = $1 AND c.status = 'submitted'
-       AND c.date >= $2 AND c.date <= $3
+      `SELECT COUNT(c.id) as total FROM checklists c
+       ${colJoin}
+       WHERE ${combinedCFilters.join(' AND ')}
        AND ((c.data->'compliance_summary'->>'non_compliant')::int) = 0`,
-      [tId, dateFilter.params[0], dateFilter.params[1]]
+      tParams
     );
     const compliant = parseInt(compliantRes.rows[0].total, 10);
     const nonCompliant = totalSubmitted - compliant;
@@ -649,52 +692,103 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
       active_agents: activeAgents,
       total_checklists: totalSubmitted,
       compliant,
-      non_compliant,
+      non_compliant: nonCompliant,
       compliance_rate: totalSubmitted > 0 ? Math.round((compliant / totalSubmitted) * 100) : 0,
     });
   }
 
-  // Aggregate across all templates
-  const totalActive = templatesBreakdown.reduce((s, t) => s + t.active_agents, 0);
+  // Aggregate across all templates for checklist stats
   const totalChecklists = templatesBreakdown.reduce((s, t) => s + t.total_checklists, 0);
   const totalCompliant = templatesBreakdown.reduce((s, t) => s + t.compliant, 0);
   const totalNonCompliant = templatesBreakdown.reduce((s, t) => s + t.non_compliant, 0);
 
-  // Pending agents: agents matched by any active template who haven't submitted today
+  // Agent unique metrics: agents matched by any active template who have/haven't submitted all
   const todayStr = new Date().toISOString().split('T')[0];
   const pFrom = date_from || todayStr;
   const pTo = date_to || todayStr;
 
-  const { rows: pending } = await cenos_pool.query(
-    `SELECT DISTINCT col."ID" as agent_id, col."Nome" as nome, col.regional, col.seccional,
-            col.estado, col."Cargo" as cargo, col."GESTOR IMEDIATO" as gestor
-     FROM colaboradores col
-     WHERE col.situacao = 'active'
-       AND NOT EXISTS (
-         SELECT 1 FROM checklists c
-         WHERE c.agent_id = col."ID"
-           AND c.date >= $1 AND c.date <= $2
-           AND c.status = 'submitted'
-           AND c.template_id = ANY($3::uuid[])
-       )
-     ORDER BY col."Nome"
-     LIMIT 100`,
-    [pFrom, pTo, templateIds]
-  );
+  let agentRequiredTemplates = {};
+
+  for (const tId of templateIds) {
+    const tmpl = templatesMap[tId];
+    const params = [];
+    let idx = 1;
+    const match = buildTemplateAgentMatchSQL(tmpl, params, idx);
+    idx = match.idx;
+
+    const { filters: colFilters, idx: newIdx } = buildColaboradorFilters({
+      regional, sectional, estado, gestor, agent_name: undefined, params, idx, user
+    });
+    idx = newIdx;
+
+    let estadoClause = '';
+    if (tmpl.estado) {
+      estadoClause = `UPPER(col.estado) = UPPER($${idx})`;
+      params.push(tmpl.estado);
+      idx++;
+    }
+
+    const combinedConditions = [...match.conditions, ...colFilters];
+    if (estadoClause) combinedConditions.push(estadoClause);
+    const whereClause = combinedConditions.length > 0 ? `AND ${combinedConditions.join(' AND ')}` : '';
+
+    const { rows } = await cenos_pool.query(
+      `SELECT col."ID" as agent_id
+       FROM colaboradores col
+       WHERE col.situacao = 'active' ${whereClause}`,
+      params
+    );
+
+    for (const r of rows) {
+      if (!agentRequiredTemplates[r.agent_id]) agentRequiredTemplates[r.agent_id] = [];
+      agentRequiredTemplates[r.agent_id].push(tId);
+    }
+  }
+
+  const agentIds = Object.keys(agentRequiredTemplates);
+  let totalActive = agentIds.length;
+  let totalCompleted = 0;
+  let totalPending = 0;
+
+  if (agentIds.length > 0) {
+    const { rows: submittedRows } = await cenos_pool.query(
+      `SELECT DISTINCT agent_id, template_id FROM checklists
+       WHERE agent_id = ANY($1::varchar[])
+         AND date >= $2 AND date <= $3
+         AND status = 'submitted'
+         AND template_id = ANY($4::uuid[])`,
+      [agentIds, pFrom, pTo, templateIds]
+    );
+
+    let agentSubmittedTemplates = {};
+    for (const r of submittedRows) {
+      if (!agentSubmittedTemplates[r.agent_id]) agentSubmittedTemplates[r.agent_id] = new Set();
+      agentSubmittedTemplates[r.agent_id].add(r.template_id);
+    }
+
+    for (const agentId of agentIds) {
+      const required = agentRequiredTemplates[agentId];
+      const submitted = agentSubmittedTemplates[agentId] || new Set();
+      const missing = required.filter(tId => !submitted.has(tId));
+      if (missing.length === 0) totalCompleted++;
+      else totalPending++;
+    }
+  }
 
   // Regional breakdown using template-matched agents
   const allTemplates = templateIds.map(id => templatesMap[id]);
-  const regionalBreakdown = await computeV2RegionalBreakdown(allTemplates, date_from, date_to);
+  const regionalBreakdown = await computeV2RegionalBreakdown(allTemplates, date_from, date_to, user);
 
   return {
     active_agents: totalActive,
+    pending_agents: totalPending,
+    completed_agents: totalCompleted,
     total_checklists: totalChecklists,
     compliant: totalCompliant,
     non_compliant: totalNonCompliant,
     compliance_rate: totalChecklists > 0 ? Math.round((totalCompliant / totalChecklists) * 100) : 0,
     templates_breakdown: templatesBreakdown,
     regional_breakdown: regionalBreakdown,
-    pending_agents: pending,
   };
 }
 
@@ -716,14 +810,11 @@ async function getDashboardPendingAgentsV2({
   let templates = [];
   if (template_id) {
     const { rows } = await cenos_pool.query(
-      `SELECT id, data FROM checklist_templates WHERE id = $1 AND is_active = true`, [template_id]
+      `SELECT id, title, data, estado FROM checklist_templates WHERE id = $1 AND is_active = true`, [template_id]
     );
     templates = rows;
   } else {
-    const { rows } = await cenos_pool.query(
-      `SELECT id, data FROM checklist_templates WHERE is_active = true`
-    );
-    templates = rows;
+    templates = await getAllowedTemplates(user);
   }
 
   if (templates.length === 0) {
@@ -735,75 +826,95 @@ async function getDashboardPendingAgentsV2({
   const templateIds = templates.map(t => t.id);
 
   // First, get all active agents that match any template
-  let allMatchingAgents = new Set();
   let agentDetails = {};
+  // Track which templates each agent is required to answer
+  let agentRequiredTemplates = {};
+  // Track template titles for mapping later
+  let templateTitles = {};
 
   for (const tmpl of templates) {
+    templateTitles[tmpl.id] = tmpl.title;
     const params = [];
     let idx = 1;
     const match = buildTemplateAgentMatchSQL(tmpl, params, idx);
     idx = match.idx;
 
+    const { filters: colFilters, idx: newIdx } = buildColaboradorFilters({
+      regional, sectional, estado, gestor, agent_name, params, idx, user
+    });
+    idx = newIdx;
+
     let estadoClause = '';
     if (tmpl.data?.estado || tmpl.estado) {
       const est = tmpl.estado || tmpl.data?.estado;
-      estadoClause = `AND UPPER(col.estado) = UPPER($${idx})`;
+      estadoClause = `UPPER(col.estado) = UPPER($${idx})`;
       params.push(est);
       idx++;
     }
 
-    if (match.conditions.length === 0 && !estadoClause) {
-      // Template matches ALL agents
-      const { rows } = await cenos_pool.query(
-        `SELECT col."ID" as agent_id, col."Nome" as nome, col.regional, col.seccional,
-                col.estado, col."Cargo" as cargo, col."GESTOR IMEDIATO" as gestor
-         FROM colaboradores col
-         WHERE col.situacao = 'active'`,
-        []
-      );
-      for (const r of rows) {
-        allMatchingAgents.add(r.agent_id);
-        agentDetails[r.agent_id] = r;
-      }
-      break; // If any template matches ALL, we can stop
-    }
+    const combinedConditions = [...match.conditions, ...colFilters];
+    if (estadoClause) combinedConditions.push(estadoClause);
 
-    if (match.conditions.length > 0 || estadoClause) {
-      const whereClause = [match.conditions.join(' AND '), estadoClause.replace('AND ', '')].filter(Boolean).join(' AND ');
-      const { rows } = await cenos_pool.query(
-        `SELECT col."ID" as agent_id, col."Nome" as nome, col.regional, col.seccional,
-                col.estado, col."Cargo" as cargo, col."GESTOR IMEDIATO" as gestor
-         FROM colaboradores col
-         WHERE col.situacao = 'active' AND ${whereClause}`,
-        params
-      );
-      for (const r of rows) {
-        allMatchingAgents.add(r.agent_id);
-        agentDetails[r.agent_id] = r;
+    const whereClause = combinedConditions.length > 0 ? `AND ${combinedConditions.join(' AND ')}` : '';
+
+    const { rows } = await cenos_pool.query(
+      `SELECT col."ID" as agent_id, col."Nome" as nome, col.regional, col.seccional,
+              col.estado, col."Cargo" as cargo, col."GESTOR IMEDIATO" as gestor
+       FROM colaboradores col
+       WHERE col.situacao = 'active' ${whereClause}`,
+      params
+    );
+
+    for (const r of rows) {
+      agentDetails[r.agent_id] = r;
+      if (!agentRequiredTemplates[r.agent_id]) {
+        agentRequiredTemplates[r.agent_id] = [];
       }
+      agentRequiredTemplates[r.agent_id].push(tmpl.id);
     }
   }
 
-  // Now find which of these agents haven't submitted
-  const agentIds = Array.from(allMatchingAgents);
+  // Now find which of these agents haven't submitted ALL their required templates
+  const agentIds = Object.keys(agentRequiredTemplates);
   if (agentIds.length === 0) {
     return { data: [], total: 0, page, limit, totalPages: 0 };
   }
 
   const { rows: submittedRows } = await cenos_pool.query(
-    `SELECT DISTINCT agent_id FROM checklists
+    `SELECT DISTINCT agent_id, template_id FROM checklists
      WHERE agent_id = ANY($1::varchar[])
        AND date >= $2 AND date <= $3
        AND status = 'submitted'
        AND template_id = ANY($4::uuid[])`,
     [agentIds, from, to, templateIds]
   );
-  const submittedIds = new Set(submittedRows.map(r => r.agent_id));
+  
+  // Group submitted templates by agent
+  let agentSubmittedTemplates = {};
+  for (const r of submittedRows) {
+    if (!agentSubmittedTemplates[r.agent_id]) {
+      agentSubmittedTemplates[r.agent_id] = new Set();
+    }
+    agentSubmittedTemplates[r.agent_id].add(r.template_id);
+  }
 
-  let pendingAgents = agentIds
-    .filter(id => !submittedIds.has(id))
-    .map(id => agentDetails[id])
-    .filter(Boolean);
+  let pendingAgents = [];
+  
+  for (const agentId of agentIds) {
+    const required = agentRequiredTemplates[agentId];
+    const submitted = agentSubmittedTemplates[agentId] || new Set();
+    
+    const missing = required.filter(tId => !submitted.has(tId));
+    
+    if (missing.length > 0) {
+      // Agent is pending!
+      const missingTitles = missing.map(tId => templateTitles[tId]);
+      pendingAgents.push({
+        ...agentDetails[agentId],
+        missing_templates: missingTitles
+      });
+    }
+  }
 
   // Apply additional text filters
   if (agent_name) {

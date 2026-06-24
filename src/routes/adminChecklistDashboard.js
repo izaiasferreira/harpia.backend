@@ -70,7 +70,7 @@ router.get('/checklists', verifyToken(), verifyModule('checklists'), async (req,
       limit: parseInt(limit || 15, 10),
       agent_name, date_from, date_to, type, severity_alert, status,
       regional, sectional, estado, gestor,
-    });
+    }, req.user);
     res.json(result);
   } catch (err) {
     console.error('[DASHBOARD] Erro GET /checklists:', err);
