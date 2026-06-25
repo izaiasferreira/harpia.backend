@@ -27,11 +27,7 @@ const AVAILABLE_MODULES = [
     { id: 'create_user', name: 'Criar Usuário' },
     { id: 'update_user', name: 'Atualizar Usuário' },
     { id: 'delete_user', name: 'Deletar Usuário' },
-    // Filiais
-    { id: 'branches', name: 'Filiais' },
-    { id: 'create_branch', name: 'Criar Filial' },
-    { id: 'update_branch', name: 'Atualizar Filial' },
-    { id: 'delete_branch', name: 'Deletar Filial' },
+    // Filiais removidas
     // Permissões
     { id: 'permissions', name: 'Permissions' },
     { id: 'create_permission', name: 'Criar Permissão' },

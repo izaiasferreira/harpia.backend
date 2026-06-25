@@ -13,7 +13,6 @@ const ceneduc = require('./ceneduc');
 const serviceNotes = require('./serviceNotes');
 const tracking = require('./tracking');
 const security = require('./security');
-const branches = require('./branches');
 const appPins = require('./appPins');
 const sentMessages = require('./sentMessages');
 const messageTemplates = require('./messageTemplates');
@@ -36,7 +35,6 @@ module.exports = {
   ...serviceNotes,
   ...tracking,
   ...security,
-  ...branches,
   ...appPins,
   ...sentMessages,
   ...messageTemplates,

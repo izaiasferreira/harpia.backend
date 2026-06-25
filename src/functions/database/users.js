@@ -9,7 +9,6 @@ async function createUser({
     nome,
     role = 'USER',
     estado = 'pi',
-    branches = [],
     permissions = []
 }) {
     const validated = userCreateSchema.parse({ email, senha, nome, role, estado });
@@ -40,13 +39,7 @@ async function createUser({
     const userId = rows[0].id;
     const state = validated.estado.toLowerCase();
 
-    if (branches.length > 0) {
-        const branchValues = branches.map((b, i) => `($1, $${i + 2}, $${i + 3})`).join(', ');
-        await pool.query(
-            `INSERT INTO user_branches (user_id, branch_id, state) VALUES ${branchValues}`,
-            [userId, ...branches, state]
-        );
-    }
+
 
     if (permissions.length > 0) {
         const permValues = permissions.map((p, i) => `($1, $${i + 2}, $${i + 3})`).join(', ');

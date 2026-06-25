@@ -57,7 +57,6 @@ app.use(express.static('public'));
 const consultasRouter = require('./routes/consultas');
 const agenteRouter = require('./routes/agente')
 const adminUsersRouter = require('./routes/adminUsers')
-const adminBranchesRouter = require('./routes/adminBranches')
 const adminPermissionsRouter = require('./routes/adminPermissions')
 const adminConsultRouter = require('./routes/adminModules')
 const publicRouter = require('./routes/public')
@@ -95,7 +94,6 @@ app.use('/admin', adminConsultRouter)
 app.use('/admin/user', adminUsersRouter)
 
 // Admin Branches (/admin/branch/*)
-app.use('/admin/branch', adminBranchesRouter)
 
 // Admin Permissions (/admin/permission/*)
 app.use('/admin/permission', adminPermissionsRouter)

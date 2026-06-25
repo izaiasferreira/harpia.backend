@@ -30,8 +30,8 @@ async function getUserAllowedModules(req, res, next) {
     }
 
     if (req.user.role === 'COMPANY_ADMIN') {
-        const { listModules } = require('../functions/database/branches');
-        const mods = listModules();
+        const { listModules } = require('../functions/modules');
+        const mods = await listModules();
         req.user.modules = mods.map(m => m.id);
     } else {
         const { getUserModules } = require('../functions/database/permissions');

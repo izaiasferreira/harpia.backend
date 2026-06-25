@@ -37,7 +37,6 @@ const ADMIN_NOME = process.env.ADMIN_NOME || 'Admin Principal';
                 nome: ADMIN_NOME,
                 role: 'COMPANY_ADMIN',
                 estado: 'pi',
-                branches: [],
                 permissions: []
             });
             console.log(`Admin criado: ${ADMIN_EMAIL}`);
@@ -88,7 +87,7 @@ router.post('/login', validate(userLoginSchema), async (req, res) => {
 
 router.post('/register', verifyToken(), verifyModule('create_user'), validate(userCreateSchema), async (req, res) => {
     try {
-        const { email, senha, nome, role, estado, branches, permissions } = req.body;
+        const { email, senha, nome, role, estado, permissions } = req.body;
 
         if (!email || !senha || !nome) {
             return res.status(400).json({ error: 'Email, senha e nome são obrigatórios' });
@@ -100,7 +99,6 @@ router.post('/register', verifyToken(), verifyModule('create_user'), validate(us
             nome, 
             role: role || 'USER', 
             estado: estado || req.user.estado,
-            branches: branches || [],
             permissions: permissions || []
         });
         res.status(201).json(user);
