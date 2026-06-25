@@ -178,6 +178,10 @@ app.use('/admin/dashboard', adminChecklistDashboardRouter)
 const agentChecklistsRouter = require('./routes/agentChecklists')
 app.use('/agent/checklists', agentChecklistsRouter)
 
+// Isenções de Checklist (/admin/agents/:agentId/exemptions)
+const adminAgentExemptionsRouter = require('./routes/adminAgentExemptions')
+app.use('/admin/agents', adminAgentExemptionsRouter)
+
 // Configs (/admin/config/*)
 const adminConfigRouter = require('./routes/adminConfig')
 app.use('/admin/config', adminConfigRouter)

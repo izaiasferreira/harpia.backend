@@ -13,6 +13,7 @@ const {
   getAgentTemplatesStatus,
 } = require('../functions/database/checklists');
 const { getUserData } = require('../functions/database/agentes');
+const { isAgentExempt } = require('../functions/database/agentExemptions');
 
 // Cargos que devem obrigatoriamente realizar o checklist diário
 const CHECKLIST_REQUIRED_CARGOS = [
@@ -52,6 +53,13 @@ router.get('/today', telegramAuth, async (req, res) => {
     req.colaborador.cargo = profile.cargo;
 
     const todayStr = new Date().toISOString().split('T')[0];
+
+    // Verifica isenção (inclui domingo)
+    const exempt = await isAgentExempt(agentId, todayStr);
+    if (exempt) {
+      return res.json({ checklist: null, checklist_required: false, exempted: true });
+    }
+
     const checklist = await getAgentTodayChecklist(agentId, todayStr);
     const checklist_required = isChecklistRequired(req.colaborador);
     res.json({ checklist, checklist_required });
@@ -99,6 +107,22 @@ router.get('/requirements', telegramAuth, async (req, res) => {
   try {
     const agentId = req.colaborador.id;
     const todayStr = new Date().toISOString().split('T')[0];
+
+    // Verifica isenção (inclui domingo)
+    const exempt = await isAgentExempt(agentId, todayStr);
+    if (exempt) {
+      const isSunday = new Date(todayStr + 'T12:00:00Z').getUTCDay() === 0;
+      return res.json({
+        checklist_required: false,
+        exempted: true,
+        exemption_reason: isSunday ? 'sunday' : 'manual_exemption',
+        required_templates: [],
+        all_submitted: true,
+        total_required: 0,
+        total_submitted: 0,
+      });
+    }
+
     const status = await getAgentTemplatesStatus(agentId, todayStr);
     res.json(status);
   } catch (err) {

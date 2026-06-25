@@ -906,4 +906,179 @@ Lista paginada de agentes que não enviaram checklist, baseada nos filtros dos t
 }
 ```
 
+---
+
+## Isenções de Checklist por Agente (`agent_exemptions`)
+
+Permite que administradores isentem um agente específico de responder o checklist por um período determinado. Durante a isenção, o agente não aparece como pendente em nenhum endpoint e o app não o bloqueia na tela de checklist.
+
+### Regras de Negócio
+
+- O período mínimo de isenção é **um dia** (data inicial = data final).
+- **Domingos** são automaticamente isentos para todos os agentes — independente de isenções manuais.
+- A isenção é verificada **em todos** os endpoints que expõem listas de agentes ou obrigatoriedade de checklist.
+- Toda isenção criada fica **registrada no banco para auditoria** — não é possível editar, apenas criar e remover.
+- Ao final do período de isenção, o agente volta automaticamente a ser cobrado sem nenhuma ação manual.
+
+---
+
+### Tabela `agent_exemptions`
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `id` | UUID | Identificador único |
+| `agent_id` | VARCHAR | ID do agente (FK → `login.id`) |
+| `start_date` | DATE | Data de início da isenção (inclusive) |
+| `end_date` | DATE | Data de fim da isenção (inclusive) |
+| `reason` | TEXT | Motivo (opcional, para auditoria) |
+| `created_by` | INTEGER | ID do admin que criou (FK → `users.id`) |
+| `created_at` | TIMESTAMP | Timestamp de criação |
+
+---
+
+### Função `isAgentExempt(agentId, dateStr)`
+
+Centralizada em `src/functions/database/agentExemptions.js`. Retorna `true` se:
+
+1. O dia da semana da `dateStr` for **domingo** (0 = domingo em `getUTCDay()`), **OU**
+2. Existir uma linha em `agent_exemptions` onde `agent_id = agentId` E `start_date <= dateStr` E `end_date >= dateStr`.
+
+```js
+const exempt = await isAgentExempt(agentId, todayStr);
+if (exempt) {
+  return res.json({ checklist_required: false, exempted: true });
+}
+```
+
+---
+
+### Permissões
+
+| Módulo | Descrição |
+|---|---|
+| `view_agent_exemptions` | Visualizar histórico de isenções de um agente |
+| `manage_agent_exemptions` | Criar e deletar isenções |
+
+---
+
+### GET /admin/agents/:agentId/exemptions
+
+Lista todas as isenções de um agente (históricas e futuras).
+
+**Permissão:** `view_agent_exemptions`
+
+#### Response 200
+```json
+[
+  {
+    "id": "uuid",
+    "agent_id": "T60702",
+    "start_date": "2026-06-25",
+    "end_date": "2026-07-05",
+    "reason": "Férias",
+    "created_by_name": "Admin Principal",
+    "created_at": "2026-06-25T21:00:00Z"
+  }
+]
+```
+
+---
+
+### POST /admin/agents/:agentId/exemptions
+
+Cria uma nova isenção para o agente.
+
+**Permissão:** `manage_agent_exemptions`
+
+#### Body
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `start_date` | string (YYYY-MM-DD) | sim | Data de início |
+| `end_date` | string (YYYY-MM-DD) | sim | Data de fim (≥ start_date) |
+| `reason` | string | não | Motivo da isenção |
+
+#### Validações (Zod)
+- `end_date` deve ser ≥ `start_date` (erro `400` caso contrário).
+
+#### Response 201
+```json
+{
+  "id": "uuid",
+  "agent_id": "T60702",
+  "start_date": "2026-06-25",
+  "end_date": "2026-07-05",
+  "reason": "Férias",
+  "created_by": 1,
+  "created_at": "2026-06-25T21:00:00Z"
+}
+```
+
+---
+
+### DELETE /admin/agents/:agentId/exemptions/:exemptionId
+
+Remove uma isenção. A remoção é imediata — se a isenção estava ativa, o agente volta a ser cobrado na próxima verificação.
+
+**Permissão:** `manage_agent_exemptions`
+
+#### Response 204
+Sem corpo.
+
+---
+
+### Impacto nos Endpoints do Agente
+
+#### GET /agent/checklists/today
+
+Antes de verificar o checklist do dia, agora chama `isAgentExempt`. Se o agente estiver isento:
+
+```json
+{ "checklist": null, "checklist_required": false, "exempted": true }
+```
+
+#### GET /agent/checklists/requirements
+
+Antes de calcular os templates obrigatórios, agora chama `isAgentExempt`. Se o agente estiver isento:
+
+```json
+{
+  "checklist_required": false,
+  "exempted": true,
+  "exemption_reason": "manual_exemption",
+  "required_templates": [],
+  "all_submitted": true,
+  "total_required": 0,
+  "total_submitted": 0
+}
+```
+
+O campo `exemption_reason` pode ser `"sunday"` (domingo) ou `"manual_exemption"` (isenção cadastrada).
+
+---
+
+### Impacto no Dashboard Admin
+
+#### GET /admin/dashboard/v2/stats
+
+Passa a retornar o campo adicional `exempted_agents` no objeto de KPIs:
+
+```json
+{
+  "active_agents": 150,
+  "completed_agents": 90,
+  "pending_agents": 45,
+  "exempted_agents": 15,
+  "total_checklists": 120,
+  "compliant": 90,
+  "non_compliant": 30,
+  "compliance_rate": 75,
+  ...
+}
+```
+
+`exempted_agents` = quantidade de agentes elegíveis que possuem isenção ativa **hoje** (inclui domingos).
+
+#### GET /admin/dashboard/v2/pending-agents
+
+Agentes isentos **não** aparecem nesta lista. A query exclui automaticamente qualquer agente com isenção ativa para a data consultada.
 

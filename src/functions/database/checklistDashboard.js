@@ -1,5 +1,7 @@
 const { cenos_pool } = require('../../db');
 const { getUserAllowedStatePools, getFilterUser, userIsAdmin } = require('./admin');
+const { getExemptAgentIds, countActiveExemptions } = require('./agentExemptions');
+
 
 function buildUserPermissionSQL(user, params, idx) {
   const conditions = [];
@@ -779,10 +781,15 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
   const allTemplates = templateIds.map(id => templatesMap[id]);
   const regionalBreakdown = await computeV2RegionalBreakdown(allTemplates, date_from, date_to, user);
 
+  // KPI: count of exempted agents on the reference date
+  const refDate = date_to || new Date().toISOString().split('T')[0];
+  const exempted_count = await countActiveExemptions(refDate);
+
   return {
     active_agents: totalActive,
     pending_agents: totalPending,
     completed_agents: totalCompleted,
+    exempted_agents: exempted_count,
     total_checklists: totalChecklists,
     compliant: totalCompliant,
     non_compliant: totalNonCompliant,
@@ -898,9 +905,23 @@ async function getDashboardPendingAgentsV2({
     agentSubmittedTemplates[r.agent_id].add(r.template_id);
   }
 
+  // Filter out exempt agents and Sunday global exemption
+  const refDate = to; // Use the last date in the range as the reference for exemptions
+  const { isSunday, ids: exemptIds } = await getExemptAgentIds(refDate);
+
+  if (isSunday) {
+    // Sundays: no one is required to answer
+    return { data: [], total: 0, page, limit, totalPages: 0, is_sunday: true };
+  }
+
+  const exemptSet = new Set(exemptIds);
+
   let pendingAgents = [];
   
   for (const agentId of agentIds) {
+    // Skip agents that are currently exempt
+    if (exemptSet.has(agentId)) continue;
+
     const required = agentRequiredTemplates[agentId];
     const submitted = agentSubmittedTemplates[agentId] || new Set();
     

@@ -17,6 +17,7 @@ const appPins = require('./appPins');
 const sentMessages = require('./sentMessages');
 const messageTemplates = require('./messageTemplates');
 const fcmTokens = require('./fcmTokens');
+const agentExemptions = require('./agentExemptions');
 const config = require('./config');
 
 module.exports = {
@@ -39,5 +40,6 @@ module.exports = {
   ...sentMessages,
   ...messageTemplates,
   ...fcmTokens,
+  ...agentExemptions,
   ...config
 };

@@ -103,7 +103,10 @@ const AVAILABLE_MODULES = [
     { id: 'update_crash_incident', name: 'Atualizar Incidente de Queda' },
     { id: 'resolve_crash_incident', name: 'Resolver / Validar Incidente de Queda' },
     // Configurações de Reporte de Segurança
-    { id: 'manage_security_reports_config', name: 'Gerenciar Configurações de Reporte de Segurança' }
+    { id: 'manage_security_reports_config', name: 'Gerenciar Configurações de Reporte de Segurança' },
+    // Isenções de Checklist
+    { id: 'manage_agent_exemptions', name: 'Gerenciar Isenções de Checklist (Agentes)' },
+    { id: 'view_agent_exemptions', name: 'Visualizar Isenções de Checklist (Agentes)' }
 ];
 
 async function listModules() {
