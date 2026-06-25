@@ -8,7 +8,7 @@ const { processBase64Files } = require('./serviceNotes');
 
 async function listTemplatesAdmin() {
   const { rows } = await cenos_pool.query(
-    'SELECT id, title, is_active, estado, created_by, data, created_at, updated_at FROM checklist_templates ORDER BY created_at DESC'
+    'SELECT id, title, is_active, estado, created_by, data, created_at, updated_at FROM checklist_templates WHERE is_deleted = false ORDER BY created_at DESC'
   );
   return rows;
 }
@@ -128,7 +128,7 @@ async function updateTemplate(id, { title, description, is_active, estado, data 
 
 async function deleteTemplate(id) {
   const { rows } = await cenos_pool.query(
-    'UPDATE checklist_templates SET is_active = false, updated_at = NOW() WHERE id = $1 RETURNING *',
+    'UPDATE checklist_templates SET is_active = false, is_deleted = true, updated_at = NOW() WHERE id = $1 RETURNING *',
     [id]
   );
   return rows[0];
