@@ -32,11 +32,11 @@ router.get('/:agentId/exemptions',
 /**
  * POST /admin/agents/:agentId/exemptions
  * Cria uma nova isenção para o agente.
- * Requer: manage_agent_exemptions
+ * Requer: create_agent_exemption
  */
 router.post('/:agentId/exemptions',
   verifyToken(),
-  verifyModule('manage_agent_exemptions'),
+  verifyModule('create_agent_exemption'),
   validate(agentExemptionCreateSchema),
   async (req, res) => {
     try {
@@ -63,11 +63,11 @@ router.post('/:agentId/exemptions',
 /**
  * DELETE /admin/agents/:agentId/exemptions/:exemptionId
  * Remove/revoga uma isenção.
- * Requer: manage_agent_exemptions
+ * Requer: delete_agent_exemption
  */
 router.delete('/:agentId/exemptions/:exemptionId',
   verifyToken(),
-  verifyModule('manage_agent_exemptions'),
+  verifyModule('delete_agent_exemption'),
   async (req, res) => {
     try {
       const { agentId, exemptionId } = req.params;

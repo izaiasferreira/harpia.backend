@@ -957,7 +957,8 @@ if (exempt) {
 | Módulo | Descrição |
 |---|---|
 | `view_agent_exemptions` | Visualizar histórico de isenções de um agente |
-| `manage_agent_exemptions` | Criar e deletar isenções |
+| `create_agent_exemption` | Criar isenções para agentes |
+| `delete_agent_exemption` | Deletar/revogar isenções de agentes |
 
 ---
 
@@ -988,7 +989,7 @@ Lista todas as isenções de um agente (históricas e futuras).
 
 Cria uma nova isenção para o agente.
 
-**Permissão:** `manage_agent_exemptions`
+**Permissão:** `create_agent_exemption`
 
 #### Body
 | Campo | Tipo | Obrigatório | Descrição |
@@ -1019,7 +1020,7 @@ Cria uma nova isenção para o agente.
 
 Remove uma isenção. A remoção é imediata — se a isenção estava ativa, o agente volta a ser cobrado na próxima verificação.
 
-**Permissão:** `manage_agent_exemptions`
+**Permissão:** `delete_agent_exemption`
 
 #### Response 204
 Sem corpo.

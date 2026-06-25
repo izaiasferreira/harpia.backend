@@ -105,7 +105,8 @@ const AVAILABLE_MODULES = [
     // Configurações de Reporte de Segurança
     { id: 'manage_security_reports_config', name: 'Gerenciar Configurações de Reporte de Segurança' },
     // Isenções de Checklist
-    { id: 'manage_agent_exemptions', name: 'Gerenciar Isenções de Checklist (Agentes)' },
+    { id: 'create_agent_exemption', name: 'Criar Isenção de Checklist (Agentes)' },
+    { id: 'delete_agent_exemption', name: 'Excluir Isenção de Checklist (Agentes)' },
     { id: 'view_agent_exemptions', name: 'Visualizar Isenções de Checklist (Agentes)' }
 ];
 
