@@ -105,7 +105,9 @@ const AVAILABLE_MODULES = [
     // Detecção de Quedas / Acidentes
     { id: 'crash_detection', name: 'Consultar Incidentes de Queda' },
     { id: 'update_crash_incident', name: 'Atualizar Incidente de Queda' },
-    { id: 'resolve_crash_incident', name: 'Resolver / Validar Incidente de Queda' }
+    { id: 'resolve_crash_incident', name: 'Resolver / Validar Incidente de Queda' },
+    // Configurações de Reporte de Segurança
+    { id: 'manage_security_reports_config', name: 'Gerenciar Configurações de Reporte de Segurança' }
 ];
 
 async function listModules() {

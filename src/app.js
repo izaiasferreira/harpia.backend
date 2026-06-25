@@ -188,6 +188,18 @@ app.use('/admin/config', adminConfigRouter)
 const adminMessagesRouter = require('./routes/adminMessages')
 app.use('/admin/messages', adminMessagesRouter)
 
+// Security Report Configs (/admin/security_reports/configs/*)
+const adminSecurityReportConfigsRouter = require('./routes/adminSecurityReportConfigs')
+app.use('/admin/security_reports/configs', adminSecurityReportConfigsRouter)
+
+// Agent Security Report Config (/agent/security_report/config)
+const agentSecurityReportConfigRouter = require('./routes/agentSecurityReportConfig')
+app.use('/agent/security_report', agentSecurityReportConfigRouter)
+
+// Agent Security Reports V2 (/agent/v2/*) — com verificação de permissão
+const agentSecurityReportsRouter = require('./routes/agentSecurityReports')
+app.use('/agent/v2', agentSecurityReportsRouter)
+
 // App Update (/api/app/update/*)
 const appUpdateRouter = require('./routes/appUpdate')
 app.use('/', appUpdateRouter)
