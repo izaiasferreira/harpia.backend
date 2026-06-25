@@ -96,7 +96,8 @@ Health check simples (sem prefixo).
 | `POST /agent/security_report` | Relatório de segurança |
 | `GET /agent/security_report` | Listar relatórios |
 | `GET /agent/predicted` | Leitura previstas |
-| `POST /agent/tracking/sync` | Sync de GPS |
+| `POST /agent/tracking/sync-unified` | Sync de GPS (unificado) |
+| `POST /agent/tracking/alerts/sync` | Sync de alert logs |
 | `POST /agent/fcm-token` | Registro de token FCM |
 | `GET /agent/ceneduc` | CenEduc do agente |
 | `POST /agent/ceneduc/complete/:id` | Completar card + badge |

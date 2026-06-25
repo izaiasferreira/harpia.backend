@@ -1,70 +1,4 @@
 const { cenos_pool } = require('../../db');
-const { unifiedPointSchema, trackingAgentConfigSchema } = require('../../db/schemas/tracking');
-
-async function insertUnifiedPoints(agentId, points, speedLimit) {
-    if (!points || points.length === 0) return { inserted: 0, violations: 0 };
-
-    const speedLimitNum = Number(speedLimit) || 81;
-    const values = [];
-    const params = [];
-    let paramIdx = 1;
-    let violations = 0;
-
-    for (const raw of points) {
-        const point = unifiedPointSchema.parse(raw);
-
-        // Normalizar battery: Capacitor envia 0~1, nativo envia 0~100
-        let batteryLevel = point.batteryLevel ?? null;
-        if (batteryLevel != null && batteryLevel <= 1) {
-            batteryLevel = Math.round(batteryLevel * 100);
-        }
-
-        // Normalizar velocidade: Android GPS e Web retornam m/s -> converter para km/h (* 3.6)
-        let speedKmh = point.speed ?? null;
-        if (speedKmh != null && speedKmh > 0) {
-            speedKmh = Math.round(speedKmh * 3.6);
-        }
-
-        const isViolation = speedKmh != null && speedKmh > speedLimitNum;
-        if (isViolation) violations++;
-
-        values.push(`($${paramIdx},$${paramIdx+1},$${paramIdx+2},$${paramIdx+3},$${paramIdx+4},$${paramIdx+5},$${paramIdx+6},$${paramIdx+7},$${paramIdx+8},$${paramIdx+9},$${paramIdx+10},$${paramIdx+11},$${paramIdx+12},$${paramIdx+13},$${paramIdx+14},$${paramIdx+15},$${paramIdx+16},$${paramIdx+17},$${paramIdx+18})`);
-        params.push(
-            agentId,
-            point.lat,
-            point.lng,
-            speedKmh,
-            point.accuracy ?? null,
-            batteryLevel,
-            point.isCharging ?? false,
-            point.networkType ?? null,
-            point.gpsEnabled ?? true,
-            point.deviceModel ?? null,
-            point.devicePlatform ?? null,
-            point.osVersion ?? null,
-            new Date(point.timestamp),
-            speedLimitNum,
-            isViolation,
-            point.isEstimated ?? false,
-            point.estimatedFromLat ?? null,
-            point.estimatedFromLng ?? null,
-            point.deadReckonDrift ?? null
-        );
-        paramIdx += 19;
-    }
-
-    await cenos_pool.query(`
-        INSERT INTO tracking_session_points
-            (agent_id, latitude, longitude, speed, accuracy,
-             battery_level, is_charging, network_type, gps_enabled,
-             device_model, device_platform, os_version, recorded_at,
-             speed_limit_applied, is_speed_violation,
-             is_estimated, estimated_from_lat, estimated_from_lng, dead_reckon_drift)
-        VALUES ${values.join(',')}
-    `, params);
-
-    return { inserted: points.length, violations };
-}
 
 async function getAgentSpeedLimit(agentId) {
     const { rows } = await cenos_pool.query(
@@ -268,6 +202,7 @@ async function getAgentTrailWithStops(agentId, dateFrom, dateTo) {
     if (points.length === 0) return { points: [], stops: [] };
 
     const stops = [];
+    const cleanedPoints = [];
     let clusterStart = null;
     let clusterPoints = [];
 
@@ -285,26 +220,45 @@ async function getAgentTrailWithStops(agentId, dateFrom, dateTo) {
         // Calcula distância do cluster start
         const d = haversineKm(clusterStart.lat, clusterStart.lng, lat, lng);
 
-        if (d < 0.02) { // < 20m
+        if (d < 0.05) { // < 50m (ajustado para absorver drift de GPS indoor)
             clusterPoints.push(pt);
         } else {
             // Finalizou o cluster — avalia se é parada
-            evaluateStop(clusterPoints, clusterStart, stops);
+            const stop = evaluateStop(clusterPoints, clusterStart);
+            if (stop) {
+                stops.push(stop);
+                // Colapsa os pontos do cluster para remover o efeito "teia de aranha" (spiderweb) do drift
+                cleanedPoints.push({ ...clusterPoints[0], latitude: clusterStart.lat, longitude: clusterStart.lng });
+                if (clusterPoints.length > 1) {
+                    cleanedPoints.push({ ...clusterPoints[clusterPoints.length - 1], latitude: clusterStart.lat, longitude: clusterStart.lng });
+                }
+            } else {
+                cleanedPoints.push(...clusterPoints);
+            }
             clusterStart = { lat, lng, idx: i };
             clusterPoints = [pt];
         }
     }
 
     // Último cluster
-    if (clusterPoints.length >= 3) {
-        evaluateStop(clusterPoints, clusterStart, stops);
+    if (clusterPoints.length > 0) {
+        const stop = evaluateStop(clusterPoints, clusterStart);
+        if (stop) {
+            stops.push(stop);
+            cleanedPoints.push({ ...clusterPoints[0], latitude: clusterStart.lat, longitude: clusterStart.lng });
+            if (clusterPoints.length > 1) {
+                cleanedPoints.push({ ...clusterPoints[clusterPoints.length - 1], latitude: clusterStart.lat, longitude: clusterStart.lng });
+            }
+        } else {
+            cleanedPoints.push(...clusterPoints);
+        }
     }
 
-    return { points, stops };
+    return { points: cleanedPoints, stops };
 }
 
-function evaluateStop(clusterPoints, clusterStart, stops) {
-    if (clusterPoints.length < 3) return;
+function evaluateStop(clusterPoints, clusterStart) {
+    if (clusterPoints.length < 3) return null;
 
     const speeds = clusterPoints
         .map(p => parseFloat(p.speed))
@@ -313,14 +267,14 @@ function evaluateStop(clusterPoints, clusterStart, stops) {
         ? speeds.reduce((a, b) => a + b, 0) / speeds.length
         : 0;
 
-    // Confirma parada: speed média < 2 km/h (auxiliar, não bloqueante)
-    if (avgSpeed > 2 && speeds.length > 0) return;
+    // Confirma parada: speed média < 2.5 km/h
+    if (avgSpeed > 2.5 && speeds.length > 0) return null;
 
     const first = clusterPoints[0];
     const last = clusterPoints[clusterPoints.length - 1];
     const durationMs = new Date(last.recorded_at) - new Date(first.recorded_at);
 
-    if (durationMs < 60_000) return; // < 60s não conta
+    if (durationMs < 60_000) return null; // < 60s não conta
 
     const accuracies = clusterPoints
         .map(p => parseFloat(p.accuracy))
@@ -329,7 +283,7 @@ function evaluateStop(clusterPoints, clusterStart, stops) {
         ? accuracies.reduce((a, b) => a + b, 0) / accuracies.length
         : null;
 
-    stops.push({
+    return {
         lat: clusterStart.lat,
         lng: clusterStart.lng,
         stopped_at: first.recorded_at,
@@ -338,7 +292,7 @@ function evaluateStop(clusterPoints, clusterStart, stops) {
         n_points: clusterPoints.length,
         accuracy_avg: accuracyAvg ? Math.round(accuracyAvg * 10) / 10 : null,
         speed_avg: Math.round(avgSpeed * 100) / 100,
-    });
+    };
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
@@ -356,7 +310,6 @@ function toRad(deg) {
 }
 
 module.exports = {
-    insertUnifiedPoints,
     getAgentSpeedLimit,
     upsertAgentSpeedLimit,
     getGlobalSpeedLimit,

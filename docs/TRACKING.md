@@ -184,21 +184,40 @@ Atualiza o limite de velocidade do agente: `{ speedLimitKmh: 90 }`.
 #### `POST /agent/tracking/heartbeat` (Legado — NOOP)
 Rota de compatibilidade com aplicativos antigos. O servidor responde `{ success: true, deprecated: true }` imediatamente sem tocar no banco. A atualização de presença do agente é realizada pelo worker a partir do fluxo de sincronização.
 
+#### `POST /agent/tracking/alerts/sync`
+Recebe alert logs do dispositivo nativo. Registra em `agent_alerts_log`.
+
+**Body:**
+```json
+{
+  "alerts": [{
+    "type": "high_speed",
+    "lat": -5.089,
+    "lng": -42.801,
+    "details": {},
+    "timestamp": 1716000000000
+  }]
+}
+```
+
+**Resposta:**
+```json
+{ "success": true, "synced": 1 }
+```
+
 ### Admin
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET | `/admin/tracking/agents` | Todos os agentes (login) enriquecidos com último ponto de tracking |
 | GET | `/admin/tracking/agent/:id/trail?from=&to=` | Trajeto histórico (até 10000 pontos) |
+| GET | `/admin/tracking/agent/:id/trail-extended?from=&to=` | Trajeto + paradas detectadas |
 | GET | `/admin/tracking/speed_violations` | Pontos com `is_speed_violation = TRUE` |
 | DELETE | `/admin/tracking/speed_violations/:id` | Excluir infração (requer `COMPANY_ADMIN`) |
 | GET | `/admin/tracking/global-config` | Configurações globais |
 | PUT | `/admin/tracking/global-config` | Atualizar config: `{ key, value }` |
 | GET | `/admin/tracking/agent-config/:id` | Config de tracking do agente |
 | PUT | `/admin/tracking/agent-config/:id` | Atualizar limite do agente: `{ speedLimitKmh }` |
-| GET | `/admin/tracking/fall_incidents` | Incidentes de queda |
-| PUT | `/admin/tracking/fall_incidents/:id` | Atualizar status do incidente |
-| GET | `/admin/tracking/alerts` | Log de alertas |
 
 ---
 

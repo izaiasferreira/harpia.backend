@@ -451,31 +451,10 @@ Exporta as respostas consolidadas de um formulário no formato CSV otimizado par
 
 Gerencia a telemetria, detecção de acidentes, trajetos e velocidades de agentes em campo.
 
-### `POST /agent/tracking/sync`
-Invocado pelo aplicativo do agente a cada 5 minutos (offline-first batch sync) para transmitir as coordenadas e eventos coletados em background pelo GPS.
 
-**Body:**
-```json
-{
-  "points": [
-    { "lat": -5.089, "lng": -42.801, "speed": 12.5, "accuracy": 8, "timestamp": 1716000000000 }
-  ],
-  "violations": [
-    { "lat": -5.089, "lng": -42.801, "speed": 92.3, "speedLimit": 80, "timestamp": 1716000000000 }
-  ],
-  "incidents": [
-    { "lat": -5.089, "lng": -42.801, "timestamp": 1716000000000 }
-  ],
-  "alerts": [
-    { "type": "proximity_warning", "lat": -5.089, "lng": -42.801, "timestamp": 1716000000000, "details": { "reportId": 42 } }
-  ]
-}
-```
-
----
 
 ### `GET /admin/tracking/agents`
-Retorna todos os agentes operacionais com a última posição conhecida traçada em mapa (baseado em `tracking_points` — compatível com web/PWA).
+Retorna todos os agentes operacionais com a última posição conhecida traçada em mapa (baseado em `tracking_session_points` — compatível com web/PWA).
 
 ---
 
@@ -502,20 +481,7 @@ Exclui uma infração de velocidade. Requer role `COMPANY_ADMIN`.
 
 ---
 
-### `GET /admin/tracking/fall_incidents`
-Retorna os incidentes de queda corporal detectados em campo pelo acelerômetro do celular do agente.
 
----
-
-### `PUT /admin/tracking/fall_incidents/:id`
-Permite ao gestor alterar o status do incidente (marcar como emergência confirmada ou falso positivo).
-
-**Body:**
-```json
-{ "status": "confirmed", "notes": "Agente confirmado em queda, SAMU acionado." }
-```
-
----
 
 ## 9. PINs de Aplicativo Standalone
 

@@ -1,14 +1,7 @@
 const express = require('express');
-const { validate } = require('../middlewares/validate');
-const z = require('zod');
 
 const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
-const {
-    getFallIncidents,
-    updateFallIncidentStatus,
-    getAlertLogs,
-} = require('../functions/database/tracking');
 const {
     getAgentsLastPositionUnified,
     getAgentTrailUnified,
@@ -174,60 +167,7 @@ router.put('/agent-config/:agentId', verifyToken(), verifyModule('tracking'), as
     }
 });
 
-// GET /admin/tracking/fall_incidents — lista incidentes de queda
-router.get('/fall_incidents', verifyToken(), verifyModule('tracking'), async (req, res) => {
-    try {
-        const { status, agent_id, from } = req.query;
-        const incidents = await getFallIncidents({
-            status: status || null,
-            agentId: agent_id || null,
-            dateFrom: from || null,
-        });
-        res.json(incidents);
-    } catch (err) {
-        console.error('[TRACKING] Erro ao listar incidentes:', err);
-        res.status(500).json({ error: 'Erro ao listar incidentes de queda' });
-    }
-});
 
-// PUT /admin/tracking/fall_incidents/:id — validar/rejeitar incidente
-router.put('/fall_incidents/:id', verifyToken(), verifyModule('tracking'), validate(z.object({ status: z.enum(['confirmed', 'false_positive']) })), async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { status, notes } = req.body;
-
-        if (!['confirmed', 'false_positive'].includes(status)) {
-            return res.status(400).json({ error: 'Status deve ser "confirmed" ou "false_positive"' });
-        }
-
-        const incident = await updateFallIncidentStatus(id, status, notes);
-        if (!incident) {
-            return res.status(404).json({ error: 'Incidente não encontrado' });
-        }
-
-        res.json(incident);
-    } catch (err) {
-        console.error('[TRACKING] Erro ao atualizar incidente:', err);
-        res.status(500).json({ error: 'Erro ao atualizar incidente de queda' });
-    }
-});
-
-// GET /admin/tracking/alerts — log de alertas para auditoria
-router.get('/alerts', verifyToken(), verifyModule('tracking'), async (req, res) => {
-    try {
-        const { agent_id, type, from, to } = req.query;
-        const alerts = await getAlertLogs({
-            agentId: agent_id || null,
-            type: type || null,
-            dateFrom: from || null,
-            dateTo: to || null,
-        });
-        res.json(alerts);
-    } catch (err) {
-        console.error('[TRACKING] Erro ao listar alertas:', err);
-        res.status(500).json({ error: 'Erro ao listar alertas' });
-    }
-});
 
 module.exports = router;
 

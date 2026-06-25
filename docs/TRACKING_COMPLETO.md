@@ -70,8 +70,7 @@
 │  │  login               │── Heartbeat (last_heartbeat_at/lat/lng)    │
 │  │                      │                                            │
 │  │  ── (legado) ──      │                                            │
-│  │  tracking_points     │── Tabela antiga de pontos                  │
-│  │  speed_violations    │── Tabela antiga de violações               │
+│  │  tracking_session_points  │── Tabela unificada de pontos                  │
 │  └──────────────────────┘                                            │
 └──────────────────────────────────────────────────────────────────────┘
                        │
@@ -289,36 +288,13 @@ Body: {
 ### 5.2 Processamento Interno
 
 ```
-insertUnifiedPoints(agentId, points, speedLimit)
+insertUnifiedPoints (REMOVED — dead code)
  │
- ├── 1. Valida cada ponto com unifiedPointSchema (Zod)
- │      • lat/lng obrigatórios
- │      • timestamp opcional (gera agora se ausente)
- │      • deviceModel truncado em 200 caracteres
+ ├── Esta função foi removida. O staging + worker assíncrono
+ │   (trackingSyncWorker) é agora o único fluxo de processamento.
  │
- ├── 2. Busca speedLimit aplicável:
- │      • priority: parâmetro speedLimit da chamada
- │      • fallback: getAgentSpeedLimit(agentId)
- │        → tracking_agent_config WHERE agent_id = ?
- │      • fallback: getGlobalSpeedLimit()
- │        → tracking_global_config WHERE key = 'default_speed_limit_kmh'
- │        → padrão: 81.0 km/h
- │
- ├── 3. Normaliza cada ponto:
- │      • batteryLevel: se 0-1 → multiplica por 100
- │      • speed: se > 50 e < 150 (parece m/s) → * 3.6
- │
- ├── 4. Insere em lote via INSERT ... ON CONFLICT DO NOTHING:
- │      tracking_session_points (
- │        id, agent_id, lat, lng, speed, accuracy,
- │        battery_level, is_charging, network_type, gps_enabled,
- │        device_model, device_platform, os_version,
- │        recorded_at, synced_at,
- │        speed_limit_applied, is_speed_violation
- │      )
- │      • is_speed_violation = (speed_normalized > speedLimit)
- │
- └── 5. Retorna: { inserted: N, violations: M }
+ ├── O fluxo atual (sync-unified → staging → worker) está documentado
+ │   na seção 5.3 acima.
 ```
 
 ### 5.3 Resposta do Backend
@@ -979,16 +955,14 @@ last_heartbeat_at
 | **PUT** | `/admin/tracking/global-config` | `{ key, value }` | Atualizar config global | SETTINGS |
 | **GET** | `/admin/tracking/agent-config/:id` | — | Limite de velocidade por agente | — |
 | **PUT** | `/admin/tracking/agent-config/:id` | `{ speedLimitKmh }` | Atualizar limite do agente | — |
-| **GET** | `/admin/tracking/fall_incidents` | `?status=&agent_id=&from=` | Incidentes de queda | FALLS |
-| **PUT** | `/admin/tracking/fall_incidents/:id` | `{ status, notes }` | Confirmar/rejeitar queda | FALLS |
-| **GET** | `/admin/tracking/alerts` | — | Log de alertas | — |
 
-### Legados (ainda funcionais, não usar)
+
+### Removidos
 
 | Método | Rota | Situação |
 |--------|------|:--------:|
-| **POST** | `/agent/tracking/sync` | ⏳ Legado v1 — substituído por sync-unified |
-| **POST** | `/agent/tracking/sync-v2` | ⏳ Legado v2 — substituído por sync-unified |
+| **POST** | `/agent/tracking/sync` | ❌ Removido — usar sync-unified |
+| **POST** | `/agent/tracking/sync-v2` | ❌ Removido — usar sync-unified |
 
 ---
 

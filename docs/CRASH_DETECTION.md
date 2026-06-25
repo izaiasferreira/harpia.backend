@@ -28,9 +28,8 @@ POST /agent/tracking/sync-unified                                        │
     ▼                                                                     │
 [functions/database/tracking.js]                                          │
     │                                                                     │
-    ├── insertUnifiedPointBatch() — tracking_points                      │
-    ├── insertSpeedViolationBatch() — speed_violations                   │
-    └── insertFallIncident() — fall_incidents ← NOVO                     │
+    ├── tracking_session_points (via worker assíncrono)                   │
+    └── insertFallIncident() — fall_incidents                             │
                                                                          │
                                                                          │
 [Admin] ── GET /admin/crash-detection ── adminCrashDetection.js          │

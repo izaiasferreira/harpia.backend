@@ -732,33 +732,9 @@ Lista as categorias de marcador disponíveis em um grupo.
 
 ## 11. Rastreamento GPS (Tracking)
 
-### `POST /agent/tracking/sync`
-Envia lote de pontos GPS, violações de velocidade, incidentes de queda e alertas coletados offline.
 
-**Body:**
-```json
-{
-  "points": [{ "lat": -5.089, "lng": -42.801, "speed": 12.5, "accuracy": 8, "timestamp": 1716000000000 }],
-  "violations": [{ "lat": -5.089, "lng": -42.801, "speed": 62.3, "speedLimit": 50, "timestamp": 1716000000000 }],
-  "incidents": [{ "lat": -5.089, "lng": -42.801, "timestamp": 1716000000000 }]
-}
-```
 
----
 
-### `POST /agent/tracking/sync-v2`
-Envia lote de pontos GPS com informações extendidas de dispositivo (bateria, rede, modelo) e violações de velocidade.
-
-**Body:**
-```json
-{
-  "points": [{ "lat": -5.089, "lng": -42.801, "speed": 12.5, "accuracy": 8, "batteryLevel": 0.75, "networkType": "4g", "deviceModel": "SM-S908E", "devicePlatform": "android", "osVersion": "14", "timestamp": 1716000000000 }],
-  "violations": [{ "lat": -5.089, "lng": -42.801, "speed": 62.3, "speedLimit": 50, "timestamp": 1716000000000 }],
-  "deviceInfo": { "batteryLevel": 0.75, "connectionType": "4g", "deviceModel": "SM-S908E", "devicePlatform": "android", "osVersion": "14" }
-}
-```
-
----
 
 ### `POST /agent/tracking/heartbeat`
 Enviado pelo app nativo Android a cada 30s para registrar presença online + última localização. O admin usa `last_heartbeat_at` para determinar status online/offline.

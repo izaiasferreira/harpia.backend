@@ -8,7 +8,7 @@ const { processBase64Files } = require('./serviceNotes');
 
 async function listTemplatesAdmin() {
   const { rows } = await cenos_pool.query(
-    'SELECT id, title, is_active, estado, created_by, data, created_at, updated_at FROM checklist_templates WHERE is_deleted = false ORDER BY created_at DESC'
+    'SELECT id, title, is_active, estado, created_by, data, created_at, updated_at FROM checklist_templates WHERE is_active = true ORDER BY created_at DESC'
   );
   return rows;
 }
@@ -128,7 +128,7 @@ async function updateTemplate(id, { title, description, is_active, estado, data 
 
 async function deleteTemplate(id) {
   const { rows } = await cenos_pool.query(
-    'UPDATE checklist_templates SET is_active = false, is_deleted = true, updated_at = NOW() WHERE id = $1 RETURNING *',
+    'UPDATE checklist_templates SET is_active = false, updated_at = NOW() WHERE id = $1 RETURNING *',
     [id]
   );
   return rows[0];
@@ -464,8 +464,8 @@ async function saveChecklistSubmission(agentId, data) {
                  $7, $8, $9, $10,
                  $11, $11, $12)`,
         [checklistId, template_id, agentId, type, parent_checklist_id, date,
-         signature_url, selfie_url, hasCriticalNonCompliant, complianceData,
-         now, local_id]
+          signature_url, selfie_url, hasCriticalNonCompliant, complianceData,
+          now, local_id]
       );
     }
 

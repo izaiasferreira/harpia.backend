@@ -5,6 +5,7 @@ const { dailyReportSchema } = require('../db/schemas/dailyReport');
 const { inventoryCreateSchema } = require('../db/schemas/inventory');
 const { securityReportCreateSchema, securityCheckCreateSchema } = require('../db/schemas/security');
 const { accidentCreateSchema } = require('../db/schemas/accidents');
+const { cenos_pool } = require('../db');
 
 const router = express.Router();
 require('dotenv').config();
@@ -1007,12 +1008,9 @@ router.post('/training/:id/complete', telegramAuth, async (req, res) => {
     }
 });
 
-// --- Tracking: sync batch de pontos, violações e incidentes ---
+// --- Tracking: imports para rotas unificadas ---
 
 const {
-    insertTrackingPoints,
-    insertTrackingPointsExtended,
-    insertSpeedViolations,
     insertFallIncident,
     insertAlertLogs,
     insertProximityAlerts,
@@ -1035,83 +1033,6 @@ router.post('/fcm-token', telegramAuth, async (req, res) => {
     } catch (err) {
         console.error('[FCM_TOKEN] Erro:', err);
         res.status(500).json({ error: 'Erro ao registrar token' });
-    }
-});
-
-router.post('/tracking/sync', telegramAuth, async (req, res) => {
-    try {
-        const agentId = req.colaborador.id;
-        const { points, violations, incidents, alerts } = req.body;
-
-        if (points && points.length > 0) {
-            await insertTrackingPoints(agentId, points);
-        }
-
-        if (violations && violations.length > 0) {
-            await insertSpeedViolations(agentId, violations);
-        }
-
-        if (incidents && incidents.length > 0) {
-            for (const incident of incidents) {
-                await insertFallIncident(agentId, incident);
-            }
-        }
-
-        if (alerts && alerts.length > 0) {
-            await insertAlertLogs(agentId, alerts);
-        }
-
-        res.json({
-            success: true,
-            synced: {
-                points: points?.length || 0,
-                violations: violations?.length || 0,
-                incidents: incidents?.length || 0,
-                alerts: alerts?.length || 0,
-            }
-        });
-    } catch (err) {
-        console.error('[TRACKING_SYNC] Erro:', err);
-        res.status(500).json({ error: 'Erro ao sincronizar dados de rastreamento' });
-    }
-});
-
-// POST /agent/tracking/sync-v2 — sync batch com deviceInfo (bateria, rede, dispositivo)
-router.post('/tracking/sync-v2', telegramAuth, async (req, res) => {
-    try {
-        const agentId = req.colaborador.id;
-        const { points, violations, incidents, alerts, deviceInfo } = req.body;
-
-        if (points && points.length > 0) {
-            await insertTrackingPointsExtended(agentId, points, deviceInfo || null);
-        }
-
-        if (violations && violations.length > 0) {
-            await insertSpeedViolations(agentId, violations);
-        }
-
-        if (incidents && incidents.length > 0) {
-            for (const incident of incidents) {
-                await insertFallIncident(agentId, incident);
-            }
-        }
-
-        if (alerts && alerts.length > 0) {
-            await insertAlertLogs(agentId, alerts);
-        }
-
-        res.json({
-            success: true,
-            synced: {
-                points: points?.length || 0,
-                violations: violations?.length || 0,
-                incidents: incidents?.length || 0,
-                alerts: alerts?.length || 0,
-            }
-        });
-    } catch (err) {
-        console.error('[TRACKING_SYNC_V2] Erro:', err);
-        res.status(500).json({ error: 'Erro ao sincronizar dados de rastreamento' });
     }
 });
 
@@ -1203,6 +1124,25 @@ router.post('/tracking/proximity-alerts/sync', telegramAuth, async (req, res) =>
     } catch (err) {
         console.error('[PROXIMITY_SYNC] Erro:', err);
         res.status(500).json({ error: 'Erro ao sincronizar alertas de proximidade' });
+    }
+});
+
+// POST /agent/tracking/alerts/sync — recebe alert logs do nativo
+router.post('/tracking/alerts/sync', telegramAuth, async (req, res) => {
+    try {
+        const agentId = req.colaborador.id;
+        const { alerts } = req.body;
+
+        if (!alerts || !Array.isArray(alerts)) {
+            return res.status(400).json({ error: 'alerts é obrigatório' });
+        }
+
+        await insertAlertLogs(agentId, alerts);
+
+        res.json({ success: true, synced: alerts.length });
+    } catch (err) {
+        console.error('[ALERTS_SYNC] Erro:', err);
+        res.status(500).json({ error: 'Erro ao sincronizar alert logs' });
     }
 });
 

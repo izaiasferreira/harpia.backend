@@ -243,9 +243,7 @@ app.use('/docsmd', docsViewerRouter);
 // Serve raw markdown files (outside /docs to avoid swagger-ui conflict)
 app.use('/raw-md', express.static(path.join(__dirname, '..', 'docs')));
 
-// Database Migrations
-const { ensureMigrated } = require('./db/migrations/run');
-ensureMigrated().catch(err => console.error('[INIT] Erro ao executar migrações de banco:', err.message));
+// Database Migrations handled in index.js
 
 
 // Tratamento de erros limpo para o CORS (evita sujar o log com stack trace inteiro)
