@@ -433,7 +433,7 @@ async function getLeiturasForAgentInDateInterval({ state = 'pi', id, initDate = 
         (page - 1) * limit
     ];
 
- 
+
 
     const query_all = `
             SELECT 
@@ -486,24 +486,15 @@ async function getLeiturasPendingForAgent({ state = 'pi', id, date = today(), pa
 // ─── getCalendarForAgent ──────────────────────────────────────────────────────
 async function getCalendarForAgent({ state = 'pi', month = new Date().getMonth() + 1 }) {
     const pool = getPoolByState(state);
-    const monthStr = parseInt(month);
+    // const monthStr = parseInt(month);
 
-    if (state == 'ma') {
-        const { rows } = await pool.query(`SELECT * FROM etapas`);
-        return rows.map(r => ({
-            etapa: r.etapa,
-            data: r.data
-        }));
-    } else {
-        const { rows } = await pool.query(
-            `SELECT * FROM calendario_anual WHERE "DATA" LIKE $1`,
-            [`${monthStr}/%`]
-        );
-        return rows.map(r => ({
-            etapa: r.ETAPA,
-            data: new Date(r.DATA).toLocaleDateString('pt-BR')
-        }));
-    }
+    console.log(`SELECT * FROM etapas`);
+
+    const { rows } = await pool.query(`SELECT * FROM etapas`);
+    return rows.map(r => ({
+        etapa: r.etapa,
+        data: r.data
+    }));
 }
 
 // ─── getAgentTelegramId ───────────────────────────────────────────────────────
