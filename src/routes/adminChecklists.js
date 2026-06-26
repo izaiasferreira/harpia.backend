@@ -6,6 +6,7 @@ const {
   getTemplateById,
   createTemplate,
   updateTemplate,
+  duplicateTemplate,
   deleteTemplate,
   syncTemplate,
   listChecklistsAdmin,
@@ -78,6 +79,17 @@ router.put('/templates/:id/sync', verifyToken(), verifyModule('manage_checklist_
     res.json(updatedTemplate);
   } catch (err) {
     console.error('[ADMIN_CHECKLISTS] Erro PUT /templates/:id/sync:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/templates/:id/duplicate', verifyToken(), verifyModule('manage_checklist_templates'), async (req, res) => {
+  try {
+    const duplicated = await duplicateTemplate(req.params.id, req.user.id);
+    if (!duplicated) return res.status(404).json({ error: 'Template não encontrado' });
+    res.status(201).json(duplicated);
+  } catch (err) {
+    console.error('[ADMIN_CHECKLISTS] Erro POST /templates/:id/duplicate:', err);
     res.status(500).json({ error: err.message });
   }
 });

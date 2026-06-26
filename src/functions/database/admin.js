@@ -331,27 +331,41 @@ async function get_user_agent_options({ estado }) {
         cargos: [],
         regionais: [],
         seccionais: [],
+        processos: [],
         estados: []
     };
-    const query = `SELECT DISTINCT "GESTOR IMEDIATO" FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL AND estado = $1`;
-    const { rows } = await cenos_pool.query(query, [estado]);
+
+    const queryCond = estado ? `AND estado = $1` : ``;
+    const queryParams = estado ? [estado] : [];
+
+    const query = `SELECT DISTINCT "GESTOR IMEDIATO" FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL ${queryCond}`;
+    const { rows } = await cenos_pool.query(query, queryParams);
     result.gestores = rows.map(r => r['GESTOR IMEDIATO']);
 
-
     const query2 = `SELECT DISTINCT uac FROM localidades WHERE uac IS NOT NULL`;
-    const { rows: rows2 } = await estado === 'pi' ? await pi_pool.query(query2) : await ma_pool.query(query2);
-    result.seccionais = rows2.map(r => r['uac']);
+    if (estado) {
+        const { rows: rows2 } = await (estado === 'pi' ? pi_pool.query(query2) : ma_pool.query(query2));
+        result.seccionais = rows2.map(r => r['uac']);
+    } else {
+        const [resPi, resMa] = await Promise.all([pi_pool.query(query2), ma_pool.query(query2)]);
+        result.seccionais = [...new Set([...resPi.rows.map(r => r.uac), ...resMa.rows.map(r => r.uac)])];
+    }
 
     const query3 = `SELECT DISTINCT regional FROM localidades WHERE regional IS NOT NULL`;
-    const { rows: rows3 } = await estado === 'pi' ? await pi_pool.query(query3) : await ma_pool.query(query3);
-    result.regionais = rows3.map(r => r['regional']);
+    if (estado) {
+        const { rows: rows3 } = await (estado === 'pi' ? pi_pool.query(query3) : ma_pool.query(query3));
+        result.regionais = rows3.map(r => r['regional']);
+    } else {
+        const [resPi, resMa] = await Promise.all([pi_pool.query(query3), ma_pool.query(query3)]);
+        result.regionais = [...new Set([...resPi.rows.map(r => r.regional), ...resMa.rows.map(r => r.regional)])];
+    }
 
-    const query4 = `SELECT DISTINCT "Cargo" FROM colaboradores WHERE "Cargo" IS NOT NULL AND estado = $1`;
-    const { rows: rows4 } = await cenos_pool.query(query4, [estado]);
+    const query4 = `SELECT DISTINCT "Cargo" FROM colaboradores WHERE "Cargo" IS NOT NULL ${queryCond}`;
+    const { rows: rows4 } = await cenos_pool.query(query4, queryParams);
     result.cargos = rows4.map(r => r['Cargo']);
 
-    const query5 = `SELECT DISTINCT "processo" FROM colaboradores WHERE "processo" IS NOT NULL AND estado = $1`;
-    const { rows: rows5 } = await cenos_pool.query(query5, [estado]);
+    const query5 = `SELECT DISTINCT "processo" FROM colaboradores WHERE "processo" IS NOT NULL ${queryCond}`;
+    const { rows: rows5 } = await cenos_pool.query(query5, queryParams);
     result.processos = rows5.map(r => r['processo']);
 
     const query6 = `SELECT DISTINCT estado FROM colaboradores WHERE estado IS NOT NULL ORDER BY estado`;

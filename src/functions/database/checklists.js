@@ -126,6 +126,34 @@ async function updateTemplate(id, { title, description, is_active, estado, data 
   return rows[0];
 }
 
+async function duplicateTemplate(id, createdBy) {
+  const { rows } = await cenos_pool.query('SELECT * FROM checklist_templates WHERE id = $1', [id]);
+  if (!rows.length) return null;
+  const original = rows[0];
+
+  const newData = JSON.parse(JSON.stringify(original.data || {}));
+  
+  if (newData.sections) {
+    for (const sec of newData.sections) {
+      sec.id = crypto.randomUUID();
+      if (sec.questions) {
+        for (const q of sec.questions) {
+          q.uuid = crypto.randomUUID();
+        }
+      }
+    }
+  }
+
+  const newTitle = `Cópia de ${original.title}`;
+  
+  const { rows: newRows } = await cenos_pool.query(
+    `INSERT INTO checklist_templates (title, created_by, estado, data, is_active)
+     VALUES ($1, $2, $3, $4, false) RETURNING *`,
+    [newTitle, createdBy, original.estado, newData]
+  );
+  return newRows[0];
+}
+
 async function deleteTemplate(id) {
   const { rows } = await cenos_pool.query(
     'UPDATE checklist_templates SET is_active = false, is_deleted = true, updated_at = NOW() WHERE id = $1 RETURNING *',
@@ -572,6 +600,7 @@ module.exports = {
   getTemplateById,
   createTemplate,
   updateTemplate,
+  duplicateTemplate,
   deleteTemplate,
   syncTemplate,
   getAgentTodayChecklist,
