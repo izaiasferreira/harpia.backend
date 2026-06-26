@@ -39,7 +39,9 @@ router.post('/security_report', telegramAuth, checkAccessMiddleware, validate(se
       observacao,
       latitude,
       longitude,
-      estado: req.colaborador.estado || 'pi'
+      estado: req.colaborador.estado || 'pi',
+      seccional: req.colaborador.seccional || null,
+      regional: req.colaborador.regional || null,
     });
 
     res.status(201).json(result);
@@ -66,6 +68,8 @@ router.post('/accident', telegramAuth, checkAccessMiddleware, validate(accidentC
       latitude,
       longitude,
       estado,
+      seccional: req.colaborador.seccional || null,
+      regional: req.colaborador.regional || null,
     });
 
     res.status(201).json(result);

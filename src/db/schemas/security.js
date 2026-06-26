@@ -8,6 +8,8 @@ const securityReportSchema = z.object({
   latitude: z.string().nullable().optional(),
   longitude: z.string().nullable().optional(),
   estado: z.string().max(2).default('pi').transform(v => v.toLowerCase()),
+  seccional: z.string().nullable().optional(),
+  regional: z.string().nullable().optional(),
   created_at: z.date().optional()
 });
 

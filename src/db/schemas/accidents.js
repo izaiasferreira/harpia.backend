@@ -5,6 +5,8 @@ const accidentCreateSchema = z.object({
   descricao: z.string().nullable().optional(),
   latitude: z.string().nullable().optional(),
   longitude: z.string().nullable().optional(),
+  seccional: z.string().nullable().optional(),
+  regional: z.string().nullable().optional(),
 });
 
 const accidentResolveSchema = z.object({

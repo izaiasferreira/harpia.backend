@@ -111,8 +111,7 @@ router.get('/users_agents/profile', verifyToken(), verifyModule('users_agents'),
     const perdas = completed?.filter(r => r.tem_perda === "PERDA" && r.perda_prevista_mensal && parseInt(r.perda_prevista_mensal) > 0).reduce((acc, r) => acc + parseInt(r.perda_prevista_mensal), 0) || 0;
 
     const completedCount = completed ? completed.length : 0;
-    console.log('CNL:', cnl, 'Completed:', completedCount, 'Type of completed:', typeof completed, Array.isArray(completed));
-
+    
     return res.json({
         user: {
             name: `${userData.id} -  ${userData.nome || 'Desconhecido'}`,

@@ -8,7 +8,6 @@ router.get('/config', telegramAuth, async (req, res) => {
     const agentId = req.colaborador.id;
     console.log(agentId)
     const config = await getAgentSecurityReportConfig(agentId);
-    // console.log(config)
     res.json(config);
   } catch (err) {
     console.error('[AGENT SECURITY REPORT CONFIG] Erro:', err);

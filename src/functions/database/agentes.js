@@ -358,7 +358,7 @@ async function getLeiturasForAgent({ state = 'pi', id, date = today(), page = 1,
                 LIMIT $4 OFFSET $5`;
 
         const { rows } = state === 'pi' ? await pi_pool.query(query_all, params) : await ma_pool.query(query_all, params);
-        console.log(rows[0])
+       
         if (rows.length === 0) return [];
 
         const hourLimit = 'pi' ? 8 : 7
@@ -469,13 +469,28 @@ async function getLeiturasPendingForAgent({ state = 'pi', id, date = today(), pa
 
     const query_all = `
             SELECT 
-                instalacao, etapa, ntlei, data_conclusao, data_leit_prev, agente,
-                tem_perda, perda_prevista_mensal, nome_agente, latitude, longitude, unidade_leitura
-            FROM matriz
-            WHERE agente IN ($1, $2)
-            and concluido <> 'CONCLUIDO'
-            AND data_leit_prev >= TO_DATE($3, 'DD.MM.YYYY')
-            AND data_leit_prev < TO_DATE($4, 'DD.MM.YYYY') + interval '1 day'
+                m.instalacao, m.etapa, m.ntlei, m.data_conclusao, m.data_leit_prev, m.agente,
+                m.tem_perda, m.perda_prevista_mensal, m.nome_agente,
+                COALESCE(NULLIF(m.latitude, 0), coord.latitude) AS latitude,
+                COALESCE(NULLIF(m.longitude, 0), coord.longitude) AS longitude,
+                m.unidade_leitura
+            FROM matriz m
+            LEFT JOIN LATERAL (
+                SELECT sub.latitude, sub.longitude
+                FROM matriz sub
+                WHERE sub.instalacao = m.instalacao
+                  AND (sub.latitude IS NOT NULL AND sub.latitude <> 0)
+                  AND (sub.longitude IS NOT NULL AND sub.longitude <> 0)
+                ORDER BY 
+                  (CASE WHEN UPPER(LEFT(sub.ntlei, 1)) = 'A' THEN 0 ELSE 1 END),
+                  sub.data_conclusao DESC NULLS LAST,
+                  sub.data_leit_prev DESC NULLS LAST
+                LIMIT 1
+            ) coord ON true
+            WHERE m.agente IN ($1, $2)
+            and m.concluido <> 'CONCLUIDO'
+            AND m.data_leit_prev >= TO_DATE($3, 'DD.MM.YYYY')
+            AND m.data_leit_prev < TO_DATE($4, 'DD.MM.YYYY') + interval '1 day'
             LIMIT $5 OFFSET $6;`;
 
     const { rows } = await getPoolByState(state).query(query_all, [id.toUpperCase(), id.toLowerCase(), first_month_day, date, limit, (page - 1) * limit]);
@@ -487,8 +502,6 @@ async function getLeiturasPendingForAgent({ state = 'pi', id, date = today(), pa
 async function getCalendarForAgent({ state = 'pi', month = new Date().getMonth() + 1 }) {
     const pool = getPoolByState(state);
     // const monthStr = parseInt(month);
-
-    console.log(`SELECT * FROM etapas`);
 
     const { rows } = await pool.query(`SELECT * FROM etapas`);
     return rows.map(r => ({
@@ -588,8 +601,6 @@ async function get_instalations({ state, query = [], type }) {
                 ntlei_historico: m['ntlei_historico']
             });
         });
-
-        // console.log(resultsMap)
 
         return resultsMap;
     } catch (err) {
@@ -1123,21 +1134,28 @@ async function save_inventory({
 
 async function create_security_report(data) {
     const validated = securityReportCreateSchema.parse(data);
-    const { autor, motivo, observacao, latitude, longitude, estado } = validated;
+    const { autor, motivo, observacao, latitude, longitude, estado, seccional, regional } = validated;
     const query = `
-        INSERT INTO security_report (autor, motivo, observacao, latitude, longitude, estado)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO security_report (autor, motivo, observacao, latitude, longitude, estado, seccional, regional)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
     `;
-    const { rows } = await cenos_pool.query(query, [autor, motivo, observacao, latitude, longitude, estado]);
+    const { rows } = await cenos_pool.query(query, [autor, motivo, observacao, latitude, longitude, estado, seccional || null, regional || null]);
     return rows[0];
 }
 
 async function get_security_report_points({ user }) {
+    const { estado, seccional } = user;
+    const conditions = ['estado = $1'];
+    const params = [estado];
+    if (seccional) {
+        conditions.push(`(seccional IS NULL OR UPPER(seccional) = UPPER($2))`);
+        params.push(seccional);
+    }
     const query = `
-        SELECT * FROM security_report WHERE estado = $1;
+        SELECT * FROM security_report WHERE ${conditions.join(' AND ')};
     `;
-    const { rows } = await cenos_pool.query(query, [user.estado]);
+    const { rows } = await cenos_pool.query(query, params);
     return rows;
 }
 

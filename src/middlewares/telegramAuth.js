@@ -71,7 +71,10 @@ async function telegramAuth(req, res, next) {
             // Se tem agent_id (login por PIN), busca direto pelo ID
             if (rows[0].agent_id) {
                 const { rows: agentRows } = await cenos_pool.query(
-                    'SELECT id, estado FROM login WHERE id = $1',
+                    `SELECT l.id, l.estado, c."seccional", c."regional"
+                     FROM login l
+                     LEFT JOIN colaboradores c ON l.id = c."ID"
+                     WHERE l.id = $1`,
                     [rows[0].agent_id]
                 );
 
@@ -82,6 +85,8 @@ async function telegramAuth(req, res, next) {
                 req.colaborador = {
                     id: agentRows[0].id,
                     estado: agentRows[0].estado,
+                    seccional: agentRows[0].seccional ? agentRows[0].seccional.toUpperCase() : null,
+                    regional: agentRows[0].regional ? agentRows[0].regional.toUpperCase() : null,
                     telegramId: String(rows[0].telegram_user_id)
                 };
 
@@ -95,7 +100,10 @@ async function telegramAuth(req, res, next) {
         const telegramIdStr = String(telegramId).trim();
 
         const { rows: collaboratorRows } = await cenos_pool.query(
-            'SELECT id, estado FROM login WHERE telegram_id = $1',
+            `SELECT l.id, l.estado, c."seccional", c."regional"
+             FROM login l
+             LEFT JOIN colaboradores c ON l.id = c."ID"
+             WHERE l.telegram_id = $1`,
             [telegramIdStr]
         );
         
@@ -107,6 +115,8 @@ async function telegramAuth(req, res, next) {
         req.colaborador = {
             id: collaborator.id,
             estado: collaborator.estado,
+            seccional: collaborator.seccional ? collaborator.seccional.toUpperCase() : null,
+            regional: collaborator.regional ? collaborator.regional.toUpperCase() : null,
             telegramId: telegramIdStr
         };
         

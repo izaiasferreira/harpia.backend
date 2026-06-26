@@ -4,16 +4,16 @@ const { accidentCreateSchema } = require('../../db/schemas/accidents');
 // ─── Agent: criar acidente ────────────────────────────────────────────────────
 
 async function create_accident(data) {
-    const { autor, estado, ...rest } = data;
+    const { autor, estado, seccional, regional, ...rest } = data;
     const validated = accidentCreateSchema.parse(rest);
     const { tipo, descricao, latitude, longitude } = validated;
     const query = `
-        INSERT INTO accidents (autor, tipo, descricao, latitude, longitude, estado)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO accidents (autor, tipo, descricao, latitude, longitude, estado, seccional, regional)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
     `;
     const { rows } = await cenos_pool.query(query, [
-        autor, tipo, descricao || null, latitude || null, longitude || null, estado || 'pi'
+        autor, tipo, descricao || null, latitude || null, longitude || null, estado || 'pi', seccional || null, regional || null
     ]);
     return rows[0];
 }
@@ -37,7 +37,13 @@ async function get_accidents_by_agent(autor) {
 
 // ─── Agent: listar acidentes do estado (sem autor) ─────────────────────────
 
-async function get_accidents_for_agent_state(estado) {
+async function get_accidents_for_agent_state(estado, seccional = null) {
+    const conditions = ['a.estado = $1', 'a.latitude IS NOT NULL', 'a.longitude IS NOT NULL'];
+    const params = [estado];
+    if (seccional) {
+        conditions.push(`(a.seccional IS NULL OR UPPER(a.seccional) = UPPER($2))`);
+        params.push(seccional);
+    }
     const query = `
         SELECT
             a.id,
@@ -49,12 +55,10 @@ async function get_accidents_for_agent_state(estado) {
             a.resolvido,
             a.descricao_solucao
         FROM accidents a
-        WHERE a.estado = $1
-          AND a.latitude IS NOT NULL
-          AND a.longitude IS NOT NULL
+        WHERE ${conditions.join(' AND ')}
         ORDER BY a.created_at DESC
     `;
-    const { rows } = await cenos_pool.query(query, [estado]);
+    const { rows } = await cenos_pool.query(query, params);
     return rows;
 }
 

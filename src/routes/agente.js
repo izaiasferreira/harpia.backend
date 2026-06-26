@@ -228,13 +228,13 @@ router.get('/agent_dashboard', telegramAuth, async (req, res) => {
         const id = req.colaborador.id;
         let chosed_date = req.query.date || today();
 
-        if(chosed_date.includes('/')) {
+        if (chosed_date.includes('/')) {
             chosed_date = chosed_date.replaceAll('/', '.')
         }
-        
+
         const todayStr = today();
         const firstMonthDay = '01.' + chosed_date.split('.')[1] + '.' + chosed_date.split('.')[2];
-        
+
         const [_, monthPart, yearPart] = chosed_date.split('.');
         const lastDayNum = new Date(Number(yearPart), Number(monthPart), 0).getDate();
         let lastMonthDay = String(lastDayNum).padStart(2, '0') + '.' + monthPart + '.' + yearPart;
@@ -248,7 +248,7 @@ router.get('/agent_dashboard', telegramAuth, async (req, res) => {
             lastMonthDay = todayStr;
         }
 
-        // Buscar dados reais em paralelo
+
         const [
             month_result,
             result,
@@ -306,7 +306,7 @@ router.get('/agent_dashboard', telegramAuth, async (req, res) => {
         const quant_c12 = result.filter(r => r.ntlei === 'C12').length || 0;
         const quant_c12_out_hour = result.filter(r => r.ntlei === 'C12' && parseInt(r.hora_conclusao.split(':')[0]) < 8).length || 0;
 
-        const month_leituras = month_result.filter(r => r.ntlei.startsWith('A') ||['B09', 'B10', 'B15'].includes(r.ntlei)).length || 0;
+        const month_leituras = month_result.filter(r => r.ntlei.startsWith('A') || ['B09', 'B10', 'B15'].includes(r.ntlei)).length || 0;
         const month_cnl = month_result.filter(r => !r.ntlei.startsWith('A') && !['B09', 'B10', 'B15'].includes(r.ntlei)).length || 0;
         const month_total_leituras = month_result.length || 0;
         const month_percent_cnl = month_total_leituras > 0 ? (month_cnl / month_total_leituras) * 100 : 0;
@@ -838,7 +838,9 @@ router.post('/security_report', telegramAuth, validate(securityReportCreateSchem
             observacao,
             latitude,
             longitude,
-            estado: req.colaborador.estado || 'pi'
+            estado: req.colaborador.estado || 'pi',
+            seccional: req.colaborador.seccional || null,
+            regional: req.colaborador.regional || null,
         });
 
         res.status(201).json(result);
@@ -914,11 +916,16 @@ router.get('/security_check/check_today', telegramAuth, async (req, res) => {
 router.get('/security_report', telegramAuth, async (req, res) => {
     try {
         const user = req.colaborador;
+        const state = req.colaborador.estado || 'pi';
+        const id = req.colaborador.id;
 
-        const result = await get_security_reports({ user });
 
-        // Merge accidents into points with tipo_ponto field
-        const accidents = await get_accidents_for_agent_state(user.estado);
+        const [sec_reports, accidents, pending] = await Promise.all([
+            get_security_reports({ user }),
+            get_accidents_for_agent_state(user.estado, user.seccional),
+            getLeiturasPendingForAgent({ state, id, date: today(), limit: 99999 }),
+        ]);
+
         const accidentPoints = accidents.map(a => ({
             motivo: a.tipo,
             observacao: a.descricao,
@@ -931,12 +938,21 @@ router.get('/security_report', telegramAuth, async (req, res) => {
         }));
 
         // Tag existing security report points
-        result.points = result.points.map(p => ({ ...p, tipo_ponto: 'perigo' }));
+        sec_reports.points = sec_reports.points.map(p => ({ ...p, tipo_ponto: 'perigo' }));
 
         // Merge both arrays
-        result.points = [...result.points, ...accidentPoints];
+        sec_reports.points = [...sec_reports.points, ...accidentPoints];
 
-        res.status(200).json(result);
+       sec_reports.pending = pending.map(ins =>{
+        delete ins.data_conclusao
+        delete ins.ntlei
+        delete ins.tem_perda
+        delete ins.perda_prevista_mensal
+
+        return ins
+       });
+
+        res.status(200).json(sec_reports);
     } catch (err) {
         console.error('Erro ao buscar reportes de segurança:', err);
         res.status(500).json({ error: err.message });
@@ -1255,8 +1271,6 @@ router.post('/notifications/read', telegramAuth, async (req, res) => {
     }
 });
 
-module.exports = router;
-
 // ─── Acidentes ─────────────────────────────────────────────────────────────────
 
 // POST /agent/accident — registrar acidente
@@ -1297,3 +1311,5 @@ router.get('/accident', telegramAuth, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+module.exports = router;

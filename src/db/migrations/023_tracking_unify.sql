@@ -49,6 +49,9 @@ WHERE t1.id > t2.id
 
 -- 4. Adicionar unique constraint para permitir ON CONFLICT no worker
 ALTER TABLE tracking_session_points
+DROP CONSTRAINT IF EXISTS uq_tracking_session_points_agent_recorded;
+
+ALTER TABLE tracking_session_points
 ADD CONSTRAINT uq_tracking_session_points_agent_recorded
 UNIQUE (agent_id, recorded_at);
 
