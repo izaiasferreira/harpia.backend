@@ -31,9 +31,12 @@ const {
     get_instalations_admin,
     get_users_agents_admin,
     get_users_agents_admin_paginated,
+    get_users_only_login_paginated,
     create_user_agent_admin,
     update_user_agent_admin,
     delete_user_agent_admin,
+    bulk_update_user_agents_admin,
+    bulk_delete_user_agents_admin,
     get_justify_types_admin,
     get_user_agent_options,
     getUserAllowedStatePools
@@ -94,6 +97,44 @@ router.get('/users_agents', verifyToken(), verifyModule('users_agents'), async (
         res.json(result);
     } catch (error) {
         console.log(error)
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get('/users_agents/only_login', verifyToken(), verifyModule('users_agents'), async (req, res) => {
+    try {
+        const { page, limit, search, estado } = req.query;
+        const user = req.user;
+        const result = await get_users_only_login_paginated({ user, page, limit, search, estado });
+        res.json(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.put('/users_agents/bulk', verifyToken(), verifyModule('bulk_update_user_agent'), async (req, res) => {
+    try {
+        const { ids, data } = req.body;
+        const user = req.user;
+        const result = await bulk_update_user_agents_admin({ ids, data, user });
+        if (result.error) return res.status(400).json({ error: result.error });
+        res.json(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.delete('/users_agents/bulk', verifyToken(), verifyModule('users_agents'), async (req, res) => {
+    try {
+        const { ids, deleteLogin } = req.body;
+        const user = req.user;
+        const result = await bulk_delete_user_agents_admin({ ids, deleteLogin, user });
+        if (result.error) return res.status(403).json({ error: result.error });
+        res.json(result);
+    } catch (error) {
+        console.log(error);
         res.status(500).json({ error: error.message });
     }
 });

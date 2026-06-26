@@ -236,6 +236,95 @@ async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, 
     return res.data;
 }
 
+async function get_users_only_login_paginated({ user, page = 1, limit = 50, search, estado }) {
+    const availablePools = getUserAllowedStatePools(user);
+    let targetPools = availablePools;
+    if (estado) {
+        targetPools = availablePools.filter(p => p.state === estado.toLowerCase());
+    }
+    const allowedStates = targetPools.map(p => p.state);
+
+    let inventoryAgentsSet = new Set();
+    try {
+        const { rows: inventoryAgents } = await cenos_pool.query(`SELECT DISTINCT agente FROM inventory`);
+        inventoryAgents.forEach(i => {
+            if (i.agente) inventoryAgentsSet.add(i.agente.toString().toUpperCase());
+        });
+    } catch (e) {}
+
+    let unreadChatsSet = new Map();
+    try {
+        const { rows: unreadCounts } = await cenos_pool.query(`
+            SELECT r.agent_id, COUNT(m.id)::integer as count 
+            FROM chat_messages m 
+            JOIN chat_rooms r ON m.room_id = r.id 
+            WHERE m.sender_type = 'agent' AND m.read = false 
+            GROUP BY r.agent_id
+        `);
+        unreadCounts.forEach(c => {
+            if (c.agent_id) unreadChatsSet.set(c.agent_id.toString().toUpperCase(), c.count);
+        });
+    } catch (e) {}
+
+    let whereConditions = [
+        `NOT EXISTS (SELECT 1 FROM colaboradores c WHERE TRIM(UPPER(c."ID")) = TRIM(UPPER(l.id)))`,
+        `(l.estado IS NULL OR LOWER(l.estado) = ANY($1))`
+    ];
+    let queryParams = [allowedStates];
+    let paramIdx = 2;
+
+    if (search) {
+        whereConditions.push(`l.id ILIKE $${paramIdx}`);
+        queryParams.push(`%${search}%`);
+        paramIdx++;
+    }
+
+    const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+
+    const countQuery = `SELECT COUNT(*) as total FROM login l ${whereClause}`;
+    const { rows: countRows } = await cenos_pool.query(countQuery, queryParams);
+    const grandTotal = parseInt(countRows[0]?.total || 0);
+
+    const limitVal = parseInt(limit) || 50;
+    const offsetVal = (parseInt(page) - 1) * limitVal;
+
+    const dataQuery = `
+        SELECT l.* 
+        FROM login l 
+        ${whereClause} 
+        ORDER BY l.id ASC 
+        LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
+    `;
+    queryParams.push(limitVal, offsetVal);
+
+    const { rows } = await cenos_pool.query(dataQuery, queryParams);
+
+    const data = rows.map(r => ({
+        id: (r.id || '').toUpperCase(),
+        nome: 'NÃO CADASTRADO',
+        estado: r.estado || 'pi',
+        status: true,
+        situacao: 'active',
+        regional: '-',
+        seccional: '-',
+        setor: '-',
+        gestor: '-',
+        cargo: 'Apenas Login',
+        telegram_id: r.telegram_id || null,
+        last_heartbeat_at: r.last_heartbeat_at || null,
+        has_inventory: inventoryAgentsSet.has((r.id || '').toUpperCase()),
+        unread_chat_count: unreadChatsSet.get((r.id || '').toUpperCase()) || 0,
+        only_login: true
+    }));
+
+    return {
+        data,
+        total: grandTotal,
+        page: parseInt(page),
+        limit: limitVal
+    };
+}
+
 async function get_user_agent_options({ estado }) {
     let result = {
         gestores: [],
@@ -473,22 +562,29 @@ async function send_bulk_message_to_agents({ ids, text, file, webAppButtonText, 
 }
 
 async function delete_user_agent_admin({ id, user, deleteLogin = false }) {
+    let agentState = null;
     const userData = await get_users_agents_admin({ user, ids: [id] });
-    if (!userData.length) return { error: 'Usuário não encontrado' };
+    if (userData.length) {
+        agentState = userData[0].estado;
+    } else {
+        const { rows: loginRows } = await cenos_pool.query(`SELECT estado FROM login WHERE UPPER(id) = $1`, [id?.toUpperCase()]);
+        if (!loginRows.length) return { error: 'Usuário não encontrado' };
+        agentState = loginRows[0].estado || 'pi';
+        deleteLogin = true;
+    }
 
-    const agent = userData[0];
     const allowedPools = getUserAllowedStatePools(user);
-    const target = allowedPools.find(p => p.state === agent.estado.toLowerCase());
+    const target = allowedPools.find(p => p.state === (agentState || '').toLowerCase());
 
     if (!target) {
-        return { error: `Você não tem permissão para deletar agentes no estado ${agent.estado.toUpperCase()}` };
+        return { error: `Você não tem permissão para deletar agentes no estado ${(agentState || '').toUpperCase()}` };
     }
 
     try {
         await cenos_pool.query(`DELETE FROM colaboradores WHERE "ID" = $1`, [id?.toUpperCase()]);
 
         if (deleteLogin) {
-            await cenos_pool.query(`DELETE FROM login WHERE id = $1`, [id?.toUpperCase()]);
+            await cenos_pool.query(`DELETE FROM login WHERE UPPER(id) = $1`, [id?.toUpperCase()]);
         }
 
         return { message: 'Usuário deletado com sucesso' };
@@ -543,6 +639,120 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
     }
 }
 
+async function bulk_update_user_agents_admin({ ids, data, user }) {
+    if (!Array.isArray(ids) || !ids.length) return { error: 'Nenhum ID selecionado' };
+    
+    const allowedStates = getUserAllowedStatePools(user).map(p => p.state);
+    let updatedCount = 0;
+    
+    for (const rawId of ids) {
+        const id = rawId?.toUpperCase();
+        if (!id) continue;
+        
+        const { rows: colabRows } = await cenos_pool.query(`SELECT estado FROM colaboradores WHERE "ID" = $1`, [id]);
+        let estado = null;
+        let existsInColab = colabRows.length > 0;
+        
+        if (existsInColab) {
+            estado = colabRows[0].estado;
+        } else {
+            const { rows: loginRows } = await cenos_pool.query(`SELECT estado FROM login WHERE UPPER(id) = $1`, [id]);
+            if (!loginRows.length) continue;
+            estado = loginRows[0].estado || 'pi';
+        }
+        
+        if (!allowedStates.includes((estado || '').toLowerCase())) continue;
+        
+        const targetEstado = data.estado !== undefined && data.estado !== '' ? data.estado.toLowerCase() : (estado || 'pi').toLowerCase();
+        if (!allowedStates.includes(targetEstado)) continue;
+        
+        if (existsInColab) {
+            let setClauses = [];
+            let params = [];
+            let idx = 1;
+            
+            const fieldMap = {
+                nome: '"Nome"',
+                gestor: '"GESTOR IMEDIATO"',
+                cargo: '"Cargo"',
+                seccional: '"seccional"',
+                regional: '"regional"',
+                estado: '"estado"',
+                status: '"status"',
+                situacao: '"situacao"',
+                processo: '"processo"'
+            };
+            
+            for (const [key, col] of Object.entries(fieldMap)) {
+                if (data[key] !== undefined && data[key] !== '') {
+                    setClauses.push(`${col} = $${idx++}`);
+                    params.push(key === 'estado' ? data[key].toLowerCase() : (key === 'status' ? (data[key] === 'true' || data[key] === true) : data[key]));
+                }
+            }
+            
+            if (setClauses.length > 0) {
+                params.push(id);
+                await cenos_pool.query(`UPDATE colaboradores SET ${setClauses.join(', ')} WHERE "ID" = $${idx}`, params);
+                if (data.estado) {
+                    await cenos_pool.query(`UPDATE login SET estado = $1 WHERE UPPER(id) = $2`, [targetEstado, id]);
+                }
+                updatedCount++;
+            }
+        } else {
+            const insertQuery = `
+                INSERT INTO colaboradores ("ID", "MAT", "Nome", "GESTOR IMEDIATO", "Cargo", "seccional", "regional", "estado", "status", "situacao", "processo")
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                ON CONFLICT ("ID") DO UPDATE SET
+                    "GESTOR IMEDIATO" = COALESCE(EXCLUDED."GESTOR IMEDIATO", colaboradores."GESTOR IMEDIATO"),
+                    "regional" = COALESCE(EXCLUDED."regional", colaboradores."regional"),
+                    "seccional" = COALESCE(EXCLUDED."seccional", colaboradores."seccional"),
+                    "Cargo" = COALESCE(EXCLUDED."Cargo", colaboradores."Cargo"),
+                    "estado" = COALESCE(EXCLUDED."estado", colaboradores."estado"),
+                    "processo" = COALESCE(EXCLUDED."processo", colaboradores."processo")
+            `;
+            const params = [
+                id,
+                data.matricula || null,
+                data.nome || id,
+                data.gestor || null,
+                data.cargo || null,
+                data.seccional || null,
+                data.regional || null,
+                targetEstado,
+                data.status !== undefined && data.status !== '' ? (data.status === 'true' || data.status === true) : true,
+                data.situacao || 'active',
+                data.processo || null
+            ];
+            await cenos_pool.query(insertQuery, params);
+            await cenos_pool.query(`UPDATE login SET estado = $1 WHERE UPPER(id) = $2`, [targetEstado, id]);
+            updatedCount++;
+        }
+    }
+    
+    return { message: `${updatedCount} agente(s) atualizado(s) com sucesso.` };
+}
+
+async function bulk_delete_user_agents_admin({ ids, deleteLogin = false, user }) {
+    if (!userIsAdmin(user)) {
+        return { error: 'Somente administradores do sistema podem realizar exclusão em massa.' };
+    }
+    if (!Array.isArray(ids) || !ids.length) return { error: 'Nenhum ID selecionado' };
+    
+    let deletedCount = 0;
+    for (const rawId of ids) {
+        const id = rawId?.toUpperCase();
+        if (!id) continue;
+        
+        const resColab = await cenos_pool.query(`DELETE FROM colaboradores WHERE "ID" = $1`, [id]);
+        if (deleteLogin || resColab.rowCount === 0) {
+            await cenos_pool.query(`DELETE FROM login WHERE UPPER(id) = $1`, [id]);
+        }
+        deletedCount++;
+    }
+    
+    return { message: `${deletedCount} agente(s) excluído(s) com sucesso.` };
+}
+
 
 // ─── inventory ───────────────────────────────────────────────────────────
 async function get_inventory_admin({ user, page = 1, limit = 9999, search, agente, estado }) {
@@ -553,7 +763,7 @@ async function get_inventory_admin({ user, page = 1, limit = 9999, search, agent
     await pool.query(`
         CREATE TABLE IF NOT EXISTS inventory (
             id SERIAL PRIMARY KEY,
-            agente TEXT NOT NULL,
+            agente TEXT,
             pda_imei_1 TEXT,
             pda_imei_2 TEXT,
             pda_numero_serie TEXT,
@@ -1058,9 +1268,12 @@ module.exports = {
     get_instalations_admin,
     get_users_agents_admin,
     get_users_agents_admin_paginated,
+    get_users_only_login_paginated,
     create_user_agent_admin,
     update_user_agent_admin,
     delete_user_agent_admin,
+    bulk_update_user_agents_admin,
+    bulk_delete_user_agents_admin,
     send_message_to_agent,
     send_telegram_to_agent_by_id,
     get_justify_types_admin,

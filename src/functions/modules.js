@@ -39,6 +39,7 @@ const AVAILABLE_MODULES = [
     { id: 'update_user_agent', name: 'Atualizar Agente' },
     { id: 'delete_user_agent', name: 'Deletar Agente' },
     { id: 'send_message_user_agent', name: 'Enviar Mensagem para Agente' },
+    { id: 'bulk_update_user_agent', name: 'Edição em Massa de Agentes' },
     // Interativos
     { id: 'trainings', name: 'Projetos de Treinamento' },
     { id: 'create_training', name: 'Criar Projeto de Treinamento' },
