@@ -1,7 +1,8 @@
 const express = require('express');
 const { validate } = require('../middlewares/validate');
-const { userCreateSchema, userUpdateSchema, userLoginSchema } = require('../db/schemas/users');
+const { userCreateSchema, userUpdateSchema, userLoginSchema, passwordSchema } = require('../db/schemas/users');
 const z = require('zod');
+const multer = require('multer');
 
 const router = express.Router();
 const crypto = require('crypto');
@@ -21,8 +22,14 @@ const {
     getUserPermissions,
     getUserModules
 } = require('../functions/database/permissions');
+const { minioClient, CONFIG, compressImage, ensureBucketExists, getFileUrl } = require('../functions/minio');
 
 const { generateToken, verifyToken, verifyModule } = require('../middlewares/jwtAuth');
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }
+});
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_SENHA = process.env.ADMIN_SENHA;
@@ -77,6 +84,7 @@ router.post('/login', validate(userLoginSchema), async (req, res) => {
                 nome: user.nome, 
                 role: user.role, 
                 estado: user.estado,
+                foto: user.foto,
                 modules
             } 
         });
@@ -116,6 +124,89 @@ router.get('/me', verifyToken(), async (req, res) => {
         const modules = await getUserModules(req.user.id, req.user.estado);
         const permissions = await getUserPermissions(req.user.id, req.user.estado);
         res.json({ ...req.user, modules});
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.put('/me/password', verifyToken(), validate(z.object({
+    senha_atual: z.string().min(1),
+    nova_senha: passwordSchema
+})), async (req, res) => {
+    try {
+        const { senha_atual, nova_senha } = req.body;
+
+        const user = await verifyUser(req.user.email, senha_atual);
+        if (!user) {
+            return res.status(401).json({ error: 'Senha atual incorreta' });
+        }
+
+        await changePassword(req.user.id, nova_senha);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.put('/me', verifyToken(), validate(z.object({
+    nome: z.string().min(1).max(255).optional(),
+    foto: z.string().max(500).optional().nullable()
+})), async (req, res) => {
+    try {
+        const { nome, foto } = req.body;
+        const data = {};
+        if (nome) data.nome = nome;
+        if (foto !== undefined) data.foto = foto;
+
+        const user = await updateUser(req.user.id, data);
+        if (!user) {
+            return res.status(404).json({ error: 'Usuário não encontrado' });
+        }
+
+        const modules = await getUserModules(req.user.id, req.user.estado);
+        res.json({ ...user, modules });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post('/me/foto', verifyToken(), upload.single('foto'), async (req, res) => {
+    try {
+        let photoBuffer;
+        let mimeType = 'image/jpeg';
+
+        if (req.file) {
+            photoBuffer = req.file.buffer;
+            mimeType = req.file.mimetype;
+        } else if (req.body.foto) {
+            const matches = req.body.foto.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+            if (matches && matches.length === 3) {
+                mimeType = matches[1];
+                photoBuffer = Buffer.from(matches[2], 'base64');
+            } else {
+                photoBuffer = Buffer.from(req.body.foto, 'base64');
+            }
+        } else {
+            return res.status(400).json({ error: 'Nenhuma foto enviada' });
+        }
+
+        await ensureBucketExists();
+        const fileName = `admin-profiles/${req.user.id}_${new Date().getTime()}.jpg`;
+
+        const compressedData = await compressImage(photoBuffer, mimeType);
+
+        await minioClient.putObject(
+            CONFIG.bucket,
+            fileName,
+            compressedData,
+            { 'Content-Type': mimeType }
+        );
+
+        const fileUrl = getFileUrl(fileName);
+
+        await updateUser(req.user.id, { foto: fileUrl });
+
+        res.json({ url: fileUrl });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -170,7 +261,7 @@ router.put('/users/:id', verifyToken(), verifyModule('update_user'), validate(us
     }
 });
 
-router.put('/users/:id/password', verifyToken(), verifyModule('update_user'), validate(z.object({ senha: z.string().min(6) })), async (req, res) => {
+router.put('/users/:id/password', verifyToken(), verifyModule('update_user'), validate(z.object({ senha: passwordSchema })), async (req, res) => {
     try {
         const { id } = req.params;
         const { senha } = req.body;
@@ -198,8 +289,7 @@ router.put('/users/:id/permissions', verifyToken(), verifyModule('permissions'),
             return res.status(400).json({ error: 'permissionIds deve ser um array' });
         }
 
-        const user = await getUserById(id);
-        const estado = user?.estado || req.user.estado;
+        const estado = req.user.estado;
         await assignPermissionsToUser(id, permissionIds, estado);
         res.json({ success: true });
     } catch (error) {

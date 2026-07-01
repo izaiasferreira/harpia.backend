@@ -53,6 +53,7 @@ function verifyToken(requiredRole = null) {
                 role: user.role,
                 nome: user.nome,
                 email: user.email,
+                foto: user.foto,
                 modules,
                 permissions
             };

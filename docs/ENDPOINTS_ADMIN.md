@@ -64,6 +64,90 @@ Retorna os dados do usuário administrativo autenticado.
 
 ---
 
+### `PUT /admin/user/me/password`
+Permite que o próprio usuário administrativo altere sua senha. Requer a senha atual para verificação.
+
+**Body:**
+```json
+{
+  "senha_atual": "minha_senha_atual",
+  "nova_senha": "minha_nova_senha"
+}
+```
+
+**Resposta 200:**
+```json
+{ "success": true }
+```
+
+**Erro 401:**
+```json
+{ "error": "Senha atual incorreta" }
+```
+
+**Regras de validação de senha:**
+- Mínimo 8 caracteres
+- Pelo menos 1 letra maiúscula
+- Pelo menos 1 letra minúscula
+- Pelo menos 1 número
+- Pelo menos 1 caractere especial
+
+---
+
+### `PUT /admin/user/me`
+Permite que o próprio usuário administrativo atualize seu nome e/ou foto de perfil.
+
+**Body:**
+```json
+{
+  "nome": "Novo Nome",
+  "foto": "https://minio.url/admin-profiles/1_1717000000000.jpg"
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `nome` | string | não | Novo nome do usuário |
+| `foto` | string \| null | não | URL da foto ou null para remover |
+
+**Resposta 200:**
+```json
+{
+  "id": 1,
+  "email": "gestor@cenos.com.br",
+  "nome": "Novo Nome",
+  "role": "COMPANY_ADMIN",
+  "ativo": true,
+  "foto": "https://minio.url/admin-profiles/1_1717000000000.jpg"
+}
+```
+
+---
+
+### `POST /admin/user/me/foto`
+Faz upload de uma foto de perfil para o usuário administrativo autenticado. Aceita upload multipart (`foto`) ou base64 no body (`foto`). A imagem é comprimida via Sharp e armazenada no MinIO em `admin-profiles/{userId}_{timestamp}.jpg`.
+
+**Content-Type:** `multipart/form-data`
+
+**Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `foto` | File (multipart) ou string (base64) | sim | Imagem da foto de perfil |
+
+**Resposta 200:**
+```json
+{
+  "url": "https://minio.url/admin-profiles/1_1717000000000.jpg"
+}
+```
+
+**Erro 400:**
+```json
+{ "error": "Nenhuma foto enviada" }
+```
+
+---
+
 ### `GET /admin/user/users`
 Lista todos os usuários administrativos cadastrados.
 
@@ -86,6 +170,13 @@ Altera a senha de um usuário administrativo.
 ```json
 { "senha": "nova_senha" }
 ```
+
+**Regras de validação de senha:**
+- Mínimo 8 caracteres
+- Pelo menos 1 letra maiúscula
+- Pelo menos 1 letra minúscula
+- Pelo menos 1 número
+- Pelo menos 1 caractere especial
 
 ---
 

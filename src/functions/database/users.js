@@ -1,6 +1,6 @@
 const { cenos_pool } = require('../../db');
 const bcrypt = require('bcrypt');
-const { userCreateSchema, userUpdateSchema } = require('../../db/schemas');
+const { userDbCreateSchema, userUpdateSchema } = require('../../db/schemas');
 const z = require('zod');
 
 async function createUser({
@@ -11,7 +11,7 @@ async function createUser({
     estado = 'pi',
     permissions = []
 }) {
-    const validated = userCreateSchema.parse({ email, senha, nome, role, estado });
+    const validated = userDbCreateSchema.parse({ email, senha, nome, role, estado });
 
     const pool = cenos_pool;
 
@@ -26,7 +26,7 @@ async function createUser({
     const insertQuery = `
         INSERT INTO users (email, senha, nome, role, estado)
         VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, email, nome, role, estado, ativo;
+        RETURNING id, email, nome, role, estado, ativo, foto;
     `;
     const { rows } = await pool.query(insertQuery, [
         validated.email.toLowerCase(),
@@ -42,10 +42,10 @@ async function createUser({
 
 
     if (permissions.length > 0) {
-        const permValues = permissions.map((p, i) => `($1, $${i + 2}, $${i + 3})`).join(', ');
+        const permValues = permissions.map((p, i) => `($1, $${i * 2 + 2}, $${i * 2 + 3})`).join(', ');
         await pool.query(
             `INSERT INTO user_permissions (user_id, permission_id, state) VALUES ${permValues}`,
-            [userId, ...permissions, state]
+            [userId, ...permissions.flatMap(p => [p, state])]
         );
     }
 
@@ -56,7 +56,7 @@ async function verifyUser(email, senha) {
     const pool = cenos_pool;
 
     const query = `
-        SELECT id, email, senha, nome, role, estado, ativo
+        SELECT id, email, senha, nome, role, estado, ativo, foto
         FROM users 
         WHERE email = $1 AND ativo = true
     `;
@@ -75,7 +75,7 @@ async function getUserById(id, estado = 'pi') {
     const pool = cenos_pool;
 
     const query = `
-        SELECT id, email, nome, role, estado, ativo, created_at, ultimo_login
+        SELECT id, email, nome, role, estado, ativo, foto, created_at, ultimo_login
         FROM users 
         WHERE id = $1 AND ativo = true
     `;
@@ -98,7 +98,7 @@ async function listUsers(estado = 'pi') {
     const pool = cenos_pool;
 
     const query = `
-        SELECT id, email, nome, role, estado, ativo, created_at, ultimo_login
+        SELECT id, email, nome, role, estado, ativo, foto, created_at, ultimo_login
         FROM users 
         WHERE ativo = true
         ORDER BY nome
@@ -110,7 +110,7 @@ async function listUsers(estado = 'pi') {
 async function updateUser(id, data, estado = 'pi') {
     const pool = cenos_pool;
     const validated = userUpdateSchema.parse(data);
-    const { nome, role, ativo } = validated;
+    const { nome, role, ativo, email, foto } = validated;
     
     const updates = [];
     const params = [];
@@ -131,6 +131,16 @@ async function updateUser(id, data, estado = 'pi') {
         params.push(ativo);
         paramIndex++;
     }
+    if (email) {
+        updates.push(`email = $${paramIndex}`);
+        params.push(email.toLowerCase());
+        paramIndex++;
+    }
+    if (foto !== undefined) {
+        updates.push(`foto = $${paramIndex}`);
+        params.push(foto);
+        paramIndex++;
+    }
 
     if (updates.length === 0) return null;
 
@@ -141,7 +151,7 @@ async function updateUser(id, data, estado = 'pi') {
         UPDATE users 
         SET ${updates.join(', ')}
         WHERE id = $${paramIndex}
-        RETURNING id, email, nome, role, ativo;
+        RETURNING id, email, nome, role, ativo, foto;
     `;
     
     const { rows } = await pool.query(query, params);

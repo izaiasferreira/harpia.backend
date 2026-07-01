@@ -1,18 +1,31 @@
 const z = require('zod');
 
+const passwordSchema = z.string()
+  .min(8, 'A senha deve ter no mínimo 8 caracteres')
+  .max(255)
+  .regex(/[A-Z]/, 'A senha deve conter pelo menos uma letra maiúscula')
+  .regex(/[a-z]/, 'A senha deve conter pelo menos uma letra minúscula')
+  .regex(/[0-9]/, 'A senha deve conter pelo menos um número')
+  .regex(/[^A-Za-z0-9]/, 'A senha deve conter pelo menos um caractere especial');
+
 const userSchema = z.object({
   id: z.number().int().optional(),
   email: z.string().email().max(255),
-  senha: z.string().min(6).max(255),
+  senha: passwordSchema,
   nome: z.string().min(1).max(255),
   role: z.enum(['COMPANY_ADMIN', 'USER']).default('USER'),
   estado: z.enum(['pi', 'ma', 'PI', 'MA']).default('pi').transform(v => v.toLowerCase()),
   ultimo_login: z.date().nullable().optional(),
   ativo: z.boolean().default(true),
+  foto: z.string().max(500).optional().nullable(),
   created_at: z.date().optional(),
   updated_at: z.date().optional()
 });
 
+const userDbCreateSchema = z.object({
+  ...userSchema.shape,
+  senha: z.string().min(1).max(255)
+});
 const userCreateSchema = userSchema;
 const userUpdateSchema = userSchema.partial().omit({ id: true });
 const userLoginSchema = z.object({
@@ -46,9 +59,11 @@ const agentUpdateSchema = z.object({
 
 module.exports = {
   userSchema,
+  userDbCreateSchema,
   userCreateSchema,
   userUpdateSchema,
   userLoginSchema,
   agentCreateSchema,
-  agentUpdateSchema
+  agentUpdateSchema,
+  passwordSchema
 };
