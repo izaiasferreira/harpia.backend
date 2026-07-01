@@ -1,11 +1,20 @@
 {
-    "latest": {
-        "changelog": "Inicial",
-        "versionName": "1.0.1",
-        "versionCode": 1,
-        "releaseDate": "2026-06-22T15:37:33.609Z",
-        "forceUpdate": false,
-        "url": "/files/apk/app-1.0.1.apk"
-    },
-    "history": []
+  "latest": {
+    "versionCode": 2,
+    "versionName": "1.0.1",
+    "url": "/files/apk/app-1.0.1.apk",
+    "changelog": "Correcao de bugs",
+    "forceUpdate": false,
+    "releaseDate": "2025-06-03T00:00:00.000Z"
+  },
+  "history": [
+    {
+      "versionCode": 1,
+      "versionName": "1.0.0",
+      "url": "/files/apk/app-1.0.0.apk",
+      "changelog": "Versao inicial",
+      "forceUpdate": false,
+      "releaseDate": "2025-01-01T00:00:00.000Z"
+    }
+  ]
 }

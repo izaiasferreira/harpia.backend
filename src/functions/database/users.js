@@ -1,6 +1,6 @@
 const { cenos_pool } = require('../../db');
 const bcrypt = require('bcrypt');
-const { userDbCreateSchema, userUpdateSchema } = require('../../db/schemas');
+const { userDbCreateSchema } = require('../../db/schemas');
 const z = require('zod');
 
 async function createUser({
@@ -109,36 +109,34 @@ async function listUsers(estado = 'pi') {
 
 async function updateUser(id, data, estado = 'pi') {
     const pool = cenos_pool;
-    const validated = userUpdateSchema.parse(data);
-    const { nome, role, ativo, email, foto } = validated;
-    
+
     const updates = [];
     const params = [];
     let paramIndex = 1;
 
-    if (nome) {
+    if (data.nome !== undefined) {
         updates.push(`nome = $${paramIndex}`);
-        params.push(nome);
+        params.push(data.nome);
         paramIndex++;
     }
-    if (role) {
+    if (data.role !== undefined) {
         updates.push(`role = $${paramIndex}`);
-        params.push(role);
+        params.push(data.role);
         paramIndex++;
     }
-    if (typeof ativo === 'boolean') {
+    if (typeof data.ativo === 'boolean') {
         updates.push(`ativo = $${paramIndex}`);
-        params.push(ativo);
+        params.push(data.ativo);
         paramIndex++;
     }
-    if (email) {
+    if (data.email !== undefined) {
         updates.push(`email = $${paramIndex}`);
-        params.push(email.toLowerCase());
+        params.push(data.email.toLowerCase());
         paramIndex++;
     }
-    if (foto !== undefined) {
+    if (data.foto !== undefined) {
         updates.push(`foto = $${paramIndex}`);
-        params.push(foto);
+        params.push(data.foto);
         paramIndex++;
     }
 
