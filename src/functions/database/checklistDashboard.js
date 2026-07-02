@@ -905,33 +905,31 @@ async function getDashboardPendingAgentsV2({
     agentSubmittedTemplates[r.agent_id].add(r.template_id);
   }
 
-  // Filter out exempt agents and Sunday global exemption
-  const refDate = to; // Use the last date in the range as the reference for exemptions
+  // Skip exempt agents (they have their own dedicated table)
+  const refDate = to;
   const { isSunday, ids: exemptIds } = await getExemptAgentIds(refDate);
 
   if (isSunday) {
-    // Sundays: no one is required to answer
     return { data: [], total: 0, page, limit, totalPages: 0, is_sunday: true };
   }
 
   const exemptSet = new Set(exemptIds);
 
-  let pendingAgents = [];
-  
+  let agentsList = [];
+
   for (const agentId of agentIds) {
-    // Skip agents that are currently exempt
     if (exemptSet.has(agentId)) continue;
 
     const required = agentRequiredTemplates[agentId];
     const submitted = agentSubmittedTemplates[agentId] || new Set();
-    
+
     const missing = required.filter(tId => !submitted.has(tId));
-    
+
     if (missing.length > 0) {
-      // Agent is pending!
       const missingTitles = missing.map(tId => templateTitles[tId]);
-      pendingAgents.push({
+      agentsList.push({
         ...agentDetails[agentId],
+        status: 'pendente',
         missing_templates: missingTitles
       });
     }
@@ -940,15 +938,15 @@ async function getDashboardPendingAgentsV2({
   // Apply additional text filters
   if (agent_name) {
     const q = agent_name.toLowerCase();
-    pendingAgents = pendingAgents.filter(a => (a.nome || '').toLowerCase().includes(q));
+    agentsList = agentsList.filter(a => (a.nome || '').toLowerCase().includes(q));
   }
-  if (regional) pendingAgents = pendingAgents.filter(a => a.regional === regional);
-  if (sectional) pendingAgents = pendingAgents.filter(a => a.seccional === sectional);
-  if (estado) pendingAgents = pendingAgents.filter(a => (a.estado || '').toUpperCase() === estado.toUpperCase());
-  if (gestor) pendingAgents = pendingAgents.filter(a => a.gestor === gestor);
+  if (regional) agentsList = agentsList.filter(a => a.regional === regional);
+  if (sectional) agentsList = agentsList.filter(a => a.seccional === sectional);
+  if (estado) agentsList = agentsList.filter(a => (a.estado || '').toUpperCase() === estado.toUpperCase());
+  if (gestor) agentsList = agentsList.filter(a => a.gestor === gestor);
 
-  const total = pendingAgents.length;
-  const paged = pendingAgents.slice(offset, offset + limit);
+  const total = agentsList.length;
+  const paged = agentsList.slice(offset, offset + limit);
 
   return {
     data: paged,

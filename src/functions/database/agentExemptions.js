@@ -102,11 +102,82 @@ async function deleteAgentExemption({ exemptionId, agentId }) {
   return rows[0];
 }
 
+/**
+ * Retorna lista paginada de agentes isentos (com dados do colaborador e motivo),
+ * filtrando isenções ativas em QUALQUER DIA dentro do período [date_from, date_to].
+ */
+async function listActiveExemptions({
+  date_from, date_to, agent_name, regional, sectional, estado, gestor,
+  page = 1, limit = 20,
+}) {
+  const offset = (page - 1) * limit;
+  const today = new Date().toISOString().split('T')[0];
+  const from = date_from || today;
+  const to = date_to || today;
+
+  const params = [];
+  let idx = 1;
+
+  params.push(to, from);
+  idx += 2;
+
+  const filters = [];
+  if (agent_name) { filters.push(`UPPER(col."Nome") ILIKE UPPER($${idx})`); params.push(`%${agent_name}%`); idx++; }
+  if (regional) { filters.push(`col.regional = $${idx}`); params.push(regional); idx++; }
+  if (sectional) { filters.push(`col.seccional = $${idx}`); params.push(sectional); idx++; }
+  if (estado) { filters.push(`UPPER(col.estado) = UPPER($${idx})`); params.push(estado); idx++; }
+  if (gestor) { filters.push(`col."GESTOR IMEDIATO" = $${idx}`); params.push(gestor); idx++; }
+
+  const whereFilters = filters.length > 0 ? `AND ${filters.join(' AND ')}` : '';
+
+  const countQuery = `
+    SELECT COUNT(*) as total
+    FROM agent_exemptions ae
+    LEFT JOIN colaboradores col ON col."ID" = ae.agent_id
+    WHERE ae.start_date <= $1::date
+      AND ae.end_date >= $2::date
+      AND col.situacao = 'active'
+      ${whereFilters}
+  `;
+
+  const dataQuery = `
+    SELECT ae.id, ae.agent_id, ae.start_date, ae.end_date, ae.reason, ae.created_at,
+           col."Nome" as nome, col.regional, col.seccional, col.estado,
+           col."Cargo" as cargo, col."GESTOR IMEDIATO" as gestor
+    FROM agent_exemptions ae
+    LEFT JOIN colaboradores col ON col."ID" = ae.agent_id
+    WHERE ae.start_date <= $1::date
+      AND ae.end_date >= $2::date
+      AND col.situacao = 'active'
+      ${whereFilters}
+    ORDER BY ae.created_at DESC
+    LIMIT $${idx} OFFSET $${idx + 1}
+  `;
+
+  const paramsWithPagination = [...params, limit, offset];
+
+  const [countRes, dataRes] = await Promise.all([
+    cenos_pool.query(countQuery, params),
+    cenos_pool.query(dataQuery, paramsWithPagination),
+  ]);
+
+  const total = parseInt(countRes.rows[0]?.total || 0, 10);
+
+  return {
+    data: dataRes.rows,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
 module.exports = {
   isAgentExempt,
   getExemptAgentIds,
   countActiveExemptions,
   listAgentExemptions,
   createAgentExemption,
-  deleteAgentExemption
+  deleteAgentExemption,
+  listActiveExemptions,
 };

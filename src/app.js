@@ -182,6 +182,10 @@ app.use('/agent/checklists', agentChecklistsRouter)
 const adminAgentExemptionsRouter = require('./routes/adminAgentExemptions')
 app.use('/admin/agents', adminAgentExemptionsRouter)
 
+// Isenções ativas em lote (/admin/exemptions/active)
+const adminActiveExemptionsRouter = require('./routes/adminActiveExemptions')
+app.use('/admin', adminActiveExemptionsRouter)
+
 // Configs (/admin/config/*)
 const adminConfigRouter = require('./routes/adminConfig')
 app.use('/admin/config', adminConfigRouter)
