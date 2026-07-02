@@ -171,7 +171,7 @@ async function applyTemplateStructure(templateId, structure) {
                     max: Number(options.max || 5),
                     compliant_threshold: Number(options.compliant_threshold || 3)
                 };
-            } else if (q.question_type === 'binary') {
+            } else if (q.question_type === 'binary' || q.question_type === 'short_text' || q.question_type === 'long_text') {
                 options = null;
             }
             return {

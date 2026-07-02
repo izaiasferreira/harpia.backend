@@ -31,11 +31,11 @@ Cada questão possui:
 - requires_photo (boolean): se exige foto de evidência sempre (default: false)
 - severity (string): severidade da não-conformidade ('normal', 'alert', 'critical', default: 'normal')
 - exemption_days (number): dias de isenção após uma resposta Conforme (default: 0)
-- question_type (string): tipo de pergunta ('binary', 'multiple_choice', 'rating', default: 'binary')
-- options (array de opções para multiple_choice, ou objeto de config para rating, ou null para binary)
+- question_type (string): tipo de pergunta ('binary', 'multiple_choice', 'rating', 'short_text', 'long_text', default: 'binary')
+- options (array de opções para multiple_choice, ou objeto de config para rating, ou null para binary/short_text/long_text)
 
 #### Configuração das opções:
-- Para 'binary': options deve ser null.
+- Para 'binary', 'short_text', 'long_text': options deve ser null.
 - Para 'multiple_choice': array de objetos:
   [
     { "label": "Bom", "value": "bom", "is_compliant": true },
