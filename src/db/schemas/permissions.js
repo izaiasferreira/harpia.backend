@@ -1,3 +1,4 @@
+const { VALID_STATE_VALUES, VALID_STATE_VALUES_ALL } = require('../../constants/states');
 const z = require('zod');
 
 const permissionSchema = z.object({
@@ -8,7 +9,7 @@ const permissionSchema = z.object({
   modules: z.array(z.string()).default([]),
   filters: z.union([z.string(), z.array(z.any())]).nullable().optional(),
   user_count: z.number().int().default(0),
-  state: z.enum(['pi', 'ma', 'PI', 'MA']).default('pi').transform(v => v.toLowerCase()),
+  state: z.enum(VALID_STATE_VALUES_ALL).default('pi').transform(v => v.toLowerCase()),
   ativo: z.boolean().default(true),
   created_at: z.date().optional(),
   updated_at: z.date().optional()
@@ -18,7 +19,7 @@ const userPermissionSchema = z.object({
   id: z.number().int().optional(),
   user_id: z.number().int(),
   permission_id: z.number().int(),
-  state: z.enum(['pi', 'ma', 'PI', 'MA']).default('pi').transform(v => v.toLowerCase()),
+  state: z.enum(VALID_STATE_VALUES_ALL).default('pi').transform(v => v.toLowerCase()),
   created_at: z.date().optional()
 });
 

@@ -1,3 +1,4 @@
+const { VALID_STATE_VALUES } = require('../constants/states');
 
 
 function generateCustomLinks({ state, id, user }) {
@@ -10,7 +11,7 @@ function generateCustomLinks({ state, id, user }) {
             "url": `/profile`,
             "emoji": "User",
             "color": "text-indigo-600",
-            "states": ['pi', 'ma']
+            "states": VALID_STATE_VALUES
         },
         {
             "id": "security-checklist-app",
@@ -37,7 +38,7 @@ function generateCustomLinks({ state, id, user }) {
             "url": `/ceneduc`,
             "emoji": "BookOpen",
             "color": "text-blue-600",
-            "states": ['pi', 'ma']
+            "states": VALID_STATE_VALUES
         },
         {
             "id": "chatmessages-app",
@@ -46,7 +47,7 @@ function generateCustomLinks({ state, id, user }) {
             "url": '/chat',
             "emoji": "MessageCircle",
             "color": "text-purple-600",
-            "states": ['pi', 'ma']
+            "states": VALID_STATE_VALUES
         },
         {
             "id": "servicos-app",
@@ -64,7 +65,7 @@ function generateCustomLinks({ state, id, user }) {
             "url": `/search`,
             "emoji": "MapPinned",
             "color": "text-red-600",
-            "states": ['pi', 'ma']
+            "states": VALID_STATE_VALUES
         },
         {
             "id": "inventario-app",
@@ -73,7 +74,7 @@ function generateCustomLinks({ state, id, user }) {
             "url": `/inventory`,
             "emoji": "Box",
             "color": "text-yellow-600",
-            "states": ['pi', 'ma']
+            "states": VALID_STATE_VALUES
         },
         {
             "id": "daily-report-app",
@@ -82,7 +83,7 @@ function generateCustomLinks({ state, id, user }) {
             "url": `/daily-report`,
             "emoji": "Newspaper",
             "color": "text-green-600",
-            "states": ['pi', 'ma']
+            "states": VALID_STATE_VALUES
         },
         {
             "id": "justify-pending-app",
@@ -91,7 +92,7 @@ function generateCustomLinks({ state, id, user }) {
             "url": `/justify-pending`,
             "emoji": "AlertTriangle",
             "color": "text-indigo-600",
-            "states": ['pi', 'ma']
+            "states": VALID_STATE_VALUES
         }
     ]
 

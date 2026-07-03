@@ -1,3 +1,4 @@
+const { VALID_STATE_VALUES, VALID_STATE_VALUES_ALL } = require('../../constants/states');
 const z = require('zod');
 
 const justificativaSchema = z.object({
@@ -9,7 +10,7 @@ const justificativaSchema = z.object({
   foto: z.string().nullable().optional(),
   data_leit_prev: z.string().max(30).nullable().optional(),
   author: z.string().min(1).max(50).transform(v => v.toLowerCase()),
-  estado: z.enum(['pi', 'ma', 'PI', 'MA']).transform(v => v.toLowerCase()),
+  estado: z.enum(VALID_STATE_VALUES_ALL).transform(v => v.toLowerCase()),
   quantidade: z.number().int().nullable().optional(),
   created_at: z.date().optional(),
   updated_at: z.date().optional()
@@ -25,7 +26,7 @@ const justifyPendingSchema = z.object({
   motivo: z.string().nullable().optional(),
   observacao: z.string().nullable().optional(),
   foto: z.string().nullable().optional(),
-  estado: z.enum(['pi', 'ma', 'PI', 'MA']).default('pi').transform(v => v.toLowerCase()),
+  estado: z.enum(VALID_STATE_VALUES_ALL).default('pi').transform(v => v.toLowerCase()),
   status: z.enum(['pendente', 'respondido']).default('pendente'),
   created_at: z.date().optional(),
   updated_at: z.date().optional()

@@ -1,3 +1,4 @@
+const { VALID_STATE_VALUES, VALID_STATE_VALUES_ALL } = require('../../constants/states');
 const z = require('zod');
 
 const passwordSchema = z.string()
@@ -14,7 +15,7 @@ const userSchema = z.object({
   senha: passwordSchema,
   nome: z.string().min(1).max(255),
   role: z.enum(['COMPANY_ADMIN', 'USER']).default('USER'),
-  estado: z.enum(['pi', 'ma', 'PI', 'MA']).default('pi').transform(v => v.toLowerCase()),
+  estado: z.enum(VALID_STATE_VALUES_ALL).default('pi').transform(v => v.toLowerCase()),
   ultimo_login: z.date().nullable().optional(),
   ativo: z.boolean().default(true),
   foto: z.string().max(500).optional().nullable(),

@@ -1,4 +1,6 @@
 require('dotenv').config();
+const { APP_STATES } = require('../constants/states');
+
 function getAssetsLink(fileName) {
     const assetsLink = process.env.PUBLIC_BASE_URL + '/files/assets/' + fileName;
     return assetsLink;
@@ -306,10 +308,10 @@ async function generateDashboardAdmin({ user, stats }) {
             data: {
                 chartType: 'donut',
                 title: 'Quantidade por estado',
-                dataset: [
-                    { label: 'Piauí', value: stats.users_agents?.filter(u => u.estado === 'pi').length },
-                    { label: 'Maranhão', value: stats.users_agents?.filter(u => u.estado === 'ma').length }
-                ],
+                dataset: APP_STATES.map(s => ({
+                    label: s.label, 
+                    value: stats.users_agents?.filter(u => u.estado === s.value).length 
+                })),
             },
         },
         {

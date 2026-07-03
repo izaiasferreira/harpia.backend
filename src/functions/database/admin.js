@@ -1,3 +1,4 @@
+const { VALID_STATE_VALUES } = require('../../constants/states');
 const axios = require('axios');
 const { pi_pool, ma_pool, localizacoes_pi_pool, cenos_pool } = require('../../db');
 const { today } = require('../../utils/dates');
@@ -67,7 +68,7 @@ const getColaboradoresFilter = (user, options = {}) => {
         return {
             whereClause: '',
             params: [],
-            allowedStates: ['pi', 'ma'],
+            allowedStates: VALID_STATE_VALUES,
             isAdmin: true
         };
     }
@@ -604,7 +605,7 @@ async function get_user_agent_options({ estado, user }) {
     } else if (estado) {
         estadosParaBuscar = [estado];
     } else {
-        estadosParaBuscar = ['pi', 'ma'];
+        estadosParaBuscar = VALID_STATE_VALUES;
     }
 
     let seccionais = [];

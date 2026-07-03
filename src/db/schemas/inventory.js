@@ -1,3 +1,4 @@
+const { VALID_STATE_VALUES, VALID_STATE_VALUES_ALL } = require('../../constants/states');
 const z = require('zod');
 
 const inventorySchema = z.object({
@@ -16,7 +17,7 @@ const inventorySchema = z.object({
   impressora_marca: z.string().max(100).nullable().optional(),
   maquininha_numero_serie: z.string().max(100).nullable().optional(),
   maquininha_numero_logico: z.string().max(100).nullable().optional(),
-  estado: z.enum(['pi', 'ma', 'PI', 'MA']).default('pi').transform(v => v.toLowerCase()),
+  estado: z.enum(VALID_STATE_VALUES_ALL).default('pi').transform(v => v.toLowerCase()),
   created_at: z.date().optional(),
   updated_at: z.date().optional()
 });
