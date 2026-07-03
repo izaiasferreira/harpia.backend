@@ -22,7 +22,7 @@ const { cenos_pool } = require('../db');
 // GET /admin/tracking/agents — lista agentes com última posição (tabela unificada)
 router.get('/agents', verifyToken(), verifyModule('tracking_live'), async (req, res) => {
     try {
-        const agents = await getAgentsLastPositionUnified();
+        const agents = await getAgentsLastPositionUnified(req.user);
         res.json(agents);
     } catch (err) {
         console.error('[TRACKING] Erro ao listar agentes:', err);
@@ -64,7 +64,7 @@ router.get('/speed_violations', verifyToken(), verifyModule('tracking_speed'), a
             agentId: agent_id || null,
             dateFrom: from || null,
             dateTo: to || null,
-        });
+        }, req.user);
         res.json(violations);
     } catch (err) {
         console.error('[TRACKING] Erro ao listar violações:', err);

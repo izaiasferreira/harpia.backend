@@ -1,4 +1,5 @@
 const { cenos_pool } = require('../../db');
+const { userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
 
 async function getAgentSpeedLimit(agentId) {
     const { rows } = await cenos_pool.query(
@@ -39,14 +40,24 @@ async function upsertGlobalSpeedLimit(speedLimitKmh) {
     `, [String(speedLimitKmh)]);
 }
 
-async function getAgentsLastPositionUnified() {
-    // Primeiro: buscar TODOS os agentes do sistema (login)
-    const { rows: allAgents } = await cenos_pool.query(`
-        SELECT l.id AS agent_id, l.estado AS agent_estado
-        FROM login l
-        WHERE l.id IS NOT NULL
-        ORDER BY l.id
-    `);
+async function getAgentsLastPositionUnified(user = null) {
+    // Primeiro: buscar agentes do sistema baseado em permissões
+    let query = `SELECT l.id AS agent_id, l.estado AS agent_estado FROM login l WHERE l.id IS NOT NULL`;
+    let params = [];
+
+    // Aplica filtro de permissão
+    if (user && !userIsAdmin(user)) {
+        const filter = getColaboradoresFilter(user, { includeAllStates: true });
+        if (filter.allowedStates.length > 0) {
+            query += ` AND l.estado = ANY($1)`;
+            params.push(filter.allowedStates);
+        } else {
+            return []; // Sem acesso
+        }
+    }
+
+    query += ` ORDER BY l.id`;
+    const { rows: allAgents } = await cenos_pool.query(query, params);
 
     if (allAgents.length === 0) return [];
 
@@ -82,7 +93,7 @@ async function getAgentsLastPositionUnified() {
     const allIds = [...new Set(allAgents.map(r => r.agent_id.toUpperCase()))];
     const cols = await colLookup(allIds);
 
-    return allAgents.map(agent => {
+    let result = allAgents.map(agent => {
         const id = agent.agent_id.toUpperCase();
         const col = cols[id] || {};
         const point = lastPointsMap[agent.agent_id] || {};
@@ -107,6 +118,23 @@ async function getAgentsLastPositionUnified() {
             gestor: col['GESTOR IMEDIATO'] || null,
         };
     });
+
+    // Aplica filtro em memória para regional/seccional/gestor
+    if (user && !userIsAdmin(user)) {
+        result = result.filter(r => {
+            const agentData = {
+                id: r.agent_id,
+                nome: r.nome,
+                regional: r.regional,
+                seccional: r.seccional,
+                gestor: r.gestor,
+                estado: r.agent_estado
+            };
+            return checkAgentPermission(agentData, user);
+        });
+    }
+
+    return result;
 }
 
 async function getAgentTrailUnified(agentId, dateFrom, dateTo) {
@@ -134,13 +162,24 @@ async function getAgentTrailUnified(agentId, dateFrom, dateTo) {
     return rows;
 }
 
-async function getSpeedViolationsFromUnified(filters = {}) {
+async function getSpeedViolationsFromUnified(filters = {}, user = null) {
     const params = [];
     let query = `
         SELECT tsp.*, l.estado as agent_estado
         FROM tracking_session_points tsp
         LEFT JOIN login l ON l.id = tsp.agent_id
         WHERE tsp.is_speed_violation = TRUE`;
+
+    // Aplica filtro de permissão
+    if (user && !userIsAdmin(user)) {
+        const filter = getColaboradoresFilter(user, { includeAllStates: true });
+        if (filter.allowedStates.length > 0) {
+            params.push(filter.allowedStates);
+            query += ` AND l.estado = ANY($${params.length})`;
+        } else {
+            return []; // Sem acesso
+        }
+    }
 
     if (filters.agentId) {
         params.push(filters.agentId);
@@ -175,7 +214,7 @@ async function getSpeedViolationsFromUnified(filters = {}) {
     const allIds = [...new Set(rows.map(r => r.agent_id.toUpperCase()))];
     const cols = await colLookup(allIds);
 
-    return rows.map(r => {
+    let result = rows.map(r => {
         const id = r.agent_id.toUpperCase();
         const col = cols[id] || {};
         return {
@@ -187,6 +226,23 @@ async function getSpeedViolationsFromUnified(filters = {}) {
             gestor: col['GESTOR IMEDIATO'] || null,
         };
     });
+
+    // Filtro em memória para regional/seccional/gestor
+    if (user && !userIsAdmin(user)) {
+        result = result.filter(r => {
+            const agentData = {
+                id: r.agent_id,
+                nome: r.nome,
+                regional: r.regional,
+                seccional: r.seccional,
+                gestor: r.gestor,
+                estado: r.agent_estado
+            };
+            return checkAgentPermission(agentData, user);
+        });
+    }
+
+    return result;
 }
 
 /**

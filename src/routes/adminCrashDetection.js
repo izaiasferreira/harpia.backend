@@ -3,6 +3,7 @@ const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const { cenos_pool } = require('../db');
 const { getFallIncidents, updateFallIncidentStatus } = require('../functions/database/tracking');
+const { userIsAdmin, getColaboradoresFilter } = require('../functions/database/admin');
 
 // GET /admin/crash-detection — lista incidentes de crash detectados
 router.get('/', verifyToken(), verifyModule('tracking_falls'), async (req, res) => {
@@ -49,8 +50,25 @@ router.get('/', verifyToken(), verifyModule('tracking_falls'), async (req, res) 
 router.get('/stats', verifyToken(), verifyModule('tracking_falls'), async (req, res) => {
     try {
         const { dateFrom, dateTo } = req.query;
-        const params = [];
+        let params = [];
         let where = '1=1';
+
+        // Aplica filtro de permissão
+        if (!userIsAdmin(req.user)) {
+            const filter = getColaboradoresFilter(req.user, { includeAllStates: true });
+            if (filter.allowedStates.length > 0) {
+                params.push(filter.allowedStates);
+                where += ` AND estado = ANY($${params.length})`;
+            } else {
+                return res.json({
+                    total: 0,
+                    confirmed: 0,
+                    falsePositive: 0,
+                    pending: 0,
+                    withSpeedDrop: 0,
+                });
+            }
+        }
 
         if (dateFrom) {
             params.push(dateFrom);
@@ -62,10 +80,10 @@ router.get('/stats', verifyToken(), verifyModule('tracking_falls'), async (req, 
         }
 
         const [total, confirmed, falsePositive, withSpeedDrop] = await Promise.all([
-            cenos_pool.query(`SELECT COUNT(*) FROM fall_incidents WHERE ${where}`, params),
-            cenos_pool.query(`SELECT COUNT(*) FROM fall_incidents WHERE ${where} AND status = 'confirmed'`, params),
-            cenos_pool.query(`SELECT COUNT(*) FROM fall_incidents WHERE ${where} AND status = 'false_positive'`, params),
-            cenos_pool.query(`SELECT COUNT(*) FROM fall_incidents WHERE ${where} AND speed_drop_confirmed = TRUE`, params),
+            cenos_pool.query(`SELECT COUNT(*) FROM fall_incidents fi LEFT JOIN login l ON l.id = fi.agent_id WHERE ${where}`, params),
+            cenos_pool.query(`SELECT COUNT(*) FROM fall_incidents fi LEFT JOIN login l ON l.id = fi.agent_id WHERE ${where} AND fi.status = 'confirmed'`, params),
+            cenos_pool.query(`SELECT COUNT(*) FROM fall_incidents fi LEFT JOIN login l ON l.id = fi.agent_id WHERE ${where} AND fi.status = 'false_positive'`, params),
+            cenos_pool.query(`SELECT COUNT(*) FROM fall_incidents fi LEFT JOIN login l ON l.id = fi.agent_id WHERE ${where} AND fi.speed_drop_confirmed = TRUE`, params),
         ]);
 
         res.json({
