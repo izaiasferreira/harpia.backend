@@ -1,28 +1,67 @@
 const { cenos_pool } = require('../../db');
-const { getUserAllowedStatePools, getFilterUser, userIsAdmin } = require('./admin');
+const { getUserAllowedStatePools, getColaboradoresFilter, userIsAdmin } = require('./admin');
 const { getExemptAgentIds, countActiveExemptions } = require('./agentExemptions');
 
 
+/**
+ * Converte as permissões do usuário em condições SQL para filtrar a tabela `colaboradores col`.
+ * Usa getColaboradoresFilter do admin.js para suportar múltiplas permissões
+ * de estado, regional, seccional e gestor corretamente.
+ * Retorna { conditions, params, idx }.
+ */
 function buildUserPermissionSQL(user, params, idx) {
   const conditions = [];
-  if (user && !userIsAdmin(user)) {
-    const filterUser = getFilterUser(user);
-    if (filterUser) {
-      const colName = filterUser.type === 'gestor' ? '"GESTOR IMEDIATO"' : `"${filterUser.type}"`;
-      conditions.push(`UPPER(col.${colName}) = UPPER($${idx})`);
-      params.push(filterUser.value);
-      idx++;
-    }
-    const allowedPools = getUserAllowedStatePools(user);
-    const allowedStates = allowedPools.map(p => p.state.toUpperCase());
-    if (allowedStates.length > 0) {
-      conditions.push(`UPPER(col.estado) = ANY($${idx}::varchar[])`);
-      params.push(allowedStates);
-      idx++;
-    } else {
-      conditions.push(`1 = 0`);
-    }
+  if (!user || userIsAdmin(user)) return { conditions, params, idx };
+
+  const filter = getColaboradoresFilter(user, { includeAllStates: true });
+
+  // Sem permissões configuradas e sem estado fallback → bloqueia tudo
+  if (filter.allowedStates.length === 0 && filter.params.length === 0) {
+    conditions.push(`1 = 0`);
+    return { conditions, params, idx };
   }
+
+  // Reconstrói as condições do filtro apontando para col.* (não para a raiz da tabela)
+  const userFilters = user?.permissions?.map(p => p.filters).flat() || [];
+  const filtersByType = {};
+  userFilters.forEach(f => {
+    if (!filtersByType[f.type]) filtersByType[f.type] = [];
+    filtersByType[f.type].push(f.value.toLowerCase());
+  });
+
+  // Fallback: se sem filtros, usa o estado do próprio usuário
+  const estadosPermitidos = filtersByType['estado'] || [];
+  if (estadosPermitidos.length === 0 && user?.estado) {
+    estadosPermitidos.push(user.estado.toLowerCase());
+  }
+
+  if (estadosPermitidos.length > 0) {
+    conditions.push(`LOWER(col.estado) = ANY($${idx}::varchar[])`);
+    params.push(estadosPermitidos);
+    idx++;
+  }
+
+  const regionaisPermitidas = filtersByType['regional'] || [];
+  if (regionaisPermitidas.length > 0) {
+    conditions.push(`col.regional = ANY($${idx}::varchar[])`);
+    params.push(regionaisPermitidas);
+    idx++;
+  }
+
+  const seccionaisPermitidas = filtersByType['seccional'] || [];
+  if (seccionaisPermitidas.length > 0) {
+    conditions.push(`col.seccional = ANY($${idx}::varchar[])`);
+    params.push(seccionaisPermitidas);
+    idx++;
+  }
+
+  const gestoresPermitidos = filtersByType['gestor'] || [];
+  if (gestoresPermitidos.length > 0) {
+    conditions.push(`col."GESTOR IMEDIATO" = ANY($${idx}::varchar[])`);
+    params.push(gestoresPermitidos);
+    idx++;
+  }
+
   return { conditions, params, idx };
 }
 
@@ -77,7 +116,7 @@ function buildColaboradorFilters({ regional, sectional, estado, gestor, agent_na
   return { filters, idx };
 }
 
-async function getDashboardStats({ date_from, date_to, regional, sectional, estado, gestor }) {
+async function getDashboardStats({ date_from, date_to, regional, sectional, estado, gestor }, user) {
   const dParams = [];
   let dIdx = 1;
   const dateFilter = buildDateFilter({ date_from, date_to, params: dParams, idx: dIdx });
@@ -86,7 +125,7 @@ async function getDashboardStats({ date_from, date_to, regional, sectional, esta
 
   const colJoin = buildColaboradorJoins();
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
-    regional, sectional, estado, gestor, params: dParams, idx: dIdx
+    regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
   });
   dIdx = colIdx;
 
@@ -176,7 +215,7 @@ async function getDashboardStats({ date_from, date_to, regional, sectional, esta
   };
 }
 
-async function getDashboardNonCompliantItems({ date_from, date_to, regional, sectional, estado, gestor }) {
+async function getDashboardNonCompliantItems({ date_from, date_to, regional, sectional, estado, gestor }, user) {
   const dParams = [];
   let dIdx = 1;
   const dateFilter = buildDateFilter({ date_from, date_to, params: dParams, idx: dIdx });
@@ -185,7 +224,7 @@ async function getDashboardNonCompliantItems({ date_from, date_to, regional, sec
 
   const colJoin = buildColaboradorJoins();
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
-    regional, sectional, estado, gestor, params: dParams, idx: dIdx
+    regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
   });
   dIdx = colIdx;
 
@@ -207,7 +246,7 @@ async function getDashboardNonCompliantItems({ date_from, date_to, regional, sec
   return rows.map(r => ({ label: r.label, count: parseInt(r.count, 10) }));
 }
 
-async function getDashboardAlerts({ date_from, date_to, regional, sectional, estado, gestor }) {
+async function getDashboardAlerts({ date_from, date_to, regional, sectional, estado, gestor }, user) {
   const dParams = [];
   let dIdx = 1;
   const dateFilter = buildDateFilter({ date_from, date_to, params: dParams, idx: dIdx });
@@ -216,7 +255,7 @@ async function getDashboardAlerts({ date_from, date_to, regional, sectional, est
 
   const colJoin = buildColaboradorJoins();
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
-    regional, sectional, estado, gestor, params: dParams, idx: dIdx
+    regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
   });
   dIdx = colIdx;
 
@@ -329,7 +368,7 @@ async function listDashboardChecklists({
 async function getDashboardPendingAgents({
   date_from, date_to, agent_name, regional, sectional, estado, gestor,
   page = 1, limit = 20,
-}) {
+}, user) {
   const CHECKLIST_REQUIRED_CARGOS = [
     'LEITURISTA A PÉ',
     'NEGOCIADOR MOTOCICLISTA',
@@ -364,6 +403,11 @@ async function getDashboardPendingAgents({
   if (sectional) { filters.push(`col.seccional = $${idx}`); params.push(sectional); idx++; }
   if (estado) { filters.push(`col.estado = $${idx}`); params.push(estado); idx++; }
   if (gestor) { filters.push(`col."GESTOR IMEDIATO" = $${idx}`); params.push(gestor); idx++; }
+
+  // Aplica filtros de permissão do usuário
+  const perm = buildUserPermissionSQL(user, params, idx);
+  if (perm.conditions.length > 0) filters.push(...perm.conditions);
+  idx = perm.idx;
 
   const filterWhere = filters.length > 0 ? `AND ${filters.join(' AND ')}` : '';
   const limitIdx = idx;
