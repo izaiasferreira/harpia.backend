@@ -5,7 +5,7 @@ const { cenos_pool } = require('../db');
 const { getFallIncidents, updateFallIncidentStatus } = require('../functions/database/tracking');
 
 // GET /admin/crash-detection — lista incidentes de crash detectados
-router.get('/', verifyToken(), verifyModule('crash_detection'), async (req, res) => {
+router.get('/', verifyToken(), verifyModule('tracking_falls'), async (req, res) => {
     try {
         const { status, agentId, dateFrom, dateTo, search, page, limit, speedDropConfirmed } = req.query;
 
@@ -46,7 +46,7 @@ router.get('/', verifyToken(), verifyModule('crash_detection'), async (req, res)
 });
 
 // GET /admin/crash-detection/stats — estatísticas resumidas
-router.get('/stats', verifyToken(), verifyModule('crash_detection'), async (req, res) => {
+router.get('/stats', verifyToken(), verifyModule('tracking_falls'), async (req, res) => {
     try {
         const { dateFrom, dateTo } = req.query;
         const params = [];
@@ -82,7 +82,7 @@ router.get('/stats', verifyToken(), verifyModule('crash_detection'), async (req,
 });
 
 // PUT /admin/crash-detection/:id/status — atualizar status (confirmed / false_positive)
-router.put('/:id/status', verifyToken(), verifyModule('crash_detection'), async (req, res) => {
+router.put('/:id/status', verifyToken(), verifyModule('tracking_falls'), async (req, res) => {
     try {
         const { id } = req.params;
         const { status, notes } = req.body;
@@ -104,7 +104,7 @@ router.put('/:id/status', verifyToken(), verifyModule('crash_detection'), async 
 });
 
 // GET /admin/crash-detection/:id — detalhes de um incidente
-router.get('/:id', verifyToken(), verifyModule('crash_detection'), async (req, res) => {
+router.get('/:id', verifyToken(), verifyModule('tracking_falls'), async (req, res) => {
     try {
         const { id } = req.params;
         const { rows } = await cenos_pool.query(`
@@ -129,6 +129,22 @@ router.get('/:id', verifyToken(), verifyModule('crash_detection'), async (req, r
     } catch (err) {
         console.error('[CRASH_DETECTION] Erro ao obter incidente:', err);
         res.status(500).json({ error: 'Erro ao obter incidente' });
+    }
+});
+
+// DELETE /admin/crash-detection/:id — excluir incidente de queda
+router.delete('/:id', verifyToken('COMPANY_ADMIN'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { rows: existing } = await cenos_pool.query('SELECT id FROM fall_incidents WHERE id = $1', [id]);
+        if (existing.length === 0) {
+            return res.status(404).json({ error: 'Incidente não encontrado' });
+        }
+        await cenos_pool.query('DELETE FROM fall_incidents WHERE id = $1', [id]);
+        res.json({ success: true, message: 'Incidente excluído com sucesso' });
+    } catch (err) {
+        console.error('[CRASH_DETECTION] Erro ao excluir:', err);
+        res.status(500).json({ error: 'Erro ao excluir incidente' });
     }
 });
 

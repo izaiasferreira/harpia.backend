@@ -94,7 +94,7 @@ router.post('/templates/:id/duplicate', verifyToken(), verifyModule('manage_chec
   }
 });
 
-router.delete('/templates/:id', verifyToken(), verifyModule('manage_checklist_templates'), async (req, res) => {
+router.delete('/templates/:id', verifyToken(), verifyModule('delete_checklist_template'), async (req, res) => {
   try {
     const template = await deleteTemplate(req.params.id);
     if (!template) return res.status(404).json({ error: 'Template não encontrado' });

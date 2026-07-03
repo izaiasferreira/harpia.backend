@@ -15,11 +15,12 @@ const {
     add_accident_evidencia,
     get_accident_evidencias,
     get_accident_by_id,
+    delete_accident_admin,
 } = require('../functions/database/accidents');
 const { cenos_pool } = require('../db');
 
 // GET /admin/tracking/agents — lista agentes com última posição (tabela unificada)
-router.get('/agents', verifyToken(), verifyModule('tracking'), async (req, res) => {
+router.get('/agents', verifyToken(), verifyModule('tracking_live'), async (req, res) => {
     try {
         const agents = await getAgentsLastPositionUnified();
         res.json(agents);
@@ -30,7 +31,7 @@ router.get('/agents', verifyToken(), verifyModule('tracking'), async (req, res) 
 });
 
 // GET /admin/tracking/agent/:id/trail — trajeto de um agente (tabela unificada)
-router.get('/agent/:id/trail', verifyToken(), verifyModule('tracking'), async (req, res) => {
+router.get('/agent/:id/trail', verifyToken(), verifyModule('tracking_history'), async (req, res) => {
     try {
         const { id } = req.params;
         const { from, to } = req.query;
@@ -43,7 +44,7 @@ router.get('/agent/:id/trail', verifyToken(), verifyModule('tracking'), async (r
 });
 
 // GET /admin/tracking/agent/:id/trail-extended — trajeto + paradas detectadas
-router.get('/agent/:id/trail-extended', verifyToken(), verifyModule('tracking'), async (req, res) => {
+router.get('/agent/:id/trail-extended', verifyToken(), verifyModule('tracking_history'), async (req, res) => {
     try {
         const { id } = req.params;
         const { from, to } = req.query;
@@ -56,7 +57,7 @@ router.get('/agent/:id/trail-extended', verifyToken(), verifyModule('tracking'),
 });
 
 // GET /admin/tracking/speed_violations — lista infrações (tabela unificada)
-router.get('/speed_violations', verifyToken(), verifyModule('tracking'), async (req, res) => {
+router.get('/speed_violations', verifyToken(), verifyModule('tracking_speed'), async (req, res) => {
     try {
         const { agent_id, from, to } = req.query;
         const violations = await getSpeedViolationsFromUnified({
@@ -90,7 +91,7 @@ router.delete('/speed_violations/:id', verifyToken('COMPANY_ADMIN'), async (req,
 });
 
 // GET /admin/tracking/global-config — configurações globais de tracking
-router.get('/global-config', verifyToken(), verifyModule('tracking'), async (req, res) => {
+router.get('/global-config', verifyToken(), verifyModule('tracking_settings'), async (req, res) => {
     try {
         const { rows } = await cenos_pool.query(
             `SELECT key, value, updated_at FROM tracking_global_config ORDER BY key`
@@ -105,7 +106,7 @@ router.get('/global-config', verifyToken(), verifyModule('tracking'), async (req
 });
 
 // PUT /admin/tracking/global-config — atualizar configuração global de tracking
-router.put('/global-config', verifyToken(), verifyModule('tracking'), async (req, res) => {
+router.put('/global-config', verifyToken(), verifyModule('tracking_settings'), async (req, res) => {
     try {
         const { key, value } = req.body;
         if (!key || value == null) {
@@ -124,7 +125,7 @@ router.put('/global-config', verifyToken(), verifyModule('tracking'), async (req
 });
 
 // GET /admin/tracking/agent-config/:agentId — configuração de tracking por agente
-router.get('/agent-config/:agentId', verifyToken(), verifyModule('tracking'), async (req, res) => {
+router.get('/agent-config/:agentId', verifyToken(), verifyModule('tracking_settings'), async (req, res) => {
     try {
         const { agentId } = req.params;
         const { rows } = await cenos_pool.query(
@@ -139,7 +140,7 @@ router.get('/agent-config/:agentId', verifyToken(), verifyModule('tracking'), as
 });
 
 // PUT /admin/tracking/agent-config/:agentId — atualizar configuração de tracking por agente
-router.put('/agent-config/:agentId', verifyToken(), verifyModule('tracking'), async (req, res) => {
+router.put('/agent-config/:agentId', verifyToken(), verifyModule('tracking_settings'), async (req, res) => {
     try {
         const { agentId } = req.params;
         const { speedLimitKmh } = req.body;
@@ -167,14 +168,25 @@ router.put('/agent-config/:agentId', verifyToken(), verifyModule('tracking'), as
     }
 });
 
-
+// DELETE /admin/tracking/accidents/:id — excluir acidente
+router.delete('/accidents/:id', verifyToken('COMPANY_ADMIN'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await delete_accident_admin(id, req.user);
+        if (!result) return res.status(404).json({ error: 'Acidente não encontrado' });
+        res.json({ success: true, message: 'Acidente excluído com sucesso', deleted: result });
+    } catch (err) {
+        console.error('[ACCIDENTS] Erro ao excluir:', err);
+        res.status(500).json({ error: 'Erro ao excluir acidente' });
+    }
+});
 
 module.exports = router;
 
 // ─── Acidentes ─────────────────────────────────────────────────────────────────
 
 // GET /admin/tracking/accidents — lista acidentes
-router.get('/accidents', verifyToken(), verifyModule('tracking'), async (req, res) => {
+router.get('/accidents', verifyToken(), verifyModule('tracking_falls'), async (req, res) => {
     try {
         const { estado, status, search, page, limit } = req.query;
         const result = await get_accidents_admin({
@@ -193,7 +205,7 @@ router.get('/accidents', verifyToken(), verifyModule('tracking'), async (req, re
 });
 
 // GET /admin/tracking/accidents/:id — obtém um acidente com evidências
-router.get('/accidents/:id', verifyToken(), verifyModule('tracking'), async (req, res) => {
+router.get('/accidents/:id', verifyToken(), verifyModule('tracking_falls'), async (req, res) => {
     try {
         const { id } = req.params;
         const accident = await get_accident_by_id(parseInt(id));
@@ -207,7 +219,7 @@ router.get('/accidents/:id', verifyToken(), verifyModule('tracking'), async (req
 });
 
 // POST /admin/tracking/accidents/:id/resolve — marcar como tratado
-router.post('/accidents/:id/resolve', verifyToken(), verifyModule('tracking'), async (req, res) => {
+router.post('/accidents/:id/resolve', verifyToken(), verifyModule('tracking_falls'), async (req, res) => {
     try {
         const { id } = req.params;
         const { descricao_solucao, evidencias } = req.body;
@@ -246,7 +258,7 @@ router.post('/accidents/:id/resolve', verifyToken(), verifyModule('tracking'), a
 });
 
 // POST /admin/tracking/accidents/:id/reopen — reabrir acidente
-router.post('/accidents/:id/reopen', verifyToken(), verifyModule('tracking'), async (req, res) => {
+router.post('/accidents/:id/reopen', verifyToken(), verifyModule('tracking_falls'), async (req, res) => {
     try {
         const { id } = req.params;
         const result = await reopen_accident(parseInt(id));
