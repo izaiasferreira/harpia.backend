@@ -1559,38 +1559,73 @@ async function delete_daily_report_admin(id) {
     return rows[0];
 }
 
-async function get_instalations_admin({ query = [], type }) {
+async function get_instalations_admin({ query = [], type, user, estado }) {
     if (!query || query.length === 0) return [];
 
-    let column = 'instalacao';
-    if (type === 'medidor') column = 'medidor';
-    if (type === 'contacontrato') column = 'conta_contrato';
+    // Remove tipos não permitidos
+    if (type === 'medidor' || type === 'contacontrato') {
+        return [];
+    }
 
+    const column = 'instalacao';
     const placeholders = query.map((_, i) => `$${i + 1}`).join(',');
     const sql = `
-        SELECT * 
-        FROM dados_instalacoes 
+        SELECT *
+        FROM dados_instalacoes
         WHERE ${column} IN (${placeholders})
     `;
 
-    const sql_state = `SELECT DISTINCT ON (${column}) * 
-        FROM matriz 
+    const sql_state = `SELECT DISTINCT ON (${column}) *
+        FROM matriz
         WHERE ${column} IN (${placeholders})
         AND LEFT(ntlei, 1) = 'A'
         AND latitude <> 0 AND latitude IS NOT NULL
         AND longitude <> 0 AND longitude IS NOT NULL
         ORDER BY ${column}, data_conclusao DESC
+        LIMIT 100
     `;
 
-    try {
-        const [resLocals, resMatrizPi, resMatrizMa] = await Promise.all([
-            localizacoes_pi_pool.query(sql, query),
-            pi_pool.query(sql_state, query),
-            ma_pool.query(sql_state, query)
-        ]);
+    // Determina quais pools usar baseado no estado ou permissões
+    const isAdmin = user?.role?.toLowerCase().includes('admin');
+    let allowedStates = [];
 
+    if (!isAdmin && user) {
+        const filter = getColaboradoresFilter(user, { includeAllStates: true });
+        allowedStates = filter.allowedStates || [];
+    }
+
+    // Se estado específico informado, usa ele; senão usa as permissões
+    const targetEstado = estado ? [estado.toLowerCase()] : (allowedStates.length > 0 ? allowedStates : ['pi', 'ma']);
+
+    try {
+        const poolPromises = [];
+        if (targetEstado.includes('pi')) {
+            poolPromises.push(pi_pool.query(sql_state, query));
+        } else {
+            poolPromises.push(Promise.resolve({ rows: [] }));
+        }
+        if (targetEstado.includes('ma')) {
+            poolPromises.push(ma_pool.query(sql_state, query));
+        } else {
+            poolPromises.push(Promise.resolve({ rows: [] }));
+        }
+
+        const [resMatrizPi, resMatrizMa] = await Promise.all(poolPromises);
+
+        const matriz = [
+            ...resMatrizPi.rows?.map(row => ({ ...row, estado: 'pi' })),
+            ...resMatrizMa.rows?.map(row => ({ ...row, estado: 'ma' }))
+        ];
+
+        const localsPromises = [];
+        if (targetEstado.includes('pi')) {
+            localsPromises.push(localizacoes_pi_pool.query(sql, query));
+        } else {
+            localsPromises.push(Promise.resolve({ rows: [] }));
+        }
+
+        const [resLocals] = await Promise.all(localsPromises);
         const locals = resLocals.rows;
-        const matriz = [...resMatrizPi.rows?.map(row => ({ ...row, estado: 'pi' })), ...resMatrizMa.rows?.map(row => ({ ...row, estado: 'ma' }))];
 
         const resultsMap = [];
 
