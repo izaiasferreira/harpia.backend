@@ -407,7 +407,7 @@ async function saveChecklistSubmission(agentId, data) {
           isEditing = true;
           checklistId = existing.id;
         } else {
-          throw { status: 409, message: 'Checklist oficial do dia já foi enviado e o prazo de edição expirou (10 min).' };
+          throw { status: 409, message: 'Checklist diário do dia já foi enviado e o prazo de edição expirou (10 min).' };
         }
       }
     }

@@ -244,7 +244,7 @@ async function getDashboardAlerts({ date_from, date_to, regional, sectional, est
 
 async function listDashboardChecklists({
   page = 1, limit = 15, agent_name, date_from, date_to,
-  type, severity_alert, status,
+  type, compliance_filter, status,
   regional, sectional, estado, gestor
 }, user) {
   const offset = (page - 1) * limit;
@@ -265,9 +265,20 @@ async function listDashboardChecklists({
 
   if (type) { filters.push(`c.type = $${idx}`); params.push(type); idx++; }
   if (status) { filters.push(`c.status = $${idx}`); params.push(status); idx++; }
-  if (severity_alert === 'true' || severity_alert === true) {
-    filters.push('c.has_critical_non_compliant = true');
+  
+  if (compliance_filter === 'compliant') {
+    filters.push(`((c.data->'compliance_summary'->>'non_compliant')::int) = 0`);
+  } else if (compliance_filter === 'non_compliant') {
+    filters.push(`((c.data->'compliance_summary'->>'non_compliant')::int) > 0`);
+    filters.push(`c.has_critical_non_compliant = false`);
+    filters.push(`NOT EXISTS (SELECT 1 FROM jsonb_array_elements(c.data->'answers') a WHERE a->>'is_compliant' = 'false' AND a->>'severity' = 'alert')`);
+  } else if (compliance_filter === 'attention') {
+    filters.push(`((c.data->'compliance_summary'->>'non_compliant')::int) > 0`);
+    filters.push(`EXISTS (SELECT 1 FROM jsonb_array_elements(c.data->'answers') a WHERE a->>'is_compliant' = 'false' AND a->>'severity' = 'alert')`);
+  } else if (compliance_filter === 'critical') {
+    filters.push(`c.has_critical_non_compliant = true`);
   }
+
   if (agent_name && !regional && !sectional && !estado && !gestor) {
     // If agent_name was given but no colJoin filter was added, add it here
   }

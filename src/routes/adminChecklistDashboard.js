@@ -62,13 +62,13 @@ router.get('/checklists', verifyToken(), verifyModule('checklists'), async (req,
   try {
     const {
       page, limit, agent_name, date_from, date_to,
-      type, severity_alert, status,
+      type, compliance_filter, status,
       regional, sectional, estado, gestor
     } = req.query;
     const result = await listDashboardChecklists({
       page: parseInt(page || 1, 10),
       limit: parseInt(limit || 15, 10),
-      agent_name, date_from, date_to, type, severity_alert, status,
+      agent_name, date_from, date_to, type, compliance_filter, status,
       regional, sectional, estado, gestor,
     }, req.user);
     res.json(result);
