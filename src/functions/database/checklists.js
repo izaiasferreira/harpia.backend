@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { cenos_pool } = require('../../db');
 const { processBase64Files } = require('./serviceNotes');
+const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
 
 // ==========================================
 // TEMPLATES (Admin)
@@ -251,7 +252,7 @@ async function getChecklistById(id) {
   return checklist;
 }
 
-async function listChecklistsAdmin({ page = 1, limit = 10, regional_id, sectional_id, agent_name, date_from, date_to, type, severity_alert, status }) {
+async function listChecklistsAdmin({ page = 1, limit = 10, regional_id, sectional_id, agent_name, date_from, date_to, type, severity_alert, status }, user = null) {
   const offset = (page - 1) * limit;
   const params = [];
   let paramIndex = 1;
@@ -266,6 +267,21 @@ async function listChecklistsAdmin({ page = 1, limit = 10, regional_id, sectiona
   if (status) { filters.push(`c.status = $${paramIndex}`); params.push(status); paramIndex++; }
   if (severity_alert === 'true' || severity_alert === true) {
     filters.push(`c.has_critical_non_compliant = true`);
+  }
+
+  // Aplica filtro de permissão
+  if (user && !userIsAdmin(user)) {
+    const filter = getColaboradoresFilter(user, { includeAllStates: true });
+    if (filter.allowedStates.length > 0) {
+      if (filter.allowedStates.length === 1) {
+        filters.push(`c.agent_id IN (SELECT "ID" FROM colaboradores WHERE estado = $${paramIndex})`);
+        params.push(filter.allowedStates[0]);
+      } else {
+        filters.push(`c.agent_id IN (SELECT "ID" FROM colaboradores WHERE estado = ANY($${paramIndex}))`);
+        params.push(filter.allowedStates);
+      }
+      paramIndex++;
+    }
   }
 
   const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
@@ -289,7 +305,7 @@ async function listChecklistsAdmin({ page = 1, limit = 10, regional_id, sectiona
   return { data: rows, total, page, limit, totalPages: Math.ceil(total / limit) };
 }
 
-async function getChecklistsStats({ date_from, date_to }) {
+async function getChecklistsStats({ date_from, date_to }, user = null) {
   const todayStr = new Date().toISOString().split('T')[0];
   const dateFromVal = date_from || todayStr;
   const dateToVal = date_to || todayStr;
@@ -299,6 +315,22 @@ async function getChecklistsStats({ date_from, date_to }) {
   let idx = 2;
   filters.push(`c.date >= $${idx}`); params.push(dateFromVal); idx++;
   filters.push(`c.date <= $${idx}`); params.push(dateToVal); idx++;
+
+  // Aplica filtro de permissão
+  if (user && !userIsAdmin(user)) {
+    const filter = getColaboradoresFilter(user, { includeAllStates: true });
+    if (filter.allowedStates.length > 0) {
+      if (filter.allowedStates.length === 1) {
+        filters.push(`c.agent_id IN (SELECT "ID" FROM colaboradores WHERE estado = $${idx})`);
+        params.push(filter.allowedStates[0]);
+      } else {
+        filters.push(`c.agent_id IN (SELECT "ID" FROM colaboradores WHERE estado = ANY($${idx}))`);
+        params.push(filter.allowedStates);
+      }
+      idx++;
+    }
+  }
+
   const whereClause = `WHERE ${filters.join(' AND ')}`;
 
   const totalRes = await cenos_pool.query(

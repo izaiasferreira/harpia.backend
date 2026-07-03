@@ -1,4 +1,5 @@
 const { cenos_pool } = require('../../db');
+const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
 
 /**
  * Verifica se um agente está isento no momento especificado.
@@ -109,7 +110,7 @@ async function deleteAgentExemption({ exemptionId, agentId }) {
 async function listActiveExemptions({
   date_from, date_to, agent_name, regional, sectional, estado, gestor,
   page = 1, limit = 20,
-}) {
+}, user = null) {
   const offset = (page - 1) * limit;
   const today = new Date().toISOString().split('T')[0];
   const from = date_from || today;
@@ -127,6 +128,21 @@ async function listActiveExemptions({
   if (sectional) { filters.push(`col.seccional = $${idx}`); params.push(sectional); idx++; }
   if (estado) { filters.push(`UPPER(col.estado) = UPPER($${idx})`); params.push(estado); idx++; }
   if (gestor) { filters.push(`col."GESTOR IMEDIATO" = $${idx}`); params.push(gestor); idx++; }
+
+  // Aplica filtro de permissão
+  if (user && !userIsAdmin(user)) {
+    const filter = getColaboradoresFilter(user, { includeAllStates: true });
+    if (filter.allowedStates.length > 0) {
+      if (filter.allowedStates.length === 1) {
+        filters.push(`col.estado = $${idx}`);
+        params.push(filter.allowedStates[0]);
+      } else {
+        filters.push(`col.estado = ANY($${idx})`);
+        params.push(filter.allowedStates);
+      }
+      idx++;
+    }
+  }
 
   const whereFilters = filters.length > 0 ? `AND ${filters.join(' AND ')}` : '';
 

@@ -39,6 +39,229 @@ const getFilterUser = (user) => {
     return othersFilters.length > 0 ? othersFilters[0] : null;
 }
 
+/**
+ * Retorna as condições de filtro para consultas na tabela colaboradores
+ * com base nas permissões do usuário administrativo.
+ *
+ * @param {Object} user - Objeto do usuário (req.user)
+ * @param {Object} options - Opções adicionais
+ * @param {boolean} options.includeAllStates - Se true, retorna todos os estados permitidos (não apenas um)
+ * @returns {Object} Objeto com { whereClause, params, allowedStates }
+ */
+const getColaboradoresFilter = (user, options = {}) => {
+    const { includeAllStates = true } = options;
+    const isMainAdmin = userIsAdmin(user);
+    const userFilters = user?.permissions?.map(p => p.filters).flat() || [];
+    const userFiltersByType = {};
+
+    // Organiza filtros por tipo
+    userFilters.forEach(f => {
+        if (!userFiltersByType[f.type]) {
+            userFiltersByType[f.type] = [];
+        }
+        userFiltersByType[f.type].push(f.value.toLowerCase());
+    });
+
+    // Se for admin, retorna tudo
+    if (isMainAdmin) {
+        return {
+            whereClause: '',
+            params: [],
+            allowedStates: ['pi', 'ma'],
+            isAdmin: true
+        };
+    }
+
+    const conditions = [];
+    const params = [];
+    let paramIndex = 1;
+
+    // Filtro por estado
+    const allowedStates = [];
+    const estadosPermitidos = userFiltersByType['estado'] || [];
+
+    // Se o usuário não tiver filtro de estado definido, restringe ao estado do usuário
+    if (estadosPermitidos.length === 0 && user?.estado) {
+        estadosPermitidos.push(user.estado.toLowerCase());
+    }
+
+    if (estadosPermitidos.length > 0) {
+        // Se há múltiplos estados e includeAllStates é true, usa ANY
+        if (includeAllStates && estadosPermitidos.length > 1) {
+            conditions.push(`estado = ANY($${paramIndex})`);
+            params.push(estadosPermitidos);
+            paramIndex++;
+        } else {
+            // Usa apenas o primeiro estado
+            conditions.push(`estado = $${paramIndex}`);
+            params.push(estadosPermitidos[0]);
+            paramIndex++;
+        }
+        allowedStates.push(...estadosPermitidos);
+    }
+
+    // Filtro por regional
+    const regionaisPermitidas = userFiltersByType['regional'] || [];
+    if (regionaisPermitidas.length > 0) {
+        if (regionaisPermitidas.length === 1) {
+            conditions.push(`"regional" = $${paramIndex}`);
+            params.push(regionaisPermitidas[0]);
+        } else {
+            conditions.push(`"regional" = ANY($${paramIndex})`);
+            params.push(regionaisPermitidas);
+        }
+        paramIndex++;
+    }
+
+    // Filtro por seccional
+    const seccionaisPermitidas = userFiltersByType['seccional'] || [];
+    if (seccionaisPermitidas.length > 0) {
+        if (seccionaisPermitidas.length === 1) {
+            conditions.push(`"seccional" = $${paramIndex}`);
+            params.push(seccionaisPermitidas[0]);
+        } else {
+            conditions.push(`"seccional" = ANY($${paramIndex})`);
+            params.push(seccionaisPermitidas);
+        }
+        paramIndex++;
+    }
+
+    // Filtro por gestor
+    const gestoresPermitidos = userFiltersByType['gestor'] || [];
+    if (gestoresPermitidos.length > 0) {
+        if (gestoresPermitidos.length === 1) {
+            conditions.push(`"GESTOR IMEDIATO" = $${paramIndex}`);
+            params.push(gestoresPermitidos[0]);
+        } else {
+            conditions.push(`"GESTOR IMEDIATO" = ANY($${paramIndex})`);
+            params.push(gestoresPermitidos);
+        }
+        paramIndex++;
+    }
+
+    return {
+        whereClause: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '',
+        params,
+        allowedStates,
+        isAdmin: false
+    };
+};
+
+/**
+ * Aplica filtro de permissão a um array de resultados
+ * Útil para filtrar resultados em memória quando não é possível usar SQL
+ *
+ * @param {Array} results - Array de resultados a filtrar
+ * @param {Object} user - Objeto do usuário
+ * @param {string} idField - Nome do campo que contém o ID do agente
+ * @returns {Array} Resultados filtrados
+ */
+const applyColaboradoresFilter = async (results, user, idField = 'agente') => {
+    if (!results || results.length === 0) return results;
+
+    const isMainAdmin = userIsAdmin(user);
+    if (isMainAdmin) return results;
+
+    const userFilters = user?.permissions?.map(p => p.filters).flat() || [];
+    const userFiltersByType = {};
+
+    userFilters.forEach(f => {
+        if (!userFiltersByType[f.type]) {
+            userFiltersByType[f.type] = [];
+        }
+        userFiltersByType[f.type].push(f.value.toLowerCase());
+    });
+
+    const estadosPermitidos = userFiltersByType['estado'] || [];
+    const regionaisPermitidas = userFiltersByType['regional'] || [];
+    const seccionaisPermitidas = userFiltersByType['seccional'] || [];
+    const gestoresPermitidos = userFiltersByType['gestor'] || [];
+
+    // Se não tiver nenhum filtro, retorna vazio (não deveria acontecer para não-admin)
+    if (estadosPermitidos.length === 0 && regionaisPermitidas.length === 0 &&
+        seccionaisPermitidas.length === 0 && gestoresPermitidos.length === 0) {
+        // Usa o estado do próprio usuário como fallback
+        if (user?.estado) {
+            estadosPermitidos.push(user.estado.toLowerCase());
+        } else {
+            return [];
+        }
+    }
+
+    // Se os resultados tiverem campo 'estado', filtra por ele
+    // Caso contrário, busca os dados na tabela colaboradores
+    const needsLookup = !results[0]?.estado && !results[0]?.regional && !results[0]?.seccional;
+
+    if (needsLookup) {
+        // Busca dados dos colaboradores necessários
+        const ids = [...new Set(results.map(r => r[idField]).filter(Boolean))];
+        if (ids.length === 0) return results;
+
+        const filter = getColaboradoresFilter(user);
+        let query = `SELECT "ID", estado, "regional", "seccional", "GESTOR IMEDIATO" FROM colaboradores WHERE "ID" = ANY($1)`;
+
+        if (filter.whereClause) {
+            // Adiciona condições extras
+            const extraConditions = [];
+            if (regionaisPermitidas.length > 0) {
+                extraConditions.push(regionaisPermitidas.length === 1
+                    ? `"regional" = $${filter.params.length + 1}`
+                    : `"regional" = ANY($${filter.params.length + 1})`);
+                filter.params.push(regionaisPermitidas);
+            }
+            if (seccionaisPermitidas.length > 0) {
+                extraConditions.push(seccionaisPermitidas.length === 1
+                    ? `"seccional" = $${filter.params.length + 1}`
+                    : `"seccional" = ANY($${filter.params.length + 1})`);
+                filter.params.push(seccionaisPermitidas);
+            }
+            if (gestoresPermitidos.length > 0) {
+                extraConditions.push(gestoresPermitidos.length === 1
+                    ? `"GESTOR IMEDIATO" = $${filter.params.length + 1}`
+                    : `"GESTOR IMEDIATO" = ANY($${filter.params.length + 1})`);
+                filter.params.push(gestoresPermitidos);
+            }
+
+            if (extraConditions.length > 0) {
+                query += ` AND ${extraConditions.join(' AND ')}`;
+            }
+        }
+
+        const { rows: colaboradoresData } = await cenos_pool.query(query, [ids, ...filter.params.slice(1)]);
+        const colabMap = new Map();
+        colaboradoresData.forEach(c => {
+            colabMap.set(c['ID'].toUpperCase(), c);
+        });
+
+        return results.filter(r => {
+            const id = r[idField];
+            if (!id) return false;
+            const colab = colabMap.get(id.toUpperCase());
+            if (!colab) return false;
+
+            // Verifica se o registro tem os campos necessários para filtragem
+            if (colab.estado && estadosPermitidos.length > 0) {
+                if (!estadosPermitidos.includes(colab.estado.toLowerCase())) return false;
+            }
+            return true;
+        });
+    }
+
+    // Filtra diretamente pelos campos existentes
+    return results.filter(r => {
+        if (estadosPermitidos.length > 0 && r.estado) {
+            if (!estadosPermitidos.includes(r.estado.toLowerCase())) return false;
+        }
+        if (regionaisPermitidas.length > 0 && r.regional) {
+            if (!regionaisPermitidas.includes(r.regional.toLowerCase())) return false;
+        }
+        if (seccionaisPermitidas.length > 0 && r.seccional) {
+            if (!seccionaisPermitidas.includes(r.seccional.toLowerCase())) return false;
+        }
+        return true;
+    });
+};
+
 async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limit = 50, search, regional, seccional, gestor, estado }) {
     const availablePools = getUserAllowedStatePools(user);
     const filterUser = getFilterUser(user);
@@ -334,7 +557,10 @@ async function get_users_only_login_paginated({ user, page = 1, limit = 50, sear
     };
 }
 
-async function get_user_agent_options({ estado }) {
+async function get_user_agent_options({ estado, user }) {
+    const colabFilter = user ? getColaboradoresFilter(user, { includeAllStates: true }) : null;
+    const isAdmin = user ? userIsAdmin(user) : false;
+
     let result = {
         gestores: [],
         cargos: [],
@@ -344,42 +570,87 @@ async function get_user_agent_options({ estado }) {
         estados: []
     };
 
-    const queryCond = estado ? `AND estado = $1` : ``;
-    const queryParams = estado ? [estado] : [];
+    // Se não for admin, usa os estados permitidos para filtrar
+    let queryCond = '';
+    let queryParams = [];
 
-    const query = `SELECT DISTINCT "GESTOR IMEDIATO" FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL ${queryCond}`;
-    const { rows } = await cenos_pool.query(query, queryParams);
+    if (!isAdmin && colabFilter && colabFilter.allowedStates.length > 0) {
+        queryCond = `AND estado = ANY($1)`;
+        queryParams = [colabFilter.allowedStates];
+    } else if (estado) {
+        queryCond = `AND estado = $1`;
+        queryParams = [estado];
+    }
+
+    // Gestores - filtra apenas os permitidos
+    let gestoresQuery = `SELECT DISTINCT "GESTOR IMEDIATO" FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL ${queryCond}`;
+    if (!isAdmin && colabFilter) {
+        // Se tem filtro de gestor, aplica
+        const gestoresPermitidos = user?.permissions?.map(p => p.filters).flat().filter(f => f.type === 'gestor').map(f => f.value);
+        if (gestoresPermitidos && gestoresPermitidos.length > 0) {
+            gestoresQuery = `SELECT DISTINCT "GESTOR IMEDIATO" FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL AND "GESTOR IMEDIATO" = ANY($1)`;
+            queryParams = [gestoresPermitidos];
+        }
+    }
+    const { rows } = await cenos_pool.query(gestoresQuery, queryParams);
     result.gestores = rows.map(r => r['GESTOR IMEDIATO']);
 
+    // Seccionais - vem da tabela localidades
     const query2 = `SELECT DISTINCT uac FROM localidades WHERE uac IS NOT NULL`;
-    if (estado) {
-        const { rows: rows2 } = await (estado === 'pi' ? pi_pool.query(query2) : ma_pool.query(query2));
-        result.seccionais = rows2.map(r => r['uac']);
+    let estadosParaBuscar = [];
+
+    if (!isAdmin && colabFilter && colabFilter.allowedStates.length > 0) {
+        estadosParaBuscar = colabFilter.allowedStates;
+    } else if (estado) {
+        estadosParaBuscar = [estado];
     } else {
-        const [resPi, resMa] = await Promise.all([pi_pool.query(query2), ma_pool.query(query2)]);
-        result.seccionais = [...new Set([...resPi.rows.map(r => r.uac), ...resMa.rows.map(r => r.uac)])];
+        estadosParaBuscar = ['pi', 'ma'];
     }
 
+    let seccionais = [];
+    for (const est of estadosParaBuscar) {
+        try {
+            const pool = est === 'pi' ? pi_pool : ma_pool;
+            const { rows: rows2 } = await pool.query(query2);
+            seccionais = [...seccionais, ...rows2.map(r => r.uac)];
+        } catch (e) {
+            // ignora
+        }
+    }
+    result.seccionais = [...new Set(seccionais)].filter(Boolean);
+
+    // Regionais - vem da tabela localidades
     const query3 = `SELECT DISTINCT regional FROM localidades WHERE regional IS NOT NULL`;
-    if (estado) {
-        const { rows: rows3 } = await (estado === 'pi' ? pi_pool.query(query3) : ma_pool.query(query3));
-        result.regionais = rows3.map(r => r['regional']);
-    } else {
-        const [resPi, resMa] = await Promise.all([pi_pool.query(query3), ma_pool.query(query3)]);
-        result.regionais = [...new Set([...resPi.rows.map(r => r.regional), ...resMa.rows.map(r => r.regional)])];
+    let regionais = [];
+    for (const est of estadosParaBuscar) {
+        try {
+            const pool = est === 'pi' ? pi_pool : ma_pool;
+            const { rows: rows3 } = await pool.query(query3);
+            regionais = [...regionais, ...rows3.map(r => r.regional)];
+        } catch (e) {
+            // ignora
+        }
     }
+    result.regionais = [...new Set(regionais)].filter(Boolean);
 
+    // Cargos
     const query4 = `SELECT DISTINCT "Cargo" FROM colaboradores WHERE "Cargo" IS NOT NULL ${queryCond}`;
     const { rows: rows4 } = await cenos_pool.query(query4, queryParams);
     result.cargos = rows4.map(r => r['Cargo']);
 
+    // Processos
     const query5 = `SELECT DISTINCT "processo" FROM colaboradores WHERE "processo" IS NOT NULL ${queryCond}`;
     const { rows: rows5 } = await cenos_pool.query(query5, queryParams);
     result.processos = rows5.map(r => r['processo']);
 
-    const query6 = `SELECT DISTINCT estado FROM colaboradores WHERE estado IS NOT NULL ORDER BY estado`;
-    const { rows: rows6 } = await cenos_pool.query(query6);
-    result.estados = rows6.map(r => r.estado);
+    // Estados - apenas os permitidos para não-admins
+    if (!isAdmin && colabFilter && colabFilter.allowedStates.length > 0) {
+        result.estados = colabFilter.allowedStates;
+    } else {
+        const query6 = `SELECT DISTINCT estado FROM colaboradores WHERE estado IS NOT NULL ORDER BY estado`;
+        const { rows: rows6 } = await cenos_pool.query(query6);
+        result.estados = rows6.map(r => r.estado);
+    }
 
     return result;
 }
@@ -810,32 +1081,43 @@ async function get_inventory_admin({ user, page = 1, limit = 9999, search, agent
     await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_serie TEXT;`).catch(() => {});
     await pool.query(`ALTER TABLE inventory ADD COLUMN IF NOT EXISTS maquininha_numero_logico TEXT;`).catch(() => {});
 
+    // Usa a nova função de filtro unificado
+    const colabFilter = getColaboradoresFilter(user, { includeAllStates: true });
+
     let query = `SELECT DISTINCT ON (agente) * FROM inventory WHERE 1=1`;
     const params = [];
     let paramIndex = 1;
 
+    // Se não for admin, aplica filtro de estados
     if (!userIsAdmin(user)) {
-        query += ` AND estado = ANY($${paramIndex})`;
-        params.push(allowedPools);
-        paramIndex++;
+        if (colabFilter.allowedStates.length > 0) {
+            query += ` AND estado = ANY($${paramIndex})`;
+            params.push(colabFilter.allowedStates);
+            paramIndex++;
+        }
     }
 
     query += ` ORDER BY agente, created_at DESC`;
 
     const { rows } = await pool.query(query, params);
 
-    // Obtém todos os agentes autorizados uma única vez
+    // Obtém todos os agentes autorizados uma única vez usando filtro unificado
     const allowedAgentsRes = await get_users_agents_admin({ user });
 
+    // Aplica filtro completo (estado, regional, seccional, gestor)
     let filteredRows = rows.map(r => {
         const agentData = allowedAgentsRes.find(a => a.id?.toString().toUpperCase() === r.agente?.toString().toUpperCase());
         if (!agentData) return null;
+
+        // Verifica se o agente está dentro das permissões do usuário
+        const isAllowed = checkAgentPermission(agentData, user);
+        if (!isAllowed) return null;
 
         // Acopla dados do agente ao registro do inventário
         return { ...r, ...agentData };
     }).filter(Boolean);
 
-    // Filtro por estado
+    // Filtro por estado (via query param - permite sobrescrever o filtro do usuário)
     if (estado) {
         const est = estado.toLowerCase();
         filteredRows = filteredRows.filter(r => r.estado?.toLowerCase() === est);
@@ -844,8 +1126,8 @@ async function get_inventory_admin({ user, page = 1, limit = 9999, search, agent
     // Filtro por agente (ID ou Nome)
     if (agente) {
         const ag = agente.toLowerCase();
-        filteredRows = filteredRows.filter(r => 
-            r.id?.toLowerCase().includes(ag) || 
+        filteredRows = filteredRows.filter(r =>
+            r.id?.toLowerCase().includes(ag) ||
             r.nome?.toLowerCase().includes(ag)
         );
     }
@@ -863,6 +1145,60 @@ async function get_inventory_admin({ user, page = 1, limit = 9999, search, agent
     const offsetVal = (parseInt(page) - 1) * limitVal;
     return filteredRows.slice(offsetVal, offsetVal + limitVal);
 }
+
+/**
+ * Verifica se um agente está dentro das permissões do usuário
+ */
+const checkAgentPermission = (agentData, user) => {
+    const isMainAdmin = userIsAdmin(user);
+    if (isMainAdmin) return true;
+
+    const userFilters = user?.permissions?.map(p => p.filters).flat() || [];
+    const userFiltersByType = {};
+
+    userFilters.forEach(f => {
+        if (!userFiltersByType[f.type]) {
+            userFiltersByType[f.type] = [];
+        }
+        userFiltersByType[f.type].push(f.value.toLowerCase());
+    });
+
+    const estadosPermitidos = userFiltersByType['estado'] || [];
+    const regionaisPermitidas = userFiltersByType['regional'] || [];
+    const seccionaisPermitidas = userFiltersByType['seccional'] || [];
+    const gestoresPermitidos = userFiltersByType['gestor'] || [];
+
+    // Se não tem nenhum filtro, usa o estado do usuário como fallback
+    if (estadosPermitidos.length === 0 && regionaisPermitidas.length === 0 &&
+        seccionaisPermitidas.length === 0 && gestoresPermitidos.length === 0) {
+        if (user?.estado) {
+            return agentData.estado?.toLowerCase() === user.estado.toLowerCase();
+        }
+        return false;
+    }
+
+    // Verifica estado
+    if (estadosPermitidos.length > 0 && agentData.estado) {
+        if (!estadosPermitidos.includes(agentData.estado.toLowerCase())) return false;
+    }
+
+    // Verifica regional
+    if (regionaisPermitidas.length > 0 && agentData.regional) {
+        if (!regionaisPermitidas.includes(agentData.regional.toLowerCase())) return false;
+    }
+
+    // Verifica seccional
+    if (seccionaisPermitidas.length > 0 && agentData.seccional) {
+        if (!seccionaisPermitidas.includes(agentData.seccional.toLowerCase())) return false;
+    }
+
+    // Verifica gestor
+    if (gestoresPermitidos.length > 0 && agentData.gestor) {
+        if (!gestoresPermitidos.includes(agentData.gestor.toLowerCase())) return false;
+    }
+
+    return true;
+};
 
 async function save_inventory_admin(data) {
     const { agente, pda_imei_1, pda_imei_2, pda_numero_serie, pda_marca, pda_modelo, pda_numero_chip, pda_versao_android, pda_versao_bluetooth, impressora_numero_serie, impressora_modelo, impressora_marca, maquininha_numero_serie, maquininha_numero_logico, estado } = data;
@@ -904,17 +1240,20 @@ async function get_justify_types_admin() {
 
 
 async function get_justify_admin({ instalacao, tipo, data_leit_prev, estado, page = 1, limit = 9999, search, user }) {
-    const allowedPools = getUserAllowedStatePools(user).map(p => p.state);
+    const colabFilter = getColaboradoresFilter(user, { includeAllStates: true });
     const pool = cenos_pool;
 
     let query = `SELECT * FROM justificativas WHERE 1=1`;
     const params = [];
     let paramIndex = 1;
 
+    // Se não for admin, aplica filtro de estados
     if (!userIsAdmin(user)) {
-        query += ` AND estado = ANY($${paramIndex})`;
-        params.push(allowedPools);
-        paramIndex++;
+        if (colabFilter.allowedStates.length > 0) {
+            query += ` AND estado = ANY($${paramIndex})`;
+            params.push(colabFilter.allowedStates);
+            paramIndex++;
+        }
     }
 
     if (instalacao) {
@@ -932,6 +1271,7 @@ async function get_justify_admin({ instalacao, tipo, data_leit_prev, estado, pag
         params.push(data_leit_prev);
         paramIndex++;
     }
+    // Se vier estado via query param, aplica (override do filtro de permissão)
     if (estado) {
         query += ` AND estado = $${paramIndex}`;
         params.push(estado.toLowerCase());
@@ -943,14 +1283,17 @@ async function get_justify_admin({ instalacao, tipo, data_leit_prev, estado, pag
     // Buscamos um set maior para possibilitar filtragem por hierarquia em memória
     const { rows } = await pool.query(query, params);
 
-    const result = (await get_users_agents_admin({ user }) || [])
+    // Usa a nova função de filtro unificado
+    const result = await get_users_agents_admin({ user });
     const allowedAgents = result.map(a => a.id?.toString().toUpperCase());
 
-    // Filtra e enriquece os dados antes da busca global
+    // Filtra e enriquece os dados aplicando permissão completa (estado, regional, seccional, gestor)
     let enrichedRows = rows
         .filter(r => {
             if (userIsAdmin(user)) return true;
-            return allowedAgents.includes(r.autor?.toString().toUpperCase());
+            const agentData = result.find(a => a.id?.toString().toUpperCase() === r.autor?.toString().toUpperCase());
+            if (!agentData) return false;
+            return checkAgentPermission(agentData, user);
         })
         .map(r => {
             const agentData = result.find(a => a.id?.toString().toUpperCase() === r.autor?.toString().toUpperCase());
@@ -1003,7 +1346,7 @@ async function delete_justify_admin(id) {
 // ─── justify_pending ───────────────────────────────────────────────────────────
 
 async function get_pending_justifies_admin({ state, autor, status = 'pendente', page = 1, limit = 9999, user, search }) {
-    const allowedPools = getUserAllowedStatePools(user).map(p => p.state);
+    const colabFilter = getColaboradoresFilter(user, { includeAllStates: true });
     const pool = cenos_pool;
 
     let query = `SELECT * FROM justify_pending WHERE 1=1`;
@@ -1012,9 +1355,11 @@ async function get_pending_justifies_admin({ state, autor, status = 'pendente', 
 
     // Se o usuário não for admin principal, ele só pode ver estados permitidos
     if (!userIsAdmin(user)) {
-        query += ` AND estado = ANY($${paramIndex})`;
-        params.push(allowedPools);
-        paramIndex++;
+        if (colabFilter.allowedStates.length > 0) {
+            query += ` AND estado = ANY($${paramIndex})`;
+            params.push(colabFilter.allowedStates);
+            paramIndex++;
+        }
     }
 
     // Filtro por estado explícito (vindo da query param)
@@ -1039,13 +1384,16 @@ async function get_pending_justifies_admin({ state, autor, status = 'pendente', 
 
     const { rows } = await pool.query(query, params);
 
-    // Obtém todos os agentes autorizados uma única vez (sem filtro de search aqui para podermos cruzar dados)
-    const result = (await get_users_agents_admin({ user }) || []);
-    const allowedAgents = result.map(a => a.id?.toString().toUpperCase());
+    // Obtém todos os agentes autorizados (com filtro unificado)
+    const result = await get_users_agents_admin({ user });
 
-    // Filtra apenas registros de agentes que o usuário tem permissão de ver
+    // Filtra apenas registros de agentes que o usuário tem permissão completa
     let enrichedRows = rows
-        .filter(r => allowedAgents.includes(r.autor?.toString().toUpperCase()))
+        .filter(r => {
+            const agentData = result.find(a => a.id?.toString().toUpperCase() === r.autor?.toString().toUpperCase());
+            if (!agentData) return false;
+            return checkAgentPermission(agentData, user);
+        })
         .map(r => {
             const agent = result.find(a => a.id?.toString().toUpperCase() === r.autor?.toString().toUpperCase());
             return {
@@ -1104,17 +1452,20 @@ async function delete_pending_justify_admin(id) {
 
 // ─── daily_report ───────────────────────────────────────────────────────────
 async function get_daily_reports_admin({ autor, data, limit = 9999, page = 1, includeAll = false, user, search, estado, motivo }) {
-    const allowedPools = getUserAllowedStatePools(user).map(p => p.state);
+    const colabFilter = getColaboradoresFilter(user, { includeAllStates: true });
     const pool = cenos_pool;
 
     let query = `SELECT * FROM daily_report WHERE 1=1`;
     const params = [];
     let paramIndex = 1;
 
+    // Se não for admin, aplica filtro de estados
     if (!userIsAdmin(user)) {
-        query += ` AND estado = ANY($${paramIndex})`;
-        params.push(allowedPools);
-        paramIndex++;
+        if (colabFilter.allowedStates.length > 0) {
+            query += ` AND estado = ANY($${paramIndex})`;
+            params.push(colabFilter.allowedStates);
+            paramIndex++;
+        }
     }
 
     if (autor) {
@@ -1133,6 +1484,7 @@ async function get_daily_reports_admin({ autor, data, limit = 9999, page = 1, in
         paramIndex++;
     }
 
+    // Se vier estado via query param, aplica (override do filtro de permissão)
     if (estado) {
         query += ` AND estado = $${paramIndex}`;
         params.push(estado.toLowerCase());
@@ -1143,12 +1495,16 @@ async function get_daily_reports_admin({ autor, data, limit = 9999, page = 1, in
 
     const { rows } = await pool.query(query, params);
 
-    const result = await get_users_agents_admin({ user }) || [];
-    const allowedAgents = result.map(a => a.id?.toString().toUpperCase());
+    // Usa filtro unificado para buscar agentes autorizados
+    const result = await get_users_agents_admin({ user });
 
-    // Filtra e enriquece os dados antes da busca global
+    // Filtra e enriquece os dados aplicando permissão completa (estado, regional, seccional, gestor)
     let enrichedRows = rows
-        .filter(r => allowedAgents.includes(r.autor?.toString().toUpperCase()))
+        .filter(r => {
+            const agentData = result.find(a => a.id?.toString().toUpperCase() === r.autor?.toString().toUpperCase());
+            if (!agentData) return false;
+            return checkAgentPermission(agentData, user);
+        })
         .map(r => {
             const agent = result.find(a => a.id?.toString().toUpperCase() === r.autor?.toString().toUpperCase());
             return {
@@ -1304,4 +1660,7 @@ module.exports = {
     getUserAllowedStatePools,
     getFilterUser,
     userIsAdmin,
+    getColaboradoresFilter,
+    applyColaboradoresFilter,
+    checkAgentPermission,
 };

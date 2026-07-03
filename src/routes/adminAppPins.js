@@ -47,7 +47,7 @@ router.post('/generate_app_pin', verifyToken(), verifyModule('app_pins'), valida
 // GET /admin/agent/app_pins
 router.get('/app_pins', verifyToken(), verifyModule('app_pins'), async (req, res) => {
     try {
-        const pins = await listPins();
+        const pins = await listPins(50, req.user);
         res.json(pins);
     } catch (err) {
         console.error('[LIST_PINS] Erro:', err);

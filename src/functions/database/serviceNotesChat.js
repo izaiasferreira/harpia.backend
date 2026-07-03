@@ -14,6 +14,7 @@ const {
     bulkRestore,
     updateServiceGroup,
 } = require('./serviceNotes');
+const { getColaboradoresFilter, userIsAdmin, checkAgentPermission } = require('./admin');
 
 async function urlToGeminiPart(url, mimeType) {
     try {
@@ -94,11 +95,46 @@ async function clearChatMessages(groupId) {
     await cenos_pool.query(`DELETE FROM service_notes_chat_messages WHERE group_id = $1`, [groupId]);
 }
 
-async function listAgents() {
+async function listAgents(user = null) {
     const agents = [];
     try {
-        const { rows } = await cenos_pool.query(`SELECT "ID" as id, "Nome" as nome, "regional", "seccional", estado FROM colaboradores`);
-        rows.forEach(r => {
+        // Se não tiver usuário, retorna lista vazia (segurança)
+        if (!user) {
+            return agents;
+        }
+
+        // Usa o filtro unificado de permissões
+        const colabFilter = getColaboradoresFilter(user, { includeAllStates: true });
+
+        let query = `SELECT "ID" as id, "Nome" as nome, "regional", "seccional", estado FROM colaboradores`;
+        let params = [];
+
+        // Se não for admin, aplica filtro
+        if (!userIsAdmin(user)) {
+            if (colabFilter.whereClause) {
+                query += ` ${colabFilter.whereClause}`;
+                params = colabFilter.params;
+            } else if (colabFilter.allowedStates.length > 0) {
+                query += ` WHERE estado = ANY($1)`;
+                params = [colabFilter.allowedStates];
+            }
+        }
+
+        const { rows } = await cenos_pool.query(query, params);
+
+        // Aplica filtro em memória para regional, seccional e gestor
+        const filteredRows = rows.filter(r => {
+            const agentData = {
+                id: r.id,
+                nome: r.nome,
+                regional: r.regional,
+                seccional: r.seccional,
+                estado: r.estado
+            };
+            return checkAgentPermission(agentData, user);
+        });
+
+        filteredRows.forEach(r => {
             agents.push({
                 id: r.id?.toUpperCase(),
                 nome: r.nome,

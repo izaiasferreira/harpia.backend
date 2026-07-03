@@ -19,7 +19,7 @@ const {
 // GET /admin/chat/rooms - Listar salas para o painel admin
 router.get('/admin/chat/rooms', verifyToken(), verifyModule('chat'), async (req, res) => {
     try {
-        const rooms = await get_rooms_for_admin();
+        const rooms = await get_rooms_for_admin(req.user);
         res.json({ success: true, rooms });
     } catch (err) {
         console.error('[CHAT API] Erro ao buscar salas para admin:', err);

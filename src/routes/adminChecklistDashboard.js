@@ -17,7 +17,7 @@ const {
 
 router.get('/filter-options', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
-    const options = await getDashboardFilterOptions();
+    const options = await getDashboardFilterOptions(req.user);
     res.json(options);
   } catch (err) {
     console.error('[DASHBOARD] Erro GET /filter-options:', err);
@@ -28,7 +28,7 @@ router.get('/filter-options', verifyToken(), verifyModule('checklists'), async (
 router.get('/stats', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
     const { date_from, date_to, regional, sectional, estado, gestor } = req.query;
-    const stats = await getDashboardStats({ date_from, date_to, regional, sectional, estado, gestor });
+    const stats = await getDashboardStats({ date_from, date_to, regional, sectional, estado, gestor }, req.user);
     res.json(stats);
   } catch (err) {
     console.error('[DASHBOARD] Erro GET /stats:', err);
@@ -39,7 +39,7 @@ router.get('/stats', verifyToken(), verifyModule('checklists'), async (req, res)
 router.get('/non-compliant-items', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
     const { date_from, date_to, regional, sectional, estado, gestor } = req.query;
-    const items = await getDashboardNonCompliantItems({ date_from, date_to, regional, sectional, estado, gestor });
+    const items = await getDashboardNonCompliantItems({ date_from, date_to, regional, sectional, estado, gestor }, req.user);
     res.json(items);
   } catch (err) {
     console.error('[DASHBOARD] Erro GET /non-compliant-items:', err);
@@ -50,7 +50,7 @@ router.get('/non-compliant-items', verifyToken(), verifyModule('checklists'), as
 router.get('/alerts', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
     const { date_from, date_to, regional, sectional, estado, gestor } = req.query;
-    const alerts = await getDashboardAlerts({ date_from, date_to, regional, sectional, estado, gestor });
+    const alerts = await getDashboardAlerts({ date_from, date_to, regional, sectional, estado, gestor }, req.user);
     res.json(alerts);
   } catch (err) {
     console.error('[DASHBOARD] Erro GET /alerts:', err);
@@ -89,7 +89,7 @@ router.get('/pending-agents', verifyToken(), verifyModule('checklists'), async (
       limit: parseInt(limit || 20, 10),
       agent_name, date_from, date_to,
       regional, sectional, estado, gestor,
-    });
+    }, req.user);
     res.json(result);
   } catch (err) {
     console.error('[DASHBOARD] Erro GET /pending-agents:', err);

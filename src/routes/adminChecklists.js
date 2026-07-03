@@ -112,7 +112,7 @@ router.delete('/templates/:id', verifyToken(), verifyModule('delete_checklist_te
 router.get('/stats', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
     const { regional_id, date_from, date_to } = req.query;
-    const stats = await getChecklistsStats({ regional_id, date_from, date_to });
+    const stats = await getChecklistsStats({ regional_id, date_from, date_to }, req.user);
     res.json(stats);
   } catch (err) {
     console.error('[ADMIN_CHECKLISTS] Erro GET /stats:', err);
@@ -134,7 +134,7 @@ router.get('/', verifyToken(), verifyModule('checklists'), async (req, res) => {
       type,
       severity_alert,
       status,
-    });
+    }, req.user);
     res.json(result);
   } catch (err) {
     console.error('[ADMIN_CHECKLISTS] Erro GET /:', err);

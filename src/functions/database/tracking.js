@@ -1,5 +1,6 @@
 const { cenos_pool } = require('../../db');
 const { fallIncidentSchema, crashIncidentSyncSchema } = require('../../db/schemas');
+const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
 
 // ─── Fall Incidents (Crash Detection) ─────────────────────────────────────
 
@@ -65,7 +66,7 @@ async function insertFallIncident(agentId, incident) {
     return rows[0];
 }
 
-async function getFallIncidents(filters = {}) {
+async function getFallIncidents(filters = {}, user = null) {
     const params = [];
     let query = `
         SELECT
@@ -73,11 +74,28 @@ async function getFallIncidents(filters = {}) {
             l.estado as agent_estado,
             c."Nome" as agent_nome,
             c."regional" as agent_regional,
-            c."seccional" as agent_seccional
+            c."seccional" as agent_seccional,
+            c."GESTOR IMEDIATO" as agent_gestor
         FROM fall_incidents fi
         LEFT JOIN login l ON l.id = fi.agent_id
         LEFT JOIN colaboradores c ON c."ID" = fi.agent_id
         WHERE 1=1`;
+
+    // Aplica filtro de permissão
+    if (user && !userIsAdmin(user)) {
+        const filter = getColaboradoresFilter(user, { includeAllStates: true });
+        if (filter.allowedStates.length > 0) {
+            if (filter.allowedStates.length === 1) {
+                query += ` AND l.estado = $${params.length + 1}`;
+                params.push(filter.allowedStates[0]);
+            } else {
+                query += ` AND l.estado = ANY($${params.length + 1})`;
+                params.push(filter.allowedStates);
+            }
+        } else {
+            query += ` AND 1 = 0`; // Sem acesso
+        }
+    }
 
     if (filters.status) {
         params.push(filters.status);
@@ -102,6 +120,22 @@ async function getFallIncidents(filters = {}) {
     query += ' ORDER BY fi.recorded_at DESC LIMIT 200';
 
     const { rows } = await cenos_pool.query(query, params);
+
+    // Aplica filtro em memória para regional/seccional/gestor
+    if (user && !userIsAdmin(user)) {
+        return rows.filter(r => {
+            const agentData = {
+                id: r.agent_id,
+                nome: r.agent_nome,
+                regional: r.agent_regional,
+                seccional: r.agent_seccional,
+                gestor: r.agent_gestor,
+                estado: r.agent_estado
+            };
+            return checkAgentPermission(agentData, user);
+        });
+    }
+
     return rows;
 }
 

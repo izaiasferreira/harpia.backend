@@ -16,7 +16,7 @@ router.get('/exemptions/active', verifyToken(), verifyModule('checklists'), asyn
       limit: parseInt(limit || 20, 10),
       agent_name, date_from, date_to,
       regional, sectional, estado, gestor,
-    });
+    }, req.user);
 
     res.json(result);
   } catch (err) {

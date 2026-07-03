@@ -1,5 +1,6 @@
 const { cenos_pool } = require('../../db');
 const { pinCreateSchema } = require('../../db/schemas');
+const { getColaboradoresFilter, userIsAdmin, checkAgentPermission } = require('./admin');
 
 async function findAgentById(agentId) {
     const normalizedId = String(agentId).trim().toUpperCase();
@@ -43,14 +44,60 @@ async function createPin(agentId, pin, expiresAt) {
     );
 }
 
-async function listPins(limit = 50) {
-    const { rows } = await cenos_pool.query(`
+async function listPins(limit = 50, user = null) {
+    // Se não tiver usuário, retorna lista vazia (segurança)
+    if (!user) {
+        return [];
+    }
+
+    let query = `
         SELECT ap.*, l.nome as agent_nome, l.estado as agent_estado
         FROM app_pins ap
         LEFT JOIN login l ON upper(l.id) = upper(ap.agent_id)
-        ORDER BY ap.created_at DESC
-        LIMIT $1
-    `, [limit]);
+        WHERE 1=1
+    `;
+    let params = [];
+    let paramIndex = 1;
+
+    // Aplica filtro de permissão se não for admin
+    if (!userIsAdmin(user)) {
+        const colabFilter = getColaboradoresFilter(user, { includeAllStates: true });
+
+        if (colabFilter.allowedStates.length > 0) {
+            query += ` AND l.estado = ANY($${paramIndex})`;
+            params.push(colabFilter.allowedStates);
+            paramIndex++;
+        }
+    }
+
+    query += ` ORDER BY ap.created_at DESC LIMIT $${paramIndex}`;
+    params.push(limit);
+
+    const { rows } = await cenos_pool.query(query, params);
+
+    // Se não for admin, aplica filtro adicional em memória para regional/seccional/gestor
+    if (!userIsAdmin(user)) {
+        const ids = [...new Set(rows.map(r => r.agent_id).filter(Boolean))];
+        if (ids.length > 0) {
+            const colabFilter = getColaboradoresFilter(user);
+            let colabQuery = `SELECT "ID", "regional", "seccional", "GESTOR IMEDIATO" FROM colaboradores WHERE "ID" = ANY($1)`;
+            const { rows: colabRows } = await cenos_pool.query(colabQuery, [ids]);
+
+            const allowedMap = new Map();
+            colabRows.forEach(c => {
+                const agentData = {
+                    id: c['ID'],
+                    regional: c['regional'],
+                    seccional: c['seccional'],
+                    gestor: c['GESTOR IMEDIATO']
+                };
+                allowedMap.set(c['ID'].toUpperCase(), checkAgentPermission(agentData, user));
+            });
+
+            return rows.filter(r => allowedMap.get(r.agent_id?.toUpperCase()) !== false);
+        }
+    }
+
     return rows;
 }
 

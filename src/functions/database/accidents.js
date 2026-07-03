@@ -1,5 +1,6 @@
 const { cenos_pool } = require('../../db');
 const { accidentCreateSchema } = require('../../db/schemas/accidents');
+const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
 
 // ─── Agent: criar acidente ────────────────────────────────────────────────────
 
@@ -69,6 +70,15 @@ async function get_accidents_admin({ user, estado, status, search, page = 1, lim
     const params = [];
     let paramIdx = 1;
 
+    // Aplica filtro de permissão baseado no usuário
+    if (!userIsAdmin(user)) {
+        const colabFilter = getColaboradoresFilter(user, { includeAllStates: true });
+        if (colabFilter.allowedStates.length > 0) {
+            conditions.push(`a.estado = ANY($${paramIdx++})`);
+            params.push(colabFilter.allowedStates);
+        }
+    }
+
     if (estado) {
         conditions.push(`a.estado = $${paramIdx++}`);
         params.push(estado.toLowerCase());
@@ -102,10 +112,12 @@ async function get_accidents_admin({ user, estado, status, search, page = 1, lim
     const { rows: countRows } = await cenos_pool.query(countQuery, params);
     const total = parseInt(countRows[0]?.total || 0);
 
-    const dataQuery = `
+    let dataQuery = `
         SELECT a.*,
                l.estado as agent_estado,
-               c."Nome" as agent_nome
+               c."Nome" as agent_nome,
+               c."regional" as agent_regional,
+               c."seccional" as agent_seccional
         FROM accidents a
         LEFT JOIN login l ON l.id = a.autor
         LEFT JOIN colaboradores c ON c."ID" = a.autor
@@ -114,6 +126,22 @@ async function get_accidents_admin({ user, estado, status, search, page = 1, lim
         LIMIT $${paramIdx++} OFFSET $${paramIdx}
     `;
     const { rows } = await cenos_pool.query(dataQuery, [...params, parseInt(limit), offset]);
+
+    // Se não for admin, aplica filtro adicional em memória para regional/seccional/gestor
+    if (!userIsAdmin(user)) {
+        const filteredRows = rows.filter(r => {
+            const agentData = {
+                id: r.autor,
+                nome: r.agent_nome,
+                regional: r.agent_regional,
+                seccional: r.agent_seccional,
+                estado: r.agent_estado
+            };
+            return checkAgentPermission(agentData, user);
+        });
+
+        return { accidents: filteredRows, total: filteredRows.length, page: parseInt(page), limit: parseInt(limit) };
+    }
 
     return { accidents: rows, total, page: parseInt(page), limit: parseInt(limit) };
 }

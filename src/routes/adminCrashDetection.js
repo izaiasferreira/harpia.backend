@@ -15,7 +15,7 @@ router.get('/', verifyToken(), verifyModule('tracking_falls'), async (req, res) 
             dateFrom: dateFrom || null,
             dateTo: dateTo || null,
             speedDropConfirmed: speedDropConfirmed === 'true' ? true : null,
-        });
+        }, req.user);
 
         // Filtro de busca textual
         let filtered = incidents;

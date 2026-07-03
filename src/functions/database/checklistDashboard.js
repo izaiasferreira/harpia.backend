@@ -1,51 +1,109 @@
 const { cenos_pool } = require('../../db');
-const { getUserAllowedStatePools, getFilterUser, userIsAdmin } = require('./admin');
+const { getUserAllowedStatePools, getFilterUser, userIsAdmin, getColaboradoresFilter } = require('./admin');
 const { getExemptAgentIds, countActiveExemptions } = require('./agentExemptions');
 
 
 function buildUserPermissionSQL(user, params, idx) {
   const conditions = [];
   if (user && !userIsAdmin(user)) {
-    const filterUser = getFilterUser(user);
-    if (filterUser) {
-      const colName = filterUser.type === 'gestor' ? '"GESTOR IMEDIATO"' : `"${filterUser.type}"`;
-      conditions.push(`UPPER(col.${colName}) = UPPER($${idx})`);
-      params.push(filterUser.value);
-      idx++;
-    }
-    const allowedPools = getUserAllowedStatePools(user);
-    const allowedStates = allowedPools.map(p => p.state.toUpperCase());
-    if (allowedStates.length > 0) {
-      conditions.push(`UPPER(col.estado) = ANY($${idx}::varchar[])`);
-      params.push(allowedStates);
-      idx++;
+    // Usa a função unificada de filtro
+    const filter = getColaboradoresFilter(user, { includeAllStates: true });
+
+    if (filter.whereClause) {
+      // Extrai condições da whereClause gerada
+      // Substitui os placeholders genéricos ($1, $2, etc) pelos índices corretos
+      let whereClause = filter.whereClause;
+
+      // Aplica as condições na tabela colaboradores (alias: col)
+      if (filter.allowedStates.length > 0) {
+        if (filter.allowedStates.length === 1) {
+          conditions.push(`UPPER(col.estado) = UPPER($${idx})`);
+          params.push(filter.allowedStates[0]);
+        } else {
+          conditions.push(`UPPER(col.estado) = ANY($${idx}::varchar[])`);
+          params.push(filter.allowedStates);
+        }
+        idx++;
+      }
+
+      // Filtros adicionais (regional, seccional, gestor)
+      const userFilters = user?.permissions?.map(p => p.filters).flat() || [];
+
+      userFilters.forEach(f => {
+        const colName = f.type === 'gestor' ? '"GESTOR IMEDIATO"' : `"${f.type}"`;
+        conditions.push(`UPPER(col.${colName}) = UPPER($${idx})`);
+        params.push(f.value);
+        idx++;
+      });
     } else {
-      conditions.push(`1 = 0`);
+      // Fallback para o método antigo se não gerar whereClause
+      const filterUser = getFilterUser(user);
+      if (filterUser) {
+        const colName = filterUser.type === 'gestor' ? '"GESTOR IMEDIATO"' : `"${filterUser.type}"`;
+        conditions.push(`UPPER(col.${colName}) = UPPER($${idx})`);
+        params.push(filterUser.value);
+        idx++;
+      }
+      const allowedPools = getUserAllowedStatePools(user);
+      const allowedStates = allowedPools.map(p => p.state.toUpperCase());
+      if (allowedStates.length > 0) {
+        conditions.push(`UPPER(col.estado) = ANY($${idx}::varchar[])`);
+        params.push(allowedStates);
+        idx++;
+      } else {
+        conditions.push(`1 = 0`);
+      }
     }
   }
   return { conditions, params, idx };
 }
 
-async function getDashboardFilterOptions() {
-  const regionais = await cenos_pool.query(
-    `SELECT DISTINCT regional FROM colaboradores WHERE regional IS NOT NULL ORDER BY regional`
-  );
-  const seccionais = await cenos_pool.query(
-    `SELECT DISTINCT seccional FROM colaboradores WHERE seccional IS NOT NULL ORDER BY seccional`
-  );
-  const estados = await cenos_pool.query(
-    `SELECT DISTINCT estado FROM colaboradores WHERE estado IS NOT NULL ORDER BY estado`
-  );
-  const gestores = await cenos_pool.query(
-    `SELECT DISTINCT "GESTOR IMEDIATO" as gestor FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL ORDER BY gestor`
-  );
+async function getDashboardFilterOptions(user = null) {
+  const isAdmin = user ? userIsAdmin(user) : false;
+  const filter = user ? getColaboradoresFilter(user, { includeAllStates: true }) : null;
 
-  return {
+  let estadoCond = '';
+  let estadoParams = [];
+
+  if (!isAdmin && filter && filter.allowedStates.length > 0) {
+    if (filter.allowedStates.length === 1) {
+      estadoCond = `AND estado = $1`;
+      estadoParams = [filter.allowedStates[0]];
+    } else {
+      estadoCond = `AND estado = ANY($1)`;
+      estadoParams = [filter.allowedStates];
+    }
+  }
+
+  // Regionais
+  let regionaisQuery = `SELECT DISTINCT regional FROM colaboradores WHERE regional IS NOT NULL ${estadoCond} ORDER BY regional`;
+  const regionais = await cenos_pool.query(regionaisQuery, estadoParams);
+
+  // Seccionais
+  let seccionaisQuery = `SELECT DISTINCT seccional FROM colaboradores WHERE seccional IS NOT NULL ${estadoCond} ORDER BY seccional`;
+  const seccionais = await cenos_pool.query(seccionaisQuery, estadoParams);
+
+  // Estados - apenas os permitidos para não-admin
+  let estadosQuery = `SELECT DISTINCT estado FROM colaboradores WHERE estado IS NOT NULL ORDER BY estado`;
+  const estados = await cenos_pool.query(estadosQuery);
+
+  // Gestores - filtra por permissão
+  let gestoresQuery = `SELECT DISTINCT "GESTOR IMEDIATO" as gestor FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL ${estadoCond} ORDER BY gestor`;
+  const gestores = await cenos_pool.query(gestoresQuery, estadoParams);
+
+  let result = {
     regionais: regionais.rows.map(r => r.regional),
     seccionais: seccionais.rows.map(r => r.seccional),
     estados: estados.rows.map(r => r.estado),
     gestores: gestores.rows.map(r => r.gestor),
   };
+
+  // Se não for admin, limita os estados aos permitidos
+  if (!isAdmin && filter && filter.allowedStates.length > 0) {
+    result.estados = filter.allowedStates;
+  }
+
+  return result;
 }
 
 function buildDateFilter({ date_from, date_to, params, idx }) {
@@ -77,7 +135,7 @@ function buildColaboradorFilters({ regional, sectional, estado, gestor, agent_na
   return { filters, idx };
 }
 
-async function getDashboardStats({ date_from, date_to, regional, sectional, estado, gestor }) {
+async function getDashboardStats({ date_from, date_to, regional, sectional, estado, gestor }, user = null) {
   const dParams = [];
   let dIdx = 1;
   const dateFilter = buildDateFilter({ date_from, date_to, params: dParams, idx: dIdx });
@@ -86,7 +144,7 @@ async function getDashboardStats({ date_from, date_to, regional, sectional, esta
 
   const colJoin = buildColaboradorJoins();
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
-    regional, sectional, estado, gestor, params: dParams, idx: dIdx
+    regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
   });
   dIdx = colIdx;
 
@@ -176,7 +234,7 @@ async function getDashboardStats({ date_from, date_to, regional, sectional, esta
   };
 }
 
-async function getDashboardNonCompliantItems({ date_from, date_to, regional, sectional, estado, gestor }) {
+async function getDashboardNonCompliantItems({ date_from, date_to, regional, sectional, estado, gestor }, user = null) {
   const dParams = [];
   let dIdx = 1;
   const dateFilter = buildDateFilter({ date_from, date_to, params: dParams, idx: dIdx });
@@ -185,7 +243,7 @@ async function getDashboardNonCompliantItems({ date_from, date_to, regional, sec
 
   const colJoin = buildColaboradorJoins();
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
-    regional, sectional, estado, gestor, params: dParams, idx: dIdx
+    regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
   });
   dIdx = colIdx;
 
@@ -207,7 +265,7 @@ async function getDashboardNonCompliantItems({ date_from, date_to, regional, sec
   return rows.map(r => ({ label: r.label, count: parseInt(r.count, 10) }));
 }
 
-async function getDashboardAlerts({ date_from, date_to, regional, sectional, estado, gestor }) {
+async function getDashboardAlerts({ date_from, date_to, regional, sectional, estado, gestor }, user = null) {
   const dParams = [];
   let dIdx = 1;
   const dateFilter = buildDateFilter({ date_from, date_to, params: dParams, idx: dIdx });
@@ -216,7 +274,7 @@ async function getDashboardAlerts({ date_from, date_to, regional, sectional, est
 
   const colJoin = buildColaboradorJoins();
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
-    regional, sectional, estado, gestor, params: dParams, idx: dIdx
+    regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
   });
   dIdx = colIdx;
 
@@ -329,7 +387,7 @@ async function listDashboardChecklists({
 async function getDashboardPendingAgents({
   date_from, date_to, agent_name, regional, sectional, estado, gestor,
   page = 1, limit = 20,
-}) {
+}, user = null) {
   const CHECKLIST_REQUIRED_CARGOS = [
     'LEITURISTA A PÉ',
     'NEGOCIADOR MOTOCICLISTA',

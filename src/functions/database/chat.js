@@ -1,5 +1,6 @@
 const { cenos_pool } = require('../../db');
 const { chatMessageCreateSchema } = require('../../db/schemas');
+const { getColaboradoresFilter, userIsAdmin, checkAgentPermission } = require('./admin');
 
 async function get_or_create_support_room(agentId, agentName) {
     const formattedId = agentId?.toUpperCase();
@@ -48,13 +49,45 @@ async function get_rooms_for_agent(agentId) {
     return rooms;
 }
 
-async function get_rooms_for_admin() {
-    // Carrega todos os agentes do cenos_pool
+async function get_rooms_for_admin(user) {
+    // Carrega todos os agentes do cenos_pool com filtro de permissão
     const agentsMap = new Map();
 
     try {
-        const { rows } = await cenos_pool.query(`SELECT "ID", "Nome", "regional", "seccional", estado FROM colaboradores`);
-        rows.forEach(r => {
+        // Usa o filtro unificado de permissões
+        const colabFilter = getColaboradoresFilter(user, { includeAllStates: true });
+
+        let query = `SELECT "ID", "Nome", "regional", "seccional", estado FROM colaboradores`;
+        let params = [];
+
+        // Se não for admin, aplica filtro
+        if (!userIsAdmin(user)) {
+            if (colabFilter.whereClause) {
+                // Adiciona as condições de filtro à query
+                query += ` ${colabFilter.whereClause}`;
+                params = colabFilter.params;
+            } else if (colabFilter.allowedStates.length > 0) {
+                // Se não tem whereClause mas tem estados permitidos
+                query += ` WHERE estado = ANY($1)`;
+                params = [colabFilter.allowedStates];
+            }
+        }
+
+        const { rows } = await cenos_pool.query(query, params);
+
+        // Aplica filtro em memória para regional, seccional e gestor (que não são fácilmente filtráveis no SQL)
+        const filteredRows = rows.filter(r => {
+            const agentData = {
+                id: r.ID,
+                nome: r.Nome,
+                regional: r.regional,
+                seccional: r.seccional,
+                estado: r.estado
+            };
+            return checkAgentPermission(agentData, user);
+        });
+
+        filteredRows.forEach(r => {
             agentsMap.set(r.ID?.toUpperCase(), {
                 id: r.ID?.toUpperCase(),
                 nome: r.Nome,
