@@ -50,10 +50,15 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
 
     // Busca IDs no login (cenos_pool) se houver busca por texto
     let searchIdsFromLogin = [];
+    let ilikeTerms = [];
     if (search) {
+        let isMulti = search.includes(',');
+        let terms = isMulti ? search.split(',').map(s => s.trim()).filter(Boolean) : [search.trim()];
+        ilikeTerms = terms.map(t => `%${t}%`);
+
         const { rows: loginMatches } = await cenos_pool.query(
-            `SELECT id FROM login WHERE id ILIKE $1`,
-            [`%${search}%`]
+            `SELECT id FROM login WHERE id ILIKE ANY($1)`,
+            [ilikeTerms]
         );
         searchIdsFromLogin = loginMatches.map(l => l.id.toUpperCase());
     }
@@ -94,8 +99,8 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
     let paramIdx = 2;
 
     if (search) {
-        const conditions = [`"Nome" ILIKE $2`, `"ID" ILIKE $2`];
-        countParams.push(`%${search}%`);
+        const conditions = [`"Nome" ILIKE ANY($${paramIdx})`, `"ID" ILIKE ANY($${paramIdx})`];
+        countParams.push(ilikeTerms);
         paramIdx++;
         if (searchIdsFromLogin.length > 0) {
             conditions.push(`"ID" = ANY($${paramIdx})`);
@@ -137,8 +142,8 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
     let cpIdx = 2;
 
     if (search) {
-        const conditions = [`"Nome" ILIKE $2`, `"ID" ILIKE $2`];
-        colabParams.push(`%${search}%`);
+        const conditions = [`"Nome" ILIKE ANY($${cpIdx})`, `"ID" ILIKE ANY($${cpIdx})`];
+        colabParams.push(ilikeTerms);
         cpIdx++;
         if (searchIdsFromLogin.length > 0) {
             conditions.push(`"ID" = ANY($${cpIdx})`);
@@ -274,8 +279,12 @@ async function get_users_only_login_paginated({ user, page = 1, limit = 50, sear
     let paramIdx = 2;
 
     if (search) {
-        whereConditions.push(`l.id ILIKE $${paramIdx}`);
-        queryParams.push(`%${search}%`);
+        let isMulti = search.includes(',');
+        let terms = isMulti ? search.split(',').map(s => s.trim()).filter(Boolean) : [search.trim()];
+        let ilikeTerms = terms.map(t => `%${t}%`);
+        
+        whereConditions.push(`l.id ILIKE ANY($${paramIdx})`);
+        queryParams.push(ilikeTerms);
         paramIdx++;
     }
 
