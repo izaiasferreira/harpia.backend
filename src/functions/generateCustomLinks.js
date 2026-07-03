@@ -20,7 +20,7 @@ function generateCustomLinks({ state, id, user }) {
             "url": `/checklists`,
             "emoji": "ShieldCheck",
             "color": "text-green-600",
-            "states": ['pi']
+            "states": VALID_STATE_VALUES
         },
         {
             "id": "security-report-app",
@@ -29,7 +29,7 @@ function generateCustomLinks({ state, id, user }) {
             "url": `/security-reports`,
             "emoji": "Shield",
             "color": "text-orange-600",
-            "states": ['pi']
+            "states":VALID_STATE_VALUES
         },
         {
             "id": "ceneduc-app",
