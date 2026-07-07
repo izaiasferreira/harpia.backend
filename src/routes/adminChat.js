@@ -6,7 +6,9 @@ const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const { 
     get_rooms_for_admin, 
+    get_rooms_for_admin_v2,
     get_messages_for_room, 
+    get_messages_for_room_cursor,
     mark_messages_as_read,
     get_admin_unread_rooms_count,
     get_or_create_support_room
@@ -106,6 +108,39 @@ router.post('/admin/chat/rooms', verifyToken(), verifyModule('chat'), validate(c
     } catch (err) {
         console.error('[CHAT API] Erro ao criar sala admin:', err);
         res.status(500).json({ error: 'Erro ao criar sala de chat.' });
+    }
+});
+
+// ─── V2: Optimized endpoints (LATERAL JOIN + cursor pagination) ──────────
+
+// GET /admin/chat/rooms/optimized - Listar salas com LATERAL JOIN (sem N+1)
+router.get('/admin/chat/rooms/optimized', verifyToken(), verifyModule('chat'), async (req, res) => {
+    try {
+        const rooms = await get_rooms_for_admin_v2(req.user);
+        res.json({ success: true, rooms });
+    } catch (err) {
+        console.error('[CHAT API V2] Erro ao buscar salas para admin:', err);
+        res.status(500).json({ error: 'Erro ao carregar lista de suporte.' });
+    }
+});
+
+// GET /admin/chat/rooms/:roomId/messages/optimized - Histórico com cursor pagination
+router.get('/admin/chat/rooms/:roomId/messages/optimized', verifyToken(), verifyModule('chat'), async (req, res) => {
+    try {
+        const roomId = parseInt(req.params.roomId);
+        const cursor = req.query.cursor ? parseInt(req.query.cursor) : null;
+        const limit = Math.min(parseInt(req.query.limit) || 30, 100);
+
+        // Marca mensagens enviadas pelo agente como lidas (só no load inicial, sem cursor)
+        if (!cursor) {
+            await mark_messages_as_read(roomId, 'agent');
+        }
+
+        const result = await get_messages_for_room_cursor(roomId, cursor, limit);
+        res.json({ success: true, ...result });
+    } catch (err) {
+        console.error('[CHAT API V2] Erro ao buscar histórico admin:', err);
+        res.status(500).json({ error: 'Erro ao carregar histórico.' });
     }
 });
 
