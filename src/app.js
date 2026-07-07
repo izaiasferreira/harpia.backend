@@ -178,6 +178,10 @@ app.use('/admin/dashboard', adminChecklistDashboardRouter)
 const agentChecklistsRouter = require('./routes/agentChecklists')
 app.use('/agent/checklists', agentChecklistsRouter)
 
+// Dashboard por Planilha Excel (/admin/excel-checklist/*)
+const adminExcelChecklistDashboardRouter = require('./routes/adminExcelChecklistDashboard')
+app.use('/admin/excel-checklist', adminExcelChecklistDashboardRouter)
+
 // Isenções de Checklist (/admin/agents/:agentId/exemptions)
 const adminAgentExemptionsRouter = require('./routes/adminAgentExemptions')
 app.use('/admin/agents', adminAgentExemptionsRouter)
