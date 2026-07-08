@@ -108,7 +108,12 @@ const AVAILABLE_MODULES = [
     // Isenções de Checklist
     { id: 'create_agent_exemption', name: 'Criar Isenção de Checklist (Agentes)' },
     { id: 'delete_agent_exemption', name: 'Excluir Isenção de Checklist (Agentes)' },
-    { id: 'view_agent_exemptions', name: 'Visualizar Isenções de Checklist (Agentes)' }
+    { id: 'view_agent_exemptions', name: 'Visualizar Isenções de Checklist (Agentes)' },
+    // Cercas Virtuais
+    { id: 'geofences', name: 'Cercas Virtuais (Visualização)' },
+    { id: 'create_geofence', name: 'Criar Cerca Virtual' },
+    { id: 'update_geofence', name: 'Atualizar Cerca Virtual' },
+    { id: 'delete_geofence', name: 'Deletar Cerca Virtual' }
 ];
 
 async function listModules() {

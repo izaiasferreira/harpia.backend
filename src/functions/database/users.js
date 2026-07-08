@@ -134,6 +134,11 @@ async function updateUser(id, data, estado = 'pi') {
         params.push(data.email.toLowerCase());
         paramIndex++;
     }
+    if (data.estado !== undefined) {
+        updates.push(`estado = $${paramIndex}`);
+        params.push(data.estado.toLowerCase());
+        paramIndex++;
+    }
     if (data.foto !== undefined) {
         updates.push(`foto = $${paramIndex}`);
         params.push(data.foto);

@@ -148,6 +148,10 @@ app.use('/admin/agent', adminAppPinsRouter)
 const adminTrackingRouter = require('./routes/adminTracking')
 app.use('/admin/tracking', adminTrackingRouter)
 
+// Geofences (/admin/tracking/fences)
+const adminGeofencesRouter = require('./routes/adminGeofences')
+app.use('/admin/tracking/fences', adminGeofencesRouter)
+
 // Heartbeat tracking (/admin/tracking/*)
 const adminHeartbeatRouter = require('./routes/adminHeartbeat')
 app.use('/admin/tracking', adminHeartbeatRouter)

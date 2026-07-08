@@ -9,6 +9,8 @@
         "test": "jest --detectOpenHandles"
     },
     "dependencies": {
+        "@turf/boolean-point-in-polygon": "^7.3.5",
+        "@turf/helpers": "^7.3.5",
         "axios": "^1.7.2",
         "bcrypt": "^6.0.0",
         "busboy": "^1.6.0",

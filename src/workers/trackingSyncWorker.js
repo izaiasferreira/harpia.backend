@@ -14,6 +14,8 @@ const {
 const { getAgentSpeedLimit } = require('../functions/database/trackingUnified');
 const { updateHeartbeat } = require('../functions/database/heartbeat');
 const { unifiedPointSchema } = require('../db/schemas/tracking');
+const { point: turfPoint, polygon: turfPolygon } = require('@turf/helpers');
+const booleanPointInPolygon = require('@turf/boolean-point-in-polygon').default;
 
 const BATCH_SIZE = 5000;
 const POLL_INTERVAL_MS = 5000;
@@ -58,7 +60,7 @@ function normalizePoint(agentId, raw, speedLimit) {
         devicePlatform: point.devicePlatform ?? null,
         osVersion: point.osVersion ?? null,
         timestamp: new Date(point.timestamp),
-        speedLimitApplied: speedLimitNum,
+        speedLimitApplied: speedLimitNum, // isso pode ser sobrescrito pelo geofence
         isViolation,
         // Dead Reckoning
         isEstimated: point.isEstimated ?? false,
@@ -119,6 +121,59 @@ async function getAgentSpeedLimitCached(agentId) {
 }
 
 /**
+ * Geofences cache com TTL em memória.
+ */
+let geofencesCache = { timestamp: 0, fences: [] };
+
+async function getActiveGeofences() {
+    if (Date.now() - geofencesCache.timestamp < 60000) {
+        return geofencesCache.fences;
+    }
+    const { rows } = await cenos_pool.query(`
+        SELECT id, name, type, estado, geometry, speed_limit
+        FROM tracking_fences
+        WHERE is_active = true
+    `);
+    
+    // Preparar os poligonos turf para nao reprocessar
+    const fences = rows.map(f => {
+        let polygon = null;
+        if (f.geometry && Array.isArray(f.geometry) && f.geometry.length > 2) {
+            try {
+                const coords = f.geometry.map(pt => [pt.lng, pt.lat]);
+                // Close the polygon if not closed
+                if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+                    coords.push([...coords[0]]);
+                }
+                polygon = turfPolygon([coords]);
+            } catch (err) {
+                console.error('Erro ao montar poligono turf:', err);
+            }
+        }
+        return { ...f, polygon };
+    });
+
+    geofencesCache = { timestamp: Date.now(), fences };
+    return fences;
+}
+
+/**
+ * Agent State cache
+ */
+const agentStateCache = {};
+async function getAgentStateCached(agentId) {
+    const cached = agentStateCache[agentId];
+    if (cached && (Date.now() - cached.timestamp < 300000)) { // 5 mins cache
+        return cached.estado;
+    }
+    // Busca do banco
+    const { rows } = await cenos_pool.query(`SELECT estado FROM colaboradores WHERE lower("ID") = $1 LIMIT 1`, [agentId.toLowerCase()]);
+    const estado = rows.length > 0 ? rows[0].estado : null;
+    agentStateCache[agentId] = { estado, timestamp: Date.now() };
+    return estado;
+}
+
+/**
  * Processa um lote de pontos do staging.
  */
 async function processBatch(rows) {
@@ -137,9 +192,34 @@ async function processBatch(rows) {
 
     let totalInserted = 0;
 
+    const allFences = await getActiveGeofences();
+
     for (const [agentId, points] of Object.entries(agentPoints)) {
         const speedLimit = await getAgentSpeedLimitCached(agentId);
-        const normalized = points.map(p => normalizePoint(agentId, p, speedLimit));
+        const agentState = await getAgentStateCached(agentId);
+        
+        // Filtrar cercas do estado deste agente
+        const agentFences = agentState ? allFences.filter(f => f.estado === agentState && f.polygon != null) : [];
+
+        const normalized = points.map(p => {
+            const pt = normalizePoint(agentId, p, speedLimit);
+            
+            // Verificação de Geofencing
+            if (agentFences.length > 0 && pt.lat != null && pt.lng != null) {
+                const turfPt = turfPoint([pt.lng, pt.lat]);
+                for (const fence of agentFences) {
+                    if (booleanPointInPolygon(turfPt, fence.polygon)) {
+                        if (fence.type === 'speed' && fence.speed_limit != null) {
+                            pt.speedLimitApplied = fence.speed_limit;
+                            pt.isViolation = pt.speed != null && pt.speed > fence.speed_limit;
+                        }
+                        // Pode expandir para min_speed, enter, exit...
+                        break; // Aplicou a primeira cerca encontrada (ordem não garantida)
+                    }
+                }
+            }
+            return pt;
+        });
 
         if (normalized.length > 0) {
             await batchInsertPoints(normalized);
