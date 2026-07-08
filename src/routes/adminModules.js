@@ -61,6 +61,8 @@ const { parse_date, today } = require('../utils/dates');
 
 
 
+const { processAgentImport } = require('../functions/database/agentImport');
+
 // Dashboard
 router.get('/dashboard', verifyToken(), async (req, res) => {
     try {
@@ -337,6 +339,20 @@ router.get('/users_agents/:id', verifyToken(), verifyModule('users_agents'), asy
         return res.json(result[0]);
     } catch (error) {
         console.log(error)
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post('/users_agents/import', verifyToken(), verifyModule('create_user_agent'), upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+        }
+        const user = req.user;
+        const result = await processAgentImport(req.file.buffer, user);
+        res.json(result);
+    } catch (error) {
+        console.error('[IMPORT AGENTS]', error);
         res.status(500).json({ error: error.message });
     }
 });
