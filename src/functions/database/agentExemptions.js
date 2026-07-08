@@ -30,9 +30,11 @@ async function getExemptAgentIds(targetDate) {
   if (d.getUTCDay() === 0) return { isSunday: true, ids: [] };
 
   const { rows } = await cenos_pool.query(
-    `SELECT DISTINCT agent_id FROM agent_exemptions
-     WHERE start_date <= $1::date
-       AND end_date >= $1::date`,
+    `SELECT DISTINCT col."ID" as agent_id
+     FROM colaboradores col
+     LEFT JOIN agent_exemptions ae ON ae.agent_id = col."ID" 
+       AND ae.start_date <= $1::date AND ae.end_date >= $1::date
+     WHERE (ae.id IS NOT NULL OR col.situacao != 'active' OR col.status = false)`,
     [targetDate]
   );
   return { isSunday: false, ids: rows.map(r => r.agent_id) };
@@ -46,9 +48,11 @@ async function countActiveExemptions(targetDate) {
   if (d.getUTCDay() === 0) return 0;
 
   const { rows } = await cenos_pool.query(
-    `SELECT COUNT(DISTINCT agent_id) AS total FROM agent_exemptions
-     WHERE start_date <= $1::date
-       AND end_date >= $1::date`,
+    `SELECT COUNT(DISTINCT col."ID") AS total
+     FROM colaboradores col
+     LEFT JOIN agent_exemptions ae ON ae.agent_id = col."ID" 
+       AND ae.start_date <= $1::date AND ae.end_date >= $1::date
+     WHERE (ae.id IS NOT NULL OR col.situacao != 'active' OR col.status = false)`,
     [targetDate]
   );
   return parseInt(rows[0]?.total || 0, 10);
@@ -148,25 +152,24 @@ async function listActiveExemptions({
 
   const countQuery = `
     SELECT COUNT(*) as total
-    FROM agent_exemptions ae
-    LEFT JOIN colaboradores col ON col."ID" = ae.agent_id
-    WHERE ae.start_date <= $1::date
-      AND ae.end_date >= $2::date
-      AND col.situacao = 'active'
+    FROM colaboradores col
+    LEFT JOIN agent_exemptions ae ON ae.agent_id = col."ID" 
+      AND ae.start_date <= $1::date AND ae.end_date >= $2::date
+    WHERE (ae.id IS NOT NULL OR col.situacao != 'active' OR col.status = false)
       ${whereFilters}
   `;
 
   const dataQuery = `
-    SELECT ae.id, ae.agent_id, ae.start_date, ae.end_date, ae.reason, ae.created_at,
+    SELECT ae.id, col."ID" as agent_id, ae.start_date, ae.end_date, ae.reason, ae.created_at,
            col."Nome" as nome, col.regional, col.seccional, col.estado,
-           col."Cargo" as cargo, col."GESTOR IMEDIATO" as gestor
-    FROM agent_exemptions ae
-    LEFT JOIN colaboradores col ON col."ID" = ae.agent_id
-    WHERE ae.start_date <= $1::date
-      AND ae.end_date >= $2::date
-      AND col.situacao = 'active'
+           col."Cargo" as cargo, col."GESTOR IMEDIATO" as gestor,
+           col.situacao, col.status
+    FROM colaboradores col
+    LEFT JOIN agent_exemptions ae ON ae.agent_id = col."ID" 
+      AND ae.start_date <= $1::date AND ae.end_date >= $2::date
+    WHERE (ae.id IS NOT NULL OR col.situacao != 'active' OR col.status = false)
       ${whereFilters}
-    ORDER BY ae.created_at DESC
+    ORDER BY ae.created_at DESC NULLS LAST, col."Nome" ASC
     LIMIT $${idx} OFFSET $${idx + 1}
   `;
 
@@ -177,10 +180,29 @@ async function listActiveExemptions({
     cenos_pool.query(dataQuery, paramsWithPagination),
   ]);
 
+  const SITUACAO_LABEL = {
+    active: 'Ativo',
+    vocation: 'Férias',
+    inactive: 'Desligado',
+    away: 'Afastado',
+  };
+
+  const enrichedData = dataRes.rows.map(r => {
+    const motivos = [];
+    if (r.reason) motivos.push(r.reason);
+    if (r.situacao !== 'active') motivos.push(SITUACAO_LABEL[r.situacao] || r.situacao);
+    if (r.status === false) motivos.push('Inativo');
+    
+    return {
+      ...r,
+      reason: motivos.join('; ')
+    };
+  });
+
   const total = parseInt(countRes.rows[0]?.total || 0, 10);
 
   return {
-    data: dataRes.rows,
+    data: enrichedData,
     total,
     page,
     limit,

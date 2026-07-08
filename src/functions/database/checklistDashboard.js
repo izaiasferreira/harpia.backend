@@ -142,7 +142,7 @@ async function getDashboardStats({ date_from, date_to, regional, sectional, esta
   const [activeAgentsRes, totalRes, compliantRes, nonCompliantRes, regionalRes, pendingRes] = await Promise.all([
     cenos_pool.query(
       `SELECT COUNT(*) as total FROM colaboradores
-       WHERE situacao = 'active'
+       WHERE situacao = 'active' AND status = true
          AND UPPER(TRIM("Cargo")) = ANY($1)`,
       [CHECKLIST_REQUIRED_CARGOS]
     ),
@@ -167,7 +167,7 @@ async function getDashboardStats({ date_from, date_to, regional, sectional, esta
          COUNT(DISTINCT CASE WHEN c.id IS NULL THEN col."ID" END) as pending
        FROM colaboradores col
        LEFT JOIN checklists c ON c.agent_id = col."ID" AND c.date >= $1 AND c.date <= $2 AND c.status = 'submitted'
-       WHERE col.situacao = 'active'
+       WHERE col.situacao = 'active' AND col.status = true
          AND col.regional IS NOT NULL
          AND UPPER(TRIM(col."Cargo")) = ANY($3)
        GROUP BY col.regional
@@ -177,7 +177,7 @@ async function getDashboardStats({ date_from, date_to, regional, sectional, esta
     cenos_pool.query(
       `SELECT col."ID" as agent_id, col."Nome" as nome, col.regional, col.seccional, col.estado, col."Cargo" as cargo
        FROM colaboradores col
-       WHERE col.situacao = 'active'
+       WHERE col.situacao = 'active' AND col.status = true
          AND UPPER(TRIM(col."Cargo")) = ANY($3)
          AND NOT EXISTS (
            SELECT 1 FROM checklists c
@@ -414,7 +414,7 @@ async function getDashboardPendingAgents({
   params.push(limit, offset);
 
   const baseWhere = `
-    col.situacao = 'active'
+    col.situacao = 'active' AND col.status = true
     AND UPPER(TRIM(col."Cargo")) = ANY($1)
     AND NOT EXISTS (
       SELECT 1 FROM checklists c
@@ -544,13 +544,13 @@ async function getAgentsMatchingTemplates(templates, user) {
     // Template matches ALL agents (no filters, no estado restriction, no user permission restrictions)
     if (match.conditions.length === 0 && !estadoClause && perm.conditions.length === 0) {
       const { rows } = await cenos_pool.query(
-        `SELECT col."ID" FROM colaboradores col WHERE col.situacao = 'active'`
+        `SELECT col."ID" FROM colaboradores col WHERE col.situacao = 'active' AND col.status = true`
       );
       rows.forEach(r => allAgentIds.add(r.ID));
       return allAgentIds; // All agents already included, no need to check more templates
     }
 
-    const whereClause = ['col.situacao = \'active\''];
+    const whereClause = ['col.situacao = \'active\' AND col.status = true'];
     if (match.conditions.length > 0) whereClause.push(match.conditions.join(' AND '));
     if (perm.conditions.length > 0) whereClause.push(perm.conditions.join(' AND '));
     if (estadoClause) whereClause.push(estadoClause.replace('AND ', ''));
@@ -590,7 +590,7 @@ async function computeV2RegionalBreakdown(templates, date_from, date_to, user) {
      LEFT JOIN checklists c ON c.agent_id = col."ID"
        AND c.date >= $2 AND c.date <= $3
        AND c.status = 'submitted'
-     WHERE col.situacao = 'active'
+     WHERE col.situacao = 'active' AND col.status = true
        AND col.regional IS NOT NULL
        AND col."ID" = ANY($1::varchar[])
      GROUP BY col.regional
@@ -708,7 +708,7 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     // Active agents matching this template AND user permissions AND UI filters
     const activeRes = await cenos_pool.query(
       `SELECT COUNT(*) as total FROM colaboradores col
-       WHERE col.situacao = 'active' AND $1::text=$1::text AND $2::text=$2::text ${colWhereClause}`,
+       WHERE col.situacao = 'active' AND col.status = true AND $1::text=$1::text AND $2::text=$2::text ${colWhereClause}`,
       tParams
     );
     const activeAgents = parseInt(activeRes.rows[0].total, 10);
@@ -792,7 +792,7 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     const { rows } = await cenos_pool.query(
       `SELECT col."ID" as agent_id
        FROM colaboradores col
-       WHERE col.situacao = 'active' ${whereClause}`,
+       WHERE col.situacao = 'active' AND col.status = true ${whereClause}`,
       params
     );
 
@@ -832,9 +832,7 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     }
   }
 
-  // Regional breakdown using template-matched agents
-  const allTemplates = templateIds.map(id => templatesMap[id]);
-  const regionalBreakdown = await computeV2RegionalBreakdown(allTemplates, date_from, date_to, user);
+
 
   // KPI: count of exempted agents on the reference date
   const refDate = date_to || new Date().toISOString().split('T')[0];
@@ -850,7 +848,6 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     non_compliant: totalNonCompliant,
     compliance_rate: totalChecklists > 0 ? Math.round((totalCompliant / totalChecklists) * 100) : 0,
     templates_breakdown: templatesBreakdown,
-    regional_breakdown: regionalBreakdown,
   };
 }
 
@@ -923,7 +920,7 @@ async function getDashboardPendingAgentsV2({
       `SELECT col."ID" as agent_id, col."Nome" as nome, col.regional, col.seccional,
               col.estado, col."Cargo" as cargo, col."GESTOR IMEDIATO" as gestor
        FROM colaboradores col
-       WHERE col.situacao = 'active' ${whereClause}`,
+       WHERE col.situacao = 'active' AND col.status = true ${whereClause}`,
       params
     );
 
@@ -1013,6 +1010,101 @@ async function getDashboardPendingAgentsV2({
 }
 
 /**
+ * V2 Completed Agents — Uses dynamic template filters.
+ */
+async function getDashboardCompletedAgentsV2({
+  page = 1, limit = 20, agent_name, date_from, date_to,
+  regional, sectional, estado, gestor, template_id,
+}, user) {
+  const from = date_from || getTodayStr();
+  const to = date_to || getTodayStr();
+  const offset = (page - 1) * limit;
+
+  let templateIds = [];
+  let allowedTemplates = [];
+  
+  if (template_id) {
+    const { rows } = await cenos_pool.query(
+      `SELECT id, data, estado FROM checklist_templates WHERE id = $1 AND is_active = true`, [template_id]
+    );
+    if (rows.length > 0) allowedTemplates = rows;
+  } else {
+    allowedTemplates = await getAllowedTemplates(user);
+  }
+  
+  if (allowedTemplates.length === 0) {
+    return { data: [], total: 0, page, limit, totalPages: 0 };
+  }
+
+  templateIds = allowedTemplates.map(r => r.id);
+
+  const { rows: submittedRows } = await cenos_pool.query(
+    `SELECT DISTINCT agent_id, template_id FROM checklists
+     WHERE date >= $1 AND date <= $2
+       AND status = 'submitted'
+       AND template_id = ANY($3::uuid[])`,
+    [from, to, templateIds]
+  );
+
+  if (submittedRows.length === 0) {
+    return { data: [], total: 0, page, limit, totalPages: 0 };
+  }
+
+  const agentSubmittedTemplates = {};
+  const submittedAgentIdsSet = new Set();
+  for (const r of submittedRows) {
+    if (!agentSubmittedTemplates[r.agent_id]) {
+      agentSubmittedTemplates[r.agent_id] = new Set();
+    }
+    agentSubmittedTemplates[r.agent_id].add(r.template_id);
+    submittedAgentIdsSet.add(r.agent_id);
+  }
+
+  const submittedAgentIds = Array.from(submittedAgentIdsSet);
+
+  const { rows: agentRows } = await cenos_pool.query(
+    `SELECT col."ID" as agent_id, col."Nome" as nome, col.regional, col.seccional,
+            col.estado, col."Cargo" as cargo, col."GESTOR IMEDIATO" as gestor
+     FROM colaboradores col
+     WHERE col."ID" = ANY($1::varchar[])`,
+    [submittedAgentIds]
+  );
+
+  const templateTitles = {};
+  allowedTemplates.forEach(t => templateTitles[t.id] = t.title);
+
+  let agentsList = agentRows.map(a => {
+    const submitted = agentSubmittedTemplates[a.agent_id] || new Set();
+    const submittedTitles = Array.from(submitted).map(tId => templateTitles[tId] || 'Checklist');
+    return {
+      ...a,
+      status: 'completed',
+      completed_templates: submittedTitles
+    };
+  });
+
+  if (agent_name) {
+    const q = agent_name.toLowerCase();
+    agentsList = agentsList.filter(a => (a.nome || '').toLowerCase().includes(q));
+  }
+  if (regional) agentsList = agentsList.filter(a => a.regional === regional);
+  if (sectional) agentsList = agentsList.filter(a => a.seccional === sectional);
+  if (estado) agentsList = agentsList.filter(a => (a.estado || '').toUpperCase() === estado.toUpperCase());
+  if (gestor) agentsList = agentsList.filter(a => a.gestor === gestor);
+
+  const total = agentsList.length;
+  const paged = agentsList.slice(offset, offset + limit);
+
+  return {
+    data: paged,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+/**
  * Helper: get template IDs and matching agent IDs for V2 queries.
  * Returns { templateIds, agentIds }.
  */
@@ -1041,7 +1133,7 @@ async function getV2TemplateAndAgentIds({ template_id }, user) {
  * V2 Non-Compliant Items — uses dynamic template filters.
  */
 async function getDashboardNonCompliantItemsV2({
-  date_from, date_to, regional, sectional, estado, gestor, template_id,
+  date_from, date_to, regional, sectional, estado, gestor, template_id, export_raw
 }, user) {
   const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id }, user);
   if (templateIds.length === 0 || agentIds.length === 0) return [];
@@ -1069,6 +1161,28 @@ async function getDashboardNonCompliantItemsV2({
   dIdx += 2;
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
+  if (export_raw) {
+    const { rows } = await cenos_pool.query(
+      `SELECT 
+          col."ID" as id,
+          col."MAT" as matricula,
+          col."Nome" as nome,
+          col.seccional,
+          col.regional,
+          col."GESTOR IMEDIATO" as gestor,
+          TO_CHAR(COALESCE(c.submitted_at, c.date), 'DD/MM/YYYY') as data,
+          a.item->>'question_label' as inconformidade
+       FROM checklists c
+       ${colJoin},
+       jsonb_array_elements(c.data->'answers') a(item)
+       ${cWhere} AND a.item->>'is_compliant' = 'false'
+       ORDER BY data DESC
+       LIMIT 5000`,
+      dParams
+    );
+    return rows;
+  }
+
   const { rows } = await cenos_pool.query(
     `SELECT a.item->>'question_label' as label, COUNT(*) as count
      FROM checklists c
@@ -1088,7 +1202,7 @@ async function getDashboardNonCompliantItemsV2({
  * V2 Alerts — uses dynamic template filters.
  */
 async function getDashboardAlertsV2({
-  date_from, date_to, regional, sectional, estado, gestor, template_id,
+  date_from, date_to, regional, sectional, estado, gestor, template_id, export_raw
 }, user) {
   const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id }, user);
   if (templateIds.length === 0 || agentIds.length === 0) return [];
@@ -1129,7 +1243,7 @@ async function getDashboardAlertsV2({
        AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
        AND COALESCE(a.item->>'severity', 'critical') IN ('critical', 'alert')
      ORDER BY COALESCE(c.submitted_at, c.date) DESC, severity ASC
-     LIMIT 50`,
+     LIMIT ${export_raw ? 5000 : 50}`,
     dParams
   );
 
@@ -1148,4 +1262,6 @@ module.exports = {
   getDashboardPendingAgentsV2,
   getDashboardNonCompliantItemsV2,
   getDashboardAlertsV2,
+  getDashboardCompletedAgentsV2,
 };
+
