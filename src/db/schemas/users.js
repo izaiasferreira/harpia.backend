@@ -49,6 +49,7 @@ const agentCreateSchema = z.object({
 
 const agentUpdateSchema = z.object({
   nome: z.string().min(1).max(255).optional(),
+  matricula: z.string().max(255).optional().nullable(),
   gestor: z.string().max(255).optional().nullable(),
   cargo: z.string().max(255).optional().nullable(),
   seccional: z.string().max(255).optional().nullable(),

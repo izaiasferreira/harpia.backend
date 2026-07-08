@@ -372,7 +372,7 @@ router.post('/users_agents', verifyToken(), verifyModule('create_user_agent'), v
 router.put('/users_agents/:id', verifyToken(), verifyModule('update_user_agent'), validate(agentUpdateSchema), async (req, res) => {
     try {
         const { id } = req.params;
-        const { nome, gestor, cargo, seccional, regional, estado, status, situacao } = req.body;
+        const { nome, gestor, cargo, seccional, regional, estado, status, situacao, matricula } = req.body;
         const user = req.user;
 
         if (estado !== undefined || status !== undefined || situacao !== undefined) {
@@ -393,7 +393,14 @@ router.put('/users_agents/:id', verifyToken(), verifyModule('update_user_agent')
             }
         }
 
-        const result = await update_user_agent_admin({ id, nome, gestor, cargo, seccional, regional, estado, status, situacao, user });
+        const isAdmin = user.role.toLowerCase().includes('admin');
+        const updateData = { id, nome, gestor, cargo, seccional, regional, estado, status, situacao, user };
+        
+        if (isAdmin && matricula !== undefined) {
+            updateData.matricula = matricula;
+        }
+
+        const result = await update_user_agent_admin(updateData);
         res.json(result);
     } catch (error) {
         console.log(error)

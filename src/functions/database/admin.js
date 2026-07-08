@@ -889,7 +889,7 @@ async function delete_user_agent_admin({ id, user, deleteLogin = false }) {
     }
 }
 
-async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, regional, estado, status, situacao, processo, user }) {
+async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, regional, estado, status, situacao, processo, matricula, user }) {
     const userData = await get_users_agents_admin({ user, ids: [id] });
     if (!userData.length) return { error: 'Usuário não encontrado' };
 
@@ -904,7 +904,7 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
     const query = `
         UPDATE colaboradores 
         SET "Nome" = $1, "GESTOR IMEDIATO" = $2, "Cargo" = $3, "seccional" = $4, "regional" = $5,
-            "estado" = COALESCE($6, "estado"), "status" = COALESCE($7, "status"), "situacao" = COALESCE($8, "situacao"), "processo" = COALESCE($10, "processo")
+            "estado" = COALESCE($6, "estado"), "status" = COALESCE($7, "status"), "situacao" = COALESCE($8, "situacao"), "processo" = COALESCE($10, "processo"), "MAT" = COALESCE($11, "MAT")
         WHERE "ID" = $9
     `;
     const params = [
@@ -917,7 +917,8 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
         status !== undefined ? status : null,
         situacao !== undefined ? situacao : null,
         id?.toUpperCase(),
-        processo !== undefined ? processo : null
+        processo !== undefined ? processo : null,
+        matricula !== undefined ? matricula : null
     ];
 
     try {
