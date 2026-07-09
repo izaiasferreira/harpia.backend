@@ -50,18 +50,7 @@ const getFilterUser = (user) => {
  * @returns {Object} Objeto com { whereClause, params, allowedStates }
  */
 const getColaboradoresFilter = (user, options = {}) => {
-    const { includeAllStates = true } = options;
     const isMainAdmin = userIsAdmin(user);
-    const userFilters = user?.permissions?.map(p => p.filters).flat() || [];
-    const userFiltersByType = {};
-
-    // Organiza filtros por tipo
-    userFilters.forEach(f => {
-        if (!userFiltersByType[f.type]) {
-            userFiltersByType[f.type] = [];
-        }
-        userFiltersByType[f.type].push(f.value.toLowerCase());
-    });
 
     // Se for admin, retorna tudo
     if (isMainAdmin) {
@@ -73,77 +62,105 @@ const getColaboradoresFilter = (user, options = {}) => {
         };
     }
 
-    const conditions = [];
+    const permissions = user?.permissions || [];
     const params = [];
     let paramIndex = 1;
+    const allowedStates = new Set();
+    const permissionConditions = [];
 
-    // Filtro por estado
-    const allowedStates = [];
-    const estadosPermitidos = userFiltersByType['estado'] || [];
+    if (permissions.length === 0) {
+        // Se o usuário não tiver nenhuma permissão, usa seu próprio estado como fallback
+        if (user?.estado) {
+            const estado = user.estado.toLowerCase();
+            allowedStates.add(estado);
+            params.push(estado);
+            permissionConditions.push(`estado = $${paramIndex++}`);
+        }
+    } else {
+        permissions.forEach(perm => {
+            const filters = perm.filters || [];
+            const filtersByType = {};
+            filters.forEach(f => {
+                const t = f.type;
+                if (!filtersByType[t]) filtersByType[t] = [];
+                filtersByType[t].push(f.value.toLowerCase());
+            });
 
-    // Se o usuário não tiver filtro de estado definido, restringe ao estado do usuário
-    if (estadosPermitidos.length === 0 && user?.estado) {
-        estadosPermitidos.push(user.estado.toLowerCase());
+            const permAnds = [];
+            
+            // Filtro por estado
+            let estadosPermitidos = filtersByType['estado'] || [];
+            if (estadosPermitidos.length === 0 && user?.estado) {
+                estadosPermitidos.push(user.estado.toLowerCase());
+            }
+            if (estadosPermitidos.length > 0) {
+                estadosPermitidos.forEach(e => allowedStates.add(e));
+                if (estadosPermitidos.length === 1) {
+                    permAnds.push(`estado = $${paramIndex}`);
+                    params.push(estadosPermitidos[0]);
+                } else {
+                    permAnds.push(`estado = ANY($${paramIndex})`);
+                    params.push(estadosPermitidos);
+                }
+                paramIndex++;
+            }
+
+            // Filtro por regional
+            const regionaisPermitidas = filtersByType['regional'] || [];
+            if (regionaisPermitidas.length > 0) {
+                if (regionaisPermitidas.length === 1) {
+                    permAnds.push(`LOWER("regional") = $${paramIndex}`);
+                    params.push(regionaisPermitidas[0]);
+                } else {
+                    permAnds.push(`LOWER("regional") = ANY($${paramIndex})`);
+                    params.push(regionaisPermitidas);
+                }
+                paramIndex++;
+            }
+
+            // Filtro por seccional
+            const seccionaisPermitidas = filtersByType['seccional'] || [];
+            if (seccionaisPermitidas.length > 0) {
+                if (seccionaisPermitidas.length === 1) {
+                    permAnds.push(`LOWER("seccional") = $${paramIndex}`);
+                    params.push(seccionaisPermitidas[0]);
+                } else {
+                    permAnds.push(`LOWER("seccional") = ANY($${paramIndex})`);
+                    params.push(seccionaisPermitidas);
+                }
+                paramIndex++;
+            }
+
+            // Filtro por gestor
+            const gestoresPermitidos = filtersByType['gestor'] || [];
+            if (gestoresPermitidos.length > 0) {
+                if (gestoresPermitidos.length === 1) {
+                    permAnds.push(`LOWER("GESTOR IMEDIATO") = $${paramIndex}`);
+                    params.push(gestoresPermitidos[0]);
+                } else {
+                    permAnds.push(`LOWER("GESTOR IMEDIATO") = ANY($${paramIndex})`);
+                    params.push(gestoresPermitidos);
+                }
+                paramIndex++;
+            }
+
+            if (permAnds.length > 0) {
+                permissionConditions.push(`(${permAnds.join(' AND ')})`);
+            }
+        });
     }
 
-    if (estadosPermitidos.length > 0) {
-        // Se há múltiplos estados e includeAllStates é true, usa ANY
-        if (includeAllStates && estadosPermitidos.length > 1) {
-            conditions.push(`estado = ANY($${paramIndex})`);
-            params.push(estadosPermitidos);
-            paramIndex++;
-        } else {
-            // Usa apenas o primeiro estado
-            conditions.push(`estado = $${paramIndex}`);
-            params.push(estadosPermitidos[0]);
-            paramIndex++;
-        }
-        allowedStates.push(...estadosPermitidos);
-    }
-
-    // Filtro por regional
-    const regionaisPermitidas = userFiltersByType['regional'] || [];
-    if (regionaisPermitidas.length > 0) {
-        if (regionaisPermitidas.length === 1) {
-            conditions.push(`"regional" = $${paramIndex}`);
-            params.push(regionaisPermitidas[0]);
-        } else {
-            conditions.push(`"regional" = ANY($${paramIndex})`);
-            params.push(regionaisPermitidas);
-        }
-        paramIndex++;
-    }
-
-    // Filtro por seccional
-    const seccionaisPermitidas = userFiltersByType['seccional'] || [];
-    if (seccionaisPermitidas.length > 0) {
-        if (seccionaisPermitidas.length === 1) {
-            conditions.push(`"seccional" = $${paramIndex}`);
-            params.push(seccionaisPermitidas[0]);
-        } else {
-            conditions.push(`"seccional" = ANY($${paramIndex})`);
-            params.push(seccionaisPermitidas);
-        }
-        paramIndex++;
-    }
-
-    // Filtro por gestor
-    const gestoresPermitidos = userFiltersByType['gestor'] || [];
-    if (gestoresPermitidos.length > 0) {
-        if (gestoresPermitidos.length === 1) {
-            conditions.push(`"GESTOR IMEDIATO" = $${paramIndex}`);
-            params.push(gestoresPermitidos[0]);
-        } else {
-            conditions.push(`"GESTOR IMEDIATO" = ANY($${paramIndex})`);
-            params.push(gestoresPermitidos);
-        }
-        paramIndex++;
+    let whereClause = '';
+    if (permissionConditions.length > 0) {
+        whereClause = `WHERE (${permissionConditions.join(' OR ')})`;
+    } else {
+        whereClause = 'WHERE 1=0'; // Sem permissões e sem estado fallback -> bloqueia acesso
     }
 
     return {
-        whereClause: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '',
+        whereClause,
         params,
-        allowedStates,
+        allowedStates: Array.from(allowedStates),
         isAdmin: false
     };
 };
@@ -163,104 +180,75 @@ const applyColaboradoresFilter = async (results, user, idField = 'agente') => {
     const isMainAdmin = userIsAdmin(user);
     if (isMainAdmin) return results;
 
-    const userFilters = user?.permissions?.map(p => p.filters).flat() || [];
-    const userFiltersByType = {};
-
-    userFilters.forEach(f => {
-        if (!userFiltersByType[f.type]) {
-            userFiltersByType[f.type] = [];
+    const permissions = user?.permissions || [];
+    
+    // JS Filter logic corresponding to buildUserPermissionSQL
+    const matchesPermission = (r) => {
+        if (permissions.length === 0) {
+            return user?.estado && r.estado && user.estado.toLowerCase() === r.estado.toLowerCase();
         }
-        userFiltersByType[f.type].push(f.value.toLowerCase());
-    });
 
-    const estadosPermitidos = userFiltersByType['estado'] || [];
-    const regionaisPermitidas = userFiltersByType['regional'] || [];
-    const seccionaisPermitidas = userFiltersByType['seccional'] || [];
-    const gestoresPermitidos = userFiltersByType['gestor'] || [];
+        return permissions.some(perm => {
+            const filters = perm.filters || [];
+            const filtersByType = {};
+            filters.forEach(f => {
+                const t = f.type;
+                if (!filtersByType[t]) filtersByType[t] = [];
+                filtersByType[t].push(f.value.toLowerCase());
+            });
 
-    // Se não tiver nenhum filtro, retorna vazio (não deveria acontecer para não-admin)
-    if (estadosPermitidos.length === 0 && regionaisPermitidas.length === 0 &&
-        seccionaisPermitidas.length === 0 && gestoresPermitidos.length === 0) {
-        // Usa o estado do próprio usuário como fallback
-        if (user?.estado) {
-            estadosPermitidos.push(user.estado.toLowerCase());
-        } else {
-            return [];
-        }
-    }
+            // Estado
+            let estados = filtersByType['estado'] || [];
+            if (estados.length === 0 && user?.estado) estados.push(user.estado.toLowerCase());
+            if (estados.length > 0 && r.estado) {
+                if (!estados.includes(r.estado.toLowerCase())) return false;
+            }
 
-    // Se os resultados tiverem campo 'estado', filtra por ele
-    // Caso contrário, busca os dados na tabela colaboradores
+            // Regional
+            let regionais = filtersByType['regional'] || [];
+            if (regionais.length > 0 && r.regional) {
+                if (!regionais.includes(r.regional.toLowerCase())) return false;
+            }
+
+            // Seccional
+            let seccionais = filtersByType['seccional'] || [];
+            if (seccionais.length > 0 && r.seccional) {
+                if (!seccionais.includes(r.seccional.toLowerCase())) return false;
+            }
+
+            // Gestor
+            let gestores = filtersByType['gestor'] || [];
+            if (gestores.length > 0 && r['GESTOR IMEDIATO'] !== undefined) {
+                if (!gestores.includes(r['GESTOR IMEDIATO']?.toLowerCase())) return false;
+            } else if (gestores.length > 0 && r.gestor !== undefined) {
+                if (!gestores.includes(r.gestor?.toLowerCase())) return false;
+            }
+
+            return true; // Match!
+        });
+    };
+
     const needsLookup = !results[0]?.estado && !results[0]?.regional && !results[0]?.seccional;
 
     if (needsLookup) {
-        // Busca dados dos colaboradores necessários
         const ids = [...new Set(results.map(r => r[idField]).filter(Boolean))];
         if (ids.length === 0) return results;
 
-        const filter = getColaboradoresFilter(user);
-        let query = `SELECT "ID", estado, "regional", "seccional", "GESTOR IMEDIATO" FROM colaboradores WHERE "ID" = ANY($1)`;
-
-        if (filter.whereClause) {
-            // Adiciona condições extras
-            const extraConditions = [];
-            if (regionaisPermitidas.length > 0) {
-                extraConditions.push(regionaisPermitidas.length === 1
-                    ? `"regional" = $${filter.params.length + 1}`
-                    : `"regional" = ANY($${filter.params.length + 1})`);
-                filter.params.push(regionaisPermitidas);
-            }
-            if (seccionaisPermitidas.length > 0) {
-                extraConditions.push(seccionaisPermitidas.length === 1
-                    ? `"seccional" = $${filter.params.length + 1}`
-                    : `"seccional" = ANY($${filter.params.length + 1})`);
-                filter.params.push(seccionaisPermitidas);
-            }
-            if (gestoresPermitidos.length > 0) {
-                extraConditions.push(gestoresPermitidos.length === 1
-                    ? `"GESTOR IMEDIATO" = $${filter.params.length + 1}`
-                    : `"GESTOR IMEDIATO" = ANY($${filter.params.length + 1})`);
-                filter.params.push(gestoresPermitidos);
-            }
-
-            if (extraConditions.length > 0) {
-                query += ` AND ${extraConditions.join(' AND ')}`;
-            }
-        }
-
-        const { rows: colaboradoresData } = await cenos_pool.query(query, [ids, ...filter.params.slice(1)]);
+        const query = `SELECT "ID", estado, "regional", "seccional", "GESTOR IMEDIATO" FROM colaboradores WHERE "ID" = ANY($1)`;
+        const { rows: colabData } = await cenos_pool.query(query, [ids]);
         const colabMap = new Map();
-        colaboradoresData.forEach(c => {
-            colabMap.set(c['ID'].toUpperCase(), c);
-        });
+        colabData.forEach(c => colabMap.set(c['ID'].toUpperCase(), c));
 
         return results.filter(r => {
             const id = r[idField];
             if (!id) return false;
             const colab = colabMap.get(id.toUpperCase());
             if (!colab) return false;
-
-            // Verifica se o registro tem os campos necessários para filtragem
-            if (colab.estado && estadosPermitidos.length > 0) {
-                if (!estadosPermitidos.includes(colab.estado.toLowerCase())) return false;
-            }
-            return true;
+            return matchesPermission(colab);
         });
     }
 
-    // Filtra diretamente pelos campos existentes
-    return results.filter(r => {
-        if (estadosPermitidos.length > 0 && r.estado) {
-            if (!estadosPermitidos.includes(r.estado.toLowerCase())) return false;
-        }
-        if (regionaisPermitidas.length > 0 && r.regional) {
-            if (!regionaisPermitidas.includes(r.regional.toLowerCase())) return false;
-        }
-        if (seccionaisPermitidas.length > 0 && r.seccional) {
-            if (!seccionaisPermitidas.includes(r.seccional.toLowerCase())) return false;
-        }
-        return true;
-    });
+    return results.filter(r => matchesPermission(r));
 };
 
 async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limit = 50, search, regional, seccional, gestor, estado }) {
@@ -471,6 +459,100 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
         limit: limitVal
     };
 }
+
+const buildUserPermissionSQL = (user, params, idx, tableAlias = 'col') => {
+  const conditions = [];
+  if (!user || userIsAdmin(user)) return { conditions, params, idx };
+
+  const permissions = user?.permissions || [];
+  const permissionConditions = [];
+
+  const alias = tableAlias ? `${tableAlias}.` : '';
+
+  if (permissions.length === 0) {
+    if (user?.estado) {
+      const estado = user.estado.toLowerCase();
+      permissionConditions.push(`LOWER(${alias}estado) = $${idx}`);
+      params.push(estado);
+      idx++;
+    }
+  } else {
+    permissions.forEach(perm => {
+      const filters = perm.filters || [];
+      const filtersByType = {};
+      filters.forEach(f => {
+        const t = f.type;
+        if (!filtersByType[t]) filtersByType[t] = [];
+        filtersByType[t].push(f.value.toLowerCase());
+      });
+
+      const permAnds = [];
+      
+      let estadosPermitidos = filtersByType['estado'] || [];
+      if (estadosPermitidos.length === 0 && user?.estado) {
+        estadosPermitidos.push(user.estado.toLowerCase());
+      }
+      if (estadosPermitidos.length > 0) {
+        if (estadosPermitidos.length === 1) {
+          permAnds.push(`LOWER(${alias}estado) = $${idx}`);
+          params.push(estadosPermitidos[0]);
+        } else {
+          permAnds.push(`LOWER(${alias}estado) = ANY($${idx}::varchar[])`);
+          params.push(estadosPermitidos);
+        }
+        idx++;
+      }
+
+      const regionaisPermitidas = filtersByType['regional'] || [];
+      if (regionaisPermitidas.length > 0) {
+        if (regionaisPermitidas.length === 1) {
+          permAnds.push(`LOWER(${alias}"regional") = $${idx}`);
+          params.push(regionaisPermitidas[0]);
+        } else {
+          permAnds.push(`LOWER(${alias}"regional") = ANY($${idx}::varchar[])`);
+          params.push(regionaisPermitidas);
+        }
+        idx++;
+      }
+
+      const seccionaisPermitidas = filtersByType['seccional'] || [];
+      if (seccionaisPermitidas.length > 0) {
+        if (seccionaisPermitidas.length === 1) {
+          permAnds.push(`LOWER(${alias}"seccional") = $${idx}`);
+          params.push(seccionaisPermitidas[0]);
+        } else {
+          permAnds.push(`LOWER(${alias}"seccional") = ANY($${idx}::varchar[])`);
+          params.push(seccionaisPermitidas);
+        }
+        idx++;
+      }
+
+      const gestoresPermitidos = filtersByType['gestor'] || [];
+      if (gestoresPermitidos.length > 0) {
+        if (gestoresPermitidos.length === 1) {
+          permAnds.push(`LOWER(${alias}"GESTOR IMEDIATO") = $${idx}`);
+          params.push(gestoresPermitidos[0]);
+        } else {
+          permAnds.push(`LOWER(${alias}"GESTOR IMEDIATO") = ANY($${idx}::varchar[])`);
+          params.push(gestoresPermitidos);
+        }
+        idx++;
+      }
+
+      if (permAnds.length > 0) {
+        permissionConditions.push(`(${permAnds.join(' AND ')})`);
+      }
+    });
+  }
+
+  if (permissionConditions.length > 0) {
+    conditions.push(`(${permissionConditions.join(' OR ')})`);
+  } else {
+    conditions.push(`1 = 0`); // Sem permissões -> bloqueia acesso
+  }
+
+  return { conditions, params, idx };
+};
 
 async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, search, regional, seccional, gestor, estado }) {
     const res = await get_users_agents_admin_paginated({ user, ids, page, limit, search, regional, seccional, gestor, estado });
@@ -1704,4 +1786,5 @@ module.exports = {
     getColaboradoresFilter,
     applyColaboradoresFilter,
     checkAgentPermission,
+    buildUserPermissionSQL
 };

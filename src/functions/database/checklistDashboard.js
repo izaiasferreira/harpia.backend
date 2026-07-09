@@ -1,5 +1,5 @@
 const { cenos_pool } = require('../../db');
-const { getUserAllowedStatePools, getColaboradoresFilter, userIsAdmin } = require('./admin');
+const { getUserAllowedStatePools, getColaboradoresFilter, userIsAdmin, buildUserPermissionSQL } = require('./admin');
 const { getExemptAgentIds, countActiveExemptions, listActiveExemptions } = require('./agentExemptions');
 
 
@@ -9,61 +9,7 @@ const { getExemptAgentIds, countActiveExemptions, listActiveExemptions } = requi
  * de estado, regional, seccional e gestor corretamente.
  * Retorna { conditions, params, idx }.
  */
-function buildUserPermissionSQL(user, params, idx) {
-  const conditions = [];
-  if (!user || userIsAdmin(user)) return { conditions, params, idx };
 
-  const filter = getColaboradoresFilter(user, { includeAllStates: true });
-
-  // Sem permissões configuradas e sem estado fallback → bloqueia tudo
-  if (filter.allowedStates.length === 0 && filter.params.length === 0) {
-    conditions.push(`1 = 0`);
-    return { conditions, params, idx };
-  }
-
-  // Reconstrói as condições do filtro apontando para col.* (não para a raiz da tabela)
-  const userFilters = user?.permissions?.map(p => p.filters).flat() || [];
-  const filtersByType = {};
-  userFilters.forEach(f => {
-    if (!filtersByType[f.type]) filtersByType[f.type] = [];
-    filtersByType[f.type].push(f.value.toLowerCase());
-  });
-
-  // Fallback: se sem filtros, usa o estado do próprio usuário
-  const estadosPermitidos = filtersByType['estado'] || [];
-  if (estadosPermitidos.length === 0 && user?.estado) {
-    estadosPermitidos.push(user.estado.toLowerCase());
-  }
-
-  if (estadosPermitidos.length > 0) {
-    conditions.push(`LOWER(col.estado) = ANY($${idx}::varchar[])`);
-    params.push(estadosPermitidos);
-    idx++;
-  }
-
-  const regionaisPermitidas = filtersByType['regional'] || [];
-  if (regionaisPermitidas.length > 0) {
-    conditions.push(`col.regional = ANY($${idx}::varchar[])`);
-    params.push(regionaisPermitidas);
-    idx++;
-  }
-
-  const seccionaisPermitidas = filtersByType['seccional'] || [];
-  if (seccionaisPermitidas.length > 0) {
-    conditions.push(`col.seccional = ANY($${idx}::varchar[])`);
-    params.push(seccionaisPermitidas);
-    idx++;
-  }
-
-  const gestoresPermitidos = filtersByType['gestor'] || [];
-  if (gestoresPermitidos.length > 0) {
-    conditions.push(`col."GESTOR IMEDIATO" = ANY($${idx}::varchar[])`);
-    params.push(gestoresPermitidos);
-    idx++;
-  }
-
-  return { conditions, params, idx };
-}
 
 async function getDashboardFilterOptions() {
   const regionais = await cenos_pool.query(
@@ -1070,12 +1016,11 @@ async function getDashboardCompletedAgentsV2({
   const to = date_to || getTodayStr();
   const offset = (page - 1) * limit;
 
-  let templateIds = [];
   let allowedTemplates = [];
   
   if (template_id) {
     const { rows } = await cenos_pool.query(
-      `SELECT id, data, estado FROM checklist_templates WHERE id = $1 AND is_active = true`, [template_id]
+      `SELECT id, data, estado, title FROM checklist_templates WHERE id = $1 AND is_active = true`, [template_id]
     );
     if (rows.length > 0) allowedTemplates = rows;
   } else {
@@ -1086,14 +1031,19 @@ async function getDashboardCompletedAgentsV2({
     return { data: [], total: 0, page, limit, totalPages: 0 };
   }
 
-  templateIds = allowedTemplates.map(r => r.id);
+  const { templateIds, agentIds: allowedAgentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
+
+  if (templateIds.length === 0 || allowedAgentIds.length === 0) {
+    return { data: [], total: 0, page, limit, totalPages: 0 };
+  }
 
   const { rows: submittedRows } = await cenos_pool.query(
     `SELECT DISTINCT agent_id, template_id FROM checklists
      WHERE date >= $1 AND date <= $2
        AND status = 'submitted'
-       AND template_id = ANY($3::uuid[])`,
-    [from, to, templateIds]
+       AND template_id = ANY($3::uuid[])
+       AND agent_id = ANY($4::varchar[])`,
+    [from, to, templateIds, allowedAgentIds]
   );
 
   if (submittedRows.length === 0) {

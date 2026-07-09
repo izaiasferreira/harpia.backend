@@ -1,5 +1,5 @@
 const { cenos_pool } = require('../../db');
-const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
+const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission, buildUserPermissionSQL } = require('./admin');
 
 /**
  * Verifica se um agente está isento no momento especificado.
@@ -134,19 +134,11 @@ async function listActiveExemptions({
   if (gestor) { filters.push(`col."GESTOR IMEDIATO" = $${idx}`); params.push(gestor); idx++; }
 
   // Aplica filtro de permissão
-  if (user && !userIsAdmin(user)) {
-    const filter = getColaboradoresFilter(user, { includeAllStates: true });
-    if (filter.allowedStates.length > 0) {
-      if (filter.allowedStates.length === 1) {
-        filters.push(`col.estado = $${idx}`);
-        params.push(filter.allowedStates[0]);
-      } else {
-        filters.push(`col.estado = ANY($${idx})`);
-        params.push(filter.allowedStates);
-      }
-      idx++;
-    }
+  const permSQL = buildUserPermissionSQL(user, params, idx, 'col');
+  if (permSQL.conditions.length > 0) {
+    filters.push(...permSQL.conditions);
   }
+  idx = permSQL.idx;
 
   const whereFilters = filters.length > 0 ? `AND ${filters.join(' AND ')}` : '';
 

@@ -57,6 +57,7 @@ function verifyToken(requiredRole = null) {
                 modules,
                 permissions
             };
+            console.log(JSON.stringify(req.user, null, 2))
            return next();
         } catch (err) {
             return res.status(401).json({ error: 'Token expirado ou inválido' });
