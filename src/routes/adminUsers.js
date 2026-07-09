@@ -289,7 +289,12 @@ router.put('/users/:id/permissions', verifyToken(), verifyModule('permissions'),
             return res.status(400).json({ error: 'permissionIds deve ser um array' });
         }
 
-        const estado = req.user.estado;
+        const targetUser = await getUserById(id);
+        if (!targetUser) {
+            return res.status(404).json({ error: 'Usuário não encontrado' });
+        }
+        
+        const estado = targetUser.estado || req.user.estado;
         await assignPermissionsToUser(id, permissionIds, estado);
         res.json({ success: true });
     } catch (error) {
