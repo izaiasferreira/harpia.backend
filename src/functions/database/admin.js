@@ -338,19 +338,25 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
         countParams.push(ids.map(id => id.toUpperCase()));
         paramIdx++;
     }
-    if (regional) {
-        countQuery += ` AND "regional" ILIKE $${paramIdx}`;
-        countParams.push(`%${regional}%`);
+    if (regional === '__VAZIO__') {
+        countQuery += ` AND ("regional" IS NULL OR TRIM("regional") = '')`;
+    } else if (regional) {
+        countQuery += ` AND "regional" = $${paramIdx}`;
+        countParams.push(regional);
         paramIdx++;
     }
-    if (seccional) {
-        countQuery += ` AND "seccional" ILIKE $${paramIdx}`;
-        countParams.push(`%${seccional}%`);
+    if (seccional === '__VAZIO__') {
+        countQuery += ` AND ("seccional" IS NULL OR TRIM("seccional") = '')`;
+    } else if (seccional) {
+        countQuery += ` AND "seccional" = $${paramIdx}`;
+        countParams.push(seccional);
         paramIdx++;
     }
-    if (gestor) {
-        countQuery += ` AND "GESTOR IMEDIATO" ILIKE $${paramIdx}`;
-        countParams.push(`%${gestor}%`);
+    if (gestor === '__VAZIO__') {
+        countQuery += ` AND ("GESTOR IMEDIATO" IS NULL OR TRIM("GESTOR IMEDIATO") = '')`;
+    } else if (gestor) {
+        countQuery += ` AND "GESTOR IMEDIATO" = $${paramIdx}`;
+        countParams.push(gestor);
         paramIdx++;
     }
 
@@ -381,19 +387,25 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
         colabParams.push(ids.map(id => id.toUpperCase()));
         cpIdx++;
     }
-    if (regional) {
-        colabQuery += ` AND "regional" ILIKE $${cpIdx}`;
-        colabParams.push(`%${regional}%`);
+    if (regional === '__VAZIO__') {
+        colabQuery += ` AND ("regional" IS NULL OR TRIM("regional") = '')`;
+    } else if (regional) {
+        colabQuery += ` AND "regional" = $${cpIdx}`;
+        colabParams.push(regional);
         cpIdx++;
     }
-    if (seccional) {
-        colabQuery += ` AND "seccional" ILIKE $${cpIdx}`;
-        colabParams.push(`%${seccional}%`);
+    if (seccional === '__VAZIO__') {
+        colabQuery += ` AND ("seccional" IS NULL OR TRIM("seccional") = '')`;
+    } else if (seccional) {
+        colabQuery += ` AND "seccional" = $${cpIdx}`;
+        colabParams.push(seccional);
         cpIdx++;
     }
-    if (gestor) {
-        colabQuery += ` AND "GESTOR IMEDIATO" ILIKE $${cpIdx}`;
-        colabParams.push(`%${gestor}%`);
+    if (gestor === '__VAZIO__') {
+        colabQuery += ` AND ("GESTOR IMEDIATO" IS NULL OR TRIM("GESTOR IMEDIATO") = '')`;
+    } else if (gestor) {
+        colabQuery += ` AND "GESTOR IMEDIATO" = $${cpIdx}`;
+        colabParams.push(gestor);
         cpIdx++;
     }
 
@@ -558,7 +570,7 @@ async function get_users_only_login_paginated({ user, page = 1, limit = 50, sear
     };
 }
 
-async function get_user_agent_options({ estado, user }) {
+async function get_user_agent_options({ estado, regional, seccional, user }) {
     const colabFilter = user ? getColaboradoresFilter(user, { includeAllStates: true }) : null;
     const isAdmin = user ? userIsAdmin(user) : false;
 
@@ -585,54 +597,46 @@ async function get_user_agent_options({ estado, user }) {
 
     // Gestores - filtra apenas os permitidos
     let gestoresQuery = `SELECT DISTINCT "GESTOR IMEDIATO" FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL ${queryCond}`;
+    let gestoresParams = [...queryParams];
+    if (regional) {
+        gestoresParams.push(regional);
+        gestoresQuery += ` AND regional = $${gestoresParams.length}`;
+    }
+    if (seccional) {
+        gestoresParams.push(seccional);
+        gestoresQuery += ` AND seccional = $${gestoresParams.length}`;
+    }
+
     if (!isAdmin && colabFilter) {
         // Se tem filtro de gestor, aplica
         const gestoresPermitidos = user?.permissions?.map(p => p.filters).flat().filter(f => f.type === 'gestor').map(f => f.value);
         if (gestoresPermitidos && gestoresPermitidos.length > 0) {
             gestoresQuery = `SELECT DISTINCT "GESTOR IMEDIATO" FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL AND "GESTOR IMEDIATO" = ANY($1)`;
-            queryParams = [gestoresPermitidos];
+            gestoresParams = [gestoresPermitidos];
         }
     }
-    const { rows } = await cenos_pool.query(gestoresQuery, queryParams);
+    const { rows } = await cenos_pool.query(gestoresQuery, gestoresParams);
     result.gestores = rows.map(r => r['GESTOR IMEDIATO']);
 
-    // Seccionais - vem da tabela localidades
-    const query2 = `SELECT DISTINCT uac FROM localidades WHERE uac IS NOT NULL`;
-    let estadosParaBuscar = [];
-
-    if (!isAdmin && colabFilter && colabFilter.allowedStates.length > 0) {
-        estadosParaBuscar = colabFilter.allowedStates;
-    } else if (estado) {
-        estadosParaBuscar = [estado];
-    } else {
-        estadosParaBuscar = VALID_STATE_VALUES;
+    // Seccionais - vem da tabela colaboradores
+    let secQuery = `SELECT DISTINCT seccional FROM colaboradores WHERE seccional IS NOT NULL ${queryCond}`;
+    let secParams = [...queryParams];
+    if (regional) {
+        secParams.push(regional);
+        secQuery += ` AND regional = $${secParams.length}`;
     }
+    const { rows: secRows } = await cenos_pool.query(secQuery, secParams);
+    result.seccionais = secRows.map(r => r.seccional);
 
-    let seccionais = [];
-    for (const est of estadosParaBuscar) {
-        try {
-            const pool = est === 'pi' ? pi_pool : ma_pool;
-            const { rows: rows2 } = await pool.query(query2);
-            seccionais = [...seccionais, ...rows2.map(r => r.uac)];
-        } catch (e) {
-            // ignora
-        }
+    // Regionais - vem da tabela colaboradores
+    let regQuery = `SELECT DISTINCT regional FROM colaboradores WHERE regional IS NOT NULL ${queryCond}`;
+    let regParams = [...queryParams];
+    if (seccional) {
+        regParams.push(seccional);
+        regQuery += ` AND seccional = $${regParams.length}`;
     }
-    result.seccionais = [...new Set(seccionais)].filter(Boolean);
-
-    // Regionais - vem da tabela localidades
-    const query3 = `SELECT DISTINCT regional FROM localidades WHERE regional IS NOT NULL`;
-    let regionais = [];
-    for (const est of estadosParaBuscar) {
-        try {
-            const pool = est === 'pi' ? pi_pool : ma_pool;
-            const { rows: rows3 } = await pool.query(query3);
-            regionais = [...regionais, ...rows3.map(r => r.regional)];
-        } catch (e) {
-            // ignora
-        }
-    }
-    result.regionais = [...new Set(regionais)].filter(Boolean);
+    const { rows: regRows } = await cenos_pool.query(regQuery, regParams);
+    result.regionais = regRows.map(r => r.regional);
 
     // Cargos
     const query4 = `SELECT DISTINCT "Cargo" FROM colaboradores WHERE "Cargo" IS NOT NULL ${queryCond}`;
@@ -905,7 +909,7 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
         UPDATE colaboradores 
         SET "Nome" = $1, "GESTOR IMEDIATO" = $2, "Cargo" = $3, "seccional" = $4, "regional" = $5,
             "estado" = COALESCE($6, "estado"), "status" = COALESCE($7, "status"), "situacao" = COALESCE($8, "situacao"), "processo" = COALESCE($10, "processo"), "MAT" = COALESCE($11, "MAT")
-        WHERE "ID" = $9
+        WHERE TRIM(UPPER("ID")) = TRIM(UPPER($9))
     `;
     const params = [
         nome,

@@ -17,26 +17,40 @@ async function createPermission({
 
     const pool = cenos_pool;
 
-    const checkQuery = `SELECT id FROM permissions WHERE slug = $1 AND state = $2`;
-    const checkResult = await pool.query(checkQuery, [validated.slug, validated.state.toLowerCase()]);
-    if (checkResult.rows.length > 0) {
-        throw new Error('Permissão já existe com este nome');
+    const checkActiveQuery = `SELECT id FROM permissions WHERE slug = $1 AND state = $2 AND ativo = true`;
+    const checkActiveResult = await pool.query(checkActiveQuery, [slug, validated.state.toLowerCase()]);
+    if (checkActiveResult.rows.length > 0) {
+        throw new Error('DEBUG_ACTIVE: Permissão já existe com este nome');
     }
 
-    const insertQuery = `
-        INSERT INTO permissions (name, slug, description, modules, filters, state)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id, name, slug, description, modules, filters, user_count, state, ativo;
-    `;
-    const { rows } = await pool.query(insertQuery, [
-        validated.name,
-        validated.slug,
-        validated.description,
-        validated.modules,
-        typeof validated.filters === 'object' ? JSON.stringify(validated.filters) : validated.filters,
-        validated.state.toLowerCase()
-    ]);
-    return rows[0];
+    let suffix = 1;
+    let finalSlug = slug;
+    while (true) {
+        const checkSlug = await pool.query(`SELECT id FROM permissions WHERE slug = $1 AND state = $2`, [finalSlug, validated.state.toLowerCase()]);
+        if (checkSlug.rows.length === 0) break;
+        finalSlug = `${slug}_${suffix}`;
+        suffix++;
+    }
+    validated.slug = finalSlug;
+
+    try {
+        const insertQuery = `
+            INSERT INTO permissions (name, slug, description, modules, filters, state)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id, name, slug, description, modules, filters, user_count, state, ativo;
+        `;
+        const { rows } = await pool.query(insertQuery, [
+            validated.name,
+            validated.slug,
+            validated.description,
+            validated.modules,
+            typeof validated.filters === 'object' ? JSON.stringify(validated.filters) : validated.filters,
+            validated.state.toLowerCase()
+        ]);
+        return rows[0];
+    } catch (err) {
+        throw new Error('DEBUG_INSERT: ' + err.message);
+    }
 }
 
 async function getPermissionById(id, state = 'pi') {

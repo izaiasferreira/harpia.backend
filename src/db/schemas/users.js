@@ -19,6 +19,7 @@ const userSchema = z.object({
   ultimo_login: z.date().nullable().optional(),
   ativo: z.boolean().default(true),
   foto: z.string().max(500).optional().nullable(),
+  permissions: z.array(z.number().int()).optional(),
   created_at: z.date().optional(),
   updated_at: z.date().optional()
 });

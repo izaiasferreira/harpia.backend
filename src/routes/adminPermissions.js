@@ -153,3 +153,4 @@ router.delete('/:id', verifyToken(), verifyModule('delete_permission'), async (r
 });
 
 module.exports = router;
+// Trigger restart

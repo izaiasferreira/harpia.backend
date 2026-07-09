@@ -314,11 +314,15 @@ router.get('/perdas', verifyToken(), verifyModule('perdas'), async (req, res) =>
     }
 });
 
-router.get('/users_agents/options', verifyToken(), verifyModule(['users_agents', 'checklists']), async (req, res) => {
+router.get('/users_agents/options', verifyToken(), verifyModule(['users_agents', 'checklists', 'permissions']), async (req, res) => {
     try {
-        const { estado } = req.query;
+        const { estado, regional, seccional } = req.query;
+        console.log(estado)
+        
         const result = await get_user_agent_options({
             estado: estado !== undefined ? estado : req.user.estado,
+            regional,
+            seccional,
             user: req.user
         });
         res.json(result);
@@ -372,7 +376,7 @@ router.post('/users_agents', verifyToken(), verifyModule('create_user_agent'), v
 router.put('/users_agents/:id', verifyToken(), verifyModule('update_user_agent'), validate(agentUpdateSchema), async (req, res) => {
     try {
         const { id } = req.params;
-        const { nome, gestor, cargo, seccional, regional, estado, status, situacao, matricula } = req.body;
+        const { nome, gestor, cargo, seccional, regional, estado, status, situacao, matricula, processo } = req.body;
         const user = req.user;
 
         if (estado !== undefined || status !== undefined || situacao !== undefined) {
@@ -394,7 +398,7 @@ router.put('/users_agents/:id', verifyToken(), verifyModule('update_user_agent')
         }
 
         const isAdmin = user.role.toLowerCase().includes('admin');
-        const updateData = { id, nome, gestor, cargo, seccional, regional, estado, status, situacao, user };
+        const updateData = { id, nome, gestor, cargo, seccional, regional, estado, status, situacao, processo, user };
         
         if (isAdmin && matricula !== undefined) {
             updateData.matricula = matricula;

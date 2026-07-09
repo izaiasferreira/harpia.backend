@@ -217,8 +217,9 @@ router.get('/users', verifyToken(), verifyModule('users'), async (req, res) => {
     try {
         const users = await listUsers(req.user.estado);
         const usersWithDetails = await Promise.all(users.map(async (u) => {
-            const modules = await getUserModules(u.id, req.user.estado);
-            const permissions = await getUserPermissions(u.id, req.user.estado);
+            const estado = u.estado || req.user.estado;
+            const modules = await getUserModules(u.id, estado);
+            const permissions = await getUserPermissions(u.id, estado);
             return { ...u, modules, permissions: permissions.map(p => p.id) };
         }));
         res.json(usersWithDetails);
