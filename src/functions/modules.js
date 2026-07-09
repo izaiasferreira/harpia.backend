@@ -73,6 +73,9 @@ const AVAILABLE_MODULES = [
     { id: 'delete_ceneduc', name: 'Deletar Card CenEduc' },
     // Monitoramento (Tracking)
     { id: 'tracking', name: 'Monitoramento de Agentes' },
+    { id: 'tracking_live', name: 'Monitoramento: Ao Vivo' },
+    { id: 'tracking_history', name: 'Monitoramento: Histórico' },
+    { id: 'tracking_speed', name: 'Monitoramento: Velocidade' },
     // Notas de Serviço
     { id: 'service_notes', name: 'Consultar Notas de Serviço' },
     { id: 'create_service_note', name: 'Criar Nota de Serviço' },
