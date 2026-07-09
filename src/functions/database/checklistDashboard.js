@@ -522,7 +522,9 @@ function buildTemplateAgentMatchSQL(templateData, params, idx) {
  * Helper: get all active agent IDs that match ANY of the given templates.
  * Returns a Set of agent ID strings.
  */
-async function getAgentsMatchingTemplates(templates, user) {
+async function getAgentsMatchingTemplates(templates, user, date_from, date_to) {
+  const from = date_from || getTodayStr();
+  const to = date_to || getTodayStr();
   const allAgentIds = new Set();
 
   for (const tmpl of templates) {
@@ -586,7 +588,7 @@ async function computeV2RegionalBreakdown(templates, date_from, date_to, user) {
   const from = date_from || todayStr;
   const to = date_to || todayStr;
 
-  const agentIdSet = await getAgentsMatchingTemplates(templates, user);
+  const agentIdSet = await getAgentsMatchingTemplates(templates, user, from, to);
   if (agentIdSet.size === 0) return [];
 
   const agentIds = Array.from(agentIdSet);
@@ -1156,7 +1158,7 @@ async function getDashboardCompletedAgentsV2({
  * Helper: get template IDs and matching agent IDs for V2 queries.
  * Returns { templateIds, agentIds }.
  */
-async function getV2TemplateAndAgentIds({ template_id }, user) {
+async function getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user) {
   let templateIds = [];
 
   if (template_id) {
@@ -1165,7 +1167,7 @@ async function getV2TemplateAndAgentIds({ template_id }, user) {
     );
     if (rows.length === 0) return { templateIds: [], agentIds: [] };
     templateIds = [template_id];
-    const agentIdSet = await getAgentsMatchingTemplates(rows);
+    const agentIdSet = await getAgentsMatchingTemplates(rows, user, date_from, date_to);
     return { templateIds, agentIds: Array.from(agentIdSet) };
   }
 
@@ -1173,7 +1175,7 @@ async function getV2TemplateAndAgentIds({ template_id }, user) {
   if (allowedTemplates.length === 0) return { templateIds: [], agentIds: [] };
 
   templateIds = allowedTemplates.map(r => r.id);
-  const agentIdSet = await getAgentsMatchingTemplates(allowedTemplates);
+  const agentIdSet = await getAgentsMatchingTemplates(allowedTemplates, user, date_from, date_to);
   return { templateIds, agentIds: Array.from(agentIdSet) };
 }
 
@@ -1183,7 +1185,7 @@ async function getV2TemplateAndAgentIds({ template_id }, user) {
 async function getDashboardNonCompliantItemsV2({
   date_from, date_to, regional, sectional, estado, gestor, template_id, export_raw
 }, user) {
-  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id }, user);
+  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
   if (templateIds.length === 0 || agentIds.length === 0) return [];
 
   const dParams = [];
@@ -1194,7 +1196,7 @@ async function getDashboardNonCompliantItemsV2({
 
   const colJoin = buildColaboradorJoins();
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
-    regional, sectional, estado, gestor, params: dParams, idx: dIdx
+    regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
   });
   dIdx = colIdx;
 
@@ -1252,7 +1254,7 @@ async function getDashboardNonCompliantItemsV2({
 async function getDashboardAlertsV2({
   date_from, date_to, regional, sectional, estado, gestor, template_id, export_raw
 }, user) {
-  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id }, user);
+  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
   if (templateIds.length === 0 || agentIds.length === 0) return [];
 
   const dParams = [];
@@ -1263,7 +1265,7 @@ async function getDashboardAlertsV2({
 
   const colJoin = buildColaboradorJoins();
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
-    regional, sectional, estado, gestor, params: dParams, idx: dIdx
+    regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
   });
   dIdx = colIdx;
 
