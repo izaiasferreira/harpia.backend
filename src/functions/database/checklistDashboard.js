@@ -1,6 +1,6 @@
 const { cenos_pool } = require('../../db');
 const { getUserAllowedStatePools, getColaboradoresFilter, userIsAdmin } = require('./admin');
-const { getExemptAgentIds, countActiveExemptions } = require('./agentExemptions');
+const { getExemptAgentIds, countActiveExemptions, listActiveExemptions } = require('./agentExemptions');
 
 
 /**
@@ -555,9 +555,20 @@ async function getAgentsMatchingTemplates(templates, user) {
     if (perm.conditions.length > 0) whereClause.push(perm.conditions.join(' AND '));
     if (estadoClause) whereClause.push(estadoClause.replace('AND ', ''));
 
+    params.push(from, to);
+    const d1 = idx++;
+    const d2 = idx++;
+    const extWhere = `
+      AND NOT EXISTS (
+        SELECT 1 FROM agent_exemptions ae
+        WHERE ae.agent_id = col."ID"
+          AND ae.start_date <= $${d2}::date AND ae.end_date >= $${d1}::date
+      )
+    `;
+
     if (whereClause.length > 1) {
       const { rows } = await cenos_pool.query(
-        `SELECT col."ID" FROM colaboradores col WHERE ${whereClause.join(' AND ')}`,
+        `SELECT col."ID" FROM colaboradores col WHERE ${whereClause.join(' AND ')} ${extWhere}`,
         params
       );
       rows.forEach(r => allAgentIds.add(r.ID));
@@ -593,6 +604,11 @@ async function computeV2RegionalBreakdown(templates, date_from, date_to, user) {
      WHERE col.situacao = 'active' AND col.status = true
        AND col.regional IS NOT NULL
        AND col."ID" = ANY($1::varchar[])
+       AND NOT EXISTS (
+         SELECT 1 FROM agent_exemptions ae
+         WHERE ae.agent_id = col."ID"
+           AND ae.start_date <= $3::date AND ae.end_date >= $2::date
+       )
      GROUP BY col.regional
      ORDER BY col.regional`,
     [agentIds, from, to]
@@ -708,7 +724,12 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     // Active agents matching this template AND user permissions AND UI filters
     const activeRes = await cenos_pool.query(
       `SELECT COUNT(*) as total FROM colaboradores col
-       WHERE col.situacao = 'active' AND col.status = true AND $1::text=$1::text AND $2::text=$2::text ${colWhereClause}`,
+       WHERE col.situacao = 'active' AND col.status = true AND $1::text=$1::text AND $2::text=$2::text ${colWhereClause}
+       AND NOT EXISTS (
+         SELECT 1 FROM agent_exemptions ae
+         WHERE ae.agent_id = col."ID"
+           AND ae.start_date <= $2::date AND ae.end_date >= $1::date
+       )`,
       tParams
     );
     const activeAgents = parseInt(activeRes.rows[0].total, 10);
@@ -789,10 +810,21 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     if (estadoClause) combinedConditions.push(estadoClause);
     const whereClause = combinedConditions.length > 0 ? `AND ${combinedConditions.join(' AND ')}` : '';
 
+    params.push(pFrom, pTo);
+    const d1 = idx++;
+    const d2 = idx++;
+    const extWhere = `
+      AND NOT EXISTS (
+        SELECT 1 FROM agent_exemptions ae
+        WHERE ae.agent_id = col."ID"
+          AND ae.start_date <= $${d2}::date AND ae.end_date >= $${d1}::date
+      )
+    `;
+
     const { rows } = await cenos_pool.query(
       `SELECT col."ID" as agent_id
        FROM colaboradores col
-       WHERE col.situacao = 'active' AND col.status = true ${whereClause}`,
+       WHERE col.situacao = 'active' AND col.status = true ${whereClause} ${extWhere}`,
       params
     );
 
@@ -834,9 +866,20 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
 
 
 
-  // KPI: count of exempted agents on the reference date
+  // KPI: count of exempted agents considering UI filters and dates
+  const exemptionsResult = await listActiveExemptions({
+    date_from, date_to, regional, sectional, estado, gestor,
+    page: 1, limit: 1
+  }, user);
+  const exempted_count = exemptionsResult.total;
+
   const refDate = date_to || new Date().toISOString().split('T')[0];
-  const exempted_count = await countActiveExemptions(refDate);
+  const { isSunday } = await getExemptAgentIds(refDate);
+
+  if (isSunday) {
+    totalPending = 0;
+    totalCompleted = 0; // Or whatever is appropriate for Sunday
+  }
 
   return {
     active_agents: totalActive,
@@ -916,11 +959,22 @@ async function getDashboardPendingAgentsV2({
 
     const whereClause = combinedConditions.length > 0 ? `AND ${combinedConditions.join(' AND ')}` : '';
 
+    params.push(from, to);
+    const d1 = idx++;
+    const d2 = idx++;
+    const extWhere = `
+      AND NOT EXISTS (
+        SELECT 1 FROM agent_exemptions ae
+        WHERE ae.agent_id = col."ID"
+          AND ae.start_date <= $${d2}::date AND ae.end_date >= $${d1}::date
+      )
+    `;
+
     const { rows } = await cenos_pool.query(
       `SELECT col."ID" as agent_id, col."Nome" as nome, col.regional, col.seccional,
               col.estado, col."Cargo" as cargo, col."GESTOR IMEDIATO" as gestor
        FROM colaboradores col
-       WHERE col.situacao = 'active' AND col.status = true ${whereClause}`,
+       WHERE col.situacao = 'active' AND col.status = true ${whereClause} ${extWhere}`,
       params
     );
 
@@ -957,20 +1011,14 @@ async function getDashboardPendingAgentsV2({
     agentSubmittedTemplates[r.agent_id].add(r.template_id);
   }
 
-  // Skip exempt agents (they have their own dedicated table)
-  const refDate = to;
-  const { isSunday, ids: exemptIds } = await getExemptAgentIds(refDate);
-
+  const { isSunday } = await getExemptAgentIds(to);
   if (isSunday) {
     return { data: [], total: 0, page, limit, totalPages: 0, is_sunday: true };
   }
 
-  const exemptSet = new Set(exemptIds);
-
   let agentsList = [];
 
   for (const agentId of agentIds) {
-    if (exemptSet.has(agentId)) continue;
 
     const required = agentRequiredTemplates[agentId];
     const submitted = agentSubmittedTemplates[agentId] || new Set();
