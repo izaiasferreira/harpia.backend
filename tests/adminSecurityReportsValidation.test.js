@@ -21,7 +21,7 @@ describe('Admin Security Reports Validation (Resolver)', () => {
             nome: 'Test Admin SR Val',
             role: 'COMPANY_ADMIN',
             estado: 'pi',
-            modules: ['security_reports', 'resolve_security_report', 'create_security_report']
+            modules: ['security_reports', 'resolve_security_report']
         });
         userId = user.id;
         token = jwt.sign({ id: userId, estado: 'pi', role: 'COMPANY_ADMIN' }, JWT_SECRET);

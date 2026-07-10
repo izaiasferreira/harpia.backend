@@ -1288,19 +1288,6 @@ const checkAgentPermission = (agentData, user) => {
     return true;
 };
 
-async function save_inventory_admin(data) {
-    const { agente, pda_imei_1, pda_imei_2, pda_numero_serie, pda_marca, pda_modelo, pda_numero_chip, pda_versao_android, pda_versao_bluetooth, impressora_numero_serie, impressora_modelo, impressora_marca, maquininha_numero_serie, maquininha_numero_logico, estado } = data;
-    const pool = cenos_pool;
-    const query = `
-        INSERT INTO inventory (agente, pda_imei_1, pda_imei_2, pda_numero_serie, pda_marca, pda_modelo, pda_numero_chip, pda_versao_android, pda_versao_bluetooth, impressora_numero_serie, impressora_modelo, impressora_marca, maquininha_numero_serie, maquininha_numero_logico, estado)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-        RETURNING *;
-    `;
-    const values = [agente, pda_imei_1, pda_imei_2, pda_numero_serie, pda_marca, pda_modelo, pda_numero_chip, pda_versao_android, pda_versao_bluetooth, impressora_numero_serie, impressora_modelo, impressora_marca, maquininha_numero_serie || null, maquininha_numero_logico || null, estado || 'pi'];
-    const { rows } = await pool.query(query, values);
-    return rows[0];
-}
-
 async function update_inventory_admin(id, data) {
     const pool = cenos_pool;
     const fields = Object.keys(data).filter(k => k !== 'id');
@@ -1504,19 +1491,6 @@ async function get_pending_justifies_admin({ state, autor, status = 'pendente', 
     return enrichedRows.slice(offsetVal, offsetVal + limitVal);
 }
 
-async function create_pending_justify_admin(data) {
-    const { autor, quantidade, tipo, unidade_leitura, foto, estado } = data;
-    const pool = cenos_pool;
-    const query = `
-        INSERT INTO justify_pending (autor, quantidade, tipo, unidade_leitura, foto, estado, status, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, 'pendente', NOW(), NOW())
-        RETURNING *;
-    `;
-    const values = [autor, quantidade, tipo, unidade_leitura, foto, estado || 'pi'];
-    const { rows } = await pool.query(query, values);
-    return rows[0];
-}
-
 async function update_pending_justify_admin(id, data) {
     const pool = cenos_pool;
 
@@ -1615,19 +1589,6 @@ async function get_daily_reports_admin({ autor, data, limit = 9999, page = 1, in
     const limitVal = parseInt(limit) || 9999;
     const offsetVal = (parseInt(page) - 1) * limitVal;
     return enrichedRows.slice(offsetVal, offsetVal + limitVal);
-}
-
-async function create_daily_report_admin(data) {
-    const { autor, nota, motivo, observacao, foto, estado, data_report } = data;
-    const pool = cenos_pool;
-    const query = `
-        INSERT INTO daily_report (autor, nota, motivo, observacao, foto, estado, data_report, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-        RETURNING *;
-    `;
-    const values = [autor, nota, motivo, observacao, foto, estado || 'pi', data_report || today()];
-    const { rows } = await pool.query(query, values);
-    return rows[0];
 }
 
 async function update_daily_report_admin(id, data) {
@@ -1752,7 +1713,6 @@ async function get_instalations_admin({ query = [], type, user, estado }) {
 
 module.exports = {
     get_inventory_admin,
-    save_inventory_admin,
     update_inventory_admin,
     delete_inventory_admin,
     get_justify_admin,
@@ -1760,11 +1720,9 @@ module.exports = {
     update_justify_admin,
     delete_justify_admin,
     get_pending_justifies_admin,
-    create_pending_justify_admin,
     update_pending_justify_admin,
     delete_pending_justify_admin,
     get_daily_reports_admin,
-    create_daily_report_admin,
     update_daily_report_admin,
     delete_daily_report_admin,
     get_instalations_admin,

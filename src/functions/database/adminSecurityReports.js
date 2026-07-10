@@ -103,18 +103,6 @@ async function get_security_reports_admin({ user, estado, page = 1, limit = 9999
     };
 }
 
-async function create_security_report_admin({ autor, motivo, observacao, latitude, longitude, estado }) {
-    const validated = securityReportCreateSchema.parse({ autor, motivo, observacao, latitude, longitude, estado });
-    const pool = cenos_pool;
-    const query = `
-        INSERT INTO security_report (autor, motivo, observacao, latitude, longitude, estado)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING *
-    `;
-    const { rows } = await pool.query(query, [validated.autor?.toUpperCase(), validated.motivo, validated.observacao, validated.latitude, validated.longitude, validated.estado?.toLowerCase()]);
-    return rows[0];
-}
-
 async function delete_security_report_admin(id, user) {
     const pool = cenos_pool;
     const reportId = parseInt(id, 10);
@@ -137,6 +125,5 @@ async function delete_security_report_admin(id, user) {
 
 module.exports = {
     get_security_reports_admin,
-    create_security_report_admin,
     delete_security_report_admin
 };

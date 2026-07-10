@@ -13,7 +13,6 @@ const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const { generateDashboardAdmin } = require('../functions/generateDashboard');
 const {
     get_inventory_admin,
-    save_inventory_admin,
     update_inventory_admin,
     delete_inventory_admin,
     get_justify_admin,
@@ -21,11 +20,9 @@ const {
     update_justify_admin,
     delete_justify_admin,
     get_pending_justifies_admin,
-    create_pending_justify_admin,
     update_pending_justify_admin,
     delete_pending_justify_admin,
     get_daily_reports_admin,
-    create_daily_report_admin,
     update_daily_report_admin,
     delete_daily_report_admin,
     get_instalations_admin,
@@ -523,15 +520,6 @@ router.get('/justify_pending', verifyToken(), verifyModule('justify_pending'), a
 });
 
 
-router.post('/justify_pending', verifyToken(), verifyModule('create_justify_pending'), validate(justifyPendingCreateSchema), async (req, res) => {
-    try {
-        const result = await create_pending_justify_admin(req.body);
-        res.status(201).json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
 router.put('/justify_pending/:id', verifyToken(), verifyModule('update_justify_pending'), validate(justifyPendingSchema.partial()), async (req, res) => {
     try {
         const result = await update_pending_justify_admin(req.params.id, req.body);
@@ -561,15 +549,6 @@ router.get('/daily_report', verifyToken(), verifyModule('daily_report'), async (
     }
 });
 
-router.post('/daily_report', verifyToken(), verifyModule('create_daily_report'), validate(dailyReportCreateSchema), async (req, res) => {
-    try {
-        const result = await create_daily_report_admin(req.body);
-        res.status(201).json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
 router.put('/daily_report/:id', verifyToken(), verifyModule('update_daily_report'), validate(dailyReportSchema.partial()), async (req, res) => {
     try {
         const result = await update_daily_report_admin(req.params.id, req.body);
@@ -594,15 +573,6 @@ router.get('/inventory', verifyToken(), verifyModule('inventory'), async (req, r
         const user = req.user;
         const result = await get_inventory_admin({ user, page, limit, search, agente, estado });
         res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-router.post('/inventory', verifyToken(), verifyModule('create_inventory'), validate(inventoryCreateSchema), async (req, res) => {
-    try {
-        const result = await save_inventory_admin(req.body);
-        res.status(201).json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
