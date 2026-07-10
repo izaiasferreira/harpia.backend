@@ -27,7 +27,7 @@ function orderLeituras(rows) {
     }, []);
 }
 
-async function getLeiturasGeral({ states = ['pi'], date = today(), page = 1, limit = 20, search = '', regional = '', seccional = '', supervisor = '' }) {
+async function getLeiturasGeral({ states = ['pi'], date = today(), page = 1, limit = 20, search = '', regional = '', seccional = '', supervisor = '', allowedAgentIds = null }) {
     const hasSearch = search && search.trim() !== '';
     const searchPattern = hasSearch ? `%${search.trim().toLowerCase()}%` : null;
     
@@ -46,6 +46,10 @@ async function getLeiturasGeral({ states = ['pi'], date = today(), page = 1, lim
     if (supervisor) {
         whereAdditions.push(`LOWER(supervisor) = $${params.length + 1}::text`);
         params.push(supervisor.toLowerCase());
+    }
+    if (allowedAgentIds && allowedAgentIds.length > 0) {
+        whereAdditions.push(`agente = ANY($${params.length + 1}::text[])`);
+        params.push(allowedAgentIds.map(id => String(id)));
     }
     
     let searchClause = '';

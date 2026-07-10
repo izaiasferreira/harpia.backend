@@ -238,6 +238,16 @@ router.get('/services', verifyToken(), verifyModule('users_agents'), async (req,
         const { page, date, search } = req.query;
         const user = req.user;
 
+        // Apply unified agent permission filter
+        const allowedAgents = await get_users_agents_admin({ user, limit: 999999, page: 1 });
+        const allowedAgentIds = allowedAgents.map(a => a.id).filter(Boolean);
+        
+        // If user has no access to any agents (and is not full admin), return empty array
+        const isAdmin = user && (user.role || '').toLowerCase().includes('admin');
+        if (!isAdmin && allowedAgentIds.length === 0) {
+            return res.json([]);
+        }
+
         // Buscar estados permitidos para o usuário (todos se for admin)
         const allowedPools = getUserAllowedStatePools(user);
         const states = allowedPools.map(p => p.state);
@@ -258,7 +268,8 @@ router.get('/services', verifyToken(), verifyModule('users_agents'), async (req,
             states,
             date: today_date,
             page: page || 1,
-            search: search || ''
+            search: search || '',
+            allowedAgentIds: isAdmin ? null : allowedAgentIds // Admins see all without ID filter
         });
 
         res.json(result);
