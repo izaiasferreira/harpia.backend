@@ -78,19 +78,25 @@ async function getDashboardStats({ date_from, date_to, regional, sectional, esta
   const cFilters = [`c.status = 'submitted'`, ...dateFilters, ...colFilters];
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
-  const CHECKLIST_REQUIRED_CARGOS = [
-    'LEITURISTA A PÉ',
-    'NEGOCIADOR MOTOCICLISTA',
-    'LEITURISTA MOTOCICLISTA',
-    'COBRADOR MOTOCICLISTA',
-  ];
+  const { agentIds } = await getV2TemplateAndAgentIds({ date_from, date_to }, user);
+  if (agentIds.length === 0) {
+    return {
+      activeAgents: 0,
+      totalChecklists: 0,
+      compliantChecklists: 0,
+      nonCompliantChecklists: 0,
+      complianceRate: 0,
+      regionals: [],
+      pendingList: []
+    };
+  }
 
   const [activeAgentsRes, totalRes, compliantRes, nonCompliantRes, regionalRes, pendingRes] = await Promise.all([
     cenos_pool.query(
       `SELECT COUNT(*) as total FROM colaboradores
        WHERE situacao = 'active' AND status = true
-         AND UPPER(TRIM("Cargo")) = ANY($1)`,
-      [CHECKLIST_REQUIRED_CARGOS]
+         AND "ID" = ANY($1::varchar[])`,
+      [agentIds]
     ),
     cenos_pool.query(
       `SELECT COUNT(*) as total FROM checklists c ${colJoin} ${cWhere}`, dParams
@@ -115,22 +121,22 @@ async function getDashboardStats({ date_from, date_to, regional, sectional, esta
        LEFT JOIN checklists c ON c.agent_id = col."ID" AND c.date >= $1 AND c.date <= $2 AND c.status = 'submitted'
        WHERE col.situacao = 'active' AND col.status = true
          AND col.regional IS NOT NULL
-         AND UPPER(TRIM(col."Cargo")) = ANY($3)
+         AND col."ID" = ANY($3::varchar[])
        GROUP BY col.regional
        ORDER BY col.regional`,
-      [dParams[0], dParams[1], CHECKLIST_REQUIRED_CARGOS]
+      [dParams[0], dParams[1], agentIds]
     ),
     cenos_pool.query(
       `SELECT col."ID" as agent_id, col."Nome" as nome, col.regional, col.seccional, col.estado, col."Cargo" as cargo
        FROM colaboradores col
        WHERE col.situacao = 'active' AND col.status = true
-         AND UPPER(TRIM(col."Cargo")) = ANY($3)
+         AND col."ID" = ANY($3::varchar[])
          AND NOT EXISTS (
            SELECT 1 FROM checklists c
            WHERE c.agent_id = col."ID" AND c.date >= $1 AND c.date <= $2 AND c.status = 'submitted'
          )
        ORDER BY col."Nome"`,
-      [dParams[0], dParams[1], CHECKLIST_REQUIRED_CARGOS]
+      [dParams[0], dParams[1], agentIds]
     ),
   ]);
 
@@ -315,12 +321,10 @@ async function getDashboardPendingAgents({
   date_from, date_to, agent_name, regional, sectional, estado, gestor,
   page = 1, limit = 20,
 }, user) {
-  const CHECKLIST_REQUIRED_CARGOS = [
-    'LEITURISTA A PÉ',
-    'NEGOCIADOR MOTOCICLISTA',
-    'LEITURISTA MOTOCICLISTA',
-    'COBRADOR MOTOCICLISTA',
-  ];
+  const { agentIds } = await getV2TemplateAndAgentIds({ date_from, date_to }, user);
+  if (agentIds.length === 0) {
+    return { data: [], total: 0, page, limit, totalPages: 0 };
+  }
 
   const offset = (page - 1) * limit;
   const today = new Date().toISOString().split('T')[0];
@@ -330,8 +334,8 @@ async function getDashboardPendingAgents({
   const params = [];
   let idx = 1;
 
-  // $1 = array de cargos obrigatórios
-  params.push(CHECKLIST_REQUIRED_CARGOS);
+  // $1 = array de IDs elegíveis
+  params.push(agentIds);
   idx++;
 
   // $2 = date_from, $3 = date_to
@@ -361,13 +365,14 @@ async function getDashboardPendingAgents({
 
   const baseWhere = `
     col.situacao = 'active' AND col.status = true
-    AND UPPER(TRIM(col."Cargo")) = ANY($1)
+    AND col."ID" = ANY($1::varchar[])
     AND NOT EXISTS (
       SELECT 1 FROM checklists c
       WHERE c.agent_id = col."ID"
         AND c.date >= $${dateIdx1} AND c.date <= $${dateIdx2}
         AND c.status = 'submitted'
     )
+    ${filterWhere}
   `;
 
   const query = `
