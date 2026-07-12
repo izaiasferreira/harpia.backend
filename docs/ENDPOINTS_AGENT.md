@@ -277,6 +277,118 @@ Cria ou atualiza o inventário de equipamentos do agente.
 
 ---
 
+### `GET /agent/equipment/mine`
+
+Retorna todos os equipamentos associados ao agente logado, incluindo solicitações de devolução pendentes.
+
+**Autenticação:** Telegram Auth
+
+**Resposta 200:**
+```json
+[
+  {
+    "id": 1,
+    "tipo": "pda",
+    "estado": "pi",
+    "dados": { "imei_1": "358912345678901", "numero_serie": "PDA-987654", "marca": "Zebra", "modelo": "TC21" },
+    "status": "em_uso",
+    "condicao": "bom",
+    "fotos": [],
+    "assignment_id": 3,
+    "data_associacao": "2026-06-01T10:00:00.000Z",
+    "assignado_por": "42",
+    "assignment_status": "ativa",
+    "pending_return_request_id": 5
+  }
+]
+```
+
+> O campo `pending_return_request_id` indica que existe uma solicitação de devolução pendente para este equipamento. Quando presente, o frontend desabilita o botão "Devolver" e exibe badge "Devolução pendente".
+
+---
+
+### `GET /agent/equipment/available`
+
+Lista equipamentos disponíveis para o agente solicitar.
+
+**Autenticação:** Telegram Auth
+
+**Query Params:**
+| Parâmetro | Tipo | Descrição |
+|-----------|------|-----------|
+| `tipo` | string | Filtrar por tipo (`pda`, `impressora`, `maquineta`) |
+| `search` | string | Busca por número de série, IMEI etc. |
+| `page` | number | Página (padrão: 1) |
+| `limit` | number | Limite por página (padrão: 15) |
+
+**Resposta 200:**
+```json
+{
+  "data": [
+    {
+      "id": 5,
+      "tipo": "pda",
+      "estado": "pi",
+      "dados": { "imei_1": "123456789012345", "marca": "Zebra" },
+      "status": "disponivel",
+      "condicao": "bom",
+      "fotos": [],
+      "created_at": "2026-05-25T14:02:00.000Z"
+    }
+  ],
+  "total": 10,
+  "page": 1,
+  "limit": 15,
+  "totalPages": 1
+}
+```
+
+---
+
+### `POST /agent/equipment/:id/request`
+
+Envia solicitação de associação de equipamento. Requer foto de comprovação e GPS.
+
+**Autenticação:** Telegram Auth
+
+**Content-Type:** `multipart/form-data`
+
+**Campos:**
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `foto` | File | **sim** | Foto de comprovação |
+| `latitude` | number | não | Latitude GPS |
+| `longitude` | number | não | Longitude GPS |
+| `observacao` | string | não | Observação |
+
+**Resposta 201:** Objeto da solicitação criada com `status: 'pendente'`.
+
+**Resposta 400:** `{ "error": "Foto de comprovação é obrigatória" }` ou `{ "error": "Equipamento não está disponível" }`
+
+---
+
+### `POST /agent/equipment/:id/unassign`
+
+Envia solicitação de devolução de equipamento. Requer foto de comprovação e GPS. A devolução só é efetivada após aprovação do admin.
+
+**Autenticação:** Telegram Auth
+
+**Content-Type:** `multipart/form-data`
+
+**Campos:**
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `foto` | File | **sim** | Foto de comprovação |
+| `latitude` | number | não | Latitude GPS |
+| `longitude` | number | não | Longitude GPS |
+| `observacao` | string | não | Observação |
+
+**Resposta 200:** Objeto da solicitação criada com `status: 'pendente'` e `tipo_solicitacao: 'devolucao'`.
+
+**Resposta 400:** `{ "error": "Foto de comprovação é obrigatória" }` ou `{ "error": "Equipamento não está em uso" }`
+
+---
+
 ## 6. Endpoints de Segurança do Técnico (Safety Features)
 
 ### `POST /agent/security_check`

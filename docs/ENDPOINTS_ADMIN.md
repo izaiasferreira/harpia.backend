@@ -865,6 +865,383 @@ Remove um registro de inventário.
 
 ---
 
+## 14b. Módulo de Equipamentos (Equipment) — Novo Sistema
+
+Sistema completo de gestão de equipamentos (PDA, Impressora, Maquineta) com fluxo de solicitação e aprovação. Cada operação de associação e devolução requer aprovação do administrador.
+
+**Prefixo:** `/admin/equipment/*`
+
+**Autenticação:** JWT Admin (Bearer)
+
+**Módulos de Permissão:** `equipments`, `create_equipment`, `update_equipment`, `delete_equipment`, `request_equipment_assignment`, `unassign_equipment`, `approve_equipment_request`, `view_equipment_history`
+
+---
+
+### `GET /admin/equipment/`
+
+Lista todos os equipamentos com filtros e paginação.
+
+**Módulo Requerido:** `equipments`
+
+**Query Params:**
+| Parâmetro | Tipo | Descrição |
+|-----------|------|-----------|
+| `page` | number | Número da página (padrão: 1) |
+| `limit` | number | Itens por página (padrão: 15) |
+| `estado` | string | Filtro por estado geográfico |
+| `tipo` | string | Filtro por tipo: `pda`, `impressora`, `maquineta` |
+| `status` | string | Filtro por status: `disponivel`, `em_uso`, `manutencao`, `inativo` |
+| `condicao` | string | Filtro por condição: `otimo`, `bom`, `regular`, `ruim`, `danificado` |
+| `search` | string | Busca textual nos dados JSONB e nome do agente |
+
+**Resposta 200:**
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "tipo": "pda",
+      "estado": "pi",
+      "dados": { "imei_1": "358912345678901", "numero_serie": "PDA-987654", "marca": "Zebra", "modelo": "TC21" },
+      "status": "em_uso",
+      "condicao": "bom",
+      "fotos": [],
+      "criado_por": "42",
+      "created_at": "2026-05-25T14:02:00.000Z",
+      "updated_at": "2026-05-25T19:30:00.000Z",
+      "agente_atual": "t60702",
+      "assignment_id": 3,
+      "data_associacao": "2026-06-01T10:00:00.000Z"
+    }
+  ],
+  "total": 50,
+  "page": 1,
+  "limit": 15,
+  "totalPages": 4
+}
+```
+
+---
+
+### `GET /admin/equipment/options`
+
+Retorna opções de filtro e configuração completa dos tipos de equipamento.
+
+**Módulo Requerido:** `equipments`
+
+**Resposta 200:**
+```json
+{
+  "tipos": ["pda", "impressora", "maquineta"],
+  "tiposConfig": { "pda": { "label": "PDA", "campos": [...] } },
+  "status": ["disponivel", "em_uso", "manutencao", "inativo"],
+  "condicoes": ["otimo", "bom", "regular", "ruim", "danificado"]
+}
+```
+
+---
+
+### `GET /admin/equipment/requests`
+
+Lista solicitações pendentes de associação e devolução de agentes.
+
+**Módulo Requerido:** `approve_equipment_request`
+
+**Query Params:**
+| Parâmetro | Tipo | Descrição |
+|-----------|------|-----------|
+| `page` | number | Número da página |
+| `limit` | number | Itens por página |
+| `estado` | string | Filtrar por estado do equipamento |
+
+**Resposta 200:**
+```json
+{
+  "data": [
+    {
+      "id": 5,
+      "equipment_id": 1,
+      "agente": "t60702",
+      "foto_url": "/files/equipment-requests/t60702/photo.jpg",
+      "latitude": -5.089,
+      "longitude": -42.801,
+      "status": "pendente",
+      "tipo_solicitacao": "associacao",
+      "observacao_agente": "Recebi do técnico",
+      "assignment_id": null,
+      "created_at": "2026-06-10T10:00:00.000Z",
+      "agente_nome": "João da Silva",
+      "tipo": "pda",
+      "estado": "pi",
+      "equipment_status": "disponivel",
+      "condicao": "bom",
+      "dados": { "imei_1": "358912345678901" }
+    }
+  ],
+  "total": 3,
+  "page": 1,
+  "limit": 15,
+  "totalPages": 1
+}
+```
+
+> O campo `tipo_solicitacao` indica o tipo da solicitação: `'associacao'` (receber equipamento) ou `'devolucao'` (devolver equipamento).
+
+---
+
+### `GET /admin/equipment/agents/search`
+
+Busca agentes por nome ou matrícula para associação de equipamentos.
+
+**Módulo Requerido:** `assign_equipment`
+
+**Query Params:**
+| Parâmetro | Tipo | Descrição |
+|-----------|------|-----------|
+| `q` | string | Termo de busca (mínimo 2 caracteres) — nome ou matrícula |
+
+**Resposta 200:**
+```json
+[
+  {
+    "id": "T60702",
+    "nome": "João da Silva",
+    "regional": "METROPOLITANA",
+    "seccional": "UAC TERESINA",
+    "estado": "pi"
+  }
+]
+```
+
+---
+
+### `GET /admin/equipment/agent/:agente`
+
+Retorna todos os equipamentos associados a um agente específico.
+
+**Módulo Requerido:** `equipments`
+
+**Path Params:** `agente` — matrícula do agente
+
+**Resposta 200:** Array de equipamentos com dados de associação.
+
+---
+
+### `GET /admin/equipment/:id`
+
+Retorna detalhes de um equipamento específico.
+
+**Módulo Requerido:** `equipments`
+
+**Path Params:** `id` — ID numérico do equipamento
+
+**Resposta 200:** Objeto do equipamento com `agente_atual` (se associado) e dados de associação.
+
+**Resposta 404:** `{ "error": "Equipamento não encontrado" }`
+
+---
+
+### `GET /admin/equipment/:id/history`
+
+Retorna o histórico unificado de associações e solicitações processadas de um equipamento.
+
+**Módulo Requerido:** `view_equipment_history`
+
+**Path Params:** `id` — ID numérico do equipamento
+
+**Resposta 200:**
+```json
+{
+  "assignments": [
+    {
+      "id": 3,
+      "equipment_id": 1,
+      "agente": "t60702",
+      "assignado_por": "42",
+      "assignado_por_nome": "Admin",
+      "data_associacao": "2026-06-01T10:00:00.000Z",
+      "data_desassociacao": "2026-06-10T14:00:00.000Z",
+      "desassociado_por": "42",
+      "desassociado_por_nome": "Admin",
+      "status": "encerrada",
+      "observacao": "Devolução aprovada via solicitação",
+      "created_at": "2026-06-01T10:00:00.000Z",
+      "agente_nome": "João da Silva"
+    }
+  ],
+  "requests": [
+    {
+      "id": 5,
+      "equipment_id": 1,
+      "agente": "t60702",
+      "foto_url": "/files/equipment-requests/t60702/photo.jpg",
+      "status": "aprovado",
+      "tipo_solicitacao": "devolucao",
+      "observacao_agente": "Equipamento com defeito",
+      "processado_por": "42",
+      "processado_por_nome": "Admin",
+      "data_processamento": "2026-06-10T14:30:00.000Z",
+      "observacao_admin": null,
+      "created_at": "2026-06-10T12:00:00.000Z",
+      "agente_nome": "João da Silva"
+    }
+  ]
+}
+```
+
+> O histórico retorna duas listas separadas: `assignments` (associações criadas/encerradas) e `requests` (solicitações aprovadas ou rejeitadas, incluindo tipo `associacao` e `devolucao`).
+
+---
+
+### `POST /admin/equipment/`
+
+Cadastra um novo equipamento.
+
+**Módulo Requerido:** `create_equipment`
+
+**Body (JSON):**
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `tipo` | string | **sim** | `pda`, `impressora`, `maquineta` |
+| `estado` | string | **sim** | Estado geográfico (ex: `pi`, `ma`) |
+| `dados` | object | **sim** | Dados específicos do tipo (JSONB) |
+| `status` | string | não | `disponivel` (padrão), `manutencao`, `inativo` |
+| `condicao` | string | não | `bom` (padrão), `otimo`, `regular`, `ruim`, `danificado` |
+| `fotos` | string[] | não | URLs de fotos do equipamento |
+
+**Resposta 201:** Objeto do equipamento criado.
+
+---
+
+### `PUT /admin/equipment/:id`
+
+Atualiza parcialmente um equipamento.
+
+**Módulo Requerido:** `update_equipment`
+
+**Path Params:** `id` — ID numérico do equipamento
+
+**Body (JSON):** Campos parciais (mesmos do POST).
+
+**Resposta 200:** Objeto do equipamento atualizado.
+
+**Resposta 404:** `{ "error": "Equipamento não encontrado" }`
+
+---
+
+### `DELETE /admin/equipment/:id`
+
+Remove um equipamento e todos os seus registros associados (CASCADE).
+
+**Módulo Requerido:** `delete_equipment`
+
+**Path Params:** `id` — ID numérico do equipamento
+
+**Resposta 200:** `{ "id": 1 }`
+
+**Resposta 404:** `{ "error": "Equipamento não encontrado" }`
+
+---
+
+### `POST /admin/equipment/:id/assign`
+
+Cria uma solicitação de associação de equipamento a um agente. Requer comprovação fotográfica. A associação só é efetivada após aprovação do admin.
+
+**Módulo Requerido:** `request_equipment_assignment`
+
+**Content-Type:** `multipart/form-data`
+
+**Campos:**
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `agente` | string | **sim** | Matrícula do agente |
+| `foto` | File | **sim** | Foto de comprovação |
+| `latitude` | number | não | Latitude GPS |
+| `longitude` | number | não | Longitude GPS |
+| `observacao` | string | não | Observação |
+
+**Resposta 201:** Objeto da solicitação criada com `status: 'pendente'` e `tipo_solicitacao: 'associacao'`.
+
+**Resposta 400:** `{ "error": "Foto de comprovação é obrigatória" }` ou `{ "error": "Equipamento não está disponível" }`
+
+---
+
+### `POST /admin/equipment/:id/unassign`
+
+Cria uma solicitação de devolução de equipamento. Requer comprovação fotográfica. A devolução só é efetivada após aprovação do admin.
+
+**Módulo Requerido:** `unassign_equipment`
+
+**Content-Type:** `multipart/form-data`
+
+**Campos:**
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `agente` | string | **sim** | Matrícula do agente atual |
+| `foto` | File | **sim** | Foto de comprovação |
+| `latitude` | number | não | Latitude GPS |
+| `longitude` | number | não | Longitude GPS |
+| `observacao` | string | não | Observação |
+
+**Resposta 200:** Objeto da solicitação criada com `status: 'pendente'` e `tipo_solicitacao: 'devolucao'`.
+
+**Resposta 400:** `{ "error": "Foto de comprovação é obrigatória" }` ou `{ "error": "Equipamento não está em uso" }`
+
+---
+
+### `POST /admin/equipment/requests/:id/approve`
+
+Aprova uma solicitação pendente (associação ou devolução).
+
+**Módulo Requerido:** `approve_equipment_request`
+
+**Path Params:** `id` — ID numérico da solicitação
+
+**Comportamento:**
+- **Associação:** Cria a `equipment_assignments` e atualiza status do equipamento para `em_uso`.
+- **Devolução:** Encerra a `equipment_assignments` ativa e atualiza status do equipamento para `disponivel`.
+
+**Resposta 200:**
+```json
+{
+  "request": { "id": 5, "status": "aprovado", "..." : "..." },
+  "assignment": { "id": 3, "status": "ativa", "..." : "..." }
+}
+```
+
+**Resposta 400:** `{ "error": "Solicitação não encontrada ou já processada" }` ou `{ "error": "Equipamento não está mais disponível" }`
+
+---
+
+### `POST /admin/equipment/requests/:id/reject`
+
+Rejeita uma solicitação pendente.
+
+**Módulo Requerido:** `approve_equipment_request`
+
+**Path Params:** `id` — ID numérico da solicitação
+
+**Body (JSON):**
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `observacao_admin` | string | não | Motivo da rejeição |
+
+**Resposta 200:** Objeto da solicitação com `status: 'rejeitado'`.
+
+**Resposta 400:** `{ "error": "Solicitação não encontrada ou já processada" }`
+
+---
+
+### `GET /admin/equipment/:id/history` (resumo)
+
+O endpoint de histórico retorna um objeto `{ assignments, requests }` com dois arrays:
+- **`assignments`**: Todas as associações do equipamento (ativas e encerradas), com dados do agente, quem associou/desassociou e observação.
+- **`requests`**: Todas as solicitações processadas (aprovadas e rejeitadas), com tipo (`associacao`/`devolucao`), dados da comprovação fotográfica e motivo de rejeição quando aplicável.
+
+Os dois arrays são combinados no frontend num timeline único ordenado por data, permitindo visualizar todo o ciclo de vida do equipamento.
+
+---
+
 ## 15. Módulo de Chat de Suporte Real-Time (Socket.io)
 
 Este módulo gerencia a comunicação síncrona/assíncrona de auditoria imutável entre a central administrativa e os colaboradores em campo.

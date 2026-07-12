@@ -567,34 +567,6 @@ router.delete('/daily_report/:id', verifyToken(), verifyModule('delete_daily_rep
     }
 });
 
-router.get('/inventory', verifyToken(), verifyModule('inventory'), async (req, res) => {
-    try {
-        const { page, limit, search, agente, estado } = req.query;
-        const user = req.user;
-        const result = await get_inventory_admin({ user, page, limit, search, agente, estado });
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-router.put('/inventory/:id', verifyToken(), verifyModule('update_inventory'), validate(inventorySchema.partial()), async (req, res) => {
-    try {
-        const result = await update_inventory_admin(req.params.id, req.body);
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-router.delete('/inventory/:id', verifyToken(), verifyModule('delete_inventory'), async (req, res) => {
-    try {
-        const result = await delete_inventory_admin(req.params.id);
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
 
 router.get('/available_modules', verifyToken('COMPANY_ADMIN'), async (req, res) => {
     try {

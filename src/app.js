@@ -101,6 +101,14 @@ app.use('/admin/permission', adminPermissionsRouter)
 // Agente
 app.use('/agent', agenteRouter)
 
+// Agent Equipment (/agent/equipment/*)
+const agentEquipmentRouter = require('./routes/agentEquipment')
+app.use('/agent/equipment', agentEquipmentRouter)
+
+// Admin Equipment (/admin/equipment/*)
+const adminEquipmentRouter = require('./routes/adminEquipment')
+app.use('/admin/equipment', adminEquipmentRouter)
+
 // Admin Security Reports (/admin/security_reports/*)
 app.use('/admin/security_reports', adminSecurityReportsRouter)
 

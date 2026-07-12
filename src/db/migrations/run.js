@@ -31,17 +31,34 @@ async function ensureMigrated() {
     }
   }
 
+  // 1. Garantir existência da tabela de controle de migrações
+  await cenos_pool.query(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version VARCHAR(255) PRIMARY KEY,
+      executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
   const migrationsDir = __dirname;
   const files = fs.readdirSync(migrationsDir)
     .filter(file => file.endsWith('.sql'))
     .sort();
 
+  // 2. Obter migrações já executadas
+  const { rows } = await cenos_pool.query('SELECT version FROM schema_migrations');
+  const executed = new Set(rows.map(r => r.version));
+
   for (const file of files) {
+    if (executed.has(file)) {
+      continue;
+    }
+
     const filePath = path.join(migrationsDir, file);
     const sql = fs.readFileSync(filePath, 'utf8');
     console.log(`[MIGRATION] Executando migração: ${file}`);
     try {
       await cenos_pool.query(sql);
+      await cenos_pool.query('INSERT INTO schema_migrations (version) VALUES ($1)', [file]);
       console.log(`[MIGRATION] Sucesso: ${file}`);
     } catch (err) {
       console.error(`[MIGRATION] Erro ao executar ${file}:`, err.message);

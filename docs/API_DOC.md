@@ -85,8 +85,12 @@ Health check simples (sem prefixo).
 | `GET /agent/justify_pending` | Justificativas pendentes |
 | `POST /agent/justify_pending/:id/respond` | Responder pendência |
 | `GET /agent/justify_pending/:id` | Pendência por ID |
-| `GET /agent/inventory` | Inventário do agente |
-| `POST /agent/inventory` | Criar inventário |
+| `GET /agent/inventory` | Inventário do agente (legado) |
+| `POST /agent/inventory` | Criar inventário (legado) |
+| `GET /agent/equipment/mine` | Equipamentos do agente |
+| `GET /agent/equipment/available` | Equipamentos disponíveis |
+| `POST /agent/equipment/:id/request` | Solicitar associação de equipamento |
+| `POST /agent/equipment/:id/unassign` | Solicitar devolução de equipamento |
 | `POST /agent/daily_report` | Criar daily report |
 | `GET /agent/daily_report` | Listar daily reports |
 | `GET /agent/daily_report/check_today` | Verificar report de hoje |
@@ -123,7 +127,8 @@ Health check simples (sem prefixo).
 | `/admin/revalidate/*` | Revalidação de auditoria | — |
 | `/admin/service-notes/*` | Notas de Serviço | `service_notes` |
 | `/admin/messages/*` | Mensagens multicanal | — |
-| `/admin/inventory` | Inventário de equipamentos | — |
+| `/admin/inventory` | Inventário de equipamentos (legado) | — |
+| `/admin/equipment/*` | Equipamentos (PDA/Impressora/Maquineta) com fluxo de aprovação | `equipments`, `approve_equipment_request` |
 | `/admin/chat/*` | Chat de suporte | `COMPANY_ADMIN` |
 | `/admin/badge/*` | Badges (emblemas) | `badges` |
 | `/admin/user-badges/*` | Badges por agente | `badges` |
@@ -161,7 +166,11 @@ Health check simples (sem prefixo).
 | `services_consult` | Consulta de serviços |
 | `message_templates` | Modelos de mensagem |
 | `notifications` | Notificações |
-| `inventory` | Inventário |
+| `inventory` | Inventário (legado) |
+| `equipments`, `create_equipment`, `update_equipment`, `delete_equipment` | Equipamentos (CRUD) |
+| `request_equipment_assignment`, `unassign_equipment` | Solicitações de associação/devolução |
+| `approve_equipment_request` | Aprovação de solicitações |
+| `view_equipment_history` | Histórico de equipamentos |
 | `delete_form_response` | Excluir resposta de formulário |
 | `revalidate` | Revalidação de auditoria |
 

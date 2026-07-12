@@ -1137,7 +1137,7 @@ async function bulk_delete_user_agents_admin({ ids, deleteLogin = false, user })
 
 
 // ─── inventory ───────────────────────────────────────────────────────────
-async function get_inventory_admin({ user, page = 1, limit = 9999, search, agente, estado }) {
+async function get_inventory_admin({ user, page = 1, limit = 9999, search, agente, estado, regional, seccional }) {
     const allowedPools = getUserAllowedStatePools(user).map(p => p.state);
     const pool = cenos_pool;
 
@@ -1211,6 +1211,16 @@ async function get_inventory_admin({ user, page = 1, limit = 9999, search, agent
         filteredRows = filteredRows.filter(r => r.estado?.toLowerCase() === est);
     }
 
+    // Filtros por regional e seccional
+    if (regional) {
+        const reg = regional.toLowerCase();
+        filteredRows = filteredRows.filter(r => r.regional?.toLowerCase() === reg);
+    }
+    if (seccional) {
+        const sec = seccional.toLowerCase();
+        filteredRows = filteredRows.filter(r => r.seccional?.toLowerCase() === sec);
+    }
+
     // Filtro por agente (ID ou Nome)
     if (agente) {
         const ag = agente.toLowerCase();
@@ -1229,9 +1239,19 @@ async function get_inventory_admin({ user, page = 1, limit = 9999, search, agent
     }
 
     // Paginação em memória
+    const total = filteredRows.length;
     const limitVal = parseInt(limit) || 9999;
+    const totalPages = Math.max(1, Math.ceil(total / limitVal));
     const offsetVal = (parseInt(page) - 1) * limitVal;
-    return filteredRows.slice(offsetVal, offsetVal + limitVal);
+    const data = filteredRows.slice(offsetVal, offsetVal + limitVal);
+
+    return {
+        data,
+        total,
+        page: parseInt(page),
+        limit: limitVal,
+        totalPages
+    };
 }
 
 /**

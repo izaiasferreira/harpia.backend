@@ -16,9 +16,20 @@ const AVAILABLE_MODULES = [
     { id: 'update_daily_report', name: 'Atualizar Diário de Bordo', group: 'Diário de Bordo' },
     { id: 'delete_daily_report', name: 'Deletar Diário de Bordo', group: 'Diário de Bordo' },
     // Inventário
-    { id: 'inventory', name: 'Inventário', group: 'Inventário' },
-    { id: 'update_inventory', name: 'Atualizar Inventário', group: 'Inventário' },
-    { id: 'delete_inventory', name: 'Deletar Inventário', group: 'Inventário' },
+    { id: 'inventory', name: 'Inventário (Legado)', group: 'Inventário' },
+    { id: 'update_inventory', name: 'Atualizar Inventário (Legado)', group: 'Inventário' },
+    { id: 'delete_inventory', name: 'Deletar Inventário (Legado)', group: 'Inventário' },
+    // Equipamentos
+    { id: 'equipments', name: 'Consultar Equipamentos', group: 'Inventário' },
+    { id: 'approve_equipment_request', name: 'Aprovar Solicitações de Equipamento', group: 'Inventário' },
+    { id: 'create_equipment', name: 'Cadastrar Equipamento', group: 'Inventário' },
+    { id: 'update_equipment', name: 'Editar Equipamento', group: 'Inventário' },
+    { id: 'delete_equipment', name: 'Excluir Equipamento', group: 'Inventário' },
+    { id: 'assign_equipment', name: 'Associar Equipamento a Agente (Legado)', group: 'Inventário' },
+    { id: 'request_equipment_assignment', name: 'Solicitar Associação de Equipamento', group: 'Inventário' },
+    { id: 'unassign_equipment', name: 'Desassociar Equipamento', group: 'Inventário' },
+    { id: 'approve_equipment_request', name: 'Aprovar Solicitação de Equipamento (Agente)', group: 'Inventário' },
+    { id: 'view_equipment_history', name: 'Visualizar Histórico de Equipamento', group: 'Inventário' },
     // Usuários
     { id: 'users', name: 'Usuários', group: 'Usuários' },
     { id: 'create_user', name: 'Criar Usuário', group: 'Usuários' },
