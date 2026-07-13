@@ -5,8 +5,6 @@ const z = require('zod');
 const multer = require('multer');
 
 const router = express.Router();
-const crypto = require('crypto');
-const { cenos_pool } = require('../db');
 const {
     createUser,
     verifyUser,
@@ -55,7 +53,6 @@ const ADMIN_NOME = process.env.ADMIN_NOME || 'Admin Principal';
     }
 })();
 
-const requireCompanyAdmin = verifyToken('COMPANY_ADMIN');
 
 // Rotas públicas
 router.post('/login', validate(userLoginSchema), async (req, res) => {

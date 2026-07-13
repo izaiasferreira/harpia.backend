@@ -371,9 +371,9 @@ router.post('/users_agents/import', verifyToken(), verifyModule('create_user_age
 
 router.post('/users_agents', verifyToken(), verifyModule('create_user_agent'), validate(agentCreateSchema), async (req, res) => {
     try {
-        const { id, matricula, nome, estado, gestor, cargo, seccional, regional, status, situacao } = req.body;
+        const { id, matricula, nome, estado, gestor, cargo, seccional, regional, status, situacao, processo } = req.body;
         const user = req.user;
-        const result = await create_user_agent_admin({ id, matricula, nome, estado, gestor, cargo, seccional, regional, status, situacao, user });
+        const result = await create_user_agent_admin({ id, matricula, nome, estado, gestor, cargo, seccional, regional, status, situacao, processo, user });
         res.json(result);
     } catch (error) {
         console.log(error)

@@ -45,7 +45,8 @@ const agentCreateSchema = z.object({
   seccional: z.string().max(255).optional().nullable(),
   regional: z.string().max(255).optional().nullable(),
   status: z.boolean().optional(),
-  situacao: z.enum(['active', 'vocation', 'inactive', 'away']).optional()
+  situacao: z.enum(['active', 'vocation', 'inactive', 'away']).optional(),
+  processo: z.string().max(255).optional().nullable()
 });
 
 const agentUpdateSchema = z.object({
@@ -57,7 +58,8 @@ const agentUpdateSchema = z.object({
   regional: z.string().max(255).optional().nullable(),
   estado: z.string().max(2).optional().nullable(),
   status: z.boolean().optional(),
-  situacao: z.enum(['active', 'vocation', 'inactive', 'away']).optional()
+  situacao: z.enum(['active', 'vocation', 'inactive', 'away']).optional(),
+  processo: z.string().max(255).optional().nullable()
 });
 
 module.exports = {
