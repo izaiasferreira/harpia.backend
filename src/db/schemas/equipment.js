@@ -1,14 +1,13 @@
 const z = require('zod');
-const { EQUIPMENT_TIPO_IDS, EQUIPMENT_STATUS, EQUIPMENT_CONDICAO } = require('../../constants/equipmentTypes');
+const EQUIPMENT_STATUS = ['disponivel', 'em_uso', 'manutencao', 'inativo'];
+const EQUIPMENT_CONDICAO = ['otimo', 'bom', 'regular', 'ruim', 'danificado'];
 
 const ASSIGNMENT_STATUS = ['ativa', 'encerrada'];
 const REQUEST_STATUS    = ['pendente', 'aprovado', 'rejeitado'];
 
 const equipmentSchema = z.object({
   id:       z.number().int().optional(),
-  tipo:     z.string().refine(v => EQUIPMENT_TIPO_IDS.includes(v), {
-                message: `Tipo inválido. Valores permitidos: ${EQUIPMENT_TIPO_IDS.join(', ')}`
-            }),
+  tipo:     z.string(),
   estado:   z.string().min(2).max(2).transform(v => v.toLowerCase()),
   regional: z.string().max(255).nullable().optional(),
   seccional: z.string().max(255).nullable().optional(),

@@ -5,7 +5,6 @@ const { telegramAuth } = require('../middlewares/telegramAuth');
 const {
     get_equipment_by_agent,
     create_equipment_request,
-    unassign_equipment,
     list_available_equipment,
 } = require('../functions/database/equipment');
 

@@ -11,19 +11,14 @@ const {
     create_equipment,
     update_equipment,
     delete_equipment,
-    get_equipment_history,
     get_equipment_history_full,
-    assign_equipment,
-    unassign_equipment,
     create_equipment_request,
     list_pending_requests,
     approve_equipment_request,
     reject_equipment_request,
-    EQUIPMENT_TIPO_IDS,
     EQUIPMENT_STATUS,
     EQUIPMENT_CONDICAO,
 } = require('../functions/database/equipment');
-const { EQUIPMENT_TYPES } = require('../constants/equipmentTypes');
 
 // Todas as rotas requerem token válido
 router.use(verifyToken());
@@ -78,7 +73,14 @@ router.get('/stats', verifyModule('equipments'), async (req, res) => {
 
 // GET /admin/equipment/options — valores possíveis para filtros/selects + config completa dos tipos
 router.get('/options', verifyModule('equipments'), async (req, res) => {
-    res.json({ tipos: EQUIPMENT_TIPO_IDS, tiposConfig: EQUIPMENT_TYPES, status: EQUIPMENT_STATUS, condicoes: EQUIPMENT_CONDICAO });
+    try {
+        const { getEquipmentTypes } = require('../functions/database/equipmentTypes');
+        const tiposConfig = await getEquipmentTypes();
+        const tiposIds = Object.keys(tiposConfig);
+        res.json({ tipos: tiposIds, tiposConfig, status: EQUIPMENT_STATUS, condicoes: EQUIPMENT_CONDICAO });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // GET /admin/equipment/requests — lista solicitações pendentes de agentes

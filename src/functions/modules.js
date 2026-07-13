@@ -30,6 +30,7 @@ const AVAILABLE_MODULES = [
     { id: 'unassign_equipment', name: 'Desassociar Equipamento', group: 'Inventário' },
     { id: 'approve_equipment_request', name: 'Aprovar Solicitação de Equipamento (Agente)', group: 'Inventário' },
     { id: 'view_equipment_history', name: 'Visualizar Histórico de Equipamento', group: 'Inventário' },
+    { id: 'manage_equipment_types', name: 'Gerenciar Tipos de Equipamento', group: 'Inventário' },
     // Usuários
     { id: 'users', name: 'Usuários', group: 'Usuários' },
     { id: 'create_user', name: 'Criar Usuário', group: 'Usuários' },

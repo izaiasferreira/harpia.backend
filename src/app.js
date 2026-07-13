@@ -109,6 +109,10 @@ app.use('/agent/equipment', agentEquipmentRouter)
 const adminEquipmentRouter = require('./routes/adminEquipment')
 app.use('/admin/equipment', adminEquipmentRouter)
 
+// Admin Equipment Types (/admin/equipment-types)
+const adminEquipmentTypesRouter = require('./routes/adminEquipmentTypes')
+app.use('/admin/equipment-types', adminEquipmentTypesRouter)
+
 // Admin Security Reports (/admin/security_reports/*)
 app.use('/admin/security_reports', adminSecurityReportsRouter)
 

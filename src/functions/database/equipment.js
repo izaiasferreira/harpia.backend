@@ -1,7 +1,10 @@
 const { cenos_pool } = require('../../db');
 const { equipmentCreateSchema, equipmentUpdateSchema } = require('../../db/schemas/equipment');
-const { validateDados, EQUIPMENT_TIPO_IDS, EQUIPMENT_STATUS, EQUIPMENT_CONDICAO } = require('../../constants/equipmentTypes');
+const { getEquipmentTypeBySlug } = require('./equipmentTypes');
 const { minioClient, CONFIG, compressImage, getFileUrl } = require('../minio');
+
+const EQUIPMENT_STATUS = ['disponivel', 'em_uso', 'manutencao', 'inativo'];
+const EQUIPMENT_CONDICAO = ['otimo', 'bom', 'regular', 'ruim', 'danificado'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -247,8 +250,17 @@ async function create_equipment(data) {
     const validated = equipmentCreateSchema.parse(data);
 
     // Valida campos obrigatórios do tipo
-    const { valid, erros } = validateDados(validated.tipo, validated.dados);
-    if (!valid) throw new Error(`Dados inválidos: ${erros.join('; ')}`);
+    const typeDef = await getEquipmentTypeBySlug(validated.tipo);
+    if (!typeDef) throw new Error(`Tipo de equipamento inválido: ${validated.tipo}`);
+
+    const obrigatorios = (typeDef.campos || []).filter(c => c.required);
+    const erros = [];
+    for (const campo of obrigatorios) {
+        if (!validated.dados[campo.key] || String(validated.dados[campo.key]).trim() === '') {
+            erros.push(`${campo.label} é obrigatório`);
+        }
+    }
+    if (erros.length > 0) throw new Error(`Dados inválidos: ${erros.join('; ')}`);
 
     const pool = cenos_pool;
     const client = await pool.connect();
@@ -292,8 +304,17 @@ async function update_equipment(id, data) {
 
     // Se enviou novos dados, valida os campos obrigatórios do tipo existente
     if (validated.dados) {
-        const { valid, erros } = validateDados(eqData.tipo, validated.dados);
-        if (!valid) throw new Error(`Dados inválidos: ${erros.join('; ')}`);
+        const typeDef = await getEquipmentTypeBySlug(eqData.tipo);
+        if (typeDef) {
+            const obrigatorios = (typeDef.campos || []).filter(c => c.required);
+            const erros = [];
+            for (const campo of obrigatorios) {
+                if (!validated.dados[campo.key] || String(validated.dados[campo.key]).trim() === '') {
+                    erros.push(`${campo.label} é obrigatório`);
+                }
+            }
+            if (erros.length > 0) throw new Error(`Dados inválidos: ${erros.join('; ')}`);
+        }
     }
 
     const client = await pool.connect();
@@ -333,7 +354,7 @@ async function update_equipment(id, data) {
         if (Object.keys(changes).length > 0) {
             await log_equipment_event(client, {
                 equipment_id: id,
-                event_type: 'atualizacao',
+                event_type: 'edicao',
                 changes
             });
         }
@@ -355,19 +376,6 @@ async function delete_equipment(id) {
     return rows[0];
 }
 
-// ─── Histórico ────────────────────────────────────────────────────────────────
-
-async function get_equipment_history(equipment_id) {
-    const pool = cenos_pool;
-    const { rows } = await pool.query(`
-        SELECT ea.*, c."Nome" AS agente_nome
-        FROM equipment_assignments ea
-        LEFT JOIN colaboradores c ON LOWER(c."ID") = LOWER(ea.agente)
-        WHERE ea.equipment_id = $1
-        ORDER BY ea.created_at DESC
-    `, [equipment_id]);
-    return rows;
-}
 
 async function get_equipment_history_full(equipment_id) {
     const pool = cenos_pool;
@@ -379,93 +387,6 @@ async function get_equipment_history_full(equipment_id) {
     return rows;
 }
 
-// ─── Associações (Admin) ──────────────────────────────────────────────────────
-
-async function assign_equipment({ equipment_id, agente, assignado_por, assignado_por_nome, observacao, foto_buffer, foto_mime, latitude, longitude }) {
-    const pool = cenos_pool;
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
-
-        const { rows: existing } = await client.query(
-            `SELECT id FROM equipment_assignments WHERE equipment_id = $1 AND status = 'ativa' FOR UPDATE`,
-            [equipment_id]
-        );
-        if (existing.length > 0) throw new Error('Equipamento já está associado a um agente. Desassocie primeiro.');
-
-    let foto_url = null;
-    if (foto_buffer && foto_mime) {
-        foto_url = await uploadEquipmentPhoto(foto_buffer, foto_mime, `equipment-assignments/${agente}`);
-    }
-        const { rows } = await client.query(`
-            INSERT INTO equipment_assignments (
-                equipment_id, agente, assignado_por, assignado_por_nome, status, observacao,
-                foto_url, latitude, longitude
-            )
-            VALUES ($1, $2, $3, $4, 'ativa', $5, $6, $7, $8) RETURNING *
-        `, [
-            equipment_id,
-            agente.toLowerCase(),
-            assignado_por,
-            assignado_por_nome,
-            observacao || null,
-            foto_url,
-            latitude || null,
-            longitude || null
-        ]);
-        await client.query(`UPDATE equipment SET status = 'em_uso', updated_at = NOW() WHERE id = $1`, [equipment_id]);
-        
-        await log_equipment_event(client, {
-            equipment_id,
-            event_type: 'associacao',
-            agente,
-            actor_id: assignado_por,
-            actor_nome: assignado_por_nome,
-            metadata: {
-                assignment_id: rows[0].id,
-                observacao,
-                foto_url,
-                latitude,
-                longitude
-            }
-        });
-
-        await client.query('COMMIT');
-        return rows[0];
-    } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
-}
-
-async function unassign_equipment({ equipment_id, desassociado_por, desassociado_por_nome, observacao }) {
-    const pool = cenos_pool;
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
-        const { rows } = await client.query(`
-            UPDATE equipment_assignments
-            SET status = 'encerrada', data_desassociacao = NOW(),
-                desassociado_por = $2, desassociado_por_nome = $3,
-                observacao = COALESCE($4, observacao)
-            WHERE equipment_id = $1 AND status = 'ativa' RETURNING *
-        `, [equipment_id, desassociado_por, desassociado_por_nome, observacao || null]);
-        if (!rows[0]) throw new Error('Nenhuma associação ativa encontrada');
-        await client.query(`UPDATE equipment SET status = 'disponivel', updated_at = NOW() WHERE id = $1`, [equipment_id]);
-        
-        await log_equipment_event(client, {
-            equipment_id,
-            event_type: 'desassociacao',
-            agente: rows[0].agente,
-            actor_id: desassociado_por,
-            actor_nome: desassociado_por_nome,
-            metadata: {
-                assignment_id: rows[0].id,
-                observacao
-            }
-        });
-
-        await client.query('COMMIT');
-        return rows[0];
-    } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
-}
 
 // ─── Solicitações de Agentes ──────────────────────────────────────────────────
 
@@ -647,7 +568,7 @@ async function approve_equipment_request({ request_id, aprovado_por, aprovado_po
 
             await log_equipment_event(client, {
                 equipment_id: req.equipment_id,
-                event_type: 'solicitacao_aprovada',
+                event_type: 'devolucao_aprovada',
                 agente: req.agente,
                 actor_id: aprovado_por,
                 actor_nome: aprovado_por_nome,
@@ -684,7 +605,7 @@ async function approve_equipment_request({ request_id, aprovado_por, aprovado_po
 
             await log_equipment_event(client, {
                 equipment_id: req.equipment_id,
-                event_type: 'solicitacao_aprovada',
+                event_type: 'associacao_aprovada',
                 agente: req.agente,
                 actor_id: aprovado_por,
                 actor_nome: aprovado_por_nome,
@@ -716,7 +637,7 @@ async function reject_equipment_request({ request_id, rejeitado_por, rejeitado_p
         
         await log_equipment_event(client, {
             equipment_id: rows[0].equipment_id,
-            event_type: 'solicitacao_rejeitada',
+            event_type: rows[0].tipo_solicitacao === 'devolucao' ? 'devolucao_rejeitada' : 'associacao_rejeitada',
             agente: rows[0].agente,
             actor_id: rejeitado_por,
             actor_nome: rejeitado_por_nome,
@@ -748,16 +669,12 @@ module.exports = {
     create_equipment,
     update_equipment,
     delete_equipment,
-    get_equipment_history,
     get_equipment_history_full,
-    assign_equipment,
-    unassign_equipment,
     create_equipment_request,
     list_pending_requests,
     approve_equipment_request,
     reject_equipment_request,
     uploadEquipmentPhoto,
-    EQUIPMENT_TIPO_IDS,
     EQUIPMENT_STATUS,
     EQUIPMENT_CONDICAO,
 };
