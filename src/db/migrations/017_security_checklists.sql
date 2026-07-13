@@ -11,27 +11,6 @@ CREATE TABLE IF NOT EXISTS checklist_templates (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS checklist_sections (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  template_id UUID REFERENCES checklist_templates(id) ON DELETE CASCADE,
-  title VARCHAR(255) NOT NULL,
-  order_index INTEGER NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS checklist_questions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  section_id UUID REFERENCES checklist_sections(id) ON DELETE CASCADE,
-  template_id UUID REFERENCES checklist_templates(id) ON DELETE CASCADE,
-  label TEXT NOT NULL,
-  required BOOLEAN DEFAULT true,
-  requires_photo BOOLEAN DEFAULT false,
-  severity VARCHAR(20) CHECK (severity IN ('critical', 'alert', 'normal')) DEFAULT 'normal',
-  exemption_days INTEGER DEFAULT 0,
-  order_index INTEGER NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
 CREATE TABLE IF NOT EXISTS checklists (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   template_id UUID REFERENCES checklist_templates(id) ON DELETE SET NULL,
@@ -61,27 +40,3 @@ CREATE UNIQUE INDEX IF NOT EXISTS unique_official_checklist_per_day
   ON checklists(agent_id, date)
   WHERE type = 'official';
 
-CREATE TABLE IF NOT EXISTS checklist_answers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  checklist_id UUID REFERENCES checklists(id) ON DELETE CASCADE,
-  question_id UUID REFERENCES checklist_questions(id) ON DELETE SET NULL,
-  is_compliant BOOLEAN,
-  is_exempt BOOLEAN DEFAULT false,
-  exempt_until DATE,
-  photo_url TEXT,
-  local_photo_path TEXT,
-  answered_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS checklist_media (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  checklist_id UUID REFERENCES checklists(id) ON DELETE CASCADE,
-  answer_id UUID REFERENCES checklist_answers(id) ON DELETE CASCADE,
-  media_type VARCHAR(30) CHECK (media_type IN ('answer_photo', 'selfie', 'signature')),
-  url TEXT NOT NULL,
-  local_path TEXT,
-  timestamp_overlay TIMESTAMPTZ,
-  uploaded_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);

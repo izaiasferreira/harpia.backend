@@ -365,12 +365,24 @@ async function getChecklistsStats({ date_from, date_to }, user = null) {
   );
   const totalPending = parseInt(pendingRes.rows[0].total, 10);
 
+  const regionalRes = await cenos_pool.query(
+    `SELECT col.regional, count(1) as total
+     FROM checklists c
+     LEFT JOIN colaboradores col ON c.agent_id = col."ID"
+     ${whereClause}
+     AND col.regional IS NOT NULL
+     GROUP BY col.regional
+     ORDER BY total DESC`,
+    params
+  );
+  const byRegional = regionalRes.rows.map(r => ({ regional: r.regional, total: parseInt(r.total, 10) }));
+
   return {
     total_submitted_today: totalSubmitted,
     total_pending: totalPending,
     critical_non_compliant: criticalCount,
     compliance_rate: complianceRate,
-    by_regional: []
+    by_regional: byRegional
   };
 }
 

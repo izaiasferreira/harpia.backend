@@ -2,6 +2,14 @@ const { cenos_pool } = require('../../db');
 const { getUserAllowedStatePools, getColaboradoresFilter, userIsAdmin, buildUserPermissionSQL } = require('./admin');
 const { getExemptAgentIds, countActiveExemptions, listActiveExemptions } = require('./agentExemptions');
 
+/** Returns today's date as 'YYYY-MM-DD' in local time. */
+function getTodayStr() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 /**
  * Converte as permissões do usuário em condições SQL para filtrar a tabela `colaboradores col`.
