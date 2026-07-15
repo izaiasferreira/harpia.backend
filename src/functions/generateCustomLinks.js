@@ -97,9 +97,9 @@ function generateCustomLinks({ state, id, user }) {
         {
             "id": "atestado-app",
             "label": "Atestado",
-            "description": "Seu atestado",
-            "url": `/atestado`,
-            "emoji": "DocumentText",
+            "description": "Envie seu atestado",
+            "url": `https://docs.google.com/forms/d/e/1FAIpQLSccADjOMTX5FItKyJaEYQ_4Wqlrup2HgHEqHbkyXuzBrnax2Q/viewform?usp=send_form`,
+            "emoji": "FileText",
             "color": "text-red-600",
             "states": ['pi']
         }
