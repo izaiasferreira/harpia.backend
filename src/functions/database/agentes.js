@@ -951,7 +951,7 @@ async function save_daily_report({
     updated_at = new Date()
 }) {
     const validated = dailyReportCreateSchema.parse({
-        state, autor, nota, motivo, observacao, foto, created_at, updated_at
+        estado: state, autor, nota, motivo, observacao, foto, created_at, updated_at
     });
     const pool = cenos_pool;
 
@@ -969,7 +969,7 @@ async function save_daily_report({
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *;
     `;
-    const { rows } = await pool.query(insertQuery, [validated.autor.toLowerCase(), validated.nota, validated.motivo, validated.observacao, validated.foto, validated.state.toLowerCase(), validated.created_at, validated.updated_at]);
+    const { rows } = await pool.query(insertQuery, [validated.autor, validated.nota, validated.motivo, validated.observacao, validated.foto, validated.estado.toLowerCase(), validated.created_at, validated.updated_at]);
     return rows[0];
 }
 

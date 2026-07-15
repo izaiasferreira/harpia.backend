@@ -399,22 +399,25 @@ async function create_equipment_request({ equipment_id, agente, foto_buffer, fot
         await client.query('BEGIN');
 
         // Verifica disponibilidade / posse
-        let eqQuery = `SELECT e.id, e.status`;
-        if (tipo_solicitacao === 'devolucao') {
-            eqQuery += `, ea.agente AS agente_atual FROM equipment e LEFT JOIN equipment_assignments ea ON ea.equipment_id = e.id AND ea.status = 'ativa'`;
-        } else {
-            eqQuery += ` FROM equipment e`;
-        }
-        eqQuery += ` WHERE e.id = $1 FOR UPDATE`;
-
-        const { rows: eqRows } = await client.query(eqQuery, [equipment_id]);
+        const { rows: eqRows } = await client.query(`SELECT id, status FROM equipment WHERE id = $1 FOR UPDATE`, [equipment_id]);
         if (!eqRows[0]) throw new Error('Equipamento não encontrado');
+
+        let agente_atual = null;
+        if (tipo_solicitacao === 'devolucao') {
+            const { rows: assignRows } = await client.query(
+                `SELECT agente FROM equipment_assignments WHERE equipment_id = $1 AND status = 'ativa' FOR UPDATE`,
+                [equipment_id]
+            );
+            if (assignRows[0]) {
+                agente_atual = assignRows[0].agente;
+            }
+        }
         
         if (tipo_solicitacao === 'associacao') {
             if (eqRows[0].status !== 'disponivel') throw new Error('Equipamento não está disponível');
         } else if (tipo_solicitacao === 'devolucao') {
             if (eqRows[0].status !== 'em_uso') throw new Error('Equipamento não está em uso');
-            if ((eqRows[0].agente_atual || '').toLowerCase() !== agente.toLowerCase()) {
+            if ((agente_atual || '').toLowerCase() !== agente.toLowerCase()) {
                 throw new Error('Este equipamento não está associado a este agente');
             }
         }

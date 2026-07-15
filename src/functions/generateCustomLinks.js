@@ -93,6 +93,15 @@ function generateCustomLinks({ state, id, user }) {
             "emoji": "AlertTriangle",
             "color": "text-indigo-600",
             "states": VALID_STATE_VALUES
+        },
+        {
+            "id": "atestado-app",
+            "label": "Atestado",
+            "description": "Seu atestado",
+            "url": `/atestado`,
+            "emoji": "DocumentText",
+            "color": "text-red-600",
+            "states": ['pi']
         }
     ]
 

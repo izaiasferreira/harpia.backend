@@ -3,7 +3,7 @@ const z = require('zod');
 
 const dailyReportSchema = z.object({
   id: z.number().int().optional(),
-  autor: z.string().min(1).max(50).transform(v => v.toLowerCase()).optional(),
+  autor: z.string().min(1).max(50).optional(),
   nota: z.number().int().min(1).max(5).refine(val => val >= 1 && val <= 5, {
     message: "Nota deve ser entre 1 e 5"
   }),
