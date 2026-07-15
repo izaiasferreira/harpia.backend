@@ -1,7 +1,11 @@
 const jwt = require('jsonwebtoken');
 const { getUserById } = require('../functions/database/users');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'jwt_secret_change_me';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('[FATAL] JWT_SECRET não definido nas variáveis de ambiente. O servidor não pode iniciar de forma segura.');
+    process.exit(1);
+}
 
 function generateToken(user) {
     return jwt.sign({

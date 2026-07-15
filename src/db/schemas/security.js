@@ -5,6 +5,7 @@ const securityReportSchema = z.object({
   autor: z.string().min(1).max(50).transform(v => v.toLowerCase()).optional(),
   motivo: z.string().min(1),
   observacao: z.string().nullable().optional(),
+  foto: z.string().nullable().optional(),
   latitude: z.string().nullable().optional(),
   longitude: z.string().nullable().optional(),
   estado: z.string().max(2).default('pi').transform(v => v.toLowerCase()),

@@ -3,6 +3,7 @@ const { z } = require('zod');
 const accidentCreateSchema = z.object({
   tipo: z.string().min(1, 'Tipo é obrigatório'),
   descricao: z.string().nullable().optional(),
+  foto: z.string().nullable().optional(),
   latitude: z.string().nullable().optional(),
   longitude: z.string().nullable().optional(),
   seccional: z.string().nullable().optional(),

@@ -7,39 +7,37 @@ const logMiddleware = require('./middlewares/logMiddleware');
 const { initFirebase } = require('./functions/firebase');
 const app = express();
 
-// Inicializa Firebase (se service account disponível)
 initFirebase();
 
-// Trust proxy é necessário no Dokploy para o express pegar o IP real do cliente ao invés do IP do proxy
+// Trust proxy necessário no Dokploy para pegar IP real do cliente
 app.set('trust proxy', true);
 
-// Only use morgan logger if not in test environment - deve vir ANTES do CORS para registrar as requisições
+// Morgan ANTES do CORS para registrar todas as requisições
 if (process.env.NODE_ENV !== 'test') {
     app.use(morgan('[:date[clf]] IP: :remote-addr | HOST: :req[host] | :method :url :status :res[content-length] - :response-time ms', {
         skip: (req) => req.path && (req.path.startsWith('/agent/tracking') || req.path.startsWith('/agent/tracking/'))
     }));
 }
 
-// CORS — origens permitidas via variável de ambiente (separadas por vírgula)
-// Aceita URLs completas (http://192.168.1.100:8080) ou só IPs/domínios (192.168.1.100)
-// Exemplo no .env: CORS_ORIGINS=192.168.50.68,https://meusite.com,localhost
+// CORS — origens via CORS_ORIGINS (separadas por vírgula). Produção: NÃO deixe vazio ou '*'
 const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
 
 app.use(cors({
     origin: (origin, callback) => {
-        // Permite requisições sem origin (curl, Postman, server-to-server)
         if (!origin) return callback(null, true);
-        // Se não configurou nenhuma origem ou tem '*', aceita tudo
-        if (allowedOrigins.length === 0 || allowedOrigins.includes('*')) return callback(null, true);
-        // Verifica match exato OU se o origin termina com o domínio configurado
+        if (allowedOrigins.length === 0) {
+            console.warn('[CORS] Nenhuma origem configurada via CORS_ORIGINS — bloqueando request com origin');
+            return callback(new Error('Bloqueado pelo CORS'));
+        }
+        if (allowedOrigins.includes('*')) {
+            return callback(null, true);
+        }
         const allowed = allowedOrigins.some(o => {
             if (origin === o) return true;
             try {
                 const hostname = new URL(origin).hostname;
-                // Match exato ou subdomínio (ex: app.izi.tec.br aceita api.izi.tec.br)
                 if (hostname === o) return true;
                 if (hostname.endsWith('.' + o)) return true;
-                // Para izi.tec.br aceitar app.izi.tec.br e api.izi.tec.br
                 if (hostname.endsWith(o)) return true;
             } catch { return false; }
         });
@@ -53,7 +51,6 @@ app.use(express.urlencoded({ limit: '100mb', extended: true }));
 app.use(logMiddleware);
 app.use(express.static('public'));
 
-// Routes
 const consultasRouter = require('./routes/consultas');
 const agenteRouter = require('./routes/agente')
 const adminUsersRouter = require('./routes/adminUsers')
@@ -70,109 +67,70 @@ const formsRouter = require('./routes/forms')
 const chatRouter = require('./routes/chat')
 const adminChatRouter = require('./routes/adminChat')
 
-// Rotas de arquivos e upload (MinIO)
 app.use('/', uploadRouter);
 app.use('/', chatRouter);
 app.use('/', adminChatRouter);
 
-
-// Rotas públicas (calendar, feriados)
 app.use('/public', publicRouter)
-
-// Consultas
 app.use('/api', consultasRouter)
-
-// Agent Default Auth (sem telegram auth)
 app.use('/api', agentDefaultAuthRouter)
-
-
-
-// Admin Modules (dashboard + search_in)
 app.use('/admin', adminConsultRouter)
-
-// Admin Users (/admin/user/*)
 app.use('/admin/user', adminUsersRouter)
-
-// Admin Branches (/admin/branch/*)
-
-// Admin Permissions (/admin/permission/*)
 app.use('/admin/permission', adminPermissionsRouter)
-
-// Agente
 app.use('/agent', agenteRouter)
 
-// Agent Equipment (/agent/equipment/*)
 const agentEquipmentRouter = require('./routes/agentEquipment')
 app.use('/agent/equipment', agentEquipmentRouter)
 
-// Admin Equipment (/admin/equipment/*)
 const adminEquipmentRouter = require('./routes/adminEquipment')
 app.use('/admin/equipment', adminEquipmentRouter)
 
-// Admin Equipment Types (/admin/equipment-types)
 const adminEquipmentTypesRouter = require('./routes/adminEquipmentTypes')
 app.use('/admin/equipment-types', adminEquipmentTypesRouter)
 
-// Admin Security Reports (/admin/security_reports/*)
 app.use('/admin/security_reports', adminSecurityReportsRouter)
 
-// Admin Security Reports Validation (/admin/security_reports/*)
 const adminSecurityReportsValidationRouter = require('./routes/adminSecurityReportsValidation')
 app.use('/admin/security_reports', adminSecurityReportsValidationRouter)
 
-// Admin Security Accidents (/admin/security_reports/accidents/*)
 const adminSecurityAccidentsRouter = require('./routes/adminSecurityAccidents')
 app.use('/admin/security_reports/accidents', adminSecurityAccidentsRouter)
 
-// Crash Detection (/admin/crash-detection/*)
 const adminCrashDetectionRouter = require('./routes/adminCrashDetection')
 app.use('/admin/crash-detection', adminCrashDetectionRouter)
 
-// Interativos (/admin/training/*)
 app.use('/admin/training', trainingProjectsRouter)
 
-// Admin Message Templates (/admin/message_templates/*)
 app.use('/admin/message_templates', adminMessageTemplatesRouter)
 
-// Admin Badges (/admin/badge/*)
 const adminBadgesRouter = require('./routes/adminBadges')
 app.use('/admin/badge', adminBadgesRouter)
 
-// Admin User Badges (/admin/user-badges/*)
 const adminUserBadgesRouter = require('./routes/adminUserBadges')
 app.use('/admin/user-badges', adminUserBadgesRouter)
 
-// Admin Ceneduc (/admin/ceneduc/*)
 const adminCeneducRouter = require('./routes/adminCeneduc')
 app.use('/admin/ceneduc', adminCeneducRouter)
 
-// Formulários Dinâmicos (/admin/forms/*)
 app.use('/admin/forms', formsRouter)
 
-// Chat com IA para formulários (/admin/forms/:id/chat)
 const formChatRouter = require('./routes/formChat')
 app.use('/admin/forms', formChatRouter)
 
-// App PINs (/admin/agent/*)
 app.use('/admin/agent', adminAppPinsRouter)
 
-// Tracking (/admin/tracking/*)
 const adminTrackingRouter = require('./routes/adminTracking')
 app.use('/admin/tracking', adminTrackingRouter)
 
-// Geofences (/admin/tracking/fences)
 const adminGeofencesRouter = require('./routes/adminGeofences')
 app.use('/admin/tracking/fences', adminGeofencesRouter)
 
-// Heartbeat tracking (/admin/tracking/*)
 const adminHeartbeatRouter = require('./routes/adminHeartbeat')
 app.use('/admin/tracking', adminHeartbeatRouter)
 
-// Notifications (/admin/notifications/*)
 const adminNotificationsRouter = require('./routes/adminNotifications')
 app.use('/admin/notifications', adminNotificationsRouter)
 
-// Service Notes (/admin/service-notes/* e /agent/service-notes/*)
 const adminServiceNotesRouter = require('./routes/adminServiceNotes')
 app.use('/admin/service-notes', adminServiceNotesRouter)
 const serviceNotesChatRouter = require('./routes/serviceNotesChat')
@@ -180,11 +138,9 @@ app.use('/admin/service-notes', serviceNotesChatRouter)
 const agentServiceNotesRouter = require('./routes/agentServiceNotes')
 app.use('/agent/service-notes', agentServiceNotesRouter)
 
-// Revalidate (/admin/revalidate/*)
 const revalidateRouter = require('./routes/revalidate')
 app.use('/admin/revalidate', revalidateRouter)
 
-// Checklists de Segurança (/admin/checklists/* e /agent/checklists/*)
 const adminChecklistsRouter = require('./routes/adminChecklists')
 app.use('/admin/checklists', adminChecklistsRouter)
 const checklistTemplateChatRouter = require('./routes/checklistTemplateChat')
@@ -194,56 +150,42 @@ app.use('/admin/dashboard', adminChecklistDashboardRouter)
 const agentChecklistsRouter = require('./routes/agentChecklists')
 app.use('/agent/checklists', agentChecklistsRouter)
 
-// Dashboard por Planilha Excel (/admin/excel-checklist/*)
 const adminExcelChecklistDashboardRouter = require('./routes/adminExcelChecklistDashboard')
 app.use('/admin/excel-checklist', adminExcelChecklistDashboardRouter)
 
-// Isenções de Checklist (/admin/agents/:agentId/exemptions)
 const adminAgentExemptionsRouter = require('./routes/adminAgentExemptions')
 app.use('/admin/agents', adminAgentExemptionsRouter)
 
-// Isenções ativas em lote (/admin/exemptions/active)
 const adminActiveExemptionsRouter = require('./routes/adminActiveExemptions')
 app.use('/admin', adminActiveExemptionsRouter)
 
-// Configs (/admin/config/*)
 const adminConfigRouter = require('./routes/adminConfig')
 app.use('/admin/config', adminConfigRouter)
 
-// Unified Messages (/admin/messages/*)
 const adminMessagesRouter = require('./routes/adminMessages')
 app.use('/admin/messages', adminMessagesRouter)
 
-// Security Report Configs (/admin/security_reports/configs/*)
 const adminSecurityReportConfigsRouter = require('./routes/adminSecurityReportConfigs')
 app.use('/admin/security_reports/configs', adminSecurityReportConfigsRouter)
 
-// Agent Security Report Config (/agent/security_report/config)
 const agentSecurityReportConfigRouter = require('./routes/agentSecurityReportConfig')
 app.use('/agent/security_report', agentSecurityReportConfigRouter)
 
-// Agent Security Reports V2 (/agent/v2/*) — com verificação de permissão
 const agentSecurityReportsRouter = require('./routes/agentSecurityReports')
 app.use('/agent/v2', agentSecurityReportsRouter)
 
-// App Update (/api/app/update/*)
 const appUpdateRouter = require('./routes/appUpdate')
 app.use('/', appUpdateRouter)
 
-// Telegram Webhook (/public/telegram-webhook)
 const telegramWebhookRouter = require('./routes/telegramWebhook')
 app.use('/public', telegramWebhookRouter)
 
-// Public Notify (/public/notify)
 const publicNotifyRouter = require('./routes/publicNotify')
 app.use('/public', publicNotifyRouter)
 
-// API Tokens (/admin/api-tokens)
 const adminApiTokensRouter = require('./routes/adminApiTokens')
 app.use('/admin/api-tokens', adminApiTokensRouter)
 
-
-// Swagger UI
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
 const path = require('path');
@@ -254,7 +196,6 @@ try {
         customCss: '.swagger-ui .topbar { display: none }',
         customSiteTitle: 'Gedai API Docs',
     }));
-    // Serve raw openapi.yaml
     app.get('/docs/openapi.yaml', (req, res) => {
         res.sendFile(path.join(__dirname, '..', 'docs', 'openapi.yaml'));
     });
@@ -263,16 +204,10 @@ try {
     console.warn('[SWAGGER] Erro ao carregar openapi.yaml:', err.message);
 }
 
-// Rendered markdown viewer + raw md files
 const docsViewerRouter = require('./routes/docsViewer');
 app.use('/docsmd', docsViewerRouter);
-// Serve raw markdown files (outside /docs to avoid swagger-ui conflict)
 app.use('/raw-md', express.static(path.join(__dirname, '..', 'docs')));
 
-// Database Migrations handled in index.js
-
-
-// Tratamento de erros limpo para o CORS (evita sujar o log com stack trace inteiro)
 app.use((err, req, res, next) => {
     if (err.message === 'Bloqueado pelo CORS') {
         console.warn(`[CORS BLOQUEADO] IP: ${req.ip} | HOST: ${req.hostname || req.headers.host} | ORIGIN: ${req.headers.origin}`);

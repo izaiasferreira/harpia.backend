@@ -73,6 +73,17 @@ router.get('/feriados', publicLimiter, async (req, res) => {
 
 router.get('/metabase_geral', async (req, res) => {
     try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader) {
+            return res.status(401).json({ error: 'Autenticação requerida' });
+        }
+        try {
+            const { verifyToken } = require('../middlewares/jwtAuth');
+            await verifyToken()(req, res, () => {});
+        } catch {
+            return res.status(401).json({ error: 'Token inválido' });
+        }
+
         const METABASE_SITE_URL = process.env.METABASE_SITE_URL;
         const METABASE_SECRET_KEY = process.env.METABASE_SECRET_KEY_GERAL;
 

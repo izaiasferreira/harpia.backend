@@ -420,8 +420,9 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
         let cargo = r?.Cargo;
         let setor_key = Object.keys(setor).find(k => cargo?.includes(k));
         
-        mapped['setor'] = r?.processo;
-        mapped['cargo'] = r?.Cargo;
+        mapped['processo'] = r?.processo || '';
+        mapped['setor'] = r?.processo || '';
+        mapped['cargo'] = r?.Cargo || '';
         delete mapped['Cargo'];
 
         return mapped;
@@ -726,9 +727,11 @@ async function get_user_agent_options({ estado, regional, seccional, user }) {
     result.cargos = rows4.map(r => r['Cargo']);
 
     // Processos
-    const query5 = `SELECT DISTINCT "processo" FROM colaboradores WHERE "processo" IS NOT NULL ${queryCond}`;
+    const query5 = `SELECT DISTINCT "processo" FROM colaboradores WHERE "processo" IS NOT NULL AND TRIM("processo") <> '' ${queryCond}`;
     const { rows: rows5 } = await cenos_pool.query(query5, queryParams);
-    result.processos = rows5.map(r => r['processo']);
+    const dbProcessos = rows5.map(r => r['processo']);
+    const defaultProcessos = ['LEITURA', 'COBRANÇA', 'NEGOCIAÇÃO'];
+    result.processos = Array.from(new Set([...defaultProcessos, ...dbProcessos]));
 
     // Estados - apenas os permitidos para não-admins
     if (!isAdmin && colabFilter && colabFilter.allowedStates.length > 0) {
@@ -990,7 +993,7 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
     const query = `
         UPDATE colaboradores 
         SET "Nome" = $1, "GESTOR IMEDIATO" = $2, "Cargo" = $3, "seccional" = $4, "regional" = $5,
-            "estado" = COALESCE($6, "estado"), "status" = COALESCE($7, "status"), "situacao" = COALESCE($8, "situacao"), "processo" = COALESCE($10, "processo"), "MAT" = COALESCE($11, "MAT")
+            "estado" = COALESCE($6, "estado"), "status" = COALESCE($7, "status"), "situacao" = COALESCE($8, "situacao"), "processo" = CASE WHEN $10 = '__UNCHANGED__' THEN "processo" ELSE $10 END, "MAT" = COALESCE($11, "MAT")
         WHERE TRIM(UPPER("ID")) = TRIM(UPPER($9))
     `;
     const params = [
@@ -1003,7 +1006,7 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
         status !== undefined ? status : null,
         situacao !== undefined ? situacao : null,
         id?.toUpperCase(),
-        processo !== undefined ? processo : null,
+        processo !== undefined ? (processo || null) : '__UNCHANGED__',
         matricula !== undefined ? matricula : null
     ];
 

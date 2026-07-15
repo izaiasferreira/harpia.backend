@@ -13,10 +13,6 @@ function generateDashboard({ state, id, stats }) {
             action: { type: 'link', url: '/inventory' }
         },
         {
-            imageUrl: getAssetsLink('banner4.png'),
-            action: { type: 'link', url: `https://forms.cattalk.com.br/form/satisfacao-ceneged-bot?id=${id}` }
-        },
-        {
             imageUrl: getAssetsLink('banner5.png'),
             action: { type: 'link', url: '' }
         },

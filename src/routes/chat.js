@@ -46,7 +46,8 @@ async function chatAuth(req, res, next) {
         const [type, token] = authHeader.split(' ');
         if (type === 'Bearer' && token) {
             try {
-                const decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET || 'jwt_secret_change_me');
+                const { JWT_SECRET } = require('../middlewares/jwtAuth');
+                const decoded = require('jsonwebtoken').verify(token, JWT_SECRET);
                 if (decoded.id) {
                     req.colaborador = {
                         id: decoded.id.toUpperCase(),

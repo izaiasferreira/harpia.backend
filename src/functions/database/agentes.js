@@ -463,11 +463,22 @@ async function getLeiturasForAgentInDateInterval({ state = 'pi', id, initDate = 
 }
 
 // ─── getLeiturasPendingForAgent ───────────────────────────────────────────────
-async function getLeiturasPendingForAgent({ state = 'pi', id, date = today(), page = 1, limit = 20 }) {
+async function getLeiturasPendingForAgent({ state = 'pi', id, date = today(), page = 1, limit = 20, noCoordinates = false }) {
     const first_month_day = (`01.${date.slice(3, 10)}`).replaceAll('/', '.');
 
-
-    const query_all = `
+    const query_all = noCoordinates ? `
+            SELECT 
+                m.instalacao, m.etapa, m.ntlei, m.data_conclusao, m.data_leit_prev, m.agente,
+                m.tem_perda, m.perda_prevista_mensal, m.nome_agente,
+                m.latitude,
+                m.longitude,
+                m.unidade_leitura
+            FROM matriz m
+            WHERE m.agente IN ($1, $2)
+            AND m.concluido <> 'CONCLUIDO'
+            AND m.data_leit_prev >= TO_DATE($3, 'DD.MM.YYYY')
+            AND m.data_leit_prev < TO_DATE($4, 'DD.MM.YYYY') + interval '1 day'
+            LIMIT $5 OFFSET $6;` : `
             SELECT 
                 m.instalacao, m.etapa, m.ntlei, m.data_conclusao, m.data_leit_prev, m.agente,
                 m.tem_perda, m.perda_prevista_mensal, m.nome_agente,
@@ -1134,13 +1145,13 @@ async function save_inventory({
 
 async function create_security_report(data) {
     const validated = securityReportCreateSchema.parse(data);
-    const { autor, motivo, observacao, latitude, longitude, estado, seccional, regional } = validated;
+    const { autor, motivo, observacao, latitude, longitude, estado, seccional, regional, foto } = validated;
     const query = `
-        INSERT INTO security_report (autor, motivo, observacao, latitude, longitude, estado, seccional, regional)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO security_report (autor, motivo, observacao, latitude, longitude, estado, seccional, regional, foto)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
     `;
-    const { rows } = await cenos_pool.query(query, [autor, motivo, observacao, latitude, longitude, estado, seccional || null, regional || null]);
+    const { rows } = await cenos_pool.query(query, [autor, motivo, observacao, latitude, longitude, estado, seccional || null, regional || null, foto || null]);
     return rows[0];
 }
 

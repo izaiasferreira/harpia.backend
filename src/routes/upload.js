@@ -194,10 +194,15 @@ router.post('/admin/upload', upload.single('file'), verifyToken(), async (req, r
 /**
  * GET /file/:path
  * Serve arquivos do bucket padrão com cache e compressão sob demanda
+ * NOTA: Rotas de leitura são públicas (imagens em <img> tags não suportam Bearer tokens).
+ * A segurança é garantida por: paths gerados com random no upload + validação de path traversal.
  */
 router.get('/file/:path(*)', async (req, res) => {
     try {
         const objectName = req.params.path;
+        if (objectName.includes('..') || objectName.includes('\\')) {
+            return res.status(400).json({ error: 'Caminho inválido' });
+        }
         const ext = objectName.split('.').pop()?.toLowerCase();
         const isImage = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
 
@@ -294,10 +299,18 @@ router.get('/file/:path(*)', async (req, res) => {
 /**
  * GET /files/:bucket/:path
  * Serve arquivos de bucket específico com cache e compressão sob demanda
+ * Restringe a buckets conhecidos para evitar enumeration arbitrária.
  */
+const ALLOWED_BUCKETS = new Set([CONFIG.bucket, 'apk', 'assets']);
 router.get('/files/:bucket/:path(*)', async (req, res) => {
     try {
         const { bucket, path: objectName } = req.params;
+        if (!ALLOWED_BUCKETS.has(bucket)) {
+            return res.status(403).json({ error: 'Bucket não permitido' });
+        }
+        if (objectName.includes('..') || objectName.includes('\\')) {
+            return res.status(400).json({ error: 'Caminho inválido' });
+        }
         const ext = objectName.split('.').pop()?.toLowerCase();
         const isImage = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
 

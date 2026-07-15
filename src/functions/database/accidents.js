@@ -7,14 +7,14 @@ const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgen
 async function create_accident(data) {
     const { autor, estado, seccional, regional, ...rest } = data;
     const validated = accidentCreateSchema.parse(rest);
-    const { tipo, descricao, latitude, longitude } = validated;
+    const { tipo, descricao, latitude, longitude, foto } = validated;
     const query = `
-        INSERT INTO accidents (autor, tipo, descricao, latitude, longitude, estado, seccional, regional)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO accidents (autor, tipo, descricao, latitude, longitude, estado, seccional, regional, foto)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
     `;
     const { rows } = await cenos_pool.query(query, [
-        autor, tipo, descricao || null, latitude || null, longitude || null, estado || 'pi', seccional || null, regional || null
+        autor, tipo, descricao || null, latitude || null, longitude || null, estado || 'pi', seccional || null, regional || null, foto || null
     ]);
     return rows[0];
 }

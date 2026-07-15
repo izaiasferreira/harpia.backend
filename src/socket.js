@@ -42,9 +42,22 @@ function verifyTelegramInitData(initData) {
 
 // Configura o Socket.io e anexa ao Servidor HTTP
 function initSocket(httpServer) {
+    const socketCorsOrigins = (process.env.CORS_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
     const io = new Server(httpServer, {
         cors: {
-            origin: '*',
+            origin: (origin, callback) => {
+                if (!origin) return callback(null, true);
+                if (socketCorsOrigins.length === 0 || socketCorsOrigins.includes('*')) return callback(null, true);
+                const allowed = socketCorsOrigins.some(o => {
+                    if (origin === o) return true;
+                    try {
+                        const hostname = new URL(origin).hostname;
+                        if (hostname === o || hostname.endsWith('.' + o) || hostname.endsWith(o)) return true;
+                    } catch { return false; }
+                });
+                if (allowed) return callback(null, true);
+                return callback(new Error('Bloqueado pelo CORS'));
+            },
             methods: ['GET', 'POST']
         }
     });

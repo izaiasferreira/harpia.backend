@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const rateLimit = require('express-rate-limit');
 const { CONFIG, ensureBucketByName, listObjectsWithMetadata } = require('../functions/minio');
+const { verifyToken } = require('../middlewares/jwtAuth');
 
 const VERSIONS_FILE = path.join(__dirname, '../../apk-versions.json');
 
@@ -50,7 +51,7 @@ router.get('/api/app/update/check', updateLimiter, (req, res) => {
   }
 });
 
-router.get('/api/app/update/versions', updateLimiter, (req, res) => {
+router.get('/api/app/update/versions', updateLimiter, verifyToken(), (req, res) => {
   try {
     const versions = getVersions();
     if (!versions) {
@@ -63,7 +64,7 @@ router.get('/api/app/update/versions', updateLimiter, (req, res) => {
   }
 });
 
-router.get('/api/app/update/bucket-files', updateLimiter, async (req, res) => {
+router.get('/api/app/update/bucket-files', updateLimiter, verifyToken(), async (req, res) => {
   try {
     await ensureBucketByName('apk');
     const files = await listObjectsWithMetadata('apk');

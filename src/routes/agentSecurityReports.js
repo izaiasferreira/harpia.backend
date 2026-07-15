@@ -27,7 +27,7 @@ async function checkAccessMiddleware(req, res, next) {
 router.post('/security_report', telegramAuth, checkAccessMiddleware, validate(securityReportCreateSchema), async (req, res) => {
   try {
     const autor = req.colaborador.id;
-    const { motivo, observacao, latitude, longitude } = req.body;
+    const { motivo, observacao, latitude, longitude, foto } = req.body;
 
     if (!motivo) {
       return res.status(400).json({ error: 'Motivo é obrigatório' });
@@ -39,6 +39,7 @@ router.post('/security_report', telegramAuth, checkAccessMiddleware, validate(se
       observacao,
       latitude,
       longitude,
+      foto,
       estado: req.colaborador.estado || 'pi',
       seccional: req.colaborador.seccional || null,
       regional: req.colaborador.regional || null,
@@ -55,7 +56,7 @@ router.post('/accident', telegramAuth, checkAccessMiddleware, validate(accidentC
   try {
     const autor = req.colaborador.id;
     const estado = req.colaborador.estado || 'pi';
-    const { tipo, descricao, latitude, longitude } = req.body;
+    const { tipo, descricao, latitude, longitude, foto } = req.body;
 
     if (!tipo) {
       return res.status(400).json({ error: 'Tipo é obrigatório' });
@@ -67,6 +68,7 @@ router.post('/accident', telegramAuth, checkAccessMiddleware, validate(accidentC
       descricao,
       latitude,
       longitude,
+      foto,
       estado,
       seccional: req.colaborador.seccional || null,
       regional: req.colaborador.regional || null,

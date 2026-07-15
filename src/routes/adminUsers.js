@@ -196,6 +196,7 @@ router.post('/me/foto', verifyToken(), upload.single('foto'), async (req, res) =
             CONFIG.bucket,
             fileName,
             compressedData,
+            compressedData.length,
             { 'Content-Type': mimeType }
         );
 

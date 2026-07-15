@@ -6,6 +6,7 @@ const { inventoryCreateSchema } = require('../db/schemas/inventory');
 const { securityReportCreateSchema, securityCheckCreateSchema } = require('../db/schemas/security');
 const { accidentCreateSchema } = require('../db/schemas/accidents');
 const { cenos_pool } = require('../db');
+const { verifyToken } = require('../middlewares/jwtAuth');
 
 const router = express.Router();
 require('dotenv').config();
@@ -125,6 +126,7 @@ router.post('/profile/upload', telegramAuth, upload.single('photo'), async (req,
             CONFIG.bucket,
             fileName,
             compressedData,
+            compressedData.length,
             { 'Content-Type': mimeType }
         );
 
@@ -261,7 +263,7 @@ router.get('/agent_dashboard', telegramAuth, async (req, res) => {
         ] = await Promise.all([
             getLeiturasForAgentInDateInterval({ state, id, initDate: firstMonthDay, endDate: lastMonthDay, limit: 99999 }),
             getLeiturasForAgent({ state, id, date: chosed_date, limit: 99999 }),
-            getLeiturasPendingForAgent({ state, id, date: chosed_date, limit: 99999 }),
+            getLeiturasPendingForAgent({ state, id, date: chosed_date, limit: 99999, noCoordinates: true }),
             licacaoNovaC12ForAgent({ state, id, date: chosed_date }),
             fastC12ForAgent({ state, id, date: chosed_date }),
             firstC12ForAgent({ state, id, date: chosed_date }),
@@ -747,7 +749,7 @@ router.get('/daily_report/check_today', telegramAuth, async (req, res) => {
 router.post('/security_report', telegramAuth, validate(securityReportCreateSchema), async (req, res) => {
     try {
         const autor = req.colaborador.id;
-        const { motivo, observacao, latitude, longitude } = req.body;
+        const { motivo, observacao, latitude, longitude, foto } = req.body;
 
         if (!motivo) {
             return res.status(400).json({ error: 'Motivo é obrigatório' });
@@ -759,6 +761,7 @@ router.post('/security_report', telegramAuth, validate(securityReportCreateSchem
             observacao,
             latitude,
             longitude,
+            foto,
             estado: req.colaborador.estado || 'pi',
             seccional: req.colaborador.seccional || null,
             regional: req.colaborador.regional || null,
@@ -908,7 +911,7 @@ router.post('/upload_agent', telegramAuth, upload.single('file'), async (req, re
             console.log(`Imagem comprimida: ${originalSize} -> ${fileBuffer.length} bytes (${Math.round((1 - fileBuffer.length / originalSize) * 100)}% redução)`);
         }
 
-        await minioClient.putObject(CONFIG.bucket, fullPath, fileBuffer);
+        await minioClient.putObject(CONFIG.bucket, fullPath, fileBuffer, fileBuffer.length, { 'Content-Type': req.file.mimetype });
 
         res.json({
             success: true,
@@ -1123,7 +1126,7 @@ router.put('/tracking/config', telegramAuth, async (req, res) => {
 });
 
 // GET /admin/tracking/speed-violations — listar violações da tabela unificada
-router.get('/admin/tracking/speed-violations', async (req, res) => {
+router.get('/admin/tracking/speed-violations', verifyToken(), async (req, res) => {
     try {
         const { agentId, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
         const offset = (parseInt(page) - 1) * Math.min(parseInt(limit), 200);
