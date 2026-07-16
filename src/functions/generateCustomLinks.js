@@ -32,6 +32,15 @@ function generateCustomLinks({ state, id, user }) {
             "states":VALID_STATE_VALUES
         },
         {
+            "id": "camera-app",
+            "label": "Câmera",
+            "description": "Fotos com timestamp",
+            "url": `/camera`,
+            "emoji": "Camera",
+            "color": "text-yellow-600",
+            "states": VALID_STATE_VALUES
+        },
+        {
             "id": "ceneduc-app",
             "label": "Ceneduc",
             "description": "Cursos",
