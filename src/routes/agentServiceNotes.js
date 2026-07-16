@@ -69,7 +69,7 @@ router.put('/:id/complete', telegramAuth, async (req, res) => {
 router.post('/self-register', telegramAuth, async (req, res) => {
     try {
         const agentId = req.colaborador.id;
-        const { groupId, title, coordinates, completionData, completedAt } = req.body;
+        const { groupId, title, coordinates, completionData, completedAt, coordinates_path } = req.body;
 
         if (!groupId) return res.status(400).json({ error: 'groupId obrigatorio' });
 
@@ -80,6 +80,7 @@ router.post('/self-register', telegramAuth, async (req, res) => {
             coordinates,
             completionData,
             completedAt,
+            coordinates_path,
         });
 
         res.status(201).json({ success: true, note });
@@ -157,7 +158,7 @@ router.get('/groups/:groupId/categories', telegramAuth, async (req, res) => {
 router.post('/create', telegramAuth, async (req, res) => {
     try {
         const agentId = req.colaborador.id;
-        const { group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, assignToSelf } = req.body;
+        const { group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, assignToSelf, coordinates_path } = req.body;
 
         if (!group_id) return res.status(400).json({ error: 'group_id obrigatorio' });
         if (!title || !title.trim()) return res.status(400).json({ error: 'title obrigatorio' });
@@ -173,6 +174,7 @@ router.post('/create', telegramAuth, async (req, res) => {
             marker_category_id,
             agentId,
             assignToSelf: !!assignToSelf,
+            coordinates_path,
         });
 
         res.status(201).json({ success: true, note });

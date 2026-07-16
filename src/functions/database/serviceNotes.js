@@ -1,17 +1,66 @@
 const { cenos_pool } = require('../../db');
 const { serviceGroupCreateSchema, serviceGroupSchema, markerCategorySchema, serviceNoteCreateSchema, serviceNoteSchema } = require('../../db/schemas');
 
+function parseNum(value) {
+    if (typeof value === 'number') return value;
+    if (value === undefined || value === null) return NaN;
+    const str = String(value).trim();
+    if (!str) return NaN;
+    return parseFloat(str.replace(',', '.'));
+}
+
+function parseCoordString(str) {
+    if (!str) return null;
+    const trimmed = String(str).trim();
+    if (!trimmed) return null;
+
+    let parts = trimmed.split(/\s*,\s*/);
+    if (parts.length === 2) {
+        const lat = parseNum(parts[0]);
+        const lng = parseNum(parts[1]);
+        if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+    }
+
+    parts = trimmed.split(',');
+    if (parts.length >= 2) {
+        for (let i = 1; i < parts.length; i++) {
+            const latStr = parts.slice(0, i).join('.');
+            const lngStr = parts.slice(i).join('.').trim();
+            const lat = parseFloat(latStr);
+            const lng = parseFloat(lngStr);
+            if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+        }
+    }
+
+    return null;
+}
+
 function validateCoordinates(coord) {
     if (!coord) return undefined;
-    const strCoord = String(coord);
-    const parts = strCoord.split(',');
-    if (parts.length !== 2) return undefined;
-    const lat = parseFloat(parts[0].trim());
-    const lon = parseFloat(parts[1].trim());
-    if (isNaN(lat) || isNaN(lon)) return undefined;
+    const parsed = parseCoordString(coord);
+    if (!parsed) return undefined;
+    const { lat, lon } = { lat: parsed.lat, lon: parsed.lng };
     if (lat < -90 || lat > 90) return undefined;
     if (lon < -180 || lon > 180) return undefined;
     return `${lat},${lon}`;
+}
+
+function validateCoordinatesPath(path) {
+    if (!path) return null;
+    let arr = path;
+    if (typeof path === 'string') {
+        try { arr = JSON.parse(path); } catch { return null; }
+    }
+    if (!Array.isArray(arr) || arr.length === 0 || arr.length > 5) return null;
+    const validated = [];
+    for (const pt of arr) {
+        const lat = parseNum(pt.lat);
+        const lng = parseNum(pt.lng);
+        if (isNaN(lat) || isNaN(lng)) return null;
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+        validated.push({ lat, lng });
+    }
+    return validated;
 }
 
 function sleep(ms) {
@@ -226,16 +275,22 @@ async function getServiceNoteById(id) {
     return rows[0] || null;
 }
 
-async function createServiceNote({ group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, custom_fields }) {
-    let latVal = latitude !== undefined ? parseFloat(latitude) : null;
-    let lngVal = longitude !== undefined ? parseFloat(longitude) : null;
+async function createServiceNote({ group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, custom_fields, coordinates_path }) {
+    const validPath = validateCoordinatesPath(coordinates_path);
+
+    let latVal = latitude !== undefined ? parseNum(latitude) : null;
+    let lngVal = longitude !== undefined ? parseNum(longitude) : null;
     let coordVal = coordinates;
 
-    if (coordinates && (latVal === null || lngVal === null)) {
-        const parts = String(coordinates).split(',');
-        if (parts.length === 2) {
-            latVal = parseFloat(parts[0].trim());
-            lngVal = parseFloat(parts[1].trim());
+    if (validPath && validPath.length > 0) {
+        latVal = validPath[0].lat;
+        lngVal = validPath[0].lng;
+        coordVal = `${latVal},${lngVal}`;
+    } else if (coordinates && (latVal === null || lngVal === null)) {
+        const parsed = parseCoordString(coordinates);
+        if (parsed) {
+            latVal = parsed.lat;
+            lngVal = parsed.lng;
         }
     } else if (latVal !== null && lngVal !== null && !coordinates) {
         coordVal = `${latVal},${lngVal}`;
@@ -250,12 +305,13 @@ async function createServiceNote({ group_id, title, description, coordinates, la
         longitude: lngVal,
         address,
         marker_category_id: marker_category_id !== undefined && marker_category_id !== null ? Number(marker_category_id) : null,
-        custom_fields
+        custom_fields,
+        coordinates_path: validPath
     });
 
     const { rows } = await cenos_pool.query(
-        `INSERT INTO service_notes (group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, custom_fields)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        `INSERT INTO service_notes (group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, custom_fields, coordinates_path)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
         [
             validated.group_id,
             validated.title,
@@ -265,7 +321,8 @@ async function createServiceNote({ group_id, title, description, coordinates, la
             validated.longitude,
             validated.address || null,
             validated.marker_category_id || null,
-            validated.custom_fields ? (typeof validated.custom_fields === 'string' ? validated.custom_fields : JSON.stringify(validated.custom_fields)) : null
+            validated.custom_fields ? (typeof validated.custom_fields === 'string' ? validated.custom_fields : JSON.stringify(validated.custom_fields)) : null,
+            validated.coordinates_path ? JSON.stringify(validated.coordinates_path) : null
         ]
     );
     return rows[0];
@@ -278,15 +335,21 @@ async function updateServiceNote(id, fields) {
     const params = [];
     let idx = 1;
 
-    let latVal = validated.latitude !== undefined ? parseFloat(validated.latitude) : undefined;
-    let lngVal = validated.longitude !== undefined ? parseFloat(validated.longitude) : undefined;
+    const validPath = validated.coordinates_path !== undefined ? validateCoordinatesPath(validated.coordinates_path) : undefined;
+
+    let latVal = validated.latitude !== undefined ? parseNum(validated.latitude) : undefined;
+    let lngVal = validated.longitude !== undefined ? parseNum(validated.longitude) : undefined;
     let coordVal = validated.coordinates;
 
-    if (validated.coordinates !== undefined && validated.latitude === undefined) {
-        const parts = String(validated.coordinates).split(',');
-        if (parts.length === 2) {
-            latVal = parseFloat(parts[0].trim());
-            lngVal = parseFloat(parts[1].trim());
+    if (validPath && validPath.length > 0) {
+        latVal = validPath[0].lat;
+        lngVal = validPath[0].lng;
+        coordVal = `${latVal},${lngVal}`;
+    } else if (validated.coordinates !== undefined && validated.latitude === undefined) {
+        const parsed = parseCoordString(validated.coordinates);
+        if (parsed) {
+            latVal = parsed.lat;
+            lngVal = parsed.lng;
         }
     } else if (latVal !== undefined && lngVal !== undefined && validated.coordinates === undefined) {
         coordVal = `${latVal},${lngVal}`;
@@ -307,6 +370,13 @@ async function updateServiceNote(id, fields) {
             idx++;
         }
     }
+
+    if (validPath !== undefined) {
+        updates.push(`coordinates_path = $${idx}`);
+        params.push(validPath ? JSON.stringify(validPath) : null);
+        idx++;
+    }
+
     if (updates.length === 0) return null;
     updates.push('updated_at = NOW()');
     params.push(id);
@@ -387,7 +457,7 @@ async function completeServiceNote(noteId, { agentId, coordinates, completionDat
     return rows[0] || null;
 }
 
-async function selfRegisterServiceNote({ groupId, agentId, title, coordinates, completionData, completedAt }) {
+async function selfRegisterServiceNote({ groupId, agentId, title, coordinates, completionData, completedAt, coordinates_path }) {
     const group = await getServiceGroupById(groupId);
     if (!group) throw new Error('Grupo nao encontrado');
 
@@ -397,13 +467,31 @@ async function selfRegisterServiceNote({ groupId, agentId, title, coordinates, c
         (Array.isArray(group.allowed_agents) && group.allowed_agents.includes(agentId));
     if (!isVisible) throw new Error('Voce nao tem permissao para registrar servicos neste grupo');
 
+    const validPath = validateCoordinatesPath(coordinates_path);
     const validCoords = validateCoordinates(coordinates);
+
+    let latVal = null;
+    let lngVal = null;
+    let coordVal = validCoords;
+
+    if (validPath && validPath.length > 0) {
+        latVal = validPath[0].lat;
+        lngVal = validPath[0].lng;
+        coordVal = `${latVal},${lngVal}`;
+    } else if (validCoords) {
+        const parsed = parseCoordString(validCoords);
+        if (parsed) {
+            latVal = parsed.lat;
+            lngVal = parsed.lng;
+        }
+    }
+
     const autoTitle = title || `Registro – ${group.name} – ${new Date().toLocaleDateString('pt-BR')}`;
     const processedCompletionData = await processBase64Files(completionData, agentId);
     const { rows } = await cenos_pool.query(
-        `INSERT INTO service_notes (group_id, title, coordinates, status, assigned_to, completed_by, completed_at, completion_coordinates, completion_data, self_registered)
-         VALUES ($1, $2, $3, 'CONCLUIDO', $4, $4, $5, $3, $6, true) RETURNING *`,
-        [groupId, autoTitle, validCoords || null, agentId, completedAt || new Date().toISOString(), processedCompletionData ? JSON.stringify(processedCompletionData) : null]
+        `INSERT INTO service_notes (group_id, title, coordinates, latitude, longitude, status, assigned_to, completed_by, completed_at, completion_coordinates, completion_data, self_registered, coordinates_path)
+         VALUES ($1, $2, $3, $4, $5, 'CONCLUIDO', $6, $6, $7, $3, $8, true, $9) RETURNING *`,
+        [groupId, autoTitle, coordVal || null, latVal, lngVal, agentId, completedAt || new Date().toISOString(), processedCompletionData ? JSON.stringify(processedCompletionData) : null, validPath ? JSON.stringify(validPath) : null]
     );
     return rows[0];
 }
@@ -412,7 +500,7 @@ async function selfRegisterServiceNote({ groupId, agentId, title, coordinates, c
 // CRIACAO PELO AGENTE (com status PENDENTE)
 // ==========================================
 
-async function createAgentServiceNote({ group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, agentId, assignToSelf }) {
+async function createAgentServiceNote({ group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, agentId, assignToSelf, coordinates_path }) {
     const group = await getServiceGroupById(group_id);
     if (!group) throw new Error('Grupo nao encontrado');
 
@@ -422,15 +510,21 @@ async function createAgentServiceNote({ group_id, title, description, coordinate
         (Array.isArray(group.allowed_agents) && group.allowed_agents.includes(agentId));
     if (!isVisible) throw new Error('Voce nao tem permissao para criar servicos neste grupo');
 
-    let latVal = latitude !== undefined ? parseFloat(latitude) : null;
-    let lngVal = longitude !== undefined ? parseFloat(longitude) : null;
+    const validPath = validateCoordinatesPath(coordinates_path);
+
+    let latVal = latitude !== undefined ? parseNum(latitude) : null;
+    let lngVal = longitude !== undefined ? parseNum(longitude) : null;
     let coordVal = coordinates;
 
-    if (coordinates && (latVal === null || lngVal === null)) {
-        const parts = String(coordinates).split(',');
-        if (parts.length === 2) {
-            latVal = parseFloat(parts[0].trim());
-            lngVal = parseFloat(parts[1].trim());
+    if (validPath && validPath.length > 0) {
+        latVal = validPath[0].lat;
+        lngVal = validPath[0].lng;
+        coordVal = `${latVal},${lngVal}`;
+    } else if (coordinates && (latVal === null || lngVal === null)) {
+        const parsed = parseCoordString(coordinates);
+        if (parsed) {
+            latVal = parsed.lat;
+            lngVal = parsed.lng;
         }
     } else if (latVal !== null && lngVal !== null && !coordinates) {
         coordVal = `${latVal},${lngVal}`;
@@ -439,9 +533,9 @@ async function createAgentServiceNote({ group_id, title, description, coordinate
     const assignTo = assignToSelf ? agentId : null;
 
     const { rows } = await cenos_pool.query(
-        `INSERT INTO service_notes (group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, assigned_to, self_registered)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true) RETURNING *`,
-        [group_id, title, description || null, coordVal || null, latVal, lngVal, address || null, marker_category_id || null, assignTo]
+        `INSERT INTO service_notes (group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, assigned_to, self_registered, coordinates_path)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10) RETURNING *`,
+        [group_id, title, description || null, coordVal || null, latVal, lngVal, address || null, marker_category_id || null, assignTo, validPath ? JSON.stringify(validPath) : null]
     );
 
     if (assignTo) {
@@ -503,24 +597,30 @@ async function bulkInsertServiceNotes(groupId, notes) {
     try {
         await client.query('BEGIN');
         for (const note of notes) {
-            let latVal = note.latitude !== undefined && note.latitude !== null ? parseFloat(note.latitude) : null;
-            let lngVal = note.longitude !== undefined && note.longitude !== null ? parseFloat(note.longitude) : null;
+            const validPath = validateCoordinatesPath(note.coordinates_path);
+
+            let latVal = note.latitude !== undefined && note.latitude !== null ? parseNum(note.latitude) : null;
+            let lngVal = note.longitude !== undefined && note.longitude !== null ? parseNum(note.longitude) : null;
             let coordVal = note.coordinates;
 
-            if (note.coordinates && (latVal === null || lngVal === null)) {
-                const parts = String(note.coordinates).split(',');
-                if (parts.length === 2) {
-                    latVal = parseFloat(parts[0].trim());
-                    lngVal = parseFloat(parts[1].trim());
+            if (validPath && validPath.length > 0) {
+                latVal = validPath[0].lat;
+                lngVal = validPath[0].lng;
+                coordVal = `${latVal},${lngVal}`;
+            } else if (note.coordinates && (latVal === null || lngVal === null)) {
+                const parsed = parseCoordString(note.coordinates);
+                if (parsed) {
+                    latVal = parsed.lat;
+                    lngVal = parsed.lng;
                 }
             } else if (latVal !== null && lngVal !== null && !note.coordinates) {
                 coordVal = `${latVal},${lngVal}`;
             }
 
             const { rows } = await client.query(
-                `INSERT INTO service_notes (group_id, title, description, coordinates, latitude, longitude, address, custom_fields) 
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-                [groupId, note.title || 'Sem Titulo', note.description || null, coordVal || null, latVal, lngVal, note.address || null, note.custom_fields ? JSON.stringify(note.custom_fields) : null]
+                `INSERT INTO service_notes (group_id, title, description, coordinates, latitude, longitude, address, custom_fields, coordinates_path) 
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+                [groupId, note.title || 'Sem Titulo', note.description || null, coordVal || null, latVal, lngVal, note.address || null, note.custom_fields ? JSON.stringify(note.custom_fields) : null, validPath ? JSON.stringify(validPath) : null]
             );
             inserted.push(rows[0]);
         }
@@ -641,6 +741,7 @@ async function bulkRestore(serviceIds) {
 
 module.exports = {
     validateCoordinates,
+    validateCoordinatesPath,
     processBase64Files,
     listServiceGroups, getServiceGroupById, createServiceGroup, updateServiceGroup, deleteServiceGroup,
     listCategoriesByGroup, createCategory, deleteCategory,

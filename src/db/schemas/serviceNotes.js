@@ -21,6 +21,13 @@ const markerCategorySchema = z.object({
   created_at: z.date().optional()
 });
 
+const coordinatePointSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180)
+});
+
+const coordinatesPathSchema = z.array(coordinatePointSchema).min(1).max(5).nullable().optional();
+
 const serviceNoteSchema = z.object({
   id: z.number().int().optional(),
   group_id: z.number().int(),
@@ -38,6 +45,7 @@ const serviceNoteSchema = z.object({
   completion_data: z.union([z.string(), z.record(z.any())]).nullable().optional(),
   custom_fields: z.union([z.string(), z.record(z.any())]).nullable().optional(),
   marker_category_id: z.number().int().nullable().optional(),
+  coordinates_path: coordinatesPathSchema,
   self_registered: z.boolean().default(false),
   archived: z.boolean().default(false),
   created_at: z.date().optional(),
@@ -61,5 +69,7 @@ module.exports = {
   markerCategorySchema,
   serviceNoteSchema,
   serviceNoteCreateSchema,
-  serviceAssignmentSchema
+  serviceAssignmentSchema,
+  coordinatePointSchema,
+  coordinatesPathSchema
 };

@@ -157,9 +157,15 @@ Cria uma nota de serviço manual.
   "description": "Nova ligação comercial",
   "address": "Rua 10, Centro",
   "coordinates": "-5.0895,-42.8012",
-  "marker_category_id": 1
+  "marker_category_id": 1,
+  "coordinates_path": [
+    { "lat": -5.0895, "lng": -42.8012 },
+    { "lat": -5.0901, "lng": -42.8018 }
+  ]
 }
 ```
+
+* **`coordinates_path`** (array, opcional): Array de até 5 pontos `{lat, lng}` representando um percurso/rota. O primeiro ponto é sincronizado automaticamente com `coordinates`, `latitude` e `longitude`. Aceita coordenadas com vírgula ou ponto como separador decimal (ex: `-5,0895` ou `-5.0895`).
 
 ---
 
@@ -179,6 +185,7 @@ Atualiza parcialmente uma nota de serviço. A partir da versão atual, os campos
 | `latitude` | number | Latitude numérica (derivada automaticamente de `coordinates` se omitida) |
 | `longitude` | number | Longitude numérica |
 | `marker_category_id` | number | ID da categoria de marcador |
+| `coordinates_path` | array | Array de até 5 pontos `[{lat, lng}]` para percursos |
 | `status` | string | Status `PENDENTE` ou `CONCLUIDO` |
 | `group_id` | number | Move a nota para o grupo com este ID |
 | `archived` | boolean | Arquiva (`true`) ou desarquiva (`false`) a nota |
@@ -373,6 +380,8 @@ A query SQL inclui `AND status = 'PENDENTE'` — apenas notas pendentes podem se
 }
 ```
 
+* **`coordinates`** aceita tanto ponto quanto vírgula como separador decimal.
+
 ---
 
 ### `POST /agent/service-notes/self-register`
@@ -543,6 +552,7 @@ Isso garante que o agente tenha todos os dados disponíveis offline logo ao abri
 | `completion_coordinates` | VARCHAR | Coordenadas da conclusão |
 | `completion_data` | JSONB | Respostas do formulário |
 | `marker_category_id` | INTEGER | Categoria do marcador |
+| `coordinates_path` | JSONB | Array de até 5 pontos `[{lat, lng}]` para rotas/percursos |
 | `self_registered` | BOOLEAN | Criado pelo próprio agente |
 | `archived` | BOOLEAN | Arquivo lógico (default false) |
 | `created_at` | TIMESTAMP | Criação |
@@ -652,4 +662,38 @@ Para mitigar isso de forma resiliente, o backend implementa um **pareador e cura
 2. O pareador sequencial busca a correspondência com a chamada pendente do assistente logo anterior no histórico de mensagens.
 3. Ao encontrar o ID correspondente, o backend atualiza a mensagem no banco de dados (`UPDATE service_notes_chat_messages`) para persistir a cura.
 4. Caso o ID não possa ser curado, a mensagem órfã é descartada da pilha enviada ao LLM para prevenir erros de validação na API.
+
+---
+
+## 8. Parsing de Coordenadas com Separador Decimal
+
+O sistema aceita tanto **ponto** quanto **vírgula** como separador decimal em coordenadas geográficas. Isso permite entrada no formato brasileiro (ex: `-5,0895`) e no formato internacional (ex: `-5.0895`).
+
+### Regras de Parsing
+
+| Entrada | Resultado | Observação |
+|---|---|---|
+| `-5.0895, -42.8012` | `{ lat: -5.0895, lng: -42.8012 }` | Formato padrão (ponto decimal, vírgula separadora) |
+| `-5,0895, -42,8012` | `{ lat: -5.0895, lng: -42.8012 }` | Vírgula como decimal e separadora |
+| `-5,0895` (campo individual) | `-5.0895` | Vírgula é sempre decimal em campos individuais |
+| `-5.0895` (campo individual) | `-5.0895` | Ponto como decimal |
+
+### Funções de Parsing
+
+- **Backend** (`back/src/functions/database/serviceNotes.js`):
+  - `parseNum(value)`: Substitui `,` por `.` e chama `parseFloat()`
+  - `parseCoordString(str)`: Tenta separar por `, ` (vírgula+espaço), depois por `,`. Se encontrar mais de 2 partes, tenta combinar pares para reconstruir lat/lng.
+  - `validateCoordinates(coord)`: Usa `parseCoordString` para validar
+  - `validateCoordinatesPath(path)`: Usa `parseNum` para cada ponto do array
+
+- **Frontend** (`front/src/utils/coordinateParser.ts`):
+  - `parseNum(value)`: Mesma lógica do backend
+  - `parseCoordString(str)`: Mesma lógica do backend
+  - `parseCoordPathPoint(point)`: Usa `parseNum` para lat/lng de cada ponto
+
+### Compatibilidade com Dados Existentes
+
+- Coordenadas já salvas com ponto decimal continuam funcionando normalmente
+- O campo `coordinates` é sempre salvo no formato `lat,lng` com ponto decimal (padrão do sistema)
+- A conversão de vírgula para ponto ocorre apenas no parsing de entrada
 

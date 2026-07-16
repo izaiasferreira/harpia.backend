@@ -295,9 +295,9 @@ router.get('/:id', verifyToken(), verifyModule('service_notes'), async (req, res
 
 router.post('/', verifyToken(), verifyModule('create_service_note'), validate(serviceNoteCreateSchema), async (req, res) => {
     try {
-        const { group_id, title, description, coordinates, latitude, longitude, address, marker_category_id } = req.body;
+        const { group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, coordinates_path } = req.body;
         if (!group_id || !title) return res.status(400).json({ error: 'group_id e title obrigatorios' });
-        const note = await createServiceNote({ group_id, title, description, coordinates, latitude, longitude, address, marker_category_id });
+        const note = await createServiceNote({ group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, coordinates_path });
         res.status(201).json(note);
     } catch (err) {
         res.status(500).json({ error: err.message });
