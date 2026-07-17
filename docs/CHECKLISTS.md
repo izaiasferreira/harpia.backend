@@ -1083,3 +1083,255 @@ Passa a retornar o campo adicional `exempted_agents` no objeto de KPIs:
 
 Agentes isentos **não** aparecem nesta lista. A query exclui automaticamente qualquer agente com isenção ativa para a data consultada.
 
+---
+
+## Dashboard V2 — Agrupamento e Rastreio de Não Conformidades
+
+O dashboard implementa agrupamento inteligente de itens não conformes, rastreando **sequências de dias consecutivos** (streaks) que um colaborador apresenta o mesmo problema.
+
+### Lógica de Agrupamento
+
+Quando um colaborador marca a mesma pergunta como não conforme em múltiplos dias, o sistema:
+
+1. Busca **todas as datas históricas** (sem filtro de período) em que a pergunta foi reportada como não conforme
+2. Divide essas datas em **streaks separadas** usando a lógica de consecutividade com fins de semana
+3. **Cada streak vira um item independente** — se há um gap entre streaks, são não conformidades distintas
+
+Cada item retornado contém:
+
+- **`consecutive_days`**: Tamanho daquela streak específica
+- **`dates`**: Datas que compõem aquela streak (ordenadas cronologicamente)
+
+#### Exemplo Prático — Múltiplas Streaks
+
+```
+Colaborador: João Silva
+Pergunta: "Bota de segurança está em boas condições?"
+
+Todas as datas históricas reportadas:
+- 01/07 (Seg): Não conforme
+- 02/07 (Ter): Não conforme  
+- 03/07 (Qua): Não conforme
+- 07/07 (Seg): Não conforme
+- 08/07 (Ter): Não conforme
+- 11/07 (Sexta): Não conforme
+- 12/07 (Sábado): Não conforme
+- 14/07 (Segunda): Não conforme
+
+Resultado — 3 itens separados:
+
+Item 1:
+- consecutive_days: 3
+- dates: ["2026-07-01", "2026-07-02", "2026-07-03"]
+
+Item 2:
+- consecutive_days: 2
+- dates: ["2026-07-07", "2026-07-08"]
+
+Item 3:
+- consecutive_days: 3
+- dates: ["2026-07-11", "2026-07-12", "2026-07-14"]  (sábado e domingo não quebram)
+```
+
+### GET /admin/dashboard/v2/alerts (Modificado)
+
+Lista itens críticos/alerta agrupados por colaborador+pergunta.
+
+#### Query Params
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| date_from | string | Data inicial (YYYY-MM-DD) |
+| date_to | string | Data final (YYYY-MM-DD) |
+| template_id | string | Filtrar por template (opcional) |
+| regional | string | Filtrar por regional |
+| sectional | string | Filtrar por seccional |
+| estado | string | Filtrar por estado |
+| gestor | string | Filtrar por gestor |
+| export_raw | boolean | `true` para dados brutos (exportação Excel) |
+
+#### Response 200 (Modo Normal)
+```json
+[
+  {
+    "checklist_id": null,
+    "agent_id": "123",
+    "agent_nome": "João Silva",
+    "agent_matricula": "T60702",
+    "regional": "NORTE",
+    "seccional": "UAC01",
+    "gestor": "Carlos Silva",
+    "question": "Bota de segurança danificada",
+    "severity": "critical",
+    "date": "2026-07-14",
+    "consecutive_days": 3,
+    "dates": ["2026-07-11", "2026-07-12", "2026-07-14"]
+  }
+]
+```
+
+#### Response 200 (export_raw = true)
+Retorna dados brutos sem agrupamento (cada linha = uma ocorrência individual).
+
+---
+
+### GET /admin/dashboard/v2/non-conformities (Novo)
+
+Lista itens não conformes **que não são críticos nem de atenção**, agrupados por colaborador+pergunta.
+
+#### Query Params
+Mesmos parâmetros do `/v2/alerts`.
+
+#### Response 200 (Modo Normal)
+```json
+[
+  {
+    "checklist_id": null,
+    "agent_id": "456",
+    "agent_nome": "Maria Oliveira",
+    "agent_matricula": "T60801",
+    "regional": "SUL",
+    "seccional": "UAC03",
+    "gestor": "Pedro Santos",
+    "question": "Extintor fora da validade",
+    "severity": "normal",
+    "date": "2026-07-05",
+    "consecutive_days": 2,
+    "dates": ["2026-07-04", "2026-07-05"]
+  }
+]
+```
+
+---
+
+### Comportamento por Modo
+
+| Modo | `export_raw` | Comportamento |
+|------|-------------|---------------|
+| **Normal** | `false` (padrão) | Agrupa por `agent_id` + `question` + `severity`, divide em streaks. Cada streak = 1 item |
+| **Exportação** | `true` | Retorna linhas individuais para Excel (até 5000 registros) |
+
+### Cálculo de Dias Consecutivos
+
+O cálculo é realizado em JavaScript após a query SQL, considerando **fins de semana como dias não-quebrantes**:
+
+```javascript
+/**
+ * Conta quantos dias de fim de semana (sáb/dom) existem entre duas datas.
+ */
+function weekendDaysBetween(d1Str, d2Str) {
+  const d1 = new Date(d1Str + 'T00:00:00');
+  const d2 = new Date(d2Str + 'T00:00:00');
+  const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+  let count = 0;
+  for (let i = 1; i < diffDays; i++) {
+    const d = new Date(d1.getTime() + i * 86400000);
+    if (d.getDay() === 0 || d.getDay() === 6) count++;
+  }
+  return count;
+}
+
+/**
+ * Dois dias são "consecutivos" se o gap de dias úteis entre eles (excluindo
+ * fins de semana) for <= 1.
+ * Exemplos:
+ *   Sex(11) → Sab(12): gap=1, we=0 → 1 ≤ 1 ✓ consecutivo
+ *   Sex(11) → Seg(14): gap=3, we=2 → 3-2=1 ≤ 1 ✓ consecutivo
+ *   Sab(12) → Seg(14): gap=2, we=1 → 2-1=1 ≤ 1 ✓ consecutivo
+ *   Seg(14) → Sex(18): gap=4, we=2 → 4-2=2 > 1 ✗ não consecutivo
+ *   Ter(15) → Sex(18): gap=3, we=2 → 3-2=1 ≤ 1 ✓ consecutivo
+ *   Seg(07) → Ter(08) → [Qua não reportada] → Sex(10):
+ *     Ter→Sex: gap=3, we=2 → 3-2=1 ≤ 1 ✓ consecutivo!
+ */
+function isConsecutive(d1Str, d2Str) {
+  const rawDiff = Math.round((new Date(d2Str + 'T00:00:00') - new Date(d1Str + 'T00:00:00')) / 86400000);
+  const we = weekendDaysBetween(d1Str, d2Str);
+  return (rawDiff - we) <= 1;
+}
+```
+
+#### Regras
+
+- **Sexta + Sábado + Segunda** = consecutivo (fim de semana entre sexta e segunda é pulado)
+- **Sábado + Segunda** = consecutivo (domingo entre eles é pulado)
+- **Segunda + Terça + [Quarta pula] + Sexta** = consecutivo (quarta pula, quinta é o gap, sexta fecha)
+- **Segunda + Terça + [Quarta pula] + Quinta** = não consecutivo (quinta exige 2 dias úteis sem reporte)
+- **Segunda + [Terça pula] + Quarta** = não consecutivo (gap de 1 dia útil sem reporte)
+- **Sexta + Segunda** = consecutivo (gap de 1 dia útil considerando fds)
+
+#### Exemplo Prático
+
+```
+Colaborador: João Silva
+Pergunta: "Bota de segurança está em boas condições?"
+
+Dias reportados (todas as datas históricas):
+07/07 (Seg), 08/07 (Ter), 09/07 (Qua), 10/07 (Qui),
+11/07 (Sex), 13/07 (Seg), 15/07 (Ter), 17/07 (Qui)
+
+Splitting em streaks:
+- Streak 1: 07/07 → 08/07 → 09/07 → 10/07 → 11/07 (5 dias seguidos)
+  - Seg→Ter→Qua→Qui→Sex: todos consecutivos ✓
+- Gap: Sex(11) → Seg(13): fds entre eles, mas é consecutivo! → incluído na streak 1
+- Continuação streak 1: 11/07(Sex) → 13/07(Seg): sex→sáb→dom→seg = consecutivo ✓
+- Streak 1 final: 07/07 → 08/07 → 09/07 → 10/07 → 11/07 → 13/07 (6 dias)
+- Gap: 13/07(Seg) → 15/07(Ter): gap de 1 dia útil (14/07 = segunda... wait)
+  - 13/07 = Seg, 15/07 = Ter. rawDiff=2, weekendDaysBetween=0 → 2-0=2 > 1 ✗ → streak quebra
+
+- Streak 2: 15/07 → 17/07
+  - 15/07(Ter) → 17/07(Qui): gap=2, we=0 → 2 > 1 ✗ → streak quebra
+
+- Streak 2: apenas 15/07 (1 dia)
+- Streak 3: apenas 17/07 (1 dia)
+
+Resultado — 3 itens:
+  Item 1: consecutive_days=6, dates=[07/07, 08/07, 09/07, 10/07, 11/07, 13/07]
+  Item 2: consecutive_days=1, dates=[15/07]
+  Item 3: consecutive_days=1, dates=[17/07]
+```
+
+#### Cada Streak é um Item Independente
+
+O sistema retorna **todas as streaks** como itens separados. Se um colaborador teve uma sequência de 5 dias, depois um gap, e depois 2 dias, isso gera **dois itens** distintos nos painéis de Alertas e Não Conformidades.
+
+Isso permite que o admin visualize padrões como:
+- "O agente teve 3 ocorrências seguidas, parou, e recomeçou"
+- "O problema persiste há X streaks diferentes ao longo do tempo"
+
+- `dates` = datas daquela streak específica (ordenadas cronologicamente)
+- `consecutive_days` = tamanho daquela streak específica
+- `date` = última data da streak (para ordenação)
+
+### Frontend — Painéis de Alertas e Não Conformidades
+
+Os painéis `AlertsPanel` e `NonConformitiesPanel` exibem:
+
+1. **Lista resumida** (até 8 itens) com badge de dias consecutivos quando > 1
+2. **Botão "Ver todos"** que abre um modal com todos os itens
+3. **Modal de detalhes** (`DetailsModal`) com:
+   - Lista expansível de todos os itens
+   - Badge "X dias seguidos" quando aplicável
+   - Lista de todas as datas com não conformidade
+   - Link para o checklist (quando disponível)
+
+### Interface TypeScript (Frontend)
+
+```typescript
+interface SecurityAlert {
+  checklist_id: string | null;
+  agent_id: string;
+  agent_nome: string;
+  agent_matricula?: string;
+  seccional?: string;
+  regional?: string;
+  gestor?: string;
+  question: string;
+  severity: 'critical' | 'alert' | 'normal';
+  date: string;
+  submitted_at?: string | null;
+  observation?: string | null;
+  photo_url?: string | null;
+  consecutive_days?: number;
+  dates?: string[];
+}
+```
+

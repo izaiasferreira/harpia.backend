@@ -1212,7 +1212,66 @@ async function getDashboardNonCompliantItemsV2({
 }
 
 /**
+ * Splits an array of date strings into consecutive streaks,
+ * treating Saturday and Sunday as non-breaking (Fri+Sat+Mon = consecutive).
+ * Returns an array of streaks, each with { dates, consecutive_days }.
+ * Streaks are ordered chronologically (oldest first).
+ */
+function splitIntoStreaks(allDates) {
+  if (!allDates || allDates.length === 0) return [];
+
+  const toStr = (d) => {
+    if (typeof d === 'string') return d;
+    if (d instanceof Date) return d.toISOString().split('T')[0];
+    return String(d);
+  };
+
+  const sorted = allDates.map(toStr).sort();
+  const unique = sorted.filter((d, i) => i === 0 || d !== sorted[i - 1]);
+  if (unique.length === 0) return [];
+
+  function weekendDaysBetween(d1Str, d2Str) {
+    const d1 = new Date(d1Str + 'T00:00:00');
+    const d2 = new Date(d2Str + 'T00:00:00');
+    const diffMs = d2 - d1;
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    let count = 0;
+    for (let i = 1; i < diffDays; i++) {
+      const d = new Date(d1.getTime() + i * 86400000);
+      if (d.getDay() === 0 || d.getDay() === 6) count++;
+    }
+    return count;
+  }
+
+  function isConsecutive(d1Str, d2Str) {
+    const d1 = new Date(d1Str + 'T00:00:00');
+    const d2 = new Date(d2Str + 'T00:00:00');
+    const rawDiff = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+    const we = weekendDaysBetween(d1Str, d2Str);
+    return (rawDiff - we) <= 1;
+  }
+
+  const streaks = [];
+  let current = [unique[0]];
+
+  for (let i = 1; i < unique.length; i++) {
+    if (isConsecutive(unique[i - 1], unique[i])) {
+      current.push(unique[i]);
+    } else {
+      streaks.push({ dates: current, consecutive_days: current.length });
+      current = [unique[i]];
+    }
+  }
+  streaks.push({ dates: current, consecutive_days: current.length });
+
+  return streaks;
+}
+
+/**
  * V2 Alerts — uses dynamic template filters.
+ * In normal mode: groups by agent+question+severity and calculates consecutive days.
+ *   The date range filters which items appear, but ALL historical dates are fetched.
+ * In export_raw mode: returns individual entries for Excel export.
  */
 async function getDashboardAlertsV2({
   date_from, date_to, regional, sectional, estado, gestor, template_id, export_raw
@@ -1243,28 +1302,97 @@ async function getDashboardAlertsV2({
   dIdx += 2;
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
-  const { rows } = await cenos_pool.query(
-    `SELECT c.id as checklist_id, c.agent_id, col."Nome" as agent_nome,
+  if (export_raw) {
+    const { rows } = await cenos_pool.query(
+      `SELECT c.id as checklist_id, c.agent_id, col."Nome" as agent_nome,
+              col."ID" as agent_matricula, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
+              a.item->>'question_label' as question, COALESCE(a.item->>'severity', 'critical') as severity,
+              c.date, c.submitted_at, a.item->>'observation' as observation,
+              a.item->>'photo_url' as photo_url
+       FROM checklists c
+       ${colJoin},
+       jsonb_array_elements(c.data->'answers') a(item)
+       ${cWhere}
+         AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
+         AND COALESCE(a.item->>'severity', 'critical') IN ('critical', 'alert')
+       ORDER BY COALESCE(c.submitted_at, c.date) DESC, severity ASC
+       LIMIT 5000`,
+      dParams
+    );
+    return rows;
+  }
+
+  // Step 1: Find which agent+question+severity combinations exist in the date range
+  const { rows: groups } = await cenos_pool.query(
+    `SELECT c.agent_id, col."Nome" as agent_nome,
             col."ID" as agent_matricula, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
             a.item->>'question_label' as question, COALESCE(a.item->>'severity', 'critical') as severity,
-            c.date, c.submitted_at, a.item->>'observation' as observation,
-            a.item->>'photo_url' as photo_url
+            COUNT(DISTINCT c.date) as filtered_days
      FROM checklists c
      ${colJoin},
      jsonb_array_elements(c.data->'answers') a(item)
      ${cWhere}
        AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
        AND COALESCE(a.item->>'severity', 'critical') IN ('critical', 'alert')
-     ORDER BY COALESCE(c.submitted_at, c.date) DESC, severity ASC
-     LIMIT ${export_raw ? 5000 : 50}`,
+     GROUP BY c.agent_id, col."Nome", col."ID", col.regional, col.seccional, col."GESTOR IMEDIATO",
+              a.item->>'question_label', COALESCE(a.item->>'severity', 'critical')
+     ORDER BY filtered_days DESC, severity ASC
+     LIMIT 50`,
     dParams
   );
 
-  return rows;
+  if (groups.length === 0) return [];
+
+  // Step 2: For each group, fetch ALL historical dates (no date filter) for that agent+question
+  const results = await Promise.all(groups.map(async (g) => {
+    const histParams = [g.agent_id, g.question, templateIds];
+    const { rows: histRows } = await cenos_pool.query(
+      `SELECT array_agg(DISTINCT c.date ORDER BY c.date) as all_dates
+       FROM checklists c
+       ${colJoin}
+       WHERE c.status = 'submitted'
+         AND c.template_id = ANY($3::uuid[])
+         AND c.agent_id = $1
+         AND col."ID" = $1
+         AND EXISTS (
+           SELECT 1 FROM jsonb_array_elements(c.data->'answers') a(item)
+           WHERE a.item->>'question_label' = $2
+             AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
+         )
+       LIMIT 1000`,
+      histParams
+    );
+
+    const allDates = (histRows[0]?.all_dates || []);
+    const streaks = splitIntoStreaks(allDates);
+
+    return streaks.map((streak) => ({
+      checklist_id: null,
+      agent_id: g.agent_id,
+      agent_nome: g.agent_nome,
+      agent_matricula: g.agent_matricula,
+      regional: g.regional,
+      seccional: g.seccional,
+      gestor: g.gestor,
+      question: g.question,
+      severity: g.severity,
+      date: streak.dates[streak.dates.length - 1] || null,
+      submitted_at: null,
+      observation: null,
+      photo_url: null,
+      consecutive_days: streak.consecutive_days,
+      dates: streak.dates,
+    }));
+  }));
+
+  return results.flat();
 }
 
 /**
- * V2 Non-Conformities — individual non-compliant items that are NOT critical or alert.
+ * V2 Non-Conformities — non-compliant items that are NOT critical or alert.
+ * In normal mode: groups by agent+question and calculates consecutive days.
+ *   The date range filters which items appear, but ALL historical dates are fetched.
+ * In export_raw mode: returns individual entries for Excel export.
  */
 async function getDashboardNonConformitiesV2({
   date_from, date_to, regional, sectional, estado, gestor, template_id, export_raw
@@ -1295,24 +1423,90 @@ async function getDashboardNonConformitiesV2({
   dIdx += 2;
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
-  const { rows } = await cenos_pool.query(
-    `SELECT c.id as checklist_id, c.agent_id, col."Nome" as agent_nome,
+  if (export_raw) {
+    const { rows } = await cenos_pool.query(
+      `SELECT c.id as checklist_id, c.agent_id, col."Nome" as agent_nome,
+              col."ID" as agent_matricula, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
+              a.item->>'question_label' as question, COALESCE(a.item->>'severity', 'normal') as severity,
+              c.date, c.submitted_at, a.item->>'observation' as observation,
+              a.item->>'photo_url' as photo_url
+       FROM checklists c
+       ${colJoin},
+       jsonb_array_elements(c.data->'answers') a(item)
+       ${cWhere}
+         AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
+         AND COALESCE(a.item->>'severity', 'normal') NOT IN ('critical', 'alert')
+       ORDER BY COALESCE(c.submitted_at, c.date) DESC
+       LIMIT 5000`,
+      dParams
+    );
+    return rows;
+  }
+
+  // Step 1: Find which agent+question+severity combinations exist in the date range
+  const { rows: groups } = await cenos_pool.query(
+    `SELECT c.agent_id, col."Nome" as agent_nome,
             col."ID" as agent_matricula, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
             a.item->>'question_label' as question, COALESCE(a.item->>'severity', 'normal') as severity,
-            c.date, c.submitted_at, a.item->>'observation' as observation,
-            a.item->>'photo_url' as photo_url
+            COUNT(DISTINCT c.date) as filtered_days
      FROM checklists c
      ${colJoin},
      jsonb_array_elements(c.data->'answers') a(item)
      ${cWhere}
        AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
        AND COALESCE(a.item->>'severity', 'normal') NOT IN ('critical', 'alert')
-     ORDER BY COALESCE(c.submitted_at, c.date) DESC
-     LIMIT ${export_raw ? 5000 : 50}`,
+     GROUP BY c.agent_id, col."Nome", col."ID", col.regional, col.seccional, col."GESTOR IMEDIATO",
+              a.item->>'question_label', COALESCE(a.item->>'severity', 'normal')
+     ORDER BY filtered_days DESC
+     LIMIT 50`,
     dParams
   );
 
-  return rows;
+  if (groups.length === 0) return [];
+
+  // Step 2: For each group, fetch ALL historical dates (no date filter) for that agent+question
+  const results = await Promise.all(groups.map(async (g) => {
+    const histParams = [g.agent_id, g.question, templateIds];
+    const { rows: histRows } = await cenos_pool.query(
+      `SELECT array_agg(DISTINCT c.date ORDER BY c.date) as all_dates
+       FROM checklists c
+       ${colJoin}
+       WHERE c.status = 'submitted'
+         AND c.template_id = ANY($3::uuid[])
+         AND c.agent_id = $1
+         AND col."ID" = $1
+         AND EXISTS (
+           SELECT 1 FROM jsonb_array_elements(c.data->'answers') a(item)
+           WHERE a.item->>'question_label' = $2
+             AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
+         )
+       LIMIT 1000`,
+      histParams
+    );
+
+    const allDates = (histRows[0]?.all_dates || []);
+    const streaks = splitIntoStreaks(allDates);
+
+    return streaks.map((streak) => ({
+      checklist_id: null,
+      agent_id: g.agent_id,
+      agent_nome: g.agent_nome,
+      agent_matricula: g.agent_matricula,
+      regional: g.regional,
+      seccional: g.seccional,
+      gestor: g.gestor,
+      question: g.question,
+      severity: g.severity,
+      date: streak.dates[streak.dates.length - 1] || null,
+      submitted_at: null,
+      observation: null,
+      photo_url: null,
+      consecutive_days: streak.consecutive_days,
+      dates: streak.dates,
+    }));
+  }));
+
+  return results.flat();
 }
 
 module.exports = {
