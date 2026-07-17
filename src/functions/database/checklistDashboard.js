@@ -1263,6 +1263,58 @@ async function getDashboardAlertsV2({
   return rows;
 }
 
+/**
+ * V2 Non-Conformities — individual non-compliant items that are NOT critical or alert.
+ */
+async function getDashboardNonConformitiesV2({
+  date_from, date_to, regional, sectional, estado, gestor, template_id, export_raw
+}, user) {
+  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
+  if (templateIds.length === 0 || agentIds.length === 0) return [];
+
+  const dParams = [];
+  let dIdx = 1;
+  const dateFilter = buildDateFilter({ date_from, date_to, params: dParams, idx: dIdx });
+  const dateFilters = dateFilter.filters;
+  dIdx = dateFilter.nextIdx;
+
+  const colJoin = buildColaboradorJoins();
+  const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
+    regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
+  });
+  dIdx = colIdx;
+
+  const cFilters = [
+    `c.status = 'submitted'`,
+    `c.template_id = ANY($${dIdx})`,
+    `c.agent_id = ANY($${dIdx + 1})`,
+    ...dateFilters,
+    ...colFilters,
+  ];
+  dParams.push(templateIds, agentIds);
+  dIdx += 2;
+  const cWhere = `WHERE ${cFilters.join(' AND ')}`;
+
+  const { rows } = await cenos_pool.query(
+    `SELECT c.id as checklist_id, c.agent_id, col."Nome" as agent_nome,
+            col."ID" as agent_matricula, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
+            a.item->>'question_label' as question, COALESCE(a.item->>'severity', 'normal') as severity,
+            c.date, c.submitted_at, a.item->>'observation' as observation,
+            a.item->>'photo_url' as photo_url
+     FROM checklists c
+     ${colJoin},
+     jsonb_array_elements(c.data->'answers') a(item)
+     ${cWhere}
+       AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
+       AND COALESCE(a.item->>'severity', 'normal') NOT IN ('critical', 'alert')
+     ORDER BY COALESCE(c.submitted_at, c.date) DESC
+     LIMIT ${export_raw ? 5000 : 50}`,
+    dParams
+  );
+
+  return rows;
+}
+
 module.exports = {
   getDashboardFilterOptions,
   getDashboardStats,
@@ -1276,5 +1328,6 @@ module.exports = {
   getDashboardNonCompliantItemsV2,
   getDashboardAlertsV2,
   getDashboardCompletedAgentsV2,
+  getDashboardNonConformitiesV2,
 };
 

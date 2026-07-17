@@ -14,6 +14,7 @@ const {
   getDashboardCompletedAgentsV2,
   getDashboardNonCompliantItemsV2,
   getDashboardAlertsV2,
+  getDashboardNonConformitiesV2,
 } = require('../functions/database/checklistDashboard');
 
 router.get('/filter-options', verifyToken(), verifyModule('checklists'), async (req, res) => {
@@ -191,6 +192,21 @@ router.get('/v2/alerts', verifyToken(), verifyModule('checklists'), async (req, 
     res.json(alerts);
   } catch (err) {
     console.error('[DASHBOARD_V2] Erro GET /v2/alerts:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/v2/non-conformities', verifyToken(), verifyModule('checklists'), async (req, res) => {
+  try {
+    const { date_from, date_to, regional, sectional, estado, gestor, template_id, export_raw } = req.query;
+    const items = await getDashboardNonConformitiesV2({
+      date_from, date_to, regional, sectional, estado, gestor,
+      template_id: template_id || undefined,
+      export_raw: export_raw === 'true',
+    }, req.user);
+    res.json(items);
+  } catch (err) {
+    console.error('[DASHBOARD_V2] Erro GET /v2/non-conformities:', err);
     res.status(500).json({ error: err.message });
   }
 });
