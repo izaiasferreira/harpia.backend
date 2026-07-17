@@ -239,6 +239,57 @@ async function getChecklistById(id) {
   checklist.latitude = checklist.data?.latitude || null;
   checklist.longitude = checklist.data?.longitude || null;
 
+  // Buscar resoluções completas das não conformidades deste checklist
+  const ncQuestions = checklist.answers
+    .filter(a => a.is_compliant === false && a.question_label)
+    .map(a => a.question_label);
+
+  if (ncQuestions.length > 0 && checklist.agent_id) {
+    const { rows: resolutions } = await cenos_pool.query(
+      `SELECT id, question_label, resolved_date::text as resolved_date,
+              resolved_by, resolved_at, photo_url, description
+       FROM checklist_nonconformity_resolutions
+       WHERE agent_id = $1 AND question_label = ANY($2)`,
+      [checklist.agent_id, ncQuestions]
+    );
+
+    const resolutionMapByQuestion = new Map();
+    for (const r of resolutions) {
+      if (!resolutionMapByQuestion.has(r.question_label)) {
+        resolutionMapByQuestion.set(r.question_label, new Map());
+      }
+      resolutionMapByQuestion.get(r.question_label).set(r.resolved_date, r);
+    }
+
+    const rawDate = checklist.date;
+    let checklistDate;
+    if (rawDate instanceof Date) {
+      checklistDate = rawDate.toISOString().slice(0, 10);
+    } else if (typeof rawDate === 'string') {
+      checklistDate = rawDate.slice(0, 10);
+    } else {
+      checklistDate = String(rawDate || '').slice(0, 10);
+    }
+    checklist.answers = checklist.answers.map(a => {
+      if (a.is_compliant === false && a.question_label && checklistDate) {
+        const dateMap = resolutionMapByQuestion.get(a.question_label);
+        const resolution = dateMap ? dateMap.get(checklistDate) : null;
+        return {
+          ...a,
+          is_resolved: !!resolution,
+          resolution: resolution ? {
+            id: resolution.id,
+            photo_url: resolution.photo_url,
+            description: resolution.description,
+            resolved_at: resolution.resolved_at,
+            resolved_by: resolution.resolved_by,
+          } : null,
+        };
+      }
+      return a;
+    });
+  }
+
   if (checklist.type === 'official') {
     const { rows: supps } = await cenos_pool.query(
       `SELECT id, submitted_at FROM checklists

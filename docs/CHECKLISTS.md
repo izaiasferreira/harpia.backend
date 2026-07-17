@@ -1312,6 +1312,9 @@ Os painéis `AlertsPanel` e `NonConformitiesPanel` exibem:
    - Badge "X dias seguidos" quando aplicável
    - Lista de todas as datas com não conformidade
    - Link para o checklist (quando disponível)
+   - Badge "Resolvido"/"Pendente" por item
+   - Botão "Resolver" (com formulário de foto + descrição) para itens pendentes
+   - Botão "Desfazer" para itens resolvidos
 
 ### Interface TypeScript (Frontend)
 
@@ -1330,8 +1333,110 @@ interface SecurityAlert {
   submitted_at?: string | null;
   observation?: string | null;
   photo_url?: string | null;
+  resolved?: boolean;
   consecutive_days?: number;
   dates?: string[];
 }
 ```
+
+---
+
+## Resolução de Não Conformidades
+
+Funcionalidade para marcar streaks de não conformidade como resolvidas, com evidência fotográfica e descrição.
+
+### Tabela `checklist_nonconformity_resolutions`
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `id` | UUID | PK |
+| `agent_id` | VARCHAR | ID do agente |
+| `question_label` | TEXT | Texto da pergunta |
+| `resolved_date` | DATE | Última data da streak resolvida |
+| `resolved_by` | INTEGER | FK → `users.id` |
+| `resolved_at` | TIMESTAMP | Data/hora da resolução |
+| `photo_url` | TEXT | Evidência fotográfica (obrigatório) |
+| `description` | TEXT | Descrição da resolução (obrigatório) |
+
+- `UNIQUE(agent_id, question_label, resolved_date)` — uma resolução por streak
+
+### Módulos/Permissões
+
+| Módulo | Descrição |
+|---|---|
+| `resolve_nonconformity` | Resolver não conformidades |
+| `unresolve_nonconformity` | Desfazer resolução de não conformidade |
+
+### POST /admin/dashboard/nonconformity-resolve
+
+Resolve uma streak de não conformidade.
+
+**Permissão:** `resolve_nonconformity`
+
+#### Body
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| agent_id | string | sim | ID do agente |
+| question_label | string | sim | Texto da pergunta |
+| resolved_date | string | sim | Última data da streak (YYYY-MM-DD) |
+| photo_url | string | sim | Evidência fotográfica (base64 Data URL) |
+| description | string | sim | Descrição da resolução |
+
+#### Response 201
+```json
+{
+  "id": "uuid",
+  "agent_id": "123",
+  "question_label": "Bota danificada",
+  "resolved_date": "2026-07-03",
+  "resolved_by": 1,
+  "resolved_at": "2026-07-17T10:30:00Z",
+  "photo_url": "https://storage...",
+  "description": "Troca de bota realizada"
+}
+```
+
+---
+
+### DELETE /admin/dashboard/nonconformity-resolve/:id
+
+Remove uma resolução (desfazer).
+
+**Permissão:** `unresolve_nonconformity`
+
+#### Response 200
+```json
+{ "success": true }
+```
+
+---
+
+### Comportamento de Resolução no Streak Splitting
+
+Quando uma resolução existe para um `resolved_date`, ela atua como uma **"wall" (parede)** no cálculo de streaks:
+
+- Mesmo que o dia seguinte ao `resolved_date` seja consecutivo, a streak é quebrada
+- A streak anterior (terminando no `resolved_date`) é marcada como `resolved: true`
+- A nova streak (a partir do dia seguinte) começa como `resolved: false`
+
+```
+Exemplo: Dates [Jul1, Jul2, Jul3, Jul4, Jul5], Resolution: Jul3
+
+Sem resolução: 1 streak [Jul1..Jul5]
+Com resolução: Streak1 [Jul1..Jul3] resolved, Streak2 [Jul4..Jul5] pending
+```
+
+Isso garante que, se o mesmo problema reaparecer após resolução, já é uma nova não conformidade independente.
+
+### Frontend — Fluxo de Resolução
+
+1. Admin abre modal "Ver todos" (DetailsModal)
+2. Item pendente mostra botão **"Resolver"** (verde)
+3. Ao clicar, abre formulário com:
+   - Upload de foto (obrigatório)
+   - Descrição (obrigatório)
+   - Botões "Confirmar" + "Cancelar"
+4. Após resolver, dados do dashboard são recarregados
+5. Item resolvido mostra info da resolução + botão **"Desfazer"**
+6. Desfazer pede confirmação antes de remover
 

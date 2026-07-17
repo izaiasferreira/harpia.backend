@@ -1,6 +1,7 @@
 const { cenos_pool } = require('../../db');
 const { getUserAllowedStatePools, getColaboradoresFilter, userIsAdmin, buildUserPermissionSQL } = require('./admin');
 const { getExemptAgentIds, countActiveExemptions, listActiveExemptions } = require('./agentExemptions');
+const { batchGetResolutions, batchGetResolutionsFull } = require('./nonconformityResolutions');
 
 /** Returns today's date as 'YYYY-MM-DD' in local time. */
 function getTodayStr() {
@@ -1214,10 +1215,12 @@ async function getDashboardNonCompliantItemsV2({
 /**
  * Splits an array of date strings into consecutive streaks,
  * treating Saturday and Sunday as non-breaking (Fri+Sat+Mon = consecutive).
- * Returns an array of streaks, each with { dates, consecutive_days }.
+ * When resolutionDates are provided, a resolved date acts as a "wall" —
+ * even if the next date is consecutive, the streak breaks after a resolved date.
+ * Returns an array of streaks, each with { dates, consecutive_days, resolved }.
  * Streaks are ordered chronologically (oldest first).
  */
-function splitIntoStreaks(allDates) {
+function splitIntoStreaks(allDates, resolutionDates = []) {
   if (!allDates || allDates.length === 0) return [];
 
   const toStr = (d) => {
@@ -1229,6 +1232,8 @@ function splitIntoStreaks(allDates) {
   const sorted = allDates.map(toStr).sort();
   const unique = sorted.filter((d, i) => i === 0 || d !== sorted[i - 1]);
   if (unique.length === 0) return [];
+
+  const resolvedSet = new Set(resolutionDates.map(toStr));
 
   function weekendDaysBetween(d1Str, d2Str) {
     const d1 = new Date(d1Str + 'T00:00:00');
@@ -1255,14 +1260,25 @@ function splitIntoStreaks(allDates) {
   let current = [unique[0]];
 
   for (let i = 1; i < unique.length; i++) {
-    if (isConsecutive(unique[i - 1], unique[i])) {
-      current.push(unique[i]);
+    const prevDate = unique[i - 1];
+    const thisDate = unique[i];
+
+    if (isConsecutive(prevDate, thisDate)) {
+      if (resolvedSet.has(prevDate)) {
+        const lastDate = current[current.length - 1];
+        streaks.push({ dates: [...current], consecutive_days: current.length, resolved: resolvedSet.has(lastDate) });
+        current = [thisDate];
+      } else {
+        current.push(thisDate);
+      }
     } else {
-      streaks.push({ dates: current, consecutive_days: current.length });
-      current = [unique[i]];
+      const lastDate = current[current.length - 1];
+      streaks.push({ dates: [...current], consecutive_days: current.length, resolved: resolvedSet.has(lastDate) });
+      current = [thisDate];
     }
   }
-  streaks.push({ dates: current, consecutive_days: current.length });
+  const lastDate = current[current.length - 1];
+  streaks.push({ dates: [...current], consecutive_days: current.length, resolved: resolvedSet.has(lastDate) });
 
   return streaks;
 }
@@ -1308,10 +1324,17 @@ async function getDashboardAlertsV2({
               col."ID" as agent_matricula, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
               a.item->>'question_label' as question, COALESCE(a.item->>'severity', 'critical') as severity,
               c.date, c.submitted_at, a.item->>'observation' as observation,
-              a.item->>'photo_url' as photo_url
+              a.item->>'photo_url' as photo_url,
+              CASE WHEN r.id IS NOT NULL THEN true ELSE false END as resolved,
+              r.description as resolution_description,
+              r.resolved_at, r.photo_url as resolution_photo_url
        FROM checklists c
        ${colJoin},
        jsonb_array_elements(c.data->'answers') a(item)
+       LEFT JOIN checklist_nonconformity_resolutions r
+         ON r.agent_id = c.agent_id
+         AND r.question_label = a.item->>'question_label'
+         AND r.resolved_date = c.date
        ${cWhere}
          AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
          AND COALESCE(a.item->>'severity', 'critical') IN ('critical', 'alert')
@@ -1343,46 +1366,83 @@ async function getDashboardAlertsV2({
 
   if (groups.length === 0) return [];
 
-  // Step 2: For each group, fetch ALL historical dates (no date filter) for that agent+question
+  // Step 2: Batch fetch resolutions for all groups
+  const resolutionMap = await batchGetResolutions(groups);
+
+  // Step 2b: Fetch full resolution details for resolved items
+  const fullResolutionMap = await batchGetResolutionsFull(groups);
+
+  // Step 3: For each group, fetch ALL historical dates + checklist_id map (no date filter)
   const results = await Promise.all(groups.map(async (g) => {
     const histParams = [g.agent_id, g.question, templateIds];
     const { rows: histRows } = await cenos_pool.query(
-      `SELECT array_agg(DISTINCT c.date ORDER BY c.date) as all_dates
-       FROM checklists c
-       ${colJoin}
-       WHERE c.status = 'submitted'
-         AND c.template_id = ANY($3::uuid[])
-         AND c.agent_id = $1
-         AND col."ID" = $1
-         AND EXISTS (
-           SELECT 1 FROM jsonb_array_elements(c.data->'answers') a(item)
-           WHERE a.item->>'question_label' = $2
-             AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
-         )
-       LIMIT 1000`,
+      `SELECT array_agg(DISTINCT sub.date ORDER BY sub.date) as all_dates,
+              CASE WHEN count(*) = 0 THEN '{}'::jsonb
+              ELSE jsonb_object_agg(sub.date::text, sub.id) END as date_checklist_map
+       FROM (
+         SELECT DISTINCT ON (c.date) c.date, c.id
+         FROM checklists c
+         ${colJoin}
+         WHERE c.status = 'submitted'
+           AND c.template_id = ANY($3::uuid[])
+           AND c.agent_id = $1
+           AND col."ID" = $1
+           AND EXISTS (
+             SELECT 1 FROM jsonb_array_elements(c.data->'answers') a(item)
+             WHERE a.item->>'question_label' = $2
+               AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
+           )
+         ORDER BY c.date, c.submitted_at DESC NULLS LAST
+         LIMIT 1000
+       ) sub`,
       histParams
     );
 
     const allDates = (histRows[0]?.all_dates || []);
-    const streaks = splitIntoStreaks(allDates);
+    const dateChecklistMap = histRows[0]?.date_checklist_map || {};
+    const resKey = `${g.agent_id}||${g.question}`;
+    const streaks = splitIntoStreaks(allDates, resolutionMap.dateMap.get(resKey) || []);
 
-    return streaks.map((streak) => ({
-      checklist_id: null,
-      agent_id: g.agent_id,
-      agent_nome: g.agent_nome,
-      agent_matricula: g.agent_matricula,
-      regional: g.regional,
-      seccional: g.seccional,
-      gestor: g.gestor,
-      question: g.question,
-      severity: g.severity,
-      date: streak.dates[streak.dates.length - 1] || null,
-      submitted_at: null,
-      observation: null,
-      photo_url: null,
-      consecutive_days: streak.consecutive_days,
-      dates: streak.dates,
-    }));
+    return streaks.map((streak) => {
+      const lastDate = streak.dates[streak.dates.length - 1] || null;
+      const resolutionId = streak.resolved && lastDate ? (resolutionMap.idMap.get(resKey + '||' + lastDate) || null) : null;
+      const checklistId = lastDate ? (dateChecklistMap[lastDate] || null) : null;
+
+      let resolution_detail = null;
+      if (resolutionId && lastDate) {
+        const fullRes = fullResolutionMap.get(`${g.agent_id}||${g.question}||${lastDate}`);
+        if (fullRes) {
+          resolution_detail = {
+            id: fullRes.id,
+            photo_url: fullRes.photo_url,
+            description: fullRes.description,
+            resolved_at: fullRes.resolved_at,
+            resolved_by: fullRes.resolved_by,
+          };
+        }
+      }
+
+      return {
+        checklist_id: checklistId,
+        agent_id: g.agent_id,
+        agent_nome: g.agent_nome,
+        agent_matricula: g.agent_matricula,
+        regional: g.regional,
+        seccional: g.seccional,
+        gestor: g.gestor,
+        question: g.question,
+        severity: g.severity,
+        date: lastDate,
+        submitted_at: null,
+        observation: null,
+        photo_url: null,
+        resolved: streak.resolved,
+        resolution_id: resolutionId,
+        resolution_detail,
+        consecutive_days: streak.consecutive_days,
+        dates: streak.dates,
+      };
+    });
   }));
 
   return results.flat();
@@ -1429,10 +1489,17 @@ async function getDashboardNonConformitiesV2({
               col."ID" as agent_matricula, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
               a.item->>'question_label' as question, COALESCE(a.item->>'severity', 'normal') as severity,
               c.date, c.submitted_at, a.item->>'observation' as observation,
-              a.item->>'photo_url' as photo_url
+              a.item->>'photo_url' as photo_url,
+              CASE WHEN r.id IS NOT NULL THEN true ELSE false END as resolved,
+              r.description as resolution_description,
+              r.resolved_at, r.photo_url as resolution_photo_url
        FROM checklists c
        ${colJoin},
        jsonb_array_elements(c.data->'answers') a(item)
+       LEFT JOIN checklist_nonconformity_resolutions r
+         ON r.agent_id = c.agent_id
+         AND r.question_label = a.item->>'question_label'
+         AND r.resolved_date = c.date
        ${cWhere}
          AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
          AND COALESCE(a.item->>'severity', 'normal') NOT IN ('critical', 'alert')
@@ -1464,46 +1531,83 @@ async function getDashboardNonConformitiesV2({
 
   if (groups.length === 0) return [];
 
-  // Step 2: For each group, fetch ALL historical dates (no date filter) for that agent+question
+  // Step 2: Batch fetch resolutions for all groups
+  const resolutionMap = await batchGetResolutions(groups);
+
+  // Step 2b: Fetch full resolution details for resolved items
+  const fullResolutionMap = await batchGetResolutionsFull(groups);
+
+  // Step 3: For each group, fetch ALL historical dates + checklist_id map (no date filter)
   const results = await Promise.all(groups.map(async (g) => {
     const histParams = [g.agent_id, g.question, templateIds];
     const { rows: histRows } = await cenos_pool.query(
-      `SELECT array_agg(DISTINCT c.date ORDER BY c.date) as all_dates
-       FROM checklists c
-       ${colJoin}
-       WHERE c.status = 'submitted'
-         AND c.template_id = ANY($3::uuid[])
-         AND c.agent_id = $1
-         AND col."ID" = $1
-         AND EXISTS (
-           SELECT 1 FROM jsonb_array_elements(c.data->'answers') a(item)
-           WHERE a.item->>'question_label' = $2
-             AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
-         )
-       LIMIT 1000`,
+      `SELECT array_agg(DISTINCT sub.date ORDER BY sub.date) as all_dates,
+              CASE WHEN count(*) = 0 THEN '{}'::jsonb
+              ELSE jsonb_object_agg(sub.date::text, sub.id) END as date_checklist_map
+       FROM (
+         SELECT DISTINCT ON (c.date) c.date, c.id
+         FROM checklists c
+         ${colJoin}
+         WHERE c.status = 'submitted'
+           AND c.template_id = ANY($3::uuid[])
+           AND c.agent_id = $1
+           AND col."ID" = $1
+           AND EXISTS (
+             SELECT 1 FROM jsonb_array_elements(c.data->'answers') a(item)
+             WHERE a.item->>'question_label' = $2
+               AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
+           )
+         ORDER BY c.date, c.submitted_at DESC NULLS LAST
+         LIMIT 1000
+       ) sub`,
       histParams
     );
 
     const allDates = (histRows[0]?.all_dates || []);
-    const streaks = splitIntoStreaks(allDates);
+    const dateChecklistMap = histRows[0]?.date_checklist_map || {};
+    const resKey = `${g.agent_id}||${g.question}`;
+    const streaks = splitIntoStreaks(allDates, resolutionMap.dateMap.get(resKey) || []);
 
-    return streaks.map((streak) => ({
-      checklist_id: null,
-      agent_id: g.agent_id,
-      agent_nome: g.agent_nome,
-      agent_matricula: g.agent_matricula,
-      regional: g.regional,
-      seccional: g.seccional,
-      gestor: g.gestor,
-      question: g.question,
-      severity: g.severity,
-      date: streak.dates[streak.dates.length - 1] || null,
-      submitted_at: null,
-      observation: null,
-      photo_url: null,
-      consecutive_days: streak.consecutive_days,
-      dates: streak.dates,
-    }));
+    return streaks.map((streak) => {
+      const lastDate = streak.dates[streak.dates.length - 1] || null;
+      const resolutionId = streak.resolved && lastDate ? (resolutionMap.idMap.get(resKey + '||' + lastDate) || null) : null;
+      const checklistId = lastDate ? (dateChecklistMap[lastDate] || null) : null;
+
+      let resolution_detail = null;
+      if (resolutionId && lastDate) {
+        const fullRes = fullResolutionMap.get(`${g.agent_id}||${g.question}||${lastDate}`);
+        if (fullRes) {
+          resolution_detail = {
+            id: fullRes.id,
+            photo_url: fullRes.photo_url,
+            description: fullRes.description,
+            resolved_at: fullRes.resolved_at,
+            resolved_by: fullRes.resolved_by,
+          };
+        }
+      }
+
+      return {
+        checklist_id: checklistId,
+        agent_id: g.agent_id,
+        agent_nome: g.agent_nome,
+        agent_matricula: g.agent_matricula,
+        regional: g.regional,
+        seccional: g.seccional,
+        gestor: g.gestor,
+        question: g.question,
+        severity: g.severity,
+        date: lastDate,
+        submitted_at: null,
+        observation: null,
+        photo_url: null,
+        resolved: streak.resolved,
+        resolution_id: resolutionId,
+        resolution_detail,
+        consecutive_days: streak.consecutive_days,
+        dates: streak.dates,
+      };
+    });
   }));
 
   return results.flat();

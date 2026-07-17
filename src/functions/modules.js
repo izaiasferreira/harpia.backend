@@ -102,6 +102,8 @@ const AVAILABLE_MODULES = [
     { id: 'create_agent_exemption', name: 'Criar Isenção de Checklist (Agentes)', group: 'Segurança e Monitoramento' },
     { id: 'delete_agent_exemption', name: 'Excluir Isenção de Checklist (Agentes)', group: 'Segurança e Monitoramento' },
     { id: 'view_agent_exemptions', name: 'Visualizar Isenções de Checklist (Agentes)', group: 'Segurança e Monitoramento' },
+    { id: 'resolve_nonconformity', name: 'Resolver Não Conformidades', group: 'Segurança e Monitoramento' },
+    { id: 'unresolve_nonconformity', name: 'Desfazer Resolução de Não Conformidade', group: 'Segurança e Monitoramento' },
     // Serviços
     { id: 'service_notes', name: 'Consultar Notas de Serviço', group: 'Serviços' },
     { id: 'create_service_note', name: 'Criar Nota de Serviço', group: 'Serviços' },
