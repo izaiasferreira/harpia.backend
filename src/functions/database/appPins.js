@@ -5,26 +5,21 @@ const { getColaboradoresFilter, userIsAdmin, checkAgentPermission } = require('.
 async function findAgentById(agentId) {
     const normalizedId = String(agentId).trim().toUpperCase();
     const { rows } = await cenos_pool.query(
-        'SELECT id, estado, telegram_id FROM login WHERE upper(id) = $1',
+        `SELECT c."ID" as id, c."estado", c."Nome" as nome, c."MAT" as mat, l.telegram_id 
+         FROM colaboradores c
+         LEFT JOIN login l ON upper(l.id) = upper(c."ID")
+         WHERE upper(c."ID") = $1`,
         [normalizedId]
     );
     if (rows.length === 0) return null;
 
-    const agent = rows[0];
-    agent.id = agent.id.toUpperCase();
-
-    // Buscar nome na tabela colaboradores (cenos_pool)
-    try {
-        const { rows: colabRows } = await cenos_pool.query(
-            `SELECT "Nome" FROM colaboradores WHERE upper("ID") = $1`,
-            [normalizedId]
-        );
-        agent.nome = colabRows.length > 0 ? colabRows[0].Nome : agent.id;
-    } catch {
-        agent.nome = agent.id;
-    }
-
-    return agent;
+    return {
+        id: rows[0].id.toUpperCase(),
+        estado: rows[0].estado,
+        nome: rows[0].nome,
+        mat: rows[0].mat,
+        telegram_id: rows[0].telegram_id || 0
+    };
 }
 
 async function invalidateExistingPins(agentId) {
@@ -51,9 +46,9 @@ async function listPins(limit = 50, user = null) {
     }
 
     let query = `
-        SELECT ap.*, l.nome as agent_nome, l.estado as agent_estado
+        SELECT ap.*, c."Nome" as agent_nome, c.estado as agent_estado
         FROM app_pins ap
-        LEFT JOIN login l ON upper(l.id) = upper(ap.agent_id)
+        LEFT JOIN colaboradores c ON upper(c."ID") = upper(ap.agent_id)
         WHERE 1=1
     `;
     let params = [];
@@ -64,7 +59,7 @@ async function listPins(limit = 50, user = null) {
         const colabFilter = getColaboradoresFilter(user, { includeAllStates: true });
 
         if (colabFilter.allowedStates.length > 0) {
-            query += ` AND l.estado = ANY($${paramIndex})`;
+            query += ` AND c.estado = ANY($${paramIndex})`;
             params.push(colabFilter.allowedStates);
             paramIndex++;
         }

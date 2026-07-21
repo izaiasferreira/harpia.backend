@@ -145,14 +145,22 @@ function initSocket(httpServer) {
 
                 // Se encontramos por agentId (login por PIN)
                 if (agentId) {
-                    const { rows } = await cenos_pool.query(
-                        'SELECT id FROM login WHERE id = $1',
-                        [agentId]
+                    const agentIdUpper = agentId.toUpperCase();
+                    let { rows } = await cenos_pool.query(
+                        `SELECT "ID" as id, "Nome" as nome FROM colaboradores WHERE upper("ID") = $1`,
+                        [agentIdUpper]
                     );
+                        const { rows: loginRows } = await cenos_pool.query(
+                            `SELECT id, id as nome FROM login WHERE upper(id) = $1`,
+                            [agentIdUpper]
+                        );
+                        rows = loginRows;
+                    }
+
                     if (rows.length > 0) {
                         socket.user = {
                             id: rows[0].id.toUpperCase(),
-                            name: rows[0].id,
+                            name: rows[0].nome || rows[0].id.toUpperCase(),
                             role: 'agent'
                         };
                         return next();
