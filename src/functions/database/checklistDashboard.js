@@ -1320,17 +1320,25 @@ async function getDashboardAlertsV2({
 
   if (export_raw) {
     const { rows } = await cenos_pool.query(
-      `SELECT c.id as checklist_id, c.agent_id, col."Nome" as agent_nome,
-              col."ID" as agent_matricula, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
-              a.item->>'question_label' as question, COALESCE(a.item->>'severity', 'critical') as severity,
-              c.date, c.submitted_at, a.item->>'observation' as observation,
-              a.item->>'photo_url' as photo_url,
-              CASE WHEN r.id IS NOT NULL THEN true ELSE false END as resolved,
-              r.description as resolution_description,
-              r.resolved_at, r.photo_url as resolution_photo_url
+      `SELECT c.agent_id as "Agente",
+              col."MAT" as "Matrícula",
+              col."Nome" as "Nome",
+              col.estado as "Estado",
+              col.seccional as "Seccional",
+              col.regional as "Regional",
+              col."GESTOR IMEDIATO" as "Gestor",
+              a.item->>'question_label' as "Item",
+              COALESCE(a.item->>'severity', 'critical') as "Nível",
+              TO_CHAR(c.date, 'DD/MM/YY') as "Data",
+              TO_CHAR(c.submitted_at, 'DD/MM/YY "às" HH24:MI:SS') as "Enviado em",
+              a.item->>'observation' as "Observação",
+              CASE WHEN (a.item->>'photo_url') IS NOT NULL AND (a.item->>'photo_url') != '' THEN 'HYPERLINK|' || (a.item->>'photo_url') ELSE NULL END as "Foto",
+              CASE WHEN r.id IS NOT NULL THEN 'Resolvido' ELSE 'Não resolvido' END as "Resolução",
+              r.description as "Descrição da resolução",
+              TO_CHAR(r.resolved_at, 'DD/MM/YY "às" HH24:MI:SS') as "Resolvido em"
        FROM checklists c
-       ${colJoin},
-       jsonb_array_elements(c.data->'answers') a(item)
+       ${colJoin}
+       CROSS JOIN LATERAL jsonb_array_elements(c.data->'answers') a(item)
        LEFT JOIN checklist_nonconformity_resolutions r
          ON r.agent_id = c.agent_id
          AND r.question_label = a.item->>'question_label'
@@ -1338,7 +1346,7 @@ async function getDashboardAlertsV2({
        ${cWhere}
          AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
          AND COALESCE(a.item->>'severity', 'critical') IN ('critical', 'alert')
-       ORDER BY COALESCE(c.submitted_at, c.date) DESC, severity ASC
+       ORDER BY COALESCE(c.submitted_at, c.date) DESC, "Nível" ASC
        LIMIT 5000`,
       dParams
     );
@@ -1348,7 +1356,7 @@ async function getDashboardAlertsV2({
   // Step 1: Find which agent+question+severity combinations exist in the date range
   const { rows: groups } = await cenos_pool.query(
     `SELECT c.agent_id, col."Nome" as agent_nome,
-            col."ID" as agent_matricula, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
+            col."MAT" as agent_matricula, col.estado, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
             a.item->>'question_label' as question, COALESCE(a.item->>'severity', 'critical') as severity,
             COUNT(DISTINCT c.date) as filtered_days
      FROM checklists c
@@ -1357,7 +1365,7 @@ async function getDashboardAlertsV2({
      ${cWhere}
        AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
        AND COALESCE(a.item->>'severity', 'critical') IN ('critical', 'alert')
-     GROUP BY c.agent_id, col."Nome", col."ID", col.regional, col.seccional, col."GESTOR IMEDIATO",
+     GROUP BY c.agent_id, col."Nome", col."MAT", col.estado, col.regional, col.seccional, col."GESTOR IMEDIATO",
               a.item->>'question_label', COALESCE(a.item->>'severity', 'critical')
      ORDER BY filtered_days DESC, severity ASC
      LIMIT 50`,
@@ -1485,17 +1493,25 @@ async function getDashboardNonConformitiesV2({
 
   if (export_raw) {
     const { rows } = await cenos_pool.query(
-      `SELECT c.id as checklist_id, c.agent_id, col."Nome" as agent_nome,
-              col."ID" as agent_matricula, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
-              a.item->>'question_label' as question, COALESCE(a.item->>'severity', 'normal') as severity,
-              c.date, c.submitted_at, a.item->>'observation' as observation,
-              a.item->>'photo_url' as photo_url,
-              CASE WHEN r.id IS NOT NULL THEN true ELSE false END as resolved,
-              r.description as resolution_description,
-              r.resolved_at, r.photo_url as resolution_photo_url
+      `SELECT c.agent_id as "Agente",
+              col."MAT" as "Matrícula",
+              col."Nome" as "Nome",
+              col.estado as "Estado",
+              col.seccional as "Seccional",
+              col.regional as "Regional",
+              col."GESTOR IMEDIATO" as "Gestor",
+              a.item->>'question_label' as "Item",
+              COALESCE(a.item->>'severity', 'normal') as "Nível",
+              TO_CHAR(c.date, 'DD/MM/YY') as "Data",
+              TO_CHAR(c.submitted_at, 'DD/MM/YY "às" HH24:MI:SS') as "Enviado em",
+              a.item->>'observation' as "Observação",
+              CASE WHEN (a.item->>'photo_url') IS NOT NULL AND (a.item->>'photo_url') != '' THEN 'HYPERLINK|' || (a.item->>'photo_url') ELSE NULL END as "Foto",
+              CASE WHEN r.id IS NOT NULL THEN 'Resolvido' ELSE 'Não resolvido' END as "Resolução",
+              r.description as "Descrição da resolução",
+              TO_CHAR(r.resolved_at, 'DD/MM/YY "às" HH24:MI:SS') as "Resolvido em"
        FROM checklists c
-       ${colJoin},
-       jsonb_array_elements(c.data->'answers') a(item)
+       ${colJoin}
+       CROSS JOIN LATERAL jsonb_array_elements(c.data->'answers') a(item)
        LEFT JOIN checklist_nonconformity_resolutions r
          ON r.agent_id = c.agent_id
          AND r.question_label = a.item->>'question_label'
@@ -1513,7 +1529,7 @@ async function getDashboardNonConformitiesV2({
   // Step 1: Find which agent+question+severity combinations exist in the date range
   const { rows: groups } = await cenos_pool.query(
     `SELECT c.agent_id, col."Nome" as agent_nome,
-            col."ID" as agent_matricula, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
+            col."MAT" as agent_matricula, col.estado, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
             a.item->>'question_label' as question, COALESCE(a.item->>'severity', 'normal') as severity,
             COUNT(DISTINCT c.date) as filtered_days
      FROM checklists c
@@ -1522,7 +1538,7 @@ async function getDashboardNonConformitiesV2({
      ${cWhere}
        AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
        AND COALESCE(a.item->>'severity', 'normal') NOT IN ('critical', 'alert')
-     GROUP BY c.agent_id, col."Nome", col."ID", col.regional, col.seccional, col."GESTOR IMEDIATO",
+     GROUP BY c.agent_id, col."Nome", col."MAT", col.estado, col.regional, col.seccional, col."GESTOR IMEDIATO",
               a.item->>'question_label', COALESCE(a.item->>'severity', 'normal')
      ORDER BY filtered_days DESC
      LIMIT 50`,
