@@ -60,12 +60,21 @@ async function telegramAuth(req, res, next) {
         } else {
 
             const { rows } = await cenos_pool.query(
-                'SELECT telegram_user_id, agent_id FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
+                'SELECT telegram_user_id, agent_id, expires_at FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
                 [initData]
             );
 
             if (rows.length === 0) {
                 return res.status(403).json({ error: 'Token expirado ou inválido' });
+            }
+
+            // Sliding expiration
+            const daysUntilExpiry = (new Date(rows[0].expires_at) - Date.now()) / (1000 * 60 * 60 * 24);
+            if (daysUntilExpiry < 15) {
+                cenos_pool.query(
+                    "UPDATE telegram_tokens SET expires_at = CURRENT_TIMESTAMP + interval '30 days' WHERE token = $1",
+                    [initData]
+                ).catch(e => console.error('[SLIDING EXPIRATION AUTH] Erro:', e.message));
             }
 
             // Se tem agent_id (login por PIN), busca direto pelo ID

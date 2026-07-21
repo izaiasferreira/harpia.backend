@@ -123,12 +123,20 @@ function initSocket(httpServer) {
                     // 2. Token Standalone ou DEV token em telegram_tokens
                     try {
                         const { rows } = await cenos_pool.query(
-                            'SELECT telegram_user_id, agent_id FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
+                            'SELECT telegram_user_id, agent_id, expires_at FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
                             [tgInitData]
                         );
                         if (rows.length > 0) {
                             telegramId = rows[0].telegram_user_id;
                             agentId = rows[0].agent_id;
+                            
+                            const daysUntilExpiry = (new Date(rows[0].expires_at) - Date.now()) / (1000 * 60 * 60 * 24);
+                            if (daysUntilExpiry < 15) {
+                                cenos_pool.query(
+                                    "UPDATE telegram_tokens SET expires_at = CURRENT_TIMESTAMP + interval '30 days' WHERE token = $1",
+                                    [tgInitData]
+                                ).catch(e => console.error('[SLIDING EXPIRATION SOCKET] Erro:', e.message));
+                            }
                         }
                     } catch (e) {
                         console.error('[SOCKET AUTH] Erro ao buscar token na tabela telegram_tokens:', e.message);
