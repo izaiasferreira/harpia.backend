@@ -150,6 +150,8 @@ function initSocket(httpServer) {
                         `SELECT "ID" as id, "Nome" as nome FROM colaboradores WHERE upper("ID") = $1`,
                         [agentIdUpper]
                     );
+
+                    if (rows.length === 0) {
                         const { rows: loginRows } = await cenos_pool.query(
                             `SELECT id, id as nome FROM login WHERE upper(id) = $1`,
                             [agentIdUpper]
