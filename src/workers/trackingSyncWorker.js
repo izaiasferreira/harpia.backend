@@ -72,6 +72,21 @@ function normalizePoint(agentId, raw, speedLimit) {
 }
 
 /**
+ * Calcula a distância em metros entre duas coordenadas.
+ */
+function haversineDistance(lat1, lon1, lat2, lon2) {
+    if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return 0;
+    const R = 6371e3; // Raio da Terra em metros
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+/**
  * Multi-row INSERT na tabela final tracking_session_points.
  */
 async function batchInsertPoints(points) {
@@ -201,9 +216,34 @@ async function processBatch(rows) {
         // Filtrar cercas do estado deste agente
         const agentFences = agentState ? allFences.filter(f => f.estado === agentState && f.polygon != null) : [];
 
-        const normalized = points.map(p => {
+        // 1. Ordenar pontos por tempo para garantir análise cronológica
+        points.sort((a, b) => new Date(a.timestamp || a.recorded_at).getTime() - new Date(b.timestamp || b.recorded_at).getTime());
+
+        const normalized = [];
+        let lastValidPoint = null;
+
+        for (const p of points) {
             const pt = normalizePoint(agentId, p, speedLimit);
             
+            // FILTRO 1: Peneira de Precisão (Spider Webbing)
+            if (pt.accuracy != null && pt.accuracy > 50) {
+                continue; // Descarta o ponto se a precisão for terrível
+            }
+
+            // FILTRO 2: Salto Anômalo (Velocidade Impossível)
+            if (lastValidPoint && pt.lat != null && pt.lng != null && lastValidPoint.lat != null && lastValidPoint.lng != null) {
+                const distMeters = haversineDistance(lastValidPoint.lat, lastValidPoint.lng, pt.lat, pt.lng);
+                const timeDiffSeconds = (pt.timestamp.getTime() - lastValidPoint.timestamp.getTime()) / 1000;
+                
+                if (timeDiffSeconds > 0) {
+                    const speedKmh = (distMeters / timeDiffSeconds) * 3.6;
+                    // Salto > 150 km/h é anomalia física e deve ser droppado
+                    if (speedKmh > 150) {
+                        continue;
+                    }
+                }
+            }
+
             // Verificação de Geofencing
             if (agentFences.length > 0 && pt.lat != null && pt.lng != null) {
                 const turfPt = turfPoint([pt.lng, pt.lat]);
@@ -218,8 +258,10 @@ async function processBatch(rows) {
                     }
                 }
             }
-            return pt;
-        });
+            
+            normalized.push(pt);
+            lastValidPoint = pt;
+        }
 
         if (normalized.length > 0) {
             await batchInsertPoints(normalized);
