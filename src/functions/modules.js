@@ -15,10 +15,7 @@ const AVAILABLE_MODULES = [
     { id: 'daily_report', name: 'Consultar Diário de Bordo', group: 'Diário de Bordo' },
     { id: 'update_daily_report', name: 'Atualizar Diário de Bordo', group: 'Diário de Bordo' },
     { id: 'delete_daily_report', name: 'Deletar Diário de Bordo', group: 'Diário de Bordo' },
-    // Inventário
-    { id: 'inventory', name: 'Inventário (Legado)', group: 'Inventário' },
-    { id: 'update_inventory', name: 'Atualizar Inventário (Legado)', group: 'Inventário' },
-    { id: 'delete_inventory', name: 'Deletar Inventário (Legado)', group: 'Inventário' },
+
     // Equipamentos
     { id: 'equipments', name: 'Consultar Equipamentos', group: 'Inventário' },
     { id: 'approve_equipment_request', name: 'Aprovar Solicitações de Equipamento', group: 'Inventário' },
