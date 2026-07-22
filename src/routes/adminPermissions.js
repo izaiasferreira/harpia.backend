@@ -48,6 +48,8 @@ router.get('/:id', verifyToken(), verifyModule('permissions'), async (req, res) 
 router.post('/', verifyToken(), verifyModule('create_permission'), validate(permissionCreateSchema), async (req, res) => {
     try {
         const { name, description, modules, filters } = req.body;
+
+        console.log(req.body)
         
         if (!name || !modules || !filters)  {
             return res.status(400).json({ error: 'Nome, módulos e filtros são obrigatórios' });
@@ -86,15 +88,12 @@ router.post('/', verifyToken(), verifyModule('create_permission'), validate(perm
         }
 
         const availableModules = (await listModules()).map(m => m.id);
-        const invalidModules = modules.filter(m => !availableModules.includes(m));
-        if (invalidModules.length > 0) {
-            return res.status(400).json({ error: 'Módulos inválidos' });
-        }
+        const validModules = modules.filter(m => availableModules.includes(m));
 
         const permission = await createPermission({
             name,
             description,
-            modules,
+            modules: validModules,
             filters: filters || [],
             state: req.user.estado
         });
@@ -127,7 +126,11 @@ router.put('/:id', verifyToken(), verifyModule('update_permission'), validate(pe
                 }
             }
         }
-        
+        if (data.modules && Array.isArray(data.modules)) {
+            const availableModules = (await listModules()).map(m => m.id);
+            data.modules = data.modules.filter(m => availableModules.includes(m));
+        }
+
         const permission = await updatePermission(id, data, req.user.estado);
         if (!permission) {
             return res.status(404).json({ error: 'Permissão não encontrada' });
