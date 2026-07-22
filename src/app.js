@@ -185,8 +185,12 @@ app.use('/public', telegramWebhookRouter)
 const publicNotifyRouter = require('./routes/publicNotify')
 app.use('/public', publicNotifyRouter)
 
+const adminTrackingShareRouter = require('./routes/adminTrackingShare')
+const publicTrackingRouter = require('./routes/publicTracking')
 const adminApiTokensRouter = require('./routes/adminApiTokens')
 app.use('/admin/api-tokens', adminApiTokensRouter)
+app.use('/admin/tracking/share', adminTrackingShareRouter)
+app.use('/public/tracking', publicTrackingRouter)
 
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
