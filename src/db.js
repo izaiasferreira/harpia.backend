@@ -6,6 +6,7 @@ const POOL_CONFIG = {
     idleTimeoutMillis: 30000,
     statement_timeout: 10000, // 10s
     connectionTimeoutMillis: 15000, // Aumentado para suportar latência de banco remoto
+    options: '-c timezone=UTC',
 };
 
 const cenos_pool = new Pool({
