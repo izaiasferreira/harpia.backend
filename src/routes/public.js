@@ -15,13 +15,22 @@ const uploadStorage = multer.memoryStorage();
 const formUpload = multer({ storage: uploadStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 const { findAgentById, findValidPin, markPinAsUsed } = require('../functions/database/appPins');
 
+const getClientIp = (req) => {
+    const xForwardedFor = req.headers['x-forwarded-for'];
+    if (xForwardedFor) {
+        return xForwardedFor.split(',')[0].trim();
+    }
+    return req.ip;
+};
+
 const publicLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 60,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Muitas requisições. Tente novamente em 1 minuto.' },
-    validate: { trustProxy: false }
+    validate: { trustProxy: false },
+    keyGenerator: getClientIp
 });
 
 // Limiter mais agressivo para verificações e submissões
@@ -31,7 +40,8 @@ const strictPublicLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Muitas tentativas. Tente novamente em 1 minuto.' },
-    validate: { trustProxy: false }
+    validate: { trustProxy: false },
+    keyGenerator: getClientIp
 });
 
 router.get('/health', publicLimiter, (req, res) => {
@@ -250,7 +260,8 @@ const appLoginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
     message: { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' },
-    validate: { trustProxy: false }
+    validate: { trustProxy: false },
+    keyGenerator: getClientIp
 });
 
 router.post('/app_login', appLoginLimiter, async (req, res) => {

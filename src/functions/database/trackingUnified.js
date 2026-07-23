@@ -41,16 +41,11 @@ async function upsertGlobalSpeedLimit(speedLimitKmh) {
 }
 
 async function getAgentsLastPositionUnified(user = null) {
-    // Primeiro: buscar agentes do sistema (ativos) baseado em permissões e que possuam algum dado de rastreamento
+    // Primeiro: buscar agentes do sistema (ativos) baseado em permissões
     let query = `
         SELECT c."ID" AS agent_id, c.estado AS agent_estado 
         FROM colaboradores c 
-        WHERE c.status = TRUE 
-          AND (
-            EXISTS (SELECT 1 FROM agent_heartbeats h WHERE UPPER(h.agent_id) = UPPER(c."ID"))
-            OR
-            EXISTS (SELECT 1 FROM tracking_session_points tsp WHERE UPPER(tsp.agent_id) = UPPER(c."ID"))
-          )
+        WHERE c.status = TRUE
     `;
     let params = [];
 
@@ -127,6 +122,9 @@ async function getAgentsLastPositionUnified(user = null) {
             gestor: col['GESTOR IMEDIATO'] || null,
         };
     });
+
+    // Filtra apenas os agentes que de fato possuem dados de tracking (latitude/longitude)
+    result = result.filter(r => r.latitude !== null && r.longitude !== null);
 
     // Aplica filtro em memória para regional/seccional/gestor
     if (user && !userIsAdmin(user)) {
