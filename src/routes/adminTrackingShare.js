@@ -29,7 +29,7 @@ router.post('/', verifyToken(), verifyModule('tracking_live'), async (req, res) 
         const { rows } = await cenos_pool.query(query, [
             token,
             req.user.id,
-            expires_at,
+            expires_at.toISOString(),
             duration_minutes,
             JSON.stringify(target_agents)
         ]);
@@ -78,6 +78,33 @@ router.post('/:id/revoke', verifyToken(), verifyModule('tracking_live'), async (
     } catch (error) {
         console.error('Error revoking shared link:', error);
         res.status(500).json({ error: 'Erro ao revogar link' });
+    }
+});
+
+// Excluir link (apenas admin ou o próprio criador do link)
+router.delete('/:id', verifyToken(), verifyModule('tracking_live'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const isAdmin = req.user.role.toLowerCase().includes('admin');
+        
+        let query = `DELETE FROM tracking_shared_links WHERE id = $1`;
+        let params = [id];
+        
+        if (!isAdmin) {
+            query += ` AND created_by = $2`;
+            params.push(req.user.id);
+        }
+        
+        query += ` RETURNING id`;
+        
+        const { rows } = await cenos_pool.query(query, params);
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Link não encontrado ou você não tem permissão para excluí-lo' });
+        }
+        res.json({ success: true, id: rows[0].id });
+    } catch (error) {
+        console.error('Error deleting shared link:', error);
+        res.status(500).json({ error: 'Erro ao excluir link' });
     }
 });
 

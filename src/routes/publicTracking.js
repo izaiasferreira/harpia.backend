@@ -83,6 +83,16 @@ router.get('/:token/live', async (req, res) => {
         const lastPointsMap = {};
         lastPoints.forEach(p => { lastPointsMap[p.agent_id] = p; });
 
+        // Buscar também o heartbeat para cada agente (assim como no painel admin)
+        const { rows: heartbeats } = await cenos_pool.query(`
+            SELECT agent_id, last_heartbeat_at, last_heartbeat_lat, last_heartbeat_lng
+            FROM agent_heartbeats
+            WHERE agent_id = ANY($1)
+        `, [foundAgentIds]);
+
+        const hbMap = {};
+        heartbeats.forEach(h => { hbMap[h.agent_id] = h; });
+
         // Enriquecer com dados do colaborador
         const { rows: cols } = await cenos_pool.query(
             `SELECT "ID", "Nome", "seccional", "regional" FROM colaboradores WHERE "ID" = ANY($1)`,
@@ -95,24 +105,31 @@ router.get('/:token/live', async (req, res) => {
             const id = agent.agent_id.toUpperCase();
             const col = colsMap[id] || {};
             const point = lastPointsMap[agent.agent_id] || {};
+            const hb = hbMap[agent.agent_id] || {};
+
+            // Verificar se o heartbeat é mais recente que o último ponto registrado
+            const hbTime = hb.last_heartbeat_at ? new Date(hb.last_heartbeat_at).getTime() : 0;
+            const ptTime = point.recorded_at ? new Date(point.recorded_at).getTime() : 0;
+            const useHb = hbTime > ptTime;
+
             return {
                 agent_id: agent.agent_id,
                 agent_estado: agent.agent_estado,
                 nome: col.Nome,
                 seccional: col.seccional,
                 regional: col.regional,
-                latitude: point.latitude,
-                longitude: point.longitude,
-                speed: point.speed,
-                accuracy: point.accuracy,
-                battery_level: point.battery_level,
-                is_charging: point.is_charging,
-                network_type: point.network_type,
-                gps_enabled: point.gps_enabled,
-                device_model: point.device_model,
-                device_platform: point.device_platform,
-                os_version: point.os_version,
-                recorded_at: point.recorded_at
+                latitude: useHb ? hb.last_heartbeat_lat : (point.latitude ?? null),
+                longitude: useHb ? hb.last_heartbeat_lng : (point.longitude ?? null),
+                speed: useHb ? null : (point.speed ?? null),
+                accuracy: useHb ? null : (point.accuracy ?? null),
+                battery_level: point.battery_level ?? null,
+                is_charging: point.is_charging ?? null,
+                network_type: point.network_type ?? null,
+                gps_enabled: point.gps_enabled ?? null,
+                device_model: point.device_model ?? null,
+                device_platform: point.device_platform ?? null,
+                os_version: point.os_version ?? null,
+                recorded_at: useHb ? hb.last_heartbeat_at : (point.recorded_at ?? null)
             };
         });
 
