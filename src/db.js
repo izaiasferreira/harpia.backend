@@ -1,5 +1,10 @@
 require('dotenv').config();
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
+
+// Garante que TIMESTAMP sem fuso horário (OID 1114) seja interpretado como UTC
+types.setTypeParser(1114, function(stringValue) {
+    return new Date(stringValue.replace(' ', 'T') + 'Z');
+});
 
 const POOL_CONFIG = {
     max: 25,
