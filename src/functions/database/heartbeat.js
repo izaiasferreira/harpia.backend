@@ -3,15 +3,16 @@ const redisClient = require('../../redis');
 const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
 
 async function updateHeartbeat(agentId, lat, lng, serverTimestamp = null) {
+    const ts = serverTimestamp ? new Date(serverTimestamp) : new Date();
     await cenos_pool.query(
         `INSERT INTO agent_heartbeats (agent_id, last_heartbeat_at, last_heartbeat_lat, last_heartbeat_lng, updated_at)
-         VALUES ($3, COALESCE($4, NOW()), $1, $2, COALESCE($4, NOW()))
+         VALUES ($3, $4, $1, $2, $4)
          ON CONFLICT (agent_id) DO UPDATE SET
              last_heartbeat_at = EXCLUDED.last_heartbeat_at,
              last_heartbeat_lat = EXCLUDED.last_heartbeat_lat,
              last_heartbeat_lng = EXCLUDED.last_heartbeat_lng,
              updated_at = EXCLUDED.updated_at`,
-        [lat, lng, agentId, serverTimestamp]
+        [lat, lng, agentId, ts]
     );
 
     try {
