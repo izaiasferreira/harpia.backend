@@ -25,7 +25,6 @@ const AVAILABLE_MODULES = [
     { id: 'assign_equipment', name: 'Associar Equipamento a Agente (Legado)', group: 'Inventário' },
     { id: 'request_equipment_assignment', name: 'Solicitar Associação de Equipamento', group: 'Inventário' },
     { id: 'unassign_equipment', name: 'Desassociar Equipamento', group: 'Inventário' },
-    { id: 'approve_equipment_request', name: 'Aprovar Solicitação de Equipamento (Agente)', group: 'Inventário' },
     { id: 'view_equipment_history', name: 'Visualizar Histórico de Equipamento', group: 'Inventário' },
     { id: 'manage_equipment_types', name: 'Gerenciar Tipos de Equipamento', group: 'Inventário' },
     // Usuários
@@ -63,10 +62,6 @@ const AVAILABLE_MODULES = [
     { id: 'tracking_speed', name: 'Monitoramento: Velocidade', group: 'Segurança e Monitoramento' },
     { id: 'tracking_falls', name: 'Monitoramento: Quedas', group: 'Segurança e Monitoramento' },
     { id: 'tracking_settings', name: 'Configurações de Tracking', group: 'Segurança e Monitoramento' },
-    { id: 'delete_accident', name: 'Excluir Acidente', group: 'Segurança e Monitoramento' },
-    { id: 'crash_detection', name: 'Consultar Incidentes de Queda', group: 'Segurança e Monitoramento' },
-    { id: 'update_crash_incident', name: 'Atualizar Incidente de Queda', group: 'Segurança e Monitoramento' },
-    { id: 'resolve_crash_incident', name: 'Resolver / Validar Incidente de Queda', group: 'Segurança e Monitoramento' },
     { id: 'manage_security_reports_config', name: 'Gerenciar Configurações de Reporte de Segurança', group: 'Segurança e Monitoramento' },
     { id: 'geofences', name: 'Cercas Virtuais (Visualização)', group: 'Segurança e Monitoramento' },
     { id: 'create_geofence', name: 'Criar Cerca Virtual', group: 'Segurança e Monitoramento' },
@@ -108,7 +103,6 @@ const AVAILABLE_MODULES = [
     { id: 'delete_service_note', name: 'Deletar Nota de Serviço', group: 'Serviços' },
     { id: 'assign_service_notes', name: 'Atribuir Notas de Serviço', group: 'Serviços' },
     { id: 'import_service_notes', name: 'Importar Notas de Serviço', group: 'Serviços' },
-    { id: 'services_consult', name: 'Consulta Global de Serviços', group: 'Serviços' },
     // Auditoria e App
     { id: 'revalidate', name: 'Revalidar Fotos (Auditoria)', group: 'Auditoria e App' },
     { id: 'revalidate_write', name: 'Salvar Resultado de Revalidação', group: 'Auditoria e App' },
