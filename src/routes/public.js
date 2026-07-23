@@ -27,7 +27,7 @@ const publicLimiter = rateLimit({
 // Limiter mais agressivo para verificações e submissões
 const strictPublicLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 10,
+    max: 100,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Muitas tentativas. Tente novamente em 1 minuto.' },
