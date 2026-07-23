@@ -174,9 +174,15 @@ async function getAgentTrailUnified(agentId, dateFrom, dateTo) {
 async function getSpeedViolationsFromUnified(filters = {}, user = null) {
     const params = [];
     let query = `
-        SELECT tsp.*, l.estado as agent_estado
+        SELECT tsp.*, 
+               c.estado as agent_estado,
+               c."Nome" as nome,
+               c.regional as regional,
+               c.seccional as seccional,
+               c."GESTOR IMEDIATO" as gestor,
+               tsp.speed_limit_applied as speed_limit
         FROM tracking_session_points tsp
-        LEFT JOIN login l ON l.id = tsp.agent_id
+        INNER JOIN colaboradores c ON UPPER(c."ID") = UPPER(tsp.agent_id)
         WHERE tsp.is_speed_violation = TRUE`;
 
     // Aplica filtro de permissão
@@ -184,7 +190,7 @@ async function getSpeedViolationsFromUnified(filters = {}, user = null) {
         const filter = getColaboradoresFilter(user, { includeAllStates: true });
         if (filter.allowedStates.length > 0) {
             params.push(filter.allowedStates);
-            query += ` AND l.estado = ANY($${params.length})`;
+            query += ` AND c.estado = ANY($${params.length})`;
         } else {
             return []; // Sem acesso
         }
@@ -207,34 +213,7 @@ async function getSpeedViolationsFromUnified(filters = {}, user = null) {
 
     const { rows } = await cenos_pool.query(query, params);
 
-    if (rows.length === 0) return rows;
-
-    const colLookup = async (ids) => {
-        if (ids.length === 0) return {};
-        const { rows: cols } = await cenos_pool.query(
-            `SELECT "ID", "Nome", "seccional", "regional", "GESTOR IMEDIATO" FROM colaboradores WHERE "ID" = ANY($1)`,
-            [ids]
-        );
-        const map = {};
-        cols.forEach(c => map[c.ID.toUpperCase()] = c);
-        return map;
-    };
-
-    const allIds = [...new Set(rows.map(r => r.agent_id.toUpperCase()))];
-    const cols = await colLookup(allIds);
-
-    let result = rows.map(r => {
-        const id = r.agent_id.toUpperCase();
-        const col = cols[id] || {};
-        return {
-            ...r,
-            speed_limit: r.speed_limit_applied,
-            nome: col['Nome'] || null,
-            regional: col['regional'] || null,
-            seccional: col['seccional'] || null,
-            gestor: col['GESTOR IMEDIATO'] || null,
-        };
-    });
+    let result = rows;
 
     // Filtro em memória para regional/seccional/gestor
     if (user && !userIsAdmin(user)) {

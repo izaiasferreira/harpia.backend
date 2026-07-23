@@ -269,7 +269,7 @@ async function processBatch(rows) {
 
             // Atualiza heartbeat assincronamente com o último ponto do agente no lote
             const last = normalized[normalized.length - 1];
-            await updateHeartbeat(agentId, last.lat, last.lng);
+            await updateHeartbeat(agentId, last.lat, last.lng, new Date());
         }
     }
 
