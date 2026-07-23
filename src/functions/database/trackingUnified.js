@@ -41,22 +41,31 @@ async function upsertGlobalSpeedLimit(speedLimitKmh) {
 }
 
 async function getAgentsLastPositionUnified(user = null) {
-    // Primeiro: buscar agentes do sistema baseado em permissões
-    let query = `SELECT l.id AS agent_id, l.estado AS agent_estado FROM login l WHERE l.id IS NOT NULL`;
+    // Primeiro: buscar agentes do sistema (ativos) baseado em permissões e que possuam algum dado de rastreamento
+    let query = `
+        SELECT c."ID" AS agent_id, c.estado AS agent_estado 
+        FROM colaboradores c 
+        WHERE c.status = TRUE 
+          AND (
+            EXISTS (SELECT 1 FROM agent_heartbeats h WHERE UPPER(h.agent_id) = UPPER(c."ID"))
+            OR
+            EXISTS (SELECT 1 FROM tracking_session_points tsp WHERE UPPER(tsp.agent_id) = UPPER(c."ID"))
+          )
+    `;
     let params = [];
 
     // Aplica filtro de permissão
     if (user && !userIsAdmin(user)) {
         const filter = getColaboradoresFilter(user, { includeAllStates: true });
         if (filter.allowedStates.length > 0) {
-            query += ` AND l.estado = ANY($1)`;
+            query += ` AND c.estado = ANY($1)`;
             params.push(filter.allowedStates);
         } else {
             return []; // Sem acesso
         }
     }
 
-    query += ` ORDER BY l.id`;
+    query += ` ORDER BY c."ID"`;
     const { rows: allAgents } = await cenos_pool.query(query, params);
 
     if (allAgents.length === 0) return [];

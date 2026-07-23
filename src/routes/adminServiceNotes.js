@@ -204,12 +204,13 @@ router.get('/nearest-agents', verifyToken(), verifyModule('service_notes'), asyn
             // Se nao houver resultados no Redis, buscar do Postgres como fallback
             const { rows } = await cenos_pool.query(
                 `SELECT 
-                    id AS agent_id,
-                    estado,
-                    last_heartbeat_at,
-                    last_heartbeat_lat,
-                    last_heartbeat_lng
-                 FROM login
+                    h.agent_id,
+                    c.estado,
+                    h.last_heartbeat_at,
+                    h.last_heartbeat_lat,
+                    h.last_heartbeat_lng
+                 FROM agent_heartbeats h
+                 LEFT JOIN colaboradores c ON UPPER(h.agent_id) = UPPER(c."ID")
                  WHERE last_heartbeat_lat IS NOT NULL AND last_heartbeat_lng IS NOT NULL
                    AND (
                      6371 * acos(
@@ -253,7 +254,10 @@ router.get('/nearest-agents', verifyToken(), verifyModule('service_notes'), asyn
 
         const agentIds = results.map(r => r.member);
         const { rows: dbAgents } = await cenos_pool.query(
-            `SELECT id AS agent_id, estado, last_heartbeat_at FROM login WHERE id = ANY($1::varchar[])`,
+            `SELECT h.agent_id, c.estado, h.last_heartbeat_at 
+             FROM agent_heartbeats h 
+             LEFT JOIN colaboradores c ON UPPER(h.agent_id) = UPPER(c."ID") 
+             WHERE h.agent_id = ANY($1::varchar[])`,
             [agentIds]
         );
         const namesMap = await getColaboradoresNames(agentIds);

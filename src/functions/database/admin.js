@@ -617,8 +617,9 @@ async function get_users_only_login_paginated({ user, page = 1, limit = 50, sear
     const offsetVal = (parseInt(page) - 1) * limitVal;
 
     const dataQuery = `
-        SELECT l.* 
+        SELECT l.*, h.last_heartbeat_at
         FROM login l 
+        LEFT JOIN agent_heartbeats h ON UPPER(l.id) = UPPER(h.agent_id)
         ${whereClause} 
         ORDER BY l.id ASC 
         LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
