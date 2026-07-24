@@ -11,6 +11,7 @@ const VERSIONS_FILE = path.join(__dirname, '../../apk-versions.json');
 const updateLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
+  keyGenerator: (req) => `${req.ip}_${req.deviceId || 'no-device'}`,
   message: { error: 'Muitas requisicoes. Tente novamente em 1 minuto.' }
 });
 

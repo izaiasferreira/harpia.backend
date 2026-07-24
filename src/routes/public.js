@@ -20,6 +20,7 @@ const publicLimiter = rateLimit({
     max: 60,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: (req) => `${req.ip}_${req.deviceId || 'no-device'}`,
     message: { error: 'Muitas requisições. Tente novamente em 1 minuto.' },
     validate: { trustProxy: false }
 });
@@ -27,9 +28,10 @@ const publicLimiter = rateLimit({
 // Limiter mais agressivo para verificações e submissões
 const strictPublicLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 100,
+    max: 10,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: (req) => `${req.ip}_${req.deviceId || 'no-device'}`,
     message: { error: 'Muitas tentativas. Tente novamente em 1 minuto.' },
     validate: { trustProxy: false }
 });
@@ -248,7 +250,8 @@ router.get('/generate_token', async (req, res) => {
 
 const appLoginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 500,
+    max: 10,
+    keyGenerator: (req) => `${req.ip}_${req.deviceId || 'no-device'}`,
     message: { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' },
     validate: { trustProxy: false }
 });
