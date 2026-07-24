@@ -19,6 +19,7 @@ const logMiddleware = async (req, res, next) => {
         // "Query" in this context will be a representation of all request data.
         const logData = {
             timestamp: new Date().toISOString(),
+            device_id: req.deviceId || null,
             method,
             url,
             ip,

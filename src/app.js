@@ -4,6 +4,7 @@ const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
 const logMiddleware = require('./middlewares/logMiddleware');
+const deviceIdMiddleware = require('./middlewares/deviceIdMiddleware');
 const { initFirebase } = require('./functions/firebase');
 const app = express();
 
@@ -23,6 +24,7 @@ if (process.env.NODE_ENV !== 'test') {
 const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
 
 app.use(cors({
+    allowedHeaders: ['Content-Type', 'Authorization', 'gedai-device-id', 'X-Requested-With'],
     origin: (origin, callback) => {
         if (!origin) return callback(null, true);
         if (allowedOrigins.length === 0) {
@@ -48,6 +50,7 @@ app.use(cors({
 
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
+app.use(deviceIdMiddleware);
 app.use(logMiddleware);
 app.use(express.static('public'));
 
