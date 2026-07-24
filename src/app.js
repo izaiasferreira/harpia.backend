@@ -24,7 +24,16 @@ if (process.env.NODE_ENV !== 'test') {
 const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
 
 app.use(cors({
-    allowedHeaders: ['Content-Type', 'Authorization', 'gedai-device-id', 'X-Requested-With'],
+    allowedHeaders: [
+        'Content-Type', 
+        'Authorization', 
+        'gedai-device-id', 
+        'X-Requested-With', 
+        'x-telegram-init-data', 
+        'X-Telegram-Init-Data', 
+        'x-api-token', 
+        'X-API-Token'
+    ],
     origin: (origin, callback) => {
         if (!origin) return callback(null, true);
         if (allowedOrigins.length === 0) {
