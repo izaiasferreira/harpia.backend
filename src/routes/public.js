@@ -23,7 +23,7 @@ const publicLimiter = rateLimit({
     legacyHeaders: false,
     keyGenerator: (req) => `${req.ip}_${req.deviceId || 'no-device'}`,
     message: { error: 'Muitas requisições. Tente novamente em 1 minuto.' },
-    validate: { trustProxy: false }
+    validate: false
 });
 
 // Limiter mais agressivo para verificações e submissões
@@ -34,7 +34,7 @@ const strictPublicLimiter = rateLimit({
     legacyHeaders: false,
     keyGenerator: (req) => `${req.ip}_${req.deviceId || 'no-device'}`,
     message: { error: 'Muitas tentativas. Tente novamente em 1 minuto.' },
-    validate: { trustProxy: false }
+    validate: false
 });
 
 router.get('/health', publicLimiter, (req, res) => {
@@ -254,7 +254,7 @@ const appLoginLimiter = rateLimit({
     max: 10,
     keyGenerator: (req) => `${req.ip}_${req.deviceId || 'no-device'}`,
     message: { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' },
-    validate: { trustProxy: false }
+    validate: false
 });
 
 router.post('/app_login', appLoginLimiter, async (req, res) => {

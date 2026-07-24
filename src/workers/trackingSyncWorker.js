@@ -233,7 +233,7 @@ async function processBatch(rows) {
             // FILTRO 2: Salto Anômalo (Velocidade Impossível)
             if (lastValidPoint && pt.lat != null && pt.lng != null && lastValidPoint.lat != null && lastValidPoint.lng != null) {
                 const distMeters = haversineDistance(lastValidPoint.lat, lastValidPoint.lng, pt.lat, pt.lng);
-                const timeDiffSeconds = (pt.timestamp.getTime() - lastValidPoint.timestamp.getTime()) / 1000;
+                const timeDiffSeconds = (new Date(pt.timestamp).getTime() - new Date(lastValidPoint.timestamp).getTime()) / 1000;
                 
                 if (timeDiffSeconds > 0) {
                     const speedKmh = (distMeters / timeDiffSeconds) * 3.6;

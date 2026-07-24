@@ -12,7 +12,8 @@ const updateLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
   keyGenerator: (req) => `${req.ip}_${req.deviceId || 'no-device'}`,
-  message: { error: 'Muitas requisicoes. Tente novamente em 1 minuto.' }
+  message: { error: 'Muitas requisicoes. Tente novamente em 1 minuto.' },
+  validate: false
 });
 
 function getVersions() {
