@@ -315,6 +315,4 @@ router.delete('/users/:id', verifyToken(), verifyModule('delete_user'), async (r
     }
 });
 
-
-
 module.exports = router;

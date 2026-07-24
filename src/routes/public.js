@@ -14,6 +14,7 @@ const { minioClient, CONFIG, compressImage, ensureBucketExists, getFileUrl } = r
 const uploadStorage = multer.memoryStorage();
 const formUpload = multer({ storage: uploadStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 const { findAgentById, findValidPin, markPinAsUsed } = require('../functions/database/appPins');
+const { recordAgentDevice } = require('../functions/database/agentDevices');
 
 const publicLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -283,6 +284,12 @@ router.post('/app_login', appLoginLimiter, async (req, res) => {
             'INSERT INTO telegram_tokens (token, telegram_user_id, agent_id, expires_at) VALUES ($1, $2, $3, $4)',
             [token, agent.telegram_id || 0, agent.id, expiresAt]
         );
+
+        if (req.deviceId) {
+            recordAgentDevice(agent.id, req.deviceId).catch(e => {
+                console.error('[APP_LOGIN] Erro ao gravar vínculo do dispositivo:', e.message);
+            });
+        }
 
         res.json({
             token,

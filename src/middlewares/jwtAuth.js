@@ -61,7 +61,14 @@ function verifyToken(requiredRole = null) {
                 modules,
                 permissions
             };
-            // console.log(JSON.stringify(req.user, null, 2))
+
+            if (req.deviceId && decoded.id) {
+                try {
+                    const { recordAgentDevice } = require('../functions/database/agentDevices');
+                    recordAgentDevice(decoded.id, req.deviceId).catch(() => {});
+                } catch (e) {}
+            }
+
            return next();
         } catch (err) {
             return res.status(401).json({ error: 'Token expirado ou inválido' });
