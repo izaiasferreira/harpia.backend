@@ -2,8 +2,14 @@ const { cenos_pool } = require('../../db');
 const redisClient = require('../../redis');
 const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
 
-async function updateHeartbeat(agentId, lat, lng, serverTimestamp = null) {
-    const ts = serverTimestamp ? new Date(serverTimestamp) : new Date();
+async function updateHeartbeat(agentId, lat, lng, deviceTimestamp = null) {
+    let ts;
+    if (deviceTimestamp) {
+        const d = new Date(deviceTimestamp);
+        ts = isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+    } else {
+        ts = new Date().toISOString();
+    }
     await cenos_pool.query(
         `INSERT INTO agent_heartbeats (agent_id, last_heartbeat_at, last_heartbeat_lat, last_heartbeat_lng, updated_at)
          VALUES ($3, $4, $1, $2, $4)

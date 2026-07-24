@@ -59,7 +59,7 @@ function normalizePoint(agentId, raw, speedLimit) {
         deviceModel: point.deviceModel ?? null,
         devicePlatform: point.devicePlatform ?? null,
         osVersion: point.osVersion ?? null,
-        timestamp: new Date(point.timestamp),
+        timestamp: point.timestamp ? (isNaN(new Date(point.timestamp).getTime()) ? new Date().toISOString() : new Date(point.timestamp).toISOString()) : new Date().toISOString(),
         speedLimitApplied: speedLimitNum, // isso pode ser sobrescrito pelo geofence
         isViolation,
         // Dead Reckoning
@@ -267,9 +267,9 @@ async function processBatch(rows) {
             await batchInsertPoints(normalized);
             totalInserted += normalized.length;
 
-            // Atualiza heartbeat assincronamente com o último ponto do agente no lote
+            // Atualiza heartbeat assincronamente com a data/hora do dispositivo do último ponto do lote
             const last = normalized[normalized.length - 1];
-            await updateHeartbeat(agentId, last.lat, last.lng, new Date());
+            await updateHeartbeat(agentId, last.lat, last.lng, last.timestamp);
         }
     }
 
