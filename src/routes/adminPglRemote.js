@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
+const { getTokensByAgent } = require('../functions/database/fcmTokens');
+const { sendToMultiple } = require('../functions/firebase');
 
 // In-memory command queue / pending requests map for agent remote inspection
 const pendingPglCommands = new Map(); // requestId -> { res, timeout, agentId, command, orderId }
@@ -15,11 +17,13 @@ router.post('/agents/:agentId/fetch-services', verifyToken('COMPANY_ADMIN'), ver
     }
 
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    console.log(`[PGL_REMOTE_BACK] 📥 Admin solicitou LEITURA de serviços PGL para o agente: ${agentId} | requestId: ${requestId}`);
     
     // Registra o comando pendente
     const timeout = setTimeout(() => {
         if (pendingPglCommands.has(requestId)) {
             pendingPglCommands.delete(requestId);
+            console.warn(`[PGL_REMOTE_BACK] ⏱️ Timeout atingido (15s) aguardando resposta do agente ${agentId} | requestId: ${requestId}`);
             res.status(504).json({ error: 'Tempo limite excedido aguardando resposta do dispositivo do agente.' });
         }
     }, 15000);
@@ -32,7 +36,14 @@ router.post('/agents/:agentId/fetch-services', verifyToken('COMPANY_ADMIN'), ver
         created: Date.now()
     });
 
-    // Se o agente estiver conectado ou polling, os comandos pendentes sao consumidos em /agent/pgl-command
+    try {
+        const tokens = await getTokensByAgent(agentId);
+        if (tokens.length > 0) {
+            await sendToMultiple(tokens, 'PGL Remote', 'Comando fetch_services', { type: 'pgl_remote_command', critical: 'true' });
+        }
+    } catch (e) {
+        console.warn('[PGL_REMOTE_BACK] Falha ao enviar notificação push:', e.message);
+    }
 });
 
 /**
@@ -47,10 +58,12 @@ router.post('/agents/:agentId/revert-service', verifyToken('COMPANY_ADMIN'), ver
     }
 
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    console.log(`[PGL_REMOTE_BACK] 📥 Admin solicitou REVERSÃO da ordem ${orderId} para o agente: ${agentId} | requestId: ${requestId}`);
 
     const timeout = setTimeout(() => {
         if (pendingPglCommands.has(requestId)) {
             pendingPglCommands.delete(requestId);
+            console.warn(`[PGL_REMOTE_BACK] ⏱️ Timeout atingido (20s) aguardando reversão do agente ${agentId} | requestId: ${requestId}`);
             res.status(504).json({ error: 'Tempo limite excedido aguardando resposta do dispositivo do agente.' });
         }
     }, 20000);
@@ -63,6 +76,15 @@ router.post('/agents/:agentId/revert-service', verifyToken('COMPANY_ADMIN'), ver
         orderId,
         created: Date.now()
     });
+
+    try {
+        const tokens = await getTokensByAgent(agentId);
+        if (tokens.length > 0) {
+            await sendToMultiple(tokens, 'PGL Remote', 'Comando revert_service', { type: 'pgl_remote_command', critical: 'true' });
+        }
+    } catch (e) {
+        console.warn('[PGL_REMOTE_BACK] Falha ao enviar notificação push:', e.message);
+    }
 });
 
 /**
@@ -83,6 +105,10 @@ router.get('/agent-commands/:agentId', async (req, res) => {
         }
     }
 
+    if (commands.length > 0) {
+        console.log(`[PGL_REMOTE_BACK] 📡 Entregando ${commands.length} comando(s) pendente(s) para o agente: ${agentId}`);
+    }
+
     res.json({ commands });
 });
 
@@ -91,7 +117,10 @@ router.get('/agent-commands/:agentId', async (req, res) => {
  */
 router.post('/agent-commands/respond', async (req, res) => {
     const { requestId, payload, error } = req.body;
+    console.log(`[PGL_REMOTE_BACK] 📤 Resposta recebida do dispositivo para requestId: ${requestId} | Erro: ${error || 'Nenhum'}`);
+
     if (!requestId || !pendingPglCommands.has(requestId)) {
+        console.warn(`[PGL_REMOTE_BACK] ⚠️ Resposta ignorada: requestId ${requestId} não encontrado ou já expirado.`);
         return res.status(404).json({ error: 'Requisicao nao encontrada ou ja expirada' });
     }
 
@@ -100,9 +129,11 @@ router.post('/agent-commands/respond', async (req, res) => {
     pendingPglCommands.delete(requestId);
 
     if (error) {
+        console.error(`[PGL_REMOTE_BACK] ❌ Agente reportou erro na execução:`, error);
         return item.res.status(500).json({ error });
     }
 
+    console.log(`[PGL_REMOTE_BACK] ✅ Resposta enviada com sucesso ao Admin Web para requestId: ${requestId}`);
     return item.res.json(payload || { success: true });
 });
 
