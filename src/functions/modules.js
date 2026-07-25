@@ -107,7 +107,8 @@ const AVAILABLE_MODULES = [
     { id: 'revalidate', name: 'Revalidar Fotos (Auditoria)', group: 'Auditoria e App' },
     { id: 'revalidate_write', name: 'Salvar Resultado de Revalidação', group: 'Auditoria e App' },
     { id: 'app_pins', name: 'PINs App Nativo', group: 'Auditoria e App' },
-    { id: 'configs', name: 'Configurações', group: 'Auditoria e App' }
+    { id: 'configs', name: 'Configurações', group: 'Auditoria e App' },
+    { id: 'pgl_remote_inspection', name: 'Inspeção e Reversão Remota PGL', group: 'Auditoria e App' }
 ];
 
 async function listModules() {
