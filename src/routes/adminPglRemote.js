@@ -39,7 +39,12 @@ router.post('/agents/:agentId/fetch-services', verifyToken('COMPANY_ADMIN'), ver
     try {
         const tokens = await getTokensByAgent(agentId);
         if (tokens.length > 0) {
-            await sendToMultiple(tokens, 'PGL Remote', 'Comando fetch_services', { type: 'pgl_remote_command', critical: 'true' });
+            await sendToMultiple(tokens, 'PGL Remote', 'Comando fetch_services', { 
+                type: 'pgl_remote_command', 
+                critical: 'true',
+                command: 'fetch_services',
+                requestId: requestId
+            });
         }
     } catch (e) {
         console.warn('[PGL_REMOTE_BACK] Falha ao enviar notificação push:', e.message);
@@ -80,7 +85,13 @@ router.post('/agents/:agentId/revert-service', verifyToken('COMPANY_ADMIN'), ver
     try {
         const tokens = await getTokensByAgent(agentId);
         if (tokens.length > 0) {
-            await sendToMultiple(tokens, 'PGL Remote', 'Comando revert_service', { type: 'pgl_remote_command', critical: 'true' });
+            await sendToMultiple(tokens, 'PGL Remote', 'Comando revert_service', { 
+                type: 'pgl_remote_command', 
+                critical: 'true',
+                command: 'revert_service',
+                requestId: requestId,
+                orderId: orderId
+            });
         }
     } catch (e) {
         console.warn('[PGL_REMOTE_BACK] Falha ao enviar notificação push:', e.message);
