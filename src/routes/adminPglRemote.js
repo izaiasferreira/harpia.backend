@@ -23,10 +23,10 @@ router.post('/agents/:agentId/fetch-services', verifyToken('COMPANY_ADMIN'), ver
     const timeout = setTimeout(() => {
         if (pendingPglCommands.has(requestId)) {
             pendingPglCommands.delete(requestId);
-            console.warn(`[PGL_REMOTE_BACK] ⏱️ Timeout atingido (15s) aguardando resposta do agente ${agentId} | requestId: ${requestId}`);
+            console.warn(`[PGL_REMOTE_BACK] ⏱️ Timeout atingido (60s) aguardando resposta do agente ${agentId} | requestId: ${requestId}`);
             res.status(504).json({ error: 'Tempo limite excedido aguardando resposta do dispositivo do agente.' });
         }
-    }, 15000);
+    }, 60000);
 
     pendingPglCommands.set(requestId, {
         res,
@@ -63,10 +63,10 @@ router.post('/agents/:agentId/revert-service', verifyToken('COMPANY_ADMIN'), ver
     const timeout = setTimeout(() => {
         if (pendingPglCommands.has(requestId)) {
             pendingPglCommands.delete(requestId);
-            console.warn(`[PGL_REMOTE_BACK] ⏱️ Timeout atingido (20s) aguardando reversão do agente ${agentId} | requestId: ${requestId}`);
+            console.warn(`[PGL_REMOTE_BACK] ⏱️ Timeout atingido (60s) aguardando reversão do agente ${agentId} | requestId: ${requestId}`);
             res.status(504).json({ error: 'Tempo limite excedido aguardando resposta do dispositivo do agente.' });
         }
-    }, 20000);
+    }, 60000);
 
     pendingPglCommands.set(requestId, {
         res,

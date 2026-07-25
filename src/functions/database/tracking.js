@@ -232,7 +232,7 @@ async function insertProximityAlerts(agentId, alerts) {
     }
 
     await cenos_pool.query(
-        `INSERT INTO agent_proximity_alerts (id, agent_id, latitude, longitude, motivo, distance, action_taken, recorded_at) VALUES ${values.join(',')}`,
+        `INSERT INTO agent_proximity_alerts (id, agent_id, latitude, longitude, motivo, distance, action_taken, recorded_at) VALUES ${values.join(',')} ON CONFLICT (id) DO NOTHING`,
         params
     );
 }
