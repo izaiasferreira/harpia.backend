@@ -14,6 +14,7 @@ const { minioClient, CONFIG, compressImage, ensureBucketExists, getFileUrl } = r
 const uploadStorage = multer.memoryStorage();
 const formUpload = multer({ storage: uploadStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 const { findAgentById, findValidPin, markPinAsUsed } = require('../functions/database/appPins');
+const { findValidLogoutPin, markLogoutPinAsUsed } = require('../functions/database/appLogoutPins');
 const { recordAgentDevice } = require('../functions/database/agentDevices');
 
 const publicLimiter = rateLimit({
@@ -303,6 +304,59 @@ router.post('/app_login', appLoginLimiter, async (req, res) => {
     } catch (err) {
         console.error('[APP_LOGIN] Erro:', err);
         res.status(500).json({ error: 'Erro interno no login' });
+    }
+});
+
+// --- Logout App Nativo (PIN de Logout) ---
+
+const appLogoutLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    keyGenerator: (req) => `${req.ip}_${req.deviceId || 'no-device'}`,
+    message: { error: 'Muitas tentativas de logout. Tente novamente em 15 minutos.' },
+    validate: false
+});
+
+router.post('/app_logout', appLogoutLimiter, async (req, res) => {
+    try {
+        const { pin } = req.body;
+        const currentToken = req.headers['x-telegram-init-data'];
+
+        if (!pin) {
+            return res.status(400).json({ error: 'PIN é obrigatório' });
+        }
+
+        if (!currentToken || currentToken.includes('hash=')) {
+            return res.status(401).json({ error: 'Sessão inválida' });
+        }
+
+        const { rows } = await cenos_pool.query(
+            'SELECT telegram_user_id, agent_id, expires_at FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
+            [currentToken]
+        );
+
+        if (rows.length === 0 || !rows[0].agent_id) {
+            return res.status(401).json({ error: 'Sessão expirada ou inválida' });
+        }
+
+        const agentId = rows[0].agent_id;
+
+        const validPin = await findValidLogoutPin(agentId, String(pin).trim());
+        if (!validPin) {
+            return res.status(401).json({ error: 'PIN inválido ou expirado' });
+        }
+
+        await markLogoutPinAsUsed(validPin.id);
+
+        await cenos_pool.query(
+            'DELETE FROM telegram_tokens WHERE token = $1',
+            [currentToken]
+        );
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[APP_LOGOUT] Erro:', err);
+        res.status(500).json({ error: 'Erro interno no logout' });
     }
 });
 

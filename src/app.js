@@ -131,6 +131,9 @@ app.use('/admin/forms', formChatRouter)
 
 app.use('/admin/agent', adminAppPinsRouter)
 
+const adminAppLogoutPinsRouter = require('./routes/adminAppLogoutPins')
+app.use('/admin/agent', adminAppLogoutPinsRouter)
+
 const adminTrackingRouter = require('./routes/adminTracking')
 app.use('/admin/tracking', adminTrackingRouter)
 
