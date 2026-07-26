@@ -182,9 +182,6 @@ app.use('/admin/config', adminConfigRouter)
 const adminMessagesRouter = require('./routes/adminMessages')
 app.use('/admin/messages', adminMessagesRouter)
 
-const adminPglRemoteRouter = require('./routes/adminPglRemote')
-app.use('/admin/pgl-remote', adminPglRemoteRouter)
-
 const adminSecurityReportConfigsRouter = require('./routes/adminSecurityReportConfigs')
 app.use('/admin/security_reports/configs', adminSecurityReportConfigsRouter)
 
