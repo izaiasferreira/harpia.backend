@@ -445,6 +445,53 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
         });
     }
 
+    // Enriquecimento com status de login/logout do app
+    if (result.length > 0) {
+        const agentIds = result.map(r => r.id);
+
+        const { rows: pinStatus } = await cenos_pool.query(`
+            WITH pin_status AS (
+                SELECT 
+                    upper(agent_id) AS agent_id,
+                    BOOL_OR(used_at IS NOT NULL) AS has_used_login,
+                    MAX(used_at) AS last_login_at
+                FROM app_pins
+                WHERE upper(agent_id) = ANY($1)
+                GROUP BY upper(agent_id)
+            ),
+            logout_status AS (
+                SELECT 
+                    upper(agent_id) AS agent_id,
+                    MAX(used_at) AS last_logout_at
+                FROM app_logout_pins
+                WHERE upper(agent_id) = ANY($1) AND used_at IS NOT NULL
+                GROUP BY upper(agent_id)
+            )
+            SELECT 
+                ps.agent_id,
+                ps.has_used_login,
+                ps.last_login_at,
+                ls.last_logout_at
+            FROM pin_status ps
+            LEFT JOIN logout_status ls ON ls.agent_id = ps.agent_id
+        `, [agentIds]);
+
+        const pinsMap = new Map(pinStatus.map(p => [p.agent_id, p]));
+
+        result.forEach(r => {
+            const p = pinsMap.get(r.id);
+            if (!p) {
+                r.login_status = 'none';
+            } else if (!p.has_used_login) {
+                r.login_status = 'pending';
+            } else {
+                const lastLogin = p.last_login_at ? new Date(p.last_login_at).getTime() : 0;
+                const lastLogout = p.last_logout_at ? new Date(p.last_logout_at).getTime() : 0;
+                r.login_status = lastLogout > lastLogin ? 'offline' : 'online';
+            }
+        });
+    }
+
     let filteredResult = result;
 
     if (filterUser && !userIsAdmin(user)) {
