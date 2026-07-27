@@ -9,11 +9,10 @@ const {
     invalidateExistingLogoutPins,
     createLogoutPin,
     listLogoutPins,
-    deleteLogoutPinById,
 } = require('../functions/database/appLogoutPins');
 
-// POST /admin/agent/generate_app_logout_pin
-router.post('/generate_app_logout_pin', verifyToken(), verifyModule('app_pins'), validate(z.object({ agent_id: z.string().min(1) })), async (req, res) => {
+// POST /admin/logout-pins/generate
+router.post('/generate', verifyToken(), verifyModule('app_pins'), validate(z.object({ agent_id: z.string().min(1) })), async (req, res) => {
     try {
         const { agent_id } = req.body;
 
@@ -44,26 +43,14 @@ router.post('/generate_app_logout_pin', verifyToken(), verifyModule('app_pins'),
     }
 });
 
-// GET /admin/agent/app_logout_pins
-router.get('/app_logout_pins', verifyToken(), verifyModule('app_pins'), async (req, res) => {
+// GET /admin/logout-pins
+router.get('/', verifyToken(), verifyModule('app_pins'), async (req, res) => {
     try {
         const pins = await listLogoutPins(50, req.user);
         res.json(pins);
     } catch (err) {
         console.error('[LIST_LOGOUT_PINS] Erro:', err);
         res.status(500).json({ error: 'Erro ao listar PINs de logout' });
-    }
-});
-
-// DELETE /admin/agent/app_logout_pins/:id
-router.delete('/app_logout_pins/:id', verifyToken(), verifyModule('app_pins'), async (req, res) => {
-    try {
-        const { id } = req.params;
-        await deleteLogoutPinById(id);
-        res.json({ success: true });
-    } catch (err) {
-        console.error('[DELETE_LOGOUT_PIN] Erro:', err);
-        res.status(500).json({ error: 'Erro ao deletar PIN de logout' });
     }
 });
 

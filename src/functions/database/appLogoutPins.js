@@ -85,10 +85,6 @@ async function listLogoutPins(limit = 50, user = null) {
     return rows;
 }
 
-async function deleteLogoutPinById(id) {
-    await cenos_pool.query('DELETE FROM app_logout_pins WHERE id = $1', [id]);
-}
-
 module.exports = {
     findAgentById,
     invalidateExistingLogoutPins,
@@ -96,5 +92,4 @@ module.exports = {
     findValidLogoutPin,
     markLogoutPinAsUsed,
     listLogoutPins,
-    deleteLogoutPinById,
 };
