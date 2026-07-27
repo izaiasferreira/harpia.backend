@@ -1,6 +1,7 @@
 const XLSX = require('xlsx');
 const { cenos_pool } = require('../../db');
 
+const VALID_STATUS = { 'ativo': true, 'inativo': false };
 const SITUACAO_MAP = {
   'ativo': 'active',
   'férias': 'vocation',
@@ -30,6 +31,7 @@ async function processAgentImport(fileBuffer, user) {
     }
 
     const id = String(rawId).trim().toUpperCase();
+    const matricula = row['MATRICULA'] || row['Matrícula'] || row['Matricula'] || '';
     const nome = row['NOME'] || row['Nome'] || '';
     const estado = (row['ESTADO'] || row['Estado'] || 'pi').toLowerCase();
     const regional = row['REGIONAL'] || row['Regional'] || '';
@@ -37,32 +39,33 @@ async function processAgentImport(fileBuffer, user) {
     const processo = row['PROCESSO'] || row['Processo'] || '';
     const gestor = row['GESTOR'] || row['Gestor'] || '';
     const cargo = row['CARGO'] || row['Cargo'] || '';
-    const statusRaw = String(row['STATUS'] || row['Status'] || '').toLowerCase();
-    const situacaoRaw = String(row['SITUAÇÃO'] || row['SITUACAO'] || row['Situação'] || '').toLowerCase();
 
-    // Skip empty logic if the user didn't specify values (we won't overwrite existing with blank unless explicitly needed, but for simplicity we will just update with what is in the sheet)
-    
-    let status = true;
-    if (statusRaw === 'inativo' || statusRaw === 'false' || statusRaw === '0') {
-      status = false;
+    const statusRaw = String(row['STATUS'] || row['Status'] || '').trim().toLowerCase();
+    if (statusRaw && !(statusRaw in VALID_STATUS)) {
+      errorCount++;
+      errors.push(`Linha ${index + 2} (${id}): STATUS "${row['STATUS']}" inválido. Use: Ativo, Inativo`);
+      continue;
     }
+    const status = statusRaw ? VALID_STATUS[statusRaw] : true;
 
-    let situacao = 'active';
-    for (const [key, val] of Object.entries(SITUACAO_MAP)) {
-      if (situacaoRaw.includes(key)) {
-        situacao = val;
-        break;
-      }
+    const situacaoRaw = String(row['SITUAÇÃO'] || row['SITUACAO'] || row['Situação'] || row['Situacao'] || '').trim().toLowerCase();
+    if (situacaoRaw && !(situacaoRaw in SITUACAO_MAP)) {
+      errorCount++;
+      errors.push(`Linha ${index + 2} (${id}): SITUAÇÃO "${row['SITUAÇÃO'] || row['SITUACAO']}" inválida. Use: Ativo, Férias, Desligado, Afastado`);
+      continue;
+    }
+    const situacao = situacaoRaw ? SITUACAO_MAP[situacaoRaw] : 'active';
+
+    if (estado && !['pi', 'ma'].includes(estado)) {
+      errorCount++;
+      errors.push(`Linha ${index + 2} (${id}): ESTADO "${row['ESTADO']}" inválido. Use: PI, MA`);
+      continue;
     }
 
     try {
-      // Upsert logic
       const existing = await cenos_pool.query(`SELECT "ID" FROM colaboradores WHERE "ID" = $1`, [id]);
       
       if (existing.rows.length > 0) {
-        // Update
-        // Build dynamic update to avoid overwriting with empty if we don't want to? 
-        // The instruction says to update everything based on the sheet. Let's update explicitly.
         await cenos_pool.query(`
           UPDATE colaboradores SET
             "Nome" = COALESCE(NULLIF($2, ''), "Nome"),
@@ -72,19 +75,19 @@ async function processAgentImport(fileBuffer, user) {
             processo = COALESCE(NULLIF($6, ''), processo),
             "GESTOR IMEDIATO" = COALESCE(NULLIF($7, ''), "GESTOR IMEDIATO"),
             "Cargo" = COALESCE(NULLIF($8, ''), "Cargo"),
-            status = $9,
-            situacao = $10
+            "MAT" = COALESCE(NULLIF($9, ''), "MAT"),
+            status = $10,
+            situacao = $11
           WHERE "ID" = $1
-        `, [id, nome, estado, regional, seccional, processo, gestor, cargo, status, situacao]);
+        `, [id, nome, estado, regional, seccional, processo, gestor, cargo, matricula, status, situacao]);
         
         successCount++;
         updatedIds.push(id);
       } else {
-        // Insert
         await cenos_pool.query(`
-          INSERT INTO colaboradores ("ID", "Nome", estado, regional, seccional, processo, "GESTOR IMEDIATO", "Cargo", status, situacao)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        `, [id, nome, estado, regional, seccional, processo, gestor, cargo, status, situacao]);
+          INSERT INTO colaboradores ("ID", "Nome", estado, regional, seccional, processo, "GESTOR IMEDIATO", "Cargo", "MAT", status, situacao)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `, [id, nome, estado, regional, seccional, processo, gestor, cargo, matricula, status, situacao]);
         
         successCount++;
         createdIds.push(id);

@@ -251,7 +251,7 @@ const applyColaboradoresFilter = async (results, user, idField = 'agente') => {
     return results.filter(r => matchesPermission(r));
 };
 
-async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limit = 50, search, regional, seccional, gestor, estado }) {
+async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limit = 50, search, regional, seccional, gestor, estado, status, situacao, login_status }) {
     const availablePools = getUserAllowedStatePools(user);
     const filterUser = getFilterUser(user);
 
@@ -347,6 +347,16 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
         countParams.push(gestor);
         paramIdx++;
     }
+    if (status === 'true') {
+        countQuery += ` AND "status" = true`;
+    } else if (status === 'false') {
+        countQuery += ` AND "status" = false`;
+    }
+    if (situacao) {
+        countQuery += ` AND "situacao" = $${paramIdx}`;
+        countParams.push(situacao);
+        paramIdx++;
+    }
 
     const { rows: countRows } = await cenos_pool.query(countQuery, countParams);
     const grandTotal = parseInt(countRows[0]?.total || 0);
@@ -394,6 +404,16 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
     } else if (gestor) {
         colabQuery += ` AND "GESTOR IMEDIATO" = $${cpIdx}`;
         colabParams.push(gestor);
+        cpIdx++;
+    }
+    if (status === 'true') {
+        colabQuery += ` AND "status" = true`;
+    } else if (status === 'false') {
+        colabQuery += ` AND "status" = false`;
+    }
+    if (situacao) {
+        colabQuery += ` AND "situacao" = $${cpIdx}`;
+        colabParams.push(situacao);
         cpIdx++;
     }
 
@@ -493,6 +513,10 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
     }
 
     let filteredResult = result;
+
+    if (login_status) {
+        filteredResult = filteredResult.filter(r => (r.login_status || 'none') === login_status);
+    }
 
     if (filterUser && !userIsAdmin(user)) {
         filteredResult = filteredResult.filter(r => {
@@ -607,7 +631,7 @@ async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, 
     return res.data;
 }
 
-async function get_users_only_login_paginated({ user, page = 1, limit = 50, search, estado }) {
+async function get_users_only_login_paginated({ user, page = 1, limit = 50, search, estado, login_status }) {
     const availablePools = getUserAllowedStatePools(user);
     let targetPools = availablePools;
     if (estado) {
@@ -692,6 +716,56 @@ async function get_users_only_login_paginated({ user, page = 1, limit = 50, sear
         unread_chat_count: unreadChatsSet.get((r.id || '').toUpperCase()) || 0,
         only_login: true
     }));
+
+    if (data.length > 0 && login_status) {
+        const agentIds = data.map(r => r.id);
+        const { rows: pinStatus } = await cenos_pool.query(`
+            WITH pin_status AS (
+                SELECT 
+                    upper(agent_id) AS agent_id,
+                    BOOL_OR(used_at IS NOT NULL) AS has_used_login,
+                    MAX(used_at) AS last_login_at
+                FROM app_pins
+                WHERE upper(agent_id) = ANY($1)
+                GROUP BY upper(agent_id)
+            ),
+            logout_status AS (
+                SELECT 
+                    upper(agent_id) AS agent_id,
+                    MAX(used_at) AS last_logout_at
+                FROM app_logout_pins
+                WHERE upper(agent_id) = ANY($1) AND used_at IS NOT NULL
+                GROUP BY upper(agent_id)
+            )
+            SELECT 
+                ps.agent_id,
+                ps.has_used_login,
+                ps.last_login_at,
+                ls.last_logout_at
+            FROM pin_status ps
+            LEFT JOIN logout_status ls ON ls.agent_id = ps.agent_id
+        `, [agentIds]);
+
+        const pinsMap = new Map(pinStatus.map(p => [p.agent_id, p]));
+        const filtered = data.filter(r => {
+            const p = pinsMap.get(r.id);
+            let status;
+            if (!p) status = 'none';
+            else if (!p.has_used_login) status = 'pending';
+            else {
+                const lastLogin = p.last_login_at ? new Date(p.last_login_at).getTime() : 0;
+                const lastLogout = p.last_logout_at ? new Date(p.last_logout_at).getTime() : 0;
+                status = lastLogout > lastLogin ? 'offline' : 'online';
+            }
+            return status === login_status;
+        });
+        return {
+            data: filtered,
+            total: filtered.length,
+            page: parseInt(page),
+            limit: limitVal
+        };
+    }
 
     return {
         data,

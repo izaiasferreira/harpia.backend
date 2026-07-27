@@ -90,9 +90,9 @@ router.get('/dashboard', verifyToken(), async (req, res) => {
 
 router.get('/users_agents', verifyToken(), verifyModule('users_agents'), async (req, res) => {
     try {
-        const { page, limit, search, regional, seccional, gestor, estado } = req.query;
+        const { page, limit, search, regional, seccional, gestor, estado, status, situacao, login_status } = req.query;
         const user = req.user;
-        const result = await get_users_agents_admin_paginated({ user, page, limit, search, regional, seccional, gestor, estado });
+        const result = await get_users_agents_admin_paginated({ user, page, limit, search, regional, seccional, gestor, estado, status, situacao, login_status });
         res.json(result);
     } catch (error) {
         console.log(error)
@@ -102,9 +102,9 @@ router.get('/users_agents', verifyToken(), verifyModule('users_agents'), async (
 
 router.get('/users_agents/only_login', verifyToken(), verifyModule('users_agents'), async (req, res) => {
     try {
-        const { page, limit, search, estado } = req.query;
+        const { page, limit, search, estado, login_status } = req.query;
         const user = req.user;
-        const result = await get_users_only_login_paginated({ user, page, limit, search, estado });
+        const result = await get_users_only_login_paginated({ user, page, limit, search, estado, login_status });
         res.json(result);
     } catch (error) {
         console.log(error);
