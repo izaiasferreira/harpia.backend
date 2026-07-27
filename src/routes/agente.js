@@ -1145,10 +1145,20 @@ router.get('/admin/tracking/speed-violations', verifyToken(), async (req, res) =
 // --- Heartbeat (nativo) ---
 const { updateHeartbeat } = require('../functions/database/heartbeat');
 
-// POST /agent/tracking/heartbeat — nativo envia presença + localização (tornado NOOP por motivos de performance)
+// POST /agent/tracking/heartbeat — nativo envia presença + localização
 router.post('/tracking/heartbeat', telegramAuth, async (req, res) => {
-    // NOOP: o batimento cardíaco do agente é deduzido/atualizado de forma assíncrona pelo fluxo de sync
-    res.json({ success: true, deprecated: true });
+    try {
+        const agentId = req.colaborador.id;
+        const { lat, lng } = req.body || {};
+        const ts = req.body?.timestamp || null;
+        if (lat != null && lng != null) {
+            await updateHeartbeat(agentId, lat, lng, ts);
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[HEARTBEAT] Erro:', err);
+        res.json({ success: true }); // nunca falha pro client
+    }
 });
 
 // --- Notificações ---

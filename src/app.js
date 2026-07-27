@@ -234,6 +234,11 @@ app.use((err, req, res, next) => {
         console.warn(`[CORS BLOQUEADO] IP: ${req.ip} | HOST: ${req.hostname || req.headers.host} | ORIGIN: ${req.headers.origin}`);
         return res.status(403).json({ error: 'Origem não permitida (CORS)' });
     }
+    if (err.type === 'entity.parse.failed' || err.message === 'request aborted') {
+        console.warn(`[BAD_REQUEST] IP: ${req.ip} | HOST: ${req.hostname || req.headers.host} | ${req.method} ${req.originalUrl} | ${err.message}`);
+        if (res.headersSent) return next(err);
+        return res.status(400).json({ error: 'Requisição inválida' });
+    }
     next(err);
 });
 
