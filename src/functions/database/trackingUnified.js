@@ -86,7 +86,7 @@ async function getAgentsLastPositionUnified(user = null) {
     const colLookup = async (ids) => {
         if (ids.length === 0) return {};
         const { rows: cols } = await cenos_pool.query(
-            `SELECT "ID", "Nome", "seccional", "regional", "GESTOR IMEDIATO" FROM colaboradores WHERE "ID" = ANY($1)`,
+            `SELECT "ID", "Nome", "seccional", "regional", "GESTOR IMEDIATO", "Cargo" FROM colaboradores WHERE "ID" = ANY($1)`,
             [ids]
         );
         const map = {};
@@ -120,6 +120,7 @@ async function getAgentsLastPositionUnified(user = null) {
             regional: col['regional'] || null,
             seccional: col['seccional'] || null,
             gestor: col['GESTOR IMEDIATO'] || null,
+            cargo: col['Cargo'] || null,
         };
     });
 
