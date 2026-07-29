@@ -36,15 +36,23 @@ async function getStagingPendingCount() {
 
 /**
  * Worker: busca lotes de pontos pendentes para processar.
+ * Reivindica registros 'pending' e também registros 'processing' presos há > 5 min (reaper pattern).
  * Utiliza SKIP LOCKED para garantir compatibilidade com múltiplos workers/instâncias.
  */
 async function claimPendingBatch(limit = 5000) {
     const { rows } = await cenos_pool.query(`
         UPDATE tracking_staging
-        SET status = 'processing', attempts = attempts + 1
+        SET status = 'processing',
+            attempts = attempts + 1,
+            processing_started_at = NOW(),
+            error_message = CASE
+                WHEN status = 'processing' THEN 'reclaimed after timeout'
+                ELSE error_message
+            END
         WHERE id IN (
             SELECT id FROM tracking_staging
-            WHERE status = 'pending'
+            WHERE (status = 'pending')
+               OR (status = 'processing' AND processing_started_at < NOW() - INTERVAL '5 minutes')
             ORDER BY received_at ASC
             LIMIT $1
             FOR UPDATE SKIP LOCKED
