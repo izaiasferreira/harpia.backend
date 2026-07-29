@@ -360,54 +360,6 @@ router.post('/app_logout', appLogoutLimiter, async (req, res) => {
     }
 });
 
-router.post('/app_refresh_token', async (req, res) => {
-    try {
-        const currentToken = req.headers['x-telegram-init-data'];
-
-        if (!currentToken || currentToken.includes('hash=')) {
-            return res.status(400).json({ error: 'Token inválido para refresh' });
-        }
-
-        const { rows } = await cenos_pool.query(
-            'SELECT telegram_user_id, expires_at FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
-            [currentToken]
-        );
-
-        if (rows.length === 0) {
-            return res.status(401).json({ error: 'Token expirado ou inválido' });
-        }
-
-        const { telegram_user_id, expires_at } = rows[0];
-        const daysUntilExpiry = (new Date(expires_at) - Date.now()) / (1000 * 60 * 60 * 24);
-
-        if (daysUntilExpiry > 7) {
-            return res.json({ token: currentToken, expires_at: expires_at, refreshed: false });
-        }
-
-        const newToken = crypto.randomBytes(32).toString('hex');
-        const newExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-        await cenos_pool.query(
-            'INSERT INTO telegram_tokens (token, telegram_user_id, expires_at) VALUES ($1, $2, $3)',
-            [newToken, telegram_user_id, newExpiresAt]
-        );
-
-        await cenos_pool.query(
-            'DELETE FROM telegram_tokens WHERE token = $1',
-            [currentToken]
-        );
-
-        res.json({
-            token: newToken,
-            expires_at: newExpiresAt.toISOString(),
-            refreshed: true
-        });
-    } catch (err) {
-        console.error('[APP_REFRESH] Erro:', err);
-        res.status(500).json({ error: 'Erro interno no refresh' });
-    }
-});
-
 // ==========================================
 // Upload público para formulários (imagens e arquivos)
 // ==========================================

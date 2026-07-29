@@ -41,7 +41,6 @@ Health check simples (sem prefixo).
 | `POST /public/form/submit/:id` | Submissão de resposta |
 | `POST /public/form/upload` | Upload de arquivo para formulário |
 | `POST /public/app_login` | Login app nativo (matrícula + PIN) |
-| `POST /public/app_refresh_token` | Refresh de token do app nativo |
 
 ### `/api/*` — API Token (`?token=cenos_...`)
 | Rota | Descrição |

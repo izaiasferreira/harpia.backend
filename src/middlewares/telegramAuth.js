@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { cenos_pool } = require('../db');
+const { recordAgentDevice } = require('../functions/database/agentDevices');
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
@@ -114,6 +115,10 @@ async function telegramAuth(req, res, next) {
                     telegramId: String(rows[0].telegram_user_id)
                 };
 
+                if (req.deviceId) {
+                    recordAgentDevice(req.colaborador.id, req.deviceId).catch(() => {});
+                }
+
                 return next();
             }
 
@@ -145,6 +150,10 @@ async function telegramAuth(req, res, next) {
             mat: collaborator.mat,
             telegramId: telegramIdStr
         };
+
+        if (req.deviceId) {
+            recordAgentDevice(req.colaborador.id, req.deviceId).catch(() => {});
+        }
         
         next();
     } catch (err) {

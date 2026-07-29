@@ -249,13 +249,6 @@ paths:
       responses:
         "200":
           description: Token de acesso
-  /public/app_refresh_token:
-    post:
-      tags: [Público]
-      summary: Refresh de token do app nativo
-      responses:
-        "200":
-          description: Token renovado
   /public/telegram-webhook:
     post:
       tags: [Público]
