@@ -8,6 +8,8 @@ const {
     getAgentTrailWithStops,
     getSpeedViolationsFromUnified,
 } = require('../functions/database/trackingUnified');
+const { getTokensByAgent } = require('../functions/database/fcmTokens');
+const { sendToMultiple } = require('../functions/firebase');
 const {
     get_accidents_admin,
     resolve_accident,
@@ -87,6 +89,32 @@ router.delete('/speed_violations/:id', verifyToken('COMPANY_ADMIN'), async (req,
     } catch (err) {
         console.error('[TRACKING] Erro ao deletar violação:', err);
         res.status(500).json({ error: 'Erro ao deletar violação de velocidade' });
+    }
+});
+
+// POST /admin/tracking/agent/:id/alert — envia alerta crítico pro agente
+router.post('/agent/:id/alert', verifyToken(), verifyModule('tracking_alerts'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { message } = req.body;
+        if (!message) return res.status(400).json({ error: 'Mensagem é obrigatória' });
+
+        const tokens = await getTokensByAgent(id);
+        if (tokens.length === 0) {
+            return res.status(404).json({ error: 'Agente não possui dispositivos registrados' });
+        }
+
+        const pushResult = await sendToMultiple(tokens, 'Alerta Administrativo', message, {
+            critical: 'true',
+            type: 'siren',
+            title: 'Alerta Administrativo',
+            body: message
+        });
+
+        res.json({ success: true, pushResult });
+    } catch (err) {
+        console.error('[TRACKING] Erro ao enviar alerta:', err);
+        res.status(500).json({ error: 'Erro ao enviar alerta' });
     }
 });
 

@@ -62,6 +62,7 @@ const AVAILABLE_MODULES = [
     { id: 'tracking_speed', name: 'Monitoramento: Velocidade', group: 'Segurança e Monitoramento' },
     { id: 'tracking_falls', name: 'Monitoramento: Quedas', group: 'Segurança e Monitoramento' },
     { id: 'tracking_settings', name: 'Configurações de Tracking', group: 'Segurança e Monitoramento' },
+    { id: 'tracking_alerts', name: 'Monitoramento: Disparar Alertas Sonoros', group: 'Segurança e Monitoramento' },
     { id: 'manage_security_reports_config', name: 'Gerenciar Configurações de Reporte de Segurança', group: 'Segurança e Monitoramento' },
     { id: 'geofences', name: 'Cercas Virtuais (Visualização)', group: 'Segurança e Monitoramento' },
     { id: 'create_geofence', name: 'Criar Cerca Virtual', group: 'Segurança e Monitoramento' },
