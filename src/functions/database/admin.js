@@ -3,6 +3,23 @@ const axios = require('axios');
 const { pi_pool, ma_pool, localizacoes_pi_pool, cenos_pool } = require('../../db');
 const { today } = require('../../utils/dates');
 
+const getChangedBy = (user) => user?.email || user?.id || user?.nome || 'unknown';
+
+async function insert_agent_audit_logs(entries) {
+  if (!entries || entries.length === 0) return;
+  const values = [];
+  const params = [];
+  let idx = 1;
+  for (const e of entries) {
+    values.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`);
+    params.push(e.agente_id, e.field, e.from_value, e.to_value, e.changed_by);
+  }
+  await cenos_pool.query(
+    `INSERT INTO agente_audit_log (agente_id, field, from_value, to_value, changed_by) VALUES ${values.join(',')}`,
+    params
+  );
+}
+
 
 const userIsAdmin = (user) => {
     if (!user || !user.role) return false;
@@ -899,6 +916,11 @@ async function create_user_agent_admin({ id, matricula, nome, estado: inputEstad
             `INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET estado = EXCLUDED.estado`,
             [id?.toUpperCase(), inputEstado.toLowerCase()]
         );
+        const changedBy = getChangedBy(user);
+        await insert_agent_audit_logs([
+            { agente_id: id?.toUpperCase(), field: 'status', from_value: null, to_value: status !== undefined ? String(status) : 'true', changed_by: changedBy },
+            { agente_id: id?.toUpperCase(), field: 'situacao', from_value: null, to_value: situacao || 'active', changed_by: changedBy },
+        ]);
         const result = await get_users_agents_admin({ user, ids: [id], estado: inputEstado });
         return result[0];
     } catch (err) {
@@ -1138,6 +1160,15 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
             `INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET estado = EXCLUDED.estado`,
             [id?.toUpperCase(), estado !== undefined ? estado.toLowerCase() : agent.estado.toLowerCase()]
         );
+        const changedBy = getChangedBy(user);
+        const auditEntries = [];
+        if (status !== undefined && String(status) !== String(agent.status)) {
+            auditEntries.push({ agente_id: id?.toUpperCase(), field: 'status', from_value: String(agent.status), to_value: String(status), changed_by: changedBy });
+        }
+        if (situacao !== undefined && situacao !== agent.situacao) {
+            auditEntries.push({ agente_id: id?.toUpperCase(), field: 'situacao', from_value: agent.situacao, to_value: situacao, changed_by: changedBy });
+        }
+        await insert_agent_audit_logs(auditEntries);
         const result = await get_users_agents_admin({ user, ids: [id], estado: estado || agent.estado });
         return result[0];
     } catch (err) {
@@ -1156,7 +1187,7 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
         const id = rawId?.toUpperCase();
         if (!id) continue;
         
-        const { rows: colabRows } = await cenos_pool.query(`SELECT estado FROM colaboradores WHERE "ID" = $1`, [id]);
+        const { rows: colabRows } = await cenos_pool.query(`SELECT estado, status, situacao FROM colaboradores WHERE "ID" = $1`, [id]);
         let estado = null;
         let existsInColab = colabRows.length > 0;
         
@@ -1198,14 +1229,32 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
             }
             
             if (setClauses.length > 0) {
+                const oldStatus = colabRows[0].status;
+                const oldSituacao = colabRows[0].situacao;
                 params.push(id);
                 await cenos_pool.query(`UPDATE colaboradores SET ${setClauses.join(', ')} WHERE "ID" = $${idx}`, params);
+                const changedBy = getChangedBy(user);
+                const auditEntries = [];
+                if (data.status !== undefined && data.status !== '' && String(data.status === 'true' || data.status === true) !== String(oldStatus)) {
+                    auditEntries.push({ agente_id: id, field: 'status', from_value: String(oldStatus), to_value: String(data.status === 'true' || data.status === true), changed_by: changedBy });
+                }
+                if (data.situacao !== undefined && data.situacao !== '' && data.situacao !== oldSituacao) {
+                    auditEntries.push({ agente_id: id, field: 'situacao', from_value: oldSituacao, to_value: data.situacao, changed_by: changedBy });
+                }
+                await insert_agent_audit_logs(auditEntries);
                 if (data.estado) {
                     await cenos_pool.query(`UPDATE login SET estado = $1 WHERE UPPER(id) = $2`, [targetEstado, id]);
                 }
                 updatedCount++;
             }
         } else {
+            const { rows: existingColab } = await cenos_pool.query(
+                `SELECT status, situacao FROM colaboradores WHERE "ID" = $1`, [id]
+            );
+            const hadOldValues = existingColab.length > 0;
+            const beforeStatus = hadOldValues ? existingColab[0].status : null;
+            const beforeSituacao = hadOldValues ? existingColab[0].situacao : null;
+
             const insertQuery = `
                 INSERT INTO colaboradores ("ID", "MAT", "Nome", "GESTOR IMEDIATO", "Cargo", "seccional", "regional", "estado", "status", "situacao", "processo")
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -1232,6 +1281,23 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
             ];
             await cenos_pool.query(insertQuery, params);
             await cenos_pool.query(`UPDATE login SET estado = $1 WHERE UPPER(id) = $2`, [targetEstado, id]);
+
+            const changedBy = getChangedBy(user);
+            const newStatus = data.status !== undefined && data.status !== '' ? (data.status === 'true' || data.status === true) : true;
+            const newSituacao = data.situacao || 'active';
+            const auditEntries = [];
+            if (!hadOldValues) {
+                auditEntries.push({ agente_id: id, field: 'status', from_value: null, to_value: String(newStatus), changed_by: changedBy });
+                auditEntries.push({ agente_id: id, field: 'situacao', from_value: null, to_value: newSituacao, changed_by: changedBy });
+            } else {
+                if (newStatus !== beforeStatus) {
+                    auditEntries.push({ agente_id: id, field: 'status', from_value: String(beforeStatus), to_value: String(newStatus), changed_by: changedBy });
+                }
+                if (newSituacao !== beforeSituacao) {
+                    auditEntries.push({ agente_id: id, field: 'situacao', from_value: beforeSituacao, to_value: newSituacao, changed_by: changedBy });
+                }
+            }
+            await insert_agent_audit_logs(auditEntries);
             updatedCount++;
         }
     }
@@ -1856,6 +1922,22 @@ async function get_instalations_admin({ query = [], type, user, estado }) {
     }
 }
 
+async function get_agent_audit_log(agenteId, { page = 1, limit = 20 } = {}) {
+    const offset = (page - 1) * limit;
+    const { rows } = await cenos_pool.query(`
+        SELECT id, agente_id, field, from_value, to_value, changed_by, changed_at
+        FROM agente_audit_log
+        WHERE agente_id = $1
+        ORDER BY changed_at DESC, id DESC
+        LIMIT $2 OFFSET $3
+    `, [agenteId, limit, offset]);
+    const { rows: [countRow] } = await cenos_pool.query(
+        `SELECT COUNT(*)::int as total FROM agente_audit_log WHERE agente_id = $1`,
+        [agenteId]
+    );
+    return { rows, total: countRow.total, page, limit };
+}
+
 module.exports = {
     get_inventory_admin,
     update_inventory_admin,
@@ -1883,6 +1965,7 @@ module.exports = {
     send_telegram_to_agent_by_id,
     get_justify_types_admin,
     get_user_agent_options,
+    get_agent_audit_log,
     getUserAllowedStatePools,
     getFilterUser,
     userIsAdmin,

@@ -36,6 +36,7 @@ const {
     bulk_delete_user_agents_admin,
     get_justify_types_admin,
     get_user_agent_options,
+    get_agent_audit_log,
     getUserAllowedStatePools
 } = require('../functions/database/admin');
 const { listModules } = require('../functions/modules');
@@ -351,6 +352,18 @@ router.get('/users_agents/:id', verifyToken(), verifyModule('users_agents'), asy
         return res.json(result[0]);
     } catch (error) {
         console.log(error)
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get('/users_agents/:id/audit', verifyToken(), verifyModule('users_agents'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { page = 1, limit = 20 } = req.query;
+        const result = await get_agent_audit_log(id, { page: parseInt(page), limit: parseInt(limit) });
+        res.json(result);
+    } catch (error) {
+        console.log(error);
         res.status(500).json({ error: error.message });
     }
 });

@@ -1,6 +1,8 @@
 const XLSX = require('xlsx');
 const { cenos_pool } = require('../../db');
 
+const getChangedBy = (user) => user?.email || user?.id || user?.nome || 'unknown';
+
 const VALID_STATUS = { 'ativo': true, 'inativo': false };
 const SITUACAO_MAP = {
   'ativo': 'active',
@@ -63,9 +65,12 @@ async function processAgentImport(fileBuffer, user) {
     }
 
     try {
-      const existing = await cenos_pool.query(`SELECT "ID" FROM colaboradores WHERE "ID" = $1`, [id]);
+      const existing = await cenos_pool.query(`SELECT "ID", status, situacao FROM colaboradores WHERE "ID" = $1`, [id]);
+      const changedBy = getChangedBy(user);
       
       if (existing.rows.length > 0) {
+        const beforeStatus = existing.rows[0].status;
+        const beforeSituacao = existing.rows[0].situacao;
         await cenos_pool.query(`
           UPDATE colaboradores SET
             "Nome" = COALESCE(NULLIF($2, ''), "Nome"),
@@ -81,6 +86,24 @@ async function processAgentImport(fileBuffer, user) {
           WHERE "ID" = $1
         `, [id, nome, estado, regional, seccional, processo, gestor, cargo, matricula, status, situacao]);
         
+        const auditEntries = [];
+        if (beforeStatus !== status) {
+          auditEntries.push({ agente_id: id, field: 'status', from_value: String(beforeStatus), to_value: String(status), changed_by: changedBy });
+        }
+        if (beforeSituacao !== situacao) {
+          auditEntries.push({ agente_id: id, field: 'situacao', from_value: beforeSituacao, to_value: situacao, changed_by: changedBy });
+        }
+        if (auditEntries.length > 0) {
+          const values = auditEntries.map((_, i) =>
+            `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`
+          ).join(',');
+          const flatParams = auditEntries.flatMap(e => [e.agente_id, e.field, e.from_value, e.to_value, e.changed_by]);
+          await cenos_pool.query(
+            `INSERT INTO agente_audit_log (agente_id, field, from_value, to_value, changed_by) VALUES ${values}`,
+            flatParams
+          );
+        }
+        
         successCount++;
         updatedIds.push(id);
       } else {
@@ -88,6 +111,19 @@ async function processAgentImport(fileBuffer, user) {
           INSERT INTO colaboradores ("ID", "Nome", estado, regional, seccional, processo, "GESTOR IMEDIATO", "Cargo", "MAT", status, situacao)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         `, [id, nome, estado, regional, seccional, processo, gestor, cargo, matricula, status, situacao]);
+        
+        const auditEntries = [
+          { agente_id: id, field: 'status', from_value: null, to_value: String(status), changed_by: changedBy },
+          { agente_id: id, field: 'situacao', from_value: null, to_value: situacao, changed_by: changedBy },
+        ];
+        const values = auditEntries.map((_, i) =>
+          `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`
+        ).join(',');
+        const flatParams = auditEntries.flatMap(e => [e.agente_id, e.field, e.from_value, e.to_value, e.changed_by]);
+        await cenos_pool.query(
+          `INSERT INTO agente_audit_log (agente_id, field, from_value, to_value, changed_by) VALUES ${values}`,
+          flatParams
+        );
         
         successCount++;
         createdIds.push(id);
