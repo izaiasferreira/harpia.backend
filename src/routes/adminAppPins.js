@@ -7,6 +7,7 @@ const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const {
     findAgentById,
     invalidateExistingPins,
+    invalidateAgentSessions,
     createPin,
     listPins,
     deletePinById,
@@ -28,6 +29,7 @@ router.post('/generate_app_pin', verifyToken(), verifyModule('app_pins'), valida
         }
 
         await invalidateExistingPins(agent.id);
+        await invalidateAgentSessions(agent.id);
 
         const pin = String(Math.floor(100000 + Math.random() * 900000));
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h

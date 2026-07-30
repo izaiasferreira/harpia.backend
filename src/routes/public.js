@@ -278,6 +278,12 @@ router.post('/app_login', appLoginLimiter, async (req, res) => {
 
         await markPinAsUsed(validPin.id);
 
+        // Invalida sessões anteriores (single device)
+        await cenos_pool.query(
+            'DELETE FROM telegram_tokens WHERE upper(agent_id) = upper($1)',
+            [agent.id]
+        );
+
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
@@ -351,6 +357,11 @@ router.post('/app_logout', appLogoutLimiter, async (req, res) => {
         await cenos_pool.query(
             'DELETE FROM telegram_tokens WHERE token = $1',
             [currentToken]
+        );
+
+        await cenos_pool.query(
+            'DELETE FROM fcm_tokens WHERE upper(agent_id) = upper($1)',
+            [agentId]
         );
 
         res.json({ success: true });

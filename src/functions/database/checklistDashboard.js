@@ -1147,7 +1147,7 @@ async function getV2TemplateAndAgentIds({ template_id, date_from, date_to }, use
  * V2 Non-Compliant Items — uses dynamic template filters.
  */
 async function getDashboardNonCompliantItemsV2({
-  date_from, date_to, regional, sectional, estado, gestor, template_id, export_raw
+  date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw
 }, user) {
   const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
   if (templateIds.length === 0 || agentIds.length === 0) return [];
@@ -1160,7 +1160,7 @@ async function getDashboardNonCompliantItemsV2({
 
   const colJoin = buildColaboradorJoins();
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
-    regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
+    regional, sectional, estado, gestor, agent_name, params: dParams, idx: dIdx, user
   });
   dIdx = colIdx;
 
@@ -1290,7 +1290,7 @@ function splitIntoStreaks(allDates, resolutionDates = []) {
  * In export_raw mode: returns individual entries for Excel export.
  */
 async function getDashboardAlertsV2({
-  date_from, date_to, regional, sectional, estado, gestor, template_id, export_raw
+  date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw
 }, user) {
   const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
   if (templateIds.length === 0 || agentIds.length === 0) return [];
@@ -1303,7 +1303,7 @@ async function getDashboardAlertsV2({
 
   const colJoin = buildColaboradorJoins();
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
-    regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
+    regional, sectional, estado, gestor, agent_name, params: dParams, idx: dIdx, user
   });
   dIdx = colIdx;
 
@@ -1463,7 +1463,7 @@ async function getDashboardAlertsV2({
  * In export_raw mode: returns individual entries for Excel export.
  */
 async function getDashboardNonConformitiesV2({
-  date_from, date_to, regional, sectional, estado, gestor, template_id, export_raw
+  date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw
 }, user) {
   const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
   if (templateIds.length === 0 || agentIds.length === 0) return [];
@@ -1476,7 +1476,7 @@ async function getDashboardNonConformitiesV2({
 
   const colJoin = buildColaboradorJoins();
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
-    regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
+    regional, sectional, estado, gestor, agent_name, params: dParams, idx: dIdx, user
   });
   dIdx = colIdx;
 

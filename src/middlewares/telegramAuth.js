@@ -82,24 +82,13 @@ async function telegramAuth(req, res, next) {
             if (rows[0].agent_id) {
                 const agentIdUpper = rows[0].agent_id.toUpperCase();
                 
-                // 1. Tenta buscar em colaboradores primeiro (prioridade)
+            // Busca em colaboradores (única fonte de dados do agente)
                 let { rows: agentRows } = await cenos_pool.query(
                     `SELECT "ID" as id, "estado", "seccional", "regional", "Nome" as nome, "MAT" as mat
                      FROM colaboradores
                      WHERE upper("ID") = $1`,
                     [agentIdUpper]
                 );
-
-                // 2. Se não encontrou, tenta na tabela login (fallback para usuários legados/admins)
-                if (agentRows.length === 0) {
-                    const { rows: loginRows } = await cenos_pool.query(
-                        `SELECT id, estado, NULL as seccional, NULL as regional, id as nome, NULL as mat
-                         FROM login
-                         WHERE upper(id) = $1`,
-                        [agentIdUpper]
-                    );
-                    agentRows = loginRows;
-                }
 
                 if (agentRows.length === 0) {
                     return res.status(403).json({ error: 'Usuário não autorizado' });

@@ -30,6 +30,18 @@ async function invalidateExistingPins(agentId) {
     );
 }
 
+async function invalidateAgentSessions(agentId) {
+    const normalizedId = String(agentId).trim().toUpperCase();
+    await cenos_pool.query(
+        'DELETE FROM telegram_tokens WHERE upper(agent_id) = $1',
+        [normalizedId]
+    );
+    await cenos_pool.query(
+        'DELETE FROM fcm_tokens WHERE upper(agent_id) = $1',
+        [normalizedId]
+    );
+}
+
 async function createPin(agentId, pin, expiresAt) {
     const validated = pinCreateSchema.parse({ agent_id: agentId, pin, expires_at: expiresAt });
     const normalizedId = validated.agent_id;
@@ -127,6 +139,7 @@ async function generateBulkPins(agentIds) {
                 continue;
             }
             await invalidateExistingPins(agent.id);
+            await invalidateAgentSessions(agent.id);
             const pin = String(Math.floor(100000 + Math.random() * 900000));
             const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
             await createPin(agent.id, pin, expiresAt);
@@ -141,6 +154,7 @@ async function generateBulkPins(agentIds) {
 module.exports = {
     findAgentById,
     invalidateExistingPins,
+    invalidateAgentSessions,
     createPin,
     listPins,
     deletePinById,
