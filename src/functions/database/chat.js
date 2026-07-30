@@ -152,9 +152,9 @@ async function get_rooms_for_admin(user) {
 async function save_chat_message(roomId, senderId, senderType, senderName, message, messageType = 'text', fileUrl = null, fileName = null, latitude = null, longitude = null, channel = 'internal', metadata = null) {
     const validated = chatMessageCreateSchema.parse({
         room_id: Number(roomId),
-        sender_id: senderId,
+        sender_id: String(senderId ?? ''),
         sender_type: senderType,
-        sender_name: senderName,
+        sender_name: String(senderName ?? ''),
         message,
         message_type: messageType,
         file_url: fileUrl,
