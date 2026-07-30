@@ -3,7 +3,7 @@ const axios = require('axios');
 const { pi_pool, ma_pool, localizacoes_pi_pool, cenos_pool } = require('../../db');
 const { today } = require('../../utils/dates');
 
-const getChangedBy = (user) => user?.email || user?.id || user?.nome || 'unknown';
+const getChangedBy = (user) => user?.nome || user?.email || user?.id || 'unknown';
 
 async function insert_agent_audit_logs(entries) {
   if (!entries || entries.length === 0) return;
@@ -1925,10 +1925,12 @@ async function get_instalations_admin({ query = [], type, user, estado }) {
 async function get_agent_audit_log(agenteId, { page = 1, limit = 20 } = {}) {
     const offset = (page - 1) * limit;
     const { rows } = await cenos_pool.query(`
-        SELECT id, agente_id, field, from_value, to_value, changed_by, changed_at
-        FROM agente_audit_log
-        WHERE agente_id = $1
-        ORDER BY changed_at DESC, id DESC
+        SELECT a.id, a.agente_id, a.field, a.from_value, a.to_value, 
+               COALESCE(u.nome, a.changed_by) AS changed_by, a.changed_at
+        FROM agente_audit_log a
+        LEFT JOIN users u ON u.email = a.changed_by
+        WHERE a.agente_id = $1
+        ORDER BY a.changed_at DESC, a.id DESC
         LIMIT $2 OFFSET $3
     `, [agenteId, limit, offset]);
     const { rows: [countRow] } = await cenos_pool.query(
