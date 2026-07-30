@@ -10,6 +10,7 @@ const {
     createPin,
     listPins,
     deletePinById,
+    generateBulkPins,
 } = require('../functions/database/appPins');
 
 // POST /admin/agent/generate_app_pin
@@ -41,6 +42,18 @@ router.post('/generate_app_pin', verifyToken(), verifyModule('app_pins'), valida
     } catch (err) {
         console.error('[GENERATE_PIN] Erro:', err);
         res.status(500).json({ error: 'Erro ao gerar PIN' });
+    }
+});
+
+// POST /admin/agent/generate_app_pins_bulk
+router.post('/generate_app_pins_bulk', verifyToken('COMPANY_ADMIN'), verifyModule('app_pins'), validate(z.object({ agent_ids: z.array(z.string().min(1)).min(1) })), async (req, res) => {
+    try {
+        const { agent_ids } = req.body;
+        const results = await generateBulkPins(agent_ids);
+        res.json({ results });
+    } catch (err) {
+        console.error('[GENERATE_BULK_PINS] Erro:', err);
+        res.status(500).json({ error: 'Erro ao gerar PINs em massa' });
     }
 });
 

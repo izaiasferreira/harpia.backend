@@ -116,6 +116,28 @@ async function markPinAsUsed(pinId) {
     );
 }
 
+async function generateBulkPins(agentIds) {
+    const results = [];
+    for (const rawId of agentIds) {
+        const id = String(rawId).trim().toUpperCase();
+        try {
+            const agent = await findAgentById(id);
+            if (!agent) {
+                results.push({ agent_id: id, error: 'Agente não encontrado' });
+                continue;
+            }
+            await invalidateExistingPins(agent.id);
+            const pin = String(Math.floor(100000 + Math.random() * 900000));
+            const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            await createPin(agent.id, pin, expiresAt);
+            results.push({ agent_id: agent.id, agent_nome: agent.nome, pin, expires_at: expiresAt.toISOString() });
+        } catch (e) {
+            results.push({ agent_id: id, error: e.message });
+        }
+    }
+    return results;
+}
+
 module.exports = {
     findAgentById,
     invalidateExistingPins,
@@ -124,4 +146,5 @@ module.exports = {
     deletePinById,
     findValidPin,
     markPinAsUsed,
+    generateBulkPins,
 };
