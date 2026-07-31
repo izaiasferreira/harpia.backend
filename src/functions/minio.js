@@ -102,7 +102,7 @@ async function ensureBucketExists() {
  * Gera URL pública para acessar arquivo (via proxy da API)
  */
 function getFileUrl(path) {
-    return `${CONFIG.publicBaseUrl}/file/${path}`;
+    return `/file/${path}`;
 }
 
 /**
@@ -162,7 +162,7 @@ async function listObjectsWithMetadata(bucketName, prefix = '') {
  * Gera URL pública para acessar arquivo de bucket específico
  */
 function getBucketFileUrl(bucket, path) {
-    return `${CONFIG.publicBaseUrl}/files/${bucket}/${path}`;
+    return `/files/${bucket}/${path}`;
 }
 
 /**
