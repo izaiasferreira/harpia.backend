@@ -1145,14 +1145,14 @@ router.get('/admin/tracking/speed-violations', verifyToken(), async (req, res) =
 // --- Heartbeat (nativo) ---
 const { updateHeartbeat } = require('../functions/database/heartbeat');
 
-// POST /agent/tracking/heartbeat — nativo envia presença + localização
+// POST /agent/tracking/heartbeat — nativo envia presença + localização + info do aparelho
 router.post('/tracking/heartbeat', telegramAuth, async (req, res) => {
     try {
         const agentId = req.colaborador.id;
-        const { lat, lng } = req.body || {};
+        const { lat, lng, android_version, device_model, metadata } = req.body || {};
         const ts = req.body?.timestamp || null;
         if (lat != null && lng != null) {
-            await updateHeartbeat(agentId, lat, lng, ts);
+            await updateHeartbeat(agentId, lat, lng, ts, android_version, device_model, metadata);
         }
         res.json({ success: true });
     } catch (err) {

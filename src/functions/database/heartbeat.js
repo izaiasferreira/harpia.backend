@@ -2,7 +2,7 @@ const { cenos_pool } = require('../../db');
 const redisClient = require('../../redis');
 const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
 
-async function updateHeartbeat(agentId, lat, lng, deviceTimestamp = null) {
+async function updateHeartbeat(agentId, lat, lng, deviceTimestamp = null, androidVersion = null, deviceModel = null, metadata = null) {
     let ts;
     if (deviceTimestamp) {
         const d = new Date(deviceTimestamp);
@@ -11,14 +11,18 @@ async function updateHeartbeat(agentId, lat, lng, deviceTimestamp = null) {
         ts = new Date().toISOString();
     }
     await cenos_pool.query(
-        `INSERT INTO agent_heartbeats (agent_id, last_heartbeat_at, last_heartbeat_lat, last_heartbeat_lng, updated_at)
-         VALUES ($3, $4, $1, $2, $4)
+        `INSERT INTO agent_heartbeats 
+            (agent_id, last_heartbeat_at, last_heartbeat_lat, last_heartbeat_lng, updated_at, android_version, device_model, metadata)
+         VALUES ($1, $2, $3, $4, $2, $5, $6, $7)
          ON CONFLICT (agent_id) DO UPDATE SET
              last_heartbeat_at = EXCLUDED.last_heartbeat_at,
              last_heartbeat_lat = EXCLUDED.last_heartbeat_lat,
              last_heartbeat_lng = EXCLUDED.last_heartbeat_lng,
-             updated_at = EXCLUDED.updated_at`,
-        [lat, lng, agentId, ts]
+             updated_at = EXCLUDED.updated_at,
+             android_version = COALESCE(EXCLUDED.android_version, agent_heartbeats.android_version),
+             device_model = COALESCE(EXCLUDED.device_model, agent_heartbeats.device_model),
+             metadata = COALESCE(EXCLUDED.metadata, agent_heartbeats.metadata)`,
+        [agentId, ts, lat, lng, androidVersion, deviceModel, metadata ? JSON.stringify(metadata) : null]
     );
 
     try {
