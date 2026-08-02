@@ -35,6 +35,10 @@ function isChecklistRequired(colaborador) {
   return CHECKLIST_REQUIRED_CARGOS.some(c => c.toUpperCase() === cargo);
 }
 
+function getTodayDateStr() {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+}
+
 // GET /agent/checklists/today — checklist oficial do agente hoje
 router.get('/today', telegramAuth, async (req, res) => {
   try {
@@ -52,7 +56,7 @@ router.get('/today', telegramAuth, async (req, res) => {
     req.colaborador.situacao = profile.situacao;
     req.colaborador.cargo = profile.cargo;
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getTodayDateStr();
 
     // Verifica isenção (inclui domingo)
     const exempt = await isAgentExempt(agentId, todayStr);
