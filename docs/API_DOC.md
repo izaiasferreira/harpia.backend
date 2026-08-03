@@ -115,6 +115,7 @@ Health check simples (sem prefixo).
 | Seção | Descrição | Módulos |
 |-------|-----------|---------|
 | `/admin/user/*` | Login, CRUD de usuários | `users` |
+| `/admin/dashboard` | Dashboard SDUI (indicadores filtrados por permissão) | — |
 | `/admin/users_agents` | CRUD de agentes de campo | `users` |
 | `/admin/branch/*` | Filiais/regionais | `branch` |
 | `/admin/permission/*` | Perfis de permissão | `permission` |

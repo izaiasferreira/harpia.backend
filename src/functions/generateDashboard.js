@@ -357,7 +357,132 @@ async function generateDashboardAdmin({ user, stats }) {
     };
 }
 
+async function generateAdminDashboard({ user, stats }) {
+    const widgets = [
+        {
+            id: 'total-users',
+            type: 'statCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                title: 'Usuários Cadastrados',
+                value: String(stats.totalUsers),
+                subtitle: 'Colaboradores visíveis',
+                icon: 'Users',
+                color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+            },
+            action: { type: 'link', url: '/control/agents' },
+        },
+        {
+            id: 'today-logins',
+            type: 'statCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                title: 'Agentes Logados Hoje',
+                value: `${stats.todayLogins} de ${stats.totalUsers}`,
+                subtitle: 'Heartbeats registrados no dia',
+                icon: 'LogIn',
+                color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
+            },
+            action: { type: 'link', url: '/control/agents' },
+        },
+        {
+            id: 'inventory-agents',
+            type: 'statCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                title: 'Agentes com Inventário',
+                value: `${stats.agentsWithInventory} de ${stats.totalUsers}`,
+                subtitle: 'Possuem equipamento associado',
+                icon: 'Package',
+                color: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
+            },
+            action: { type: 'link', url: '/control/inventory' },
+        },
+        {
+            id: 'chart-login-status',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 3 },
+            data: {
+                chartType: 'donut',
+                title: 'Status de Login',
+                dataset: [
+                    { label: 'Online', value: stats.loginStatus?.online || 0 },
+                    { label: 'Offline', value: stats.loginStatus?.offline || 0 },
+                    { label: 'Pendente', value: stats.loginStatus?.pending || 0 },
+                    { label: 'Nunca Gerado PIN', value: stats.loginStatus?.none || 0 },
+                ],
+            },
+        },
+        {
+            id: 'chart-reports-situacao',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                chartType: 'bar',
+                title: 'Agentes por Situação',
+                dataset: stats.bySituacao || [],
+            },
+        },
+        {
+            id: 'chart-reports-status',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                chartType: 'bar',
+                title: 'Agentes por Status',
+                dataset: stats.byStatus || [],
+            },
+        },
+        {
+            id: 'chart-reports-state',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                chartType: 'bar',
+                title: 'Agentes por Estado',
+                dataset: stats.byEstado || [],
+            },
+        },
+        {
+            id: 'chart-reports-regional',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                chartType: 'bar',
+                title: 'Agentes por Regional',
+                dataset: stats.byRegional || [],
+            },
+        },
+        {
+            id: 'chart-reports-processo',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                chartType: 'bar',
+                title: 'Agentes por Processo',
+                dataset: stats.byProcesso || [],
+            },
+        },
+        {
+            id: 'chart-inventory-items',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                chartType: 'bar',
+                title: 'Itens de Inventário por Tipo',
+                dataset: stats.inventoryByType || [],
+            },
+        },
+    ];
+
+    return {
+        layout: { columns: 3, gap: 16, baseRowHeight: 165 },
+        widgets
+    };
+}
+
 module.exports = {
     generateDashboard,
-    generateDashboardAdmin
+    generateDashboardAdmin,
+    generateAdminDashboard
 };

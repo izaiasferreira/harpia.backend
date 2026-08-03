@@ -274,9 +274,37 @@ Retorna a lista de todos os módulos do sistema disponíveis para atribuição d
 Painel central com métricas em tempo real do desempenho dos agentes de campo.
 
 ### `GET /admin/dashboard`
-Retorna dados consolidados do dashboard administrativo com indicadores de leituras, pontualidade, CNL e produtividade.
+Retorna o layout SDUI (server-driven UI) do dashboard administrativo com indicadores calculados conforme a permissão do usuário (função unificada `get_users_agents_admin_paginated`).
 
-**Módulo Requerido:** `dashboard`
+**Módulo Requerido:** autenticação JWT
+
+**Query Params (opcionais, espelham os filtros de `/control/agents`):**
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `estado` | string | Filtra por estado (`pi`, `ma`) |
+| `regional` | string | Filtra por regional (`__VAZIO__` para vazio) |
+| `seccional` | string | Filtra por seccional (`__VAZIO__` para vazio) |
+| `gestor` | string | Filtra por gestor (`__VAZIO__` para vazio) |
+
+**Indicadores retornados (widgets SDUI):**
+- Usuários Cadastrados (todos os colaboradores visíveis)
+- Agentes Logados Hoje (`x de y` — heartbeats do dia em `agent_heartbeats`)
+- Agentes com Inventário (`x de y` — agentes com equipamento associado ativo em `equipment_assignments`)
+- Status de Login (donut: Online / Offline / Pendente / Nunca Gerado PIN — mesmo método de `/control/agents`)
+- Itens de Inventário por Tipo (bar: PDA / Impressora / Maquineta)
+- Agentes por Estado (bar)
+- Agentes por Regional (bar)
+- Agentes por Processo (bar)
+- Agentes por Status (bar: Ativo / Inativo)
+- Agentes por Situação (bar: Ativo / Férias / Desligado / Afastado)
+
+**Response 200**
+```json
+{
+  "layout": { "columns": 3, "gap": 16, "baseRowHeight": 165 },
+  "widgets": []
+}
+```
 
 ---
 

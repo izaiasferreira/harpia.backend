@@ -3541,38 +3541,53 @@ paths:
   /admin/dashboard:
     get:
       tags: [Admin]
-      summary: Dashboard administrativo
+      summary: Dashboard administrativo (SDUI) com indicadores filtrados por permissão
       security:
         - JwtAuth: []
+      parameters:
+        - in: query
+          name: estado
+          schema: { type: string }
+          description: Filtra por estado (pi, ma)
+        - in: query
+          name: regional
+          schema: { type: string }
+          description: Filtra por regional (__VAZIO__ para vazio)
+        - in: query
+          name: seccional
+          schema: { type: string }
+          description: Filtra por seccional (__VAZIO__ para vazio)
+        - in: query
+          name: gestor
+          schema: { type: string }
+          description: Filtra por gestor (__VAZIO__ para vazio)
       responses:
         "200":
-          description: Métricas do dashboard
+          description: Layout SDUI com widgets (Usuários Cadastrados, Logados Hoje, Agentes com Inventário, Status de Login, Itens de Inventário por Tipo, Agentes por Estado/Regional/Processo/Status/Situação)
           content:
-        application/json:
+            application/json:
               schema:
                 type: object
                 properties:
-                  total_agents:
-                    type: integer
-                    example: 150
-                  active_agents:
-                    type: integer
-                    example: 120
-                  total_services_today:
-                    type: integer
-                    example: 3400
-                  completed_today:
-                    type: integer
-                    example: 2800
-                  pending_today:
-                    type: integer
-                    example: 600
-                  completion_rate:
-                    type: number
-                    example: 82.35
-                  perdas_count:
-                    type: integer
-                    example: 45
+                  layout:
+                    type: object
+                    properties:
+                      columns: { type: integer, example: 3 }
+                      gap: { type: integer, example: 16 }
+                      baseRowHeight: { type: integer, example: 165 }
+                  widgets:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        type: { type: string, enum: [statCard, chartCard, bannerCarousel, alertCard] }
+                        size:
+                          type: object
+                          properties:
+                            colSpan: { type: integer }
+                            rowSpan: { type: integer }
+                        data: { type: object }
   /admin/perdas:
     get:
       tags: [Admin]

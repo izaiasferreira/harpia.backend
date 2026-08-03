@@ -10,7 +10,8 @@ const router = express.Router();
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
-const { generateDashboardAdmin } = require('../functions/generateDashboard');
+const { generateAdminDashboard } = require('../functions/generateDashboard');
+const { getAdminDashboardStats } = require('../functions/database/adminDashboardStats');
 const {
     get_inventory_admin,
     update_inventory_admin,
@@ -65,23 +66,23 @@ const { processAgentImport } = require('../functions/database/agentImport');
 router.get('/dashboard', verifyToken(), async (req, res) => {
     try {
         const user = req.user;
-        const [inventory, justify, justify_pending, daily_report, users_agents] = await Promise.all([
-            get_inventory_admin({ user }),
-            get_justify_admin({ user }),
-            get_pending_justifies_admin({ user, status: 'pendente', page: 1, limit: 100000 }),
-            get_daily_reports_admin({ user, page: 1, limit: 100000 }),
-            get_users_agents_admin({ user })
-        ]);
-        const result = await generateDashboardAdmin({
+        const {
+            regional,
+            seccional,
+            gestor,
+            estado
+        } = req.query;
+
+        const stats = await getAdminDashboardStats({
             user,
-            stats: {
-                inventory,
-                justify,
-                justify_pending,
-                daily_report,
-                users_agents: users_agents?.filter(a => a.telegram_id != null && a.telegram_id !== "")
+            filters: {
+                regional,
+                seccional,
+                gestor,
+                estado
             }
-        })
+        });
+        const result = await generateAdminDashboard({ user, stats });
         res.json(result);
     } catch (error) {
         console.log(error)
