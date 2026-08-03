@@ -135,15 +135,33 @@ router.get('/requirements', telegramAuth, async (req, res) => {
   }
 });
 
-// GET /agent/checklists/history — histórico de checklists do agente
+// Helper para calcular datas locais YYYY-MM-DD
+function getLocalDateString(d = new Date()) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// GET /agent/checklists/history — histórico de checklists do agente (apenas hoje e ontem)
 router.get('/history', telegramAuth, async (req, res) => {
   try {
     const agentId = req.colaborador.id;
     const { page = 1, limit = 20 } = req.query;
+
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    const dateFrom = getLocalDateString(yesterday);
+    const dateTo = getLocalDateString(today);
+
     const result = await listChecklistsAdmin({
       page: parseInt(page, 10),
       limit: parseInt(limit, 10),
       agent_name: agentId,
+      date_from: dateFrom,
+      date_to: dateTo,
     });
     res.json(result);
   } catch (err) {
@@ -165,12 +183,33 @@ router.get('/form/:templateId', telegramAuth, async (req, res) => {
   }
 });
 
-// GET /agent/checklists/:id — detalhes de um checklist
+// GET /agent/checklists/:id — detalhes de um checklist (apenas se for de hoje ou ontem)
 router.get('/:id', telegramAuth, async (req, res) => {
   try {
     const checklist = await getChecklistById(req.params.id);
     if (!checklist) return res.status(404).json({ error: 'Checklist não encontrado' });
-    const agent = await getUserData({ id: checklist.agent_id})
+
+    if (checklist.agent_id && checklist.agent_id !== req.colaborador.id) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const todayStr = getLocalDateString(new Date());
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = getLocalDateString(yesterday);
+
+    let chkDate = '';
+    if (checklist.date instanceof Date) {
+      chkDate = getLocalDateString(checklist.date);
+    } else if (typeof checklist.date === 'string') {
+      chkDate = checklist.date.slice(0, 10);
+    }
+
+    if (chkDate && chkDate < yesterdayStr) {
+      return res.status(403).json({ error: 'Acesso permitido apenas para checklists do dia atual e do dia anterior.' });
+    }
+
+    const agent = await getUserData({ id: checklist.agent_id});
     res.json({...checklist, agent});
   } catch (err) {
     console.error('[AGENT_CHECKLISTS] Erro /:id:', err);
