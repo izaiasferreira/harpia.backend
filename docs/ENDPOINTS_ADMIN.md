@@ -237,6 +237,10 @@ Retorna uma lista de agentes enriquecida com campos de login e inventário:
 ### `POST /admin/users_agents`
 Cadastra um novo colaborador de campo.
 
+No momento da gravação, os dados são normalizados:
+- `id` e `matricula`: removidos espaços e caracteres especiais (apenas alfanuméricos), sempre em **MAIÚSCULO**
+- `nome`: sempre em **MAIÚSCULO**, com espaços duplicados colapsados
+
 **Body:**
 ```json
 {
@@ -248,6 +252,7 @@ Cadastra um novo colaborador de campo.
   "seccional": "UAC TERESINA"
 }
 ```
+> Ex.: `id = " a81117929 "` é gravado como `A81117929`; `nome = "joão silva"` como `JOÃO SILVA`.
 
 ---
 
@@ -258,6 +263,8 @@ Retorna detalhes de um agente de campo específico.
 
 ### `PUT /admin/users_agents/:id`
 Atualiza dados de um agente de campo.
+
+Aplica a mesma normalização do cadastro (`id`/`matricula` alfanuméricos em maiúsculo; `nome` em maiúsculo). A busca do registro é case/trim-insensitive (`TRIM(UPPER("ID")) = TRIM(UPPER($1))`).
 
 ---
 
@@ -653,6 +660,8 @@ Exclui uma infração de velocidade. Requer role `COMPANY_ADMIN`.
 
 ### `POST /admin/agent/generate_app_pin`
 Gera o código PIN de 6 dígitos numéricos, válido por 24 horas, para que um colaborador de campo acesse o aplicativo standalone (fora do Telegram Mini App).
+
+A busca do agente é case/trim-insensitive (`TRIM(UPPER(c."ID")) = $1`) e o `agent_id` informado é normalizado (espaços/caracteres especiais removidos, MAIÚSCULO), então IDs com espaços armazenados no banco (ex.: `" A81117929"`) são encontrados corretamente.
 
 **Body:**
 ```json

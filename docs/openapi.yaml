@@ -774,6 +774,10 @@ paths:
     post:
       tags: [Admin]
       summary: Cadastra agente de campo
+      description: >-
+        No momento da gravação os dados são normalizados: `id`/`matricula` têm
+        espaços e caracteres especiais removidos (apenas alfanuméricos) e ficam
+        em MAIÚSCULO; `nome` é convertido para MAIÚSCULO com espaços duplicados colapsados.
       security:
         - JwtAuth: []
       requestBody:
@@ -2534,6 +2538,10 @@ paths:
     post:
       tags: [Admin]
       summary: Gera PIN de acesso ao app
+      description: >-
+        A busca do agente é case/trim-insensitive (`TRIM(UPPER(c."ID")) = $1`).
+        O `agent_id` informado é normalizado (espaços e caracteres especiais
+        removidos, MAIÚSCULO), então IDs com espaços armazenados no banco são encontrados.
       security:
         - JwtAuth: []
       requestBody:
@@ -2547,6 +2555,8 @@ paths:
       responses:
         "200":
           description: PIN gerado
+        "404":
+          description: Agente não encontrado
 
   # ─── APP UPDATE ──────────────────────────────────────────────────────
   /api/app/update/check:

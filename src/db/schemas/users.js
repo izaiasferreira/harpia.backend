@@ -35,31 +35,33 @@ const userLoginSchema = z.object({
   senha: z.string().min(1)
 });
 
+const { normalizeAgentId, normalizeAgentName, normalizeTextUpper } = require('../../utils/agentNormalize');
+
 const agentCreateSchema = z.object({
-  id: z.string().min(1).max(255),
-  matricula: z.string().min(1).max(255),
-  nome: z.string().min(1).max(255),
+  id: z.string().transform(normalizeAgentId).pipe(z.string().min(1, 'Matrícula da Concessionária é obrigatória e deve conter caracteres alfanuméricos').max(255)),
+  matricula: z.string().transform(normalizeAgentId).pipe(z.string().min(1, 'Matrícula Ceneged é obrigatória e deve conter caracteres alfanuméricos').max(255)),
+  nome: z.string().min(1, 'Nome completo é obrigatório').max(255).transform(normalizeAgentName),
   estado: z.string().min(2).max(2),
-  gestor: z.string().max(255).optional().nullable(),
+  gestor: z.string().max(255).optional().nullable().transform(val => typeof val === 'string' ? normalizeTextUpper(val) : val),
   cargo: z.string().max(255).optional().nullable(),
-  seccional: z.string().max(255).optional().nullable(),
-  regional: z.string().max(255).optional().nullable(),
+  seccional: z.string().max(255).optional().nullable().transform(val => typeof val === 'string' ? normalizeTextUpper(val) : val),
+  regional: z.string().max(255).optional().nullable().transform(val => typeof val === 'string' ? normalizeTextUpper(val) : val),
   status: z.boolean().optional(),
   situacao: z.enum(['active', 'vocation', 'inactive', 'away']).optional(),
-  processo: z.string().max(255).optional().nullable()
+  processo: z.string().max(255).optional().nullable().transform(val => typeof val === 'string' ? normalizeTextUpper(val) : val)
 });
 
 const agentUpdateSchema = z.object({
-  nome: z.string().min(1).max(255).optional(),
-  matricula: z.string().max(255).optional().nullable(),
-  gestor: z.string().max(255).optional().nullable(),
+  nome: z.string().min(1).max(255).optional().transform(val => typeof val === 'string' ? normalizeAgentName(val) : val),
+  matricula: z.string().max(255).optional().nullable().transform(val => val ? normalizeAgentId(val) : val),
+  gestor: z.string().max(255).optional().nullable().transform(val => typeof val === 'string' ? normalizeTextUpper(val) : val),
   cargo: z.string().max(255).optional().nullable(),
-  seccional: z.string().max(255).optional().nullable(),
-  regional: z.string().max(255).optional().nullable(),
+  seccional: z.string().max(255).optional().nullable().transform(val => typeof val === 'string' ? normalizeTextUpper(val) : val),
+  regional: z.string().max(255).optional().nullable().transform(val => typeof val === 'string' ? normalizeTextUpper(val) : val),
   estado: z.string().max(2).optional().nullable(),
   status: z.boolean().optional(),
   situacao: z.enum(['active', 'vocation', 'inactive', 'away']).optional(),
-  processo: z.string().max(255).optional().nullable()
+  processo: z.string().max(255).optional().nullable().transform(val => typeof val === 'string' ? (val === '__UNCHANGED__' ? '__UNCHANGED__' : normalizeTextUpper(val)) : val)
 });
 
 module.exports = {

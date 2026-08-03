@@ -2,9 +2,10 @@ const { cenos_pool } = require('../../db');
 const { logoutPinCreateSchema } = require('../../db/schemas/appLogoutPins');
 const { findAgentById } = require('./appPins');
 const { getColaboradoresFilter, userIsAdmin, checkAgentPermission } = require('./admin');
+const { normalizeAgentId } = require('../../utils/agentNormalize');
 
 async function invalidateExistingLogoutPins(agentId) {
-    const normalizedId = String(agentId).trim().toUpperCase();
+    const normalizedId = normalizeAgentId(agentId);
     await cenos_pool.query(
         'UPDATE app_logout_pins SET expires_at = CURRENT_TIMESTAMP WHERE upper(agent_id) = $1 AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP',
         [normalizedId]
@@ -13,7 +14,7 @@ async function invalidateExistingLogoutPins(agentId) {
 
 async function createLogoutPin(agentId, pin, expiresAt) {
     const validated = logoutPinCreateSchema.parse({ agent_id: agentId, pin, expires_at: expiresAt });
-    const normalizedId = validated.agent_id;
+    const normalizedId = normalizeAgentId(validated.agent_id);
     await cenos_pool.query(
         'INSERT INTO app_logout_pins (agent_id, pin, expires_at) VALUES ($1, $2, $3)',
         [normalizedId, validated.pin, validated.expires_at]
@@ -21,7 +22,7 @@ async function createLogoutPin(agentId, pin, expiresAt) {
 }
 
 async function findValidLogoutPin(agentId, pin) {
-    const normalizedId = String(agentId).trim().toUpperCase();
+    const normalizedId = normalizeAgentId(agentId);
     const { rows } = await cenos_pool.query(
         'SELECT * FROM app_logout_pins WHERE upper(agent_id) = $1 AND pin = $2 AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP',
         [normalizedId, pin]
@@ -63,10 +64,10 @@ async function listLogoutPins(limit = 50, user = null) {
     const { rows } = await cenos_pool.query(query, params);
 
     if (!userIsAdmin(user)) {
-        const ids = [...new Set(rows.map(r => r.agent_id).filter(Boolean))];
+        const ids = [...new Set(rows.map(r => r.agent_id).filter(Boolean).map(normalizeAgentId))];
         if (ids.length > 0) {
             const colabFilter = getColaboradoresFilter(user);
-            let colabQuery = `SELECT "ID", "regional", "seccional", "GESTOR IMEDIATO" FROM colaboradores WHERE "ID" = ANY($1)`;
+            let colabQuery = `SELECT "ID", "regional", "seccional", "GESTOR IMEDIATO" FROM colaboradores WHERE TRIM(UPPER("ID")) = ANY($1)`;
             const { rows: colabRows } = await cenos_pool.query(colabQuery, [ids]);
             const allowedMap = new Map();
             colabRows.forEach(c => {
@@ -76,9 +77,9 @@ async function listLogoutPins(limit = 50, user = null) {
                     seccional: c['seccional'],
                     gestor: c['GESTOR IMEDIATO']
                 };
-                allowedMap.set(c['ID'].toUpperCase(), checkAgentPermission(agentData, user));
+                allowedMap.set(normalizeAgentId(c['ID']), checkAgentPermission(agentData, user));
             });
-            return rows.filter(r => allowedMap.get(r.agent_id?.toUpperCase()) !== false);
+            return rows.filter(r => allowedMap.get(normalizeAgentId(r.agent_id)) !== false);
         }
     }
 

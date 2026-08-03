@@ -2,6 +2,7 @@ const { VALID_STATE_VALUES } = require('../../constants/states');
 const axios = require('axios');
 const { pi_pool, ma_pool, localizacoes_pi_pool, cenos_pool } = require('../../db');
 const { today } = require('../../utils/dates');
+const { normalizeAgentId, normalizeAgentName, normalizeTextUpper } = require('../../utils/agentNormalize');
 
 const getChangedBy = (user) => user?.nome || user?.email || user?.id || 'unknown';
 
@@ -945,6 +946,18 @@ async function get_user_agent_options({ estado, regional, seccional, user }) {
 }
 
 async function create_user_agent_admin({ id, matricula, nome, estado: inputEstado, gestor, cargo, user, seccional, regional, status = true, situacao = 'active', processo }) {
+    const normalizedId = normalizeAgentId(id);
+    const normalizedMatricula = normalizeAgentId(matricula);
+    const normalizedNome = normalizeAgentName(nome);
+    const normalizedGestor = gestor ? normalizeTextUpper(gestor) : null;
+    const normalizedRegional = regional ? normalizeTextUpper(regional) : null;
+    const normalizedSeccional = seccional ? normalizeTextUpper(seccional) : null;
+    const normalizedProcesso = processo ? normalizeTextUpper(processo) : null;
+
+    if (!normalizedId) {
+        return { error: 'ID do agente é obrigatório e deve conter ao menos um caractere alfanumérico' };
+    }
+
     const allowedPools = getUserAllowedStatePools(user);
     const target = allowedPools.find(p => p.state === inputEstado.toLowerCase());
 
@@ -957,31 +970,31 @@ async function create_user_agent_admin({ id, matricula, nome, estado: inputEstad
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     `;
     const params = [
-        id?.toUpperCase(),
-        matricula,
-        nome,
-        gestor,
+        normalizedId,
+        normalizedMatricula,
+        normalizedNome,
+        normalizedGestor,
         cargo,
-        seccional,
-        regional,
+        normalizedSeccional,
+        normalizedRegional,
         inputEstado.toLowerCase(),
         status !== undefined ? status : true,
         situacao !== undefined ? situacao : 'active',
-        processo
+        normalizedProcesso
     ];
 
     try {
         await cenos_pool.query(query, params);
         await cenos_pool.query(
             `INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET estado = EXCLUDED.estado`,
-            [id?.toUpperCase(), inputEstado.toLowerCase()]
+            [normalizedId, inputEstado.toLowerCase()]
         );
         const changedBy = getChangedBy(user);
         await insert_agent_audit_logs([
-            { agente_id: id?.toUpperCase(), field: 'status', from_value: null, to_value: status !== undefined ? String(status) : 'true', changed_by: changedBy },
-            { agente_id: id?.toUpperCase(), field: 'situacao', from_value: null, to_value: situacao || 'active', changed_by: changedBy },
+            { agente_id: normalizedId, field: 'status', from_value: null, to_value: status !== undefined ? String(status) : 'true', changed_by: changedBy },
+            { agente_id: normalizedId, field: 'situacao', from_value: null, to_value: situacao || 'active', changed_by: changedBy },
         ]);
-        const result = await get_users_agents_admin({ user, ids: [id], estado: inputEstado });
+        const result = await get_users_agents_admin({ user, ids: [normalizedId], estado: inputEstado });
         return result[0];
     } catch (err) {
         console.error('Erro ao criar usuário:', err.message);
@@ -1183,7 +1196,15 @@ async function delete_user_agent_admin({ id, user, deleteLogin = false }) {
 }
 
 async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, regional, estado, status, situacao, processo, matricula, user }) {
-    const userData = await get_users_agents_admin({ user, ids: [id] });
+    const normalizedId = normalizeAgentId(id);
+    const normalizedNome = nome !== undefined ? normalizeAgentName(nome) : undefined;
+    const normalizedMatricula = matricula !== undefined ? (matricula ? normalizeAgentId(matricula) : null) : undefined;
+    const normalizedGestor = gestor !== undefined ? (gestor ? normalizeTextUpper(gestor) : null) : undefined;
+    const normalizedRegional = regional !== undefined ? (regional ? normalizeTextUpper(regional) : null) : undefined;
+    const normalizedSeccional = seccional !== undefined ? (seccional ? normalizeTextUpper(seccional) : null) : undefined;
+    const normalizedProcesso = processo !== undefined ? (processo ? (processo === '__UNCHANGED__' ? '__UNCHANGED__' : normalizeTextUpper(processo)) : null) : undefined;
+
+    const userData = await get_users_agents_admin({ user, ids: [normalizedId] });
     if (!userData.length) return { error: 'Usuário não encontrado' };
 
     const agent = userData[0];
@@ -1201,35 +1222,35 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
         WHERE TRIM(UPPER("ID")) = TRIM(UPPER($9))
     `;
     const params = [
-        nome,
-        gestor,
+        normalizedNome,
+        normalizedGestor,
         cargo,
-        seccional,
-        regional,
+        normalizedSeccional,
+        normalizedRegional,
         estado !== undefined ? estado.toLowerCase() : null,
         status !== undefined ? status : null,
         situacao !== undefined ? situacao : null,
-        id?.toUpperCase(),
-        processo !== undefined ? (processo || null) : '__UNCHANGED__',
-        matricula !== undefined ? matricula : null
+        normalizedId,
+        normalizedProcesso !== undefined ? (normalizedProcesso || null) : '__UNCHANGED__',
+        normalizedMatricula
     ];
 
     try {
         await cenos_pool.query(query, params);
         await cenos_pool.query(
             `INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET estado = EXCLUDED.estado`,
-            [id?.toUpperCase(), estado !== undefined ? estado.toLowerCase() : agent.estado.toLowerCase()]
+            [normalizedId, estado !== undefined ? estado.toLowerCase() : agent.estado.toLowerCase()]
         );
         const changedBy = getChangedBy(user);
         const auditEntries = [];
         if (status !== undefined && String(status) !== String(agent.status)) {
-            auditEntries.push({ agente_id: id?.toUpperCase(), field: 'status', from_value: String(agent.status), to_value: String(status), changed_by: changedBy });
+            auditEntries.push({ agente_id: normalizedId, field: 'status', from_value: String(agent.status), to_value: String(status), changed_by: changedBy });
         }
         if (situacao !== undefined && situacao !== agent.situacao) {
-            auditEntries.push({ agente_id: id?.toUpperCase(), field: 'situacao', from_value: agent.situacao, to_value: situacao, changed_by: changedBy });
+            auditEntries.push({ agente_id: normalizedId, field: 'situacao', from_value: agent.situacao, to_value: situacao, changed_by: changedBy });
         }
         await insert_agent_audit_logs(auditEntries);
-        const result = await get_users_agents_admin({ user, ids: [id], estado: estado || agent.estado });
+        const result = await get_users_agents_admin({ user, ids: [normalizedId], estado: estado || agent.estado });
         return result[0];
     } catch (err) {
         console.error('Erro ao atualizar usuário:', err.message);
@@ -1244,7 +1265,7 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
     let updatedCount = 0;
     
     for (const rawId of ids) {
-        const id = rawId?.toUpperCase();
+        const id = normalizeAgentId(rawId);
         if (!id) continue;
         
         const { rows: colabRows } = await cenos_pool.query(`SELECT estado, status, situacao FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id]);
@@ -1254,7 +1275,7 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
         if (existsInColab) {
             estado = colabRows[0].estado;
         } else {
-            const { rows: loginRows } = await cenos_pool.query(`SELECT estado FROM login WHERE UPPER(id) = $1`, [id]);
+            const { rows: loginRows } = await cenos_pool.query(`SELECT estado FROM login WHERE TRIM(UPPER(id)) = TRIM(UPPER($1))`, [id]);
             if (!loginRows.length) continue;
             estado = loginRows[0].estado || 'pi';
         }
@@ -1284,7 +1305,13 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
             for (const [key, col] of Object.entries(fieldMap)) {
                 if (data[key] !== undefined && data[key] !== '') {
                     setClauses.push(`${col} = $${idx++}`);
-                    params.push(key === 'estado' ? data[key].toLowerCase() : (key === 'status' ? (data[key] === 'true' || data[key] === true) : data[key]));
+                    let value;
+                    if (key === 'estado') value = data[key].toLowerCase();
+                    else if (key === 'status') value = (data[key] === 'true' || data[key] === true);
+                    else if (key === 'nome') value = normalizeAgentName(data[key]);
+                    else if (['gestor', 'regional', 'seccional', 'processo'].includes(key)) value = normalizeTextUpper(data[key]);
+                    else value = data[key];
+                    params.push(value);
                 }
             }
             
@@ -1303,7 +1330,7 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
                 }
                 await insert_agent_audit_logs(auditEntries);
                 if (data.estado) {
-                    await cenos_pool.query(`UPDATE login SET estado = $1 WHERE UPPER(id) = $2`, [targetEstado, id]);
+                    await cenos_pool.query(`UPDATE login SET estado = $1 WHERE TRIM(UPPER(id)) = TRIM(UPPER($2))`, [targetEstado, id]);
                 }
                 updatedCount++;
             }
@@ -1328,19 +1355,19 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
             `;
             const params = [
                 id,
-                data.matricula || null,
-                data.nome || id,
-                data.gestor || null,
+                normalizeAgentId(data.matricula) || null,
+                normalizeAgentName(data.nome) || id,
+                normalizeTextUpper(data.gestor) || null,
                 data.cargo || null,
-                data.seccional || null,
-                data.regional || null,
+                normalizeTextUpper(data.seccional) || null,
+                normalizeTextUpper(data.regional) || null,
                 targetEstado,
                 data.status !== undefined && data.status !== '' ? (data.status === 'true' || data.status === true) : true,
                 data.situacao || 'active',
-                data.processo || null
+                normalizeTextUpper(data.processo) || null
             ];
             await cenos_pool.query(insertQuery, params);
-            await cenos_pool.query(`UPDATE login SET estado = $1 WHERE UPPER(id) = $2`, [targetEstado, id]);
+            await cenos_pool.query(`UPDATE login SET estado = $1 WHERE TRIM(UPPER(id)) = TRIM(UPPER($2))`, [targetEstado, id]);
 
             const changedBy = getChangedBy(user);
             const newStatus = data.status !== undefined && data.status !== '' ? (data.status === 'true' || data.status === true) : true;
