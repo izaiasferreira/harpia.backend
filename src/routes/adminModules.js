@@ -92,9 +92,9 @@ router.get('/dashboard', verifyToken(), async (req, res) => {
 
 router.get('/users_agents', verifyToken(), verifyModule('users_agents'), async (req, res) => {
     try {
-        const { page, limit, search, regional, seccional, gestor, estado, status, situacao, login_status } = req.query;
+        const { page, limit, search, regional, seccional, gestor, cargo, estado, status, situacao, login_status } = req.query;
         const user = req.user;
-        const result = await get_users_agents_admin_paginated({ user, page, limit, search, regional, seccional, gestor, estado, status, situacao, login_status });
+        const result = await get_users_agents_admin_paginated({ user, page, limit, search, regional, seccional, gestor, cargo, estado, status, situacao, login_status });
         res.json(result);
     } catch (error) {
         console.log(error)
@@ -327,17 +327,16 @@ router.get('/perdas', verifyToken(), verifyModule('perdas'), async (req, res) =>
 router.get('/users_agents/options', verifyToken(), verifyModule(['users_agents', 'checklists', 'permissions']), async (req, res) => {
     try {
         const { estado, regional, seccional } = req.query;
-        console.log(estado)
-        
+
         const result = await get_user_agent_options({
-            estado: estado !== undefined ? estado : req.user.estado,
+            estado,
             regional,
             seccional,
             user: req.user
         });
         res.json(result);
     } catch (error) {
-        console.log(error)
+        console.error(error)
         res.status(500).json({ error: error.message });
     }
 });
@@ -440,9 +439,13 @@ router.delete('/users_agents/:id', verifyToken(), verifyModule('delete_user_agen
         const { deleteLogin } = req.query;
         const user = req.user;
         const result = await delete_user_agent_admin({ id, user, deleteLogin: deleteLogin === 'true' });
+        if (result.error) {
+            const status = result.error.includes('permissão') ? 403 : 404;
+            return res.status(status).json(result);
+        }
         res.json(result);
     } catch (error) {
-        console.log(error)
+        console.error(error)
         res.status(500).json({ error: error.message });
     }
 });

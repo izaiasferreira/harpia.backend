@@ -716,27 +716,56 @@ paths:
       security:
         - JwtAuth: []
       parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
         - name: search
           in: query
           schema:
             type: string
         - name: estado
           in: query
+          description: "Estado(s), multi-valor separado por vírgula (ex: pi,ma)"
           schema:
             type: string
-      parameters:
         - name: regional
           in: query
+          description: Regional(is), multi-valor separado por vírgula
           schema:
             type: string
-      parameters:
         - name: seccional
           in: query
+          description: Seccional(is), multi-valor separado por vírgula
           schema:
             type: string
-      parameters:
         - name: gestor
           in: query
+          description: Gestor(es), multi-valor separado por vírgula
+          schema:
+            type: string
+        - name: cargo
+          in: query
+          description: Cargo(s), multi-valor separado por vírgula
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: "Ativo/inativo: true,false (multi via status=true,false)"
+          schema:
+            type: string
+        - name: situacao
+          in: query
+          description: "active, vocation, inactive, away (multi separado por vírgula)"
+          schema:
+            type: string
+        - name: login_status
+          in: query
+          description: "online, offline, pending, none (multi separado por vírgula)"
           schema:
             type: string
       responses:
@@ -3743,6 +3772,30 @@ paths:
                     items:
                       type: string
                   cargos:
+                    type: array
+                    items:
+                      type: string
+                  gestores:
+                    type: array
+                    items:
+                      type: string
+                  processos:
+                    type: array
+                    items:
+                      type: string
+                  estados:
+                    type: array
+                    items:
+                      type: string
+                  status:
+                    type: array
+                    items:
+                      type: string
+                  situacao:
+                    type: array
+                    items:
+                      type: string
+                  login_status:
                     type: array
                     items:
                       type: string

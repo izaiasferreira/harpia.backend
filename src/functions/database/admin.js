@@ -5,6 +5,28 @@ const { today } = require('../../utils/dates');
 
 const getChangedBy = (user) => user?.nome || user?.email || user?.id || 'unknown';
 
+// Normaliza um filtro em lista de valores (aceita string única, comma-separada ou array)
+const toList = (v) => {
+    if (v == null || v === '') return [];
+    const arr = Array.isArray(v) ? v : String(v).split(',').map(s => s.trim()).filter(Boolean);
+    return arr;
+};
+
+// Monta cláusula SQL para filtro multi-valor (com suporte a __VAZIO__)
+const buildInClause = (raw, column, idx) => {
+    const list = toList(raw);
+    if (list.length === 0) return { sql: '', param: undefined, idx };
+    const hasVazio = list.includes('__VAZIO__');
+    const vals = list.filter(v => v !== '__VAZIO__');
+    if (vals.length === 0) {
+        return { sql: ` AND (${column} IS NULL OR TRIM(${column}) = '')`, param: undefined, idx };
+    }
+    const sql = hasVazio
+        ? ` AND (${column} = ANY($${idx}) OR ${column} IS NULL OR TRIM(${column}) = '')`
+        : ` AND ${column} = ANY($${idx})`;
+    return { sql, param: vals, idx: idx + 1 };
+};
+
 async function insert_agent_audit_logs(entries) {
   if (!entries || entries.length === 0) return;
   const values = [];
@@ -251,8 +273,8 @@ const applyColaboradoresFilter = async (results, user, idField = 'agente') => {
         const ids = [...new Set(results.map(r => r[idField]).filter(Boolean))];
         if (ids.length === 0) return results;
 
-        const query = `SELECT "ID", estado, "regional", "seccional", "GESTOR IMEDIATO" FROM colaboradores WHERE "ID" = ANY($1)`;
-        const { rows: colabData } = await cenos_pool.query(query, [ids]);
+        const query = `SELECT "ID", estado, "regional", "seccional", "GESTOR IMEDIATO" FROM colaboradores WHERE UPPER("ID") = ANY($1)`;
+        const { rows: colabData } = await cenos_pool.query(query, [ids.map(i => String(i).toUpperCase())]);
         const colabMap = new Map();
         colabData.forEach(c => colabMap.set(c['ID'].toUpperCase(), c));
 
@@ -268,13 +290,14 @@ const applyColaboradoresFilter = async (results, user, idField = 'agente') => {
     return results.filter(r => matchesPermission(r));
 };
 
-async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limit = 50, search, regional, seccional, gestor, estado, status, situacao, login_status }) {
+async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limit = 50, search, regional, seccional, gestor, cargo, estado, status, situacao, login_status }) {
     const availablePools = getUserAllowedStatePools(user);
     const filterUser = getFilterUser(user);
 
+    const estados = toList(estado).map(s => s.toLowerCase());
     let targetPools = availablePools;
-    if (estado) {
-        targetPools = availablePools.filter(p => p.state === estado.toLowerCase());
+    if (estados.length > 0) {
+        targetPools = availablePools.filter(p => estados.includes(p.state));
     }
 
     // Busca IDs no login (cenos_pool) se houver busca por texto
@@ -332,46 +355,53 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
         countParams.push(ilikeTerms);
         paramIdx++;
         if (searchIdsFromLogin.length > 0) {
-            conditions.push(`"ID" = ANY($${paramIdx})`);
+            conditions.push(`UPPER("ID") = ANY($${paramIdx})`);
             countParams.push(searchIdsFromLogin);
             paramIdx++;
         }
         countQuery += ` AND (${conditions.join(' OR ')})`;
     }
     if (ids && ids.length > 0) {
-        countQuery += ` AND "ID" = ANY($${paramIdx})`;
+        countQuery += ` AND UPPER("ID") = ANY($${paramIdx})`;
         countParams.push(ids.map(id => id.toUpperCase()));
         paramIdx++;
     }
-    if (regional === '__VAZIO__') {
-        countQuery += ` AND ("regional" IS NULL OR TRIM("regional") = '')`;
-    } else if (regional) {
-        countQuery += ` AND "regional" = $${paramIdx}`;
-        countParams.push(regional);
+    const regClause = buildInClause(regional, '"regional"', paramIdx);
+    countQuery += regClause.sql;
+    if (regClause.param !== undefined) { countParams.push(regClause.param); }
+    paramIdx = regClause.idx;
+
+    const secClause = buildInClause(seccional, '"seccional"', paramIdx);
+    countQuery += secClause.sql;
+    if (secClause.param !== undefined) { countParams.push(secClause.param); }
+    paramIdx = secClause.idx;
+
+    const gestClause = buildInClause(gestor, '"GESTOR IMEDIATO"', paramIdx);
+    countQuery += gestClause.sql;
+    if (gestClause.param !== undefined) { countParams.push(gestClause.param); }
+    paramIdx = gestClause.idx;
+
+    const cargoClause = buildInClause(cargo, '"Cargo"', paramIdx);
+    countQuery += cargoClause.sql;
+    if (cargoClause.param !== undefined) { countParams.push(cargoClause.param); }
+    paramIdx = cargoClause.idx;
+
+    const statuses = toList(status);
+    if (statuses.length === 1) {
+        if (statuses[0] === 'true') {
+            countQuery += ` AND "status" = true`;
+        } else if (statuses[0] === 'false') {
+            countQuery += ` AND "status" = false`;
+        }
+    } else if (statuses.length > 1) {
+        countQuery += ` AND "status" = ANY($${paramIdx}::boolean[])`;
+        countParams.push(statuses.map(s => s === 'true'));
         paramIdx++;
     }
-    if (seccional === '__VAZIO__') {
-        countQuery += ` AND ("seccional" IS NULL OR TRIM("seccional") = '')`;
-    } else if (seccional) {
-        countQuery += ` AND "seccional" = $${paramIdx}`;
-        countParams.push(seccional);
-        paramIdx++;
-    }
-    if (gestor === '__VAZIO__') {
-        countQuery += ` AND ("GESTOR IMEDIATO" IS NULL OR TRIM("GESTOR IMEDIATO") = '')`;
-    } else if (gestor) {
-        countQuery += ` AND "GESTOR IMEDIATO" = $${paramIdx}`;
-        countParams.push(gestor);
-        paramIdx++;
-    }
-    if (status === 'true') {
-        countQuery += ` AND "status" = true`;
-    } else if (status === 'false') {
-        countQuery += ` AND "status" = false`;
-    }
-    if (situacao) {
-        countQuery += ` AND "situacao" = $${paramIdx}`;
-        countParams.push(situacao);
+    const situacoes = toList(situacao);
+    if (situacoes.length > 0) {
+        countQuery += ` AND "situacao" = ANY($${paramIdx})`;
+        countParams.push(situacoes);
         paramIdx++;
     }
 
@@ -391,46 +421,53 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
         colabParams.push(ilikeTerms);
         cpIdx++;
         if (searchIdsFromLogin.length > 0) {
-            conditions.push(`"ID" = ANY($${cpIdx})`);
+            conditions.push(`UPPER("ID") = ANY($${cpIdx})`);
             colabParams.push(searchIdsFromLogin);
             cpIdx++;
         }
         colabQuery += ` AND (${conditions.join(' OR ')})`;
     }
     if (ids && ids.length > 0) {
-        colabQuery += ` AND "ID" = ANY($${cpIdx})`;
+        colabQuery += ` AND UPPER("ID") = ANY($${cpIdx})`;
         colabParams.push(ids.map(id => id.toUpperCase()));
         cpIdx++;
     }
-    if (regional === '__VAZIO__') {
-        colabQuery += ` AND ("regional" IS NULL OR TRIM("regional") = '')`;
-    } else if (regional) {
-        colabQuery += ` AND "regional" = $${cpIdx}`;
-        colabParams.push(regional);
+    const regClause2 = buildInClause(regional, '"regional"', cpIdx);
+    colabQuery += regClause2.sql;
+    if (regClause2.param !== undefined) { colabParams.push(regClause2.param); }
+    cpIdx = regClause2.idx;
+
+    const secClause2 = buildInClause(seccional, '"seccional"', cpIdx);
+    colabQuery += secClause2.sql;
+    if (secClause2.param !== undefined) { colabParams.push(secClause2.param); }
+    cpIdx = secClause2.idx;
+
+    const gestClause2 = buildInClause(gestor, '"GESTOR IMEDIATO"', cpIdx);
+    colabQuery += gestClause2.sql;
+    if (gestClause2.param !== undefined) { colabParams.push(gestClause2.param); }
+    cpIdx = gestClause2.idx;
+
+    const cargoClause2 = buildInClause(cargo, '"Cargo"', cpIdx);
+    colabQuery += cargoClause2.sql;
+    if (cargoClause2.param !== undefined) { colabParams.push(cargoClause2.param); }
+    cpIdx = cargoClause2.idx;
+
+    const statuses2 = toList(status);
+    if (statuses2.length === 1) {
+        if (statuses2[0] === 'true') {
+            colabQuery += ` AND "status" = true`;
+        } else if (statuses2[0] === 'false') {
+            colabQuery += ` AND "status" = false`;
+        }
+    } else if (statuses2.length > 1) {
+        colabQuery += ` AND "status" = ANY($${cpIdx}::boolean[])`;
+        colabParams.push(statuses2.map(s => s === 'true'));
         cpIdx++;
     }
-    if (seccional === '__VAZIO__') {
-        colabQuery += ` AND ("seccional" IS NULL OR TRIM("seccional") = '')`;
-    } else if (seccional) {
-        colabQuery += ` AND "seccional" = $${cpIdx}`;
-        colabParams.push(seccional);
-        cpIdx++;
-    }
-    if (gestor === '__VAZIO__') {
-        colabQuery += ` AND ("GESTOR IMEDIATO" IS NULL OR TRIM("GESTOR IMEDIATO") = '')`;
-    } else if (gestor) {
-        colabQuery += ` AND "GESTOR IMEDIATO" = $${cpIdx}`;
-        colabParams.push(gestor);
-        cpIdx++;
-    }
-    if (status === 'true') {
-        colabQuery += ` AND "status" = true`;
-    } else if (status === 'false') {
-        colabQuery += ` AND "status" = false`;
-    }
-    if (situacao) {
-        colabQuery += ` AND "situacao" = $${cpIdx}`;
-        colabParams.push(situacao);
+    const situacoes2 = toList(situacao);
+    if (situacoes2.length > 0) {
+        colabQuery += ` AND "situacao" = ANY($${cpIdx})`;
+        colabParams.push(situacoes2);
         cpIdx++;
     }
 
@@ -531,8 +568,9 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
 
     let filteredResult = result;
 
-    if (login_status) {
-        filteredResult = filteredResult.filter(r => (r.login_status || 'none') === login_status);
+    const loginStatuses = toList(login_status);
+    if (loginStatuses.length > 0) {
+        filteredResult = filteredResult.filter(r => loginStatuses.includes(r.login_status || 'none'));
     }
 
     if (filterUser && !userIsAdmin(user)) {
@@ -650,9 +688,11 @@ async function get_users_agents_admin({ user, ids = [], page = 1, limit = 9999, 
 
 async function get_users_only_login_paginated({ user, page = 1, limit = 50, search, estado, login_status }) {
     const availablePools = getUserAllowedStatePools(user);
+    const estados = toList(estado).map(s => s.toLowerCase());
+    const loginStatuses = toList(login_status);
     let targetPools = availablePools;
-    if (estado) {
-        targetPools = availablePools.filter(p => p.state === estado.toLowerCase());
+    if (estados.length > 0) {
+        targetPools = availablePools.filter(p => estados.includes(p.state));
     }
     const allowedStates = targetPools.map(p => p.state);
 
@@ -734,7 +774,7 @@ async function get_users_only_login_paginated({ user, page = 1, limit = 50, sear
         only_login: true
     }));
 
-    if (data.length > 0 && login_status) {
+    if (data.length > 0 && loginStatuses.length > 0) {
         const agentIds = data.map(r => r.id);
         const { rows: pinStatus } = await cenos_pool.query(`
             WITH pin_status AS (
@@ -774,7 +814,7 @@ async function get_users_only_login_paginated({ user, page = 1, limit = 50, sear
                 const lastLogout = p.last_logout_at ? new Date(p.last_logout_at).getTime() : 0;
                 status = lastLogout > lastLogin ? 'offline' : 'online';
             }
-            return status === login_status;
+            return loginStatuses.includes(status);
         });
         return {
             data: filtered,
@@ -802,31 +842,38 @@ async function get_user_agent_options({ estado, regional, seccional, user }) {
         regionais: [],
         seccionais: [],
         processos: [],
-        estados: []
+        estados: [],
+        status: [],
+        situacao: [],
+        login_status: []
     };
 
     // Se não for admin, usa os estados permitidos para filtrar
     let queryCond = '';
     let queryParams = [];
 
+    const estados = toList(estado).map(s => s.toLowerCase());
+    const regionais = toList(regional);
+    const seccionais = toList(seccional);
+
     if (!isAdmin && colabFilter && colabFilter.allowedStates.length > 0) {
         queryCond = `AND estado = ANY($1)`;
         queryParams = [colabFilter.allowedStates];
-    } else if (estado) {
-        queryCond = `AND estado = $1`;
-        queryParams = [estado];
+    } else if (estados.length > 0) {
+        queryCond = `AND estado = ANY($1)`;
+        queryParams = [estados];
     }
 
     // Gestores - filtra apenas os permitidos
     let gestoresQuery = `SELECT DISTINCT "GESTOR IMEDIATO" FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL ${queryCond}`;
     let gestoresParams = [...queryParams];
-    if (regional) {
-        gestoresParams.push(regional);
-        gestoresQuery += ` AND regional = $${gestoresParams.length}`;
+    if (regionais.length > 0) {
+        gestoresParams.push(regionais);
+        gestoresQuery += ` AND regional = ANY($${gestoresParams.length})`;
     }
-    if (seccional) {
-        gestoresParams.push(seccional);
-        gestoresQuery += ` AND seccional = $${gestoresParams.length}`;
+    if (seccionais.length > 0) {
+        gestoresParams.push(seccionais);
+        gestoresQuery += ` AND seccional = ANY($${gestoresParams.length})`;
     }
 
     if (!isAdmin && colabFilter) {
@@ -843,9 +890,9 @@ async function get_user_agent_options({ estado, regional, seccional, user }) {
     // Seccionais - vem da tabela colaboradores
     let secQuery = `SELECT DISTINCT seccional FROM colaboradores WHERE seccional IS NOT NULL ${queryCond}`;
     let secParams = [...queryParams];
-    if (regional) {
-        secParams.push(regional);
-        secQuery += ` AND regional = $${secParams.length}`;
+    if (regionais.length > 0) {
+        secParams.push(regionais);
+        secQuery += ` AND regional = ANY($${secParams.length})`;
     }
     const { rows: secRows } = await cenos_pool.query(secQuery, secParams);
     result.seccionais = secRows.map(r => r.seccional);
@@ -853,9 +900,9 @@ async function get_user_agent_options({ estado, regional, seccional, user }) {
     // Regionais - vem da tabela colaboradores
     let regQuery = `SELECT DISTINCT regional FROM colaboradores WHERE regional IS NOT NULL ${queryCond}`;
     let regParams = [...queryParams];
-    if (seccional) {
-        regParams.push(seccional);
-        regQuery += ` AND seccional = $${regParams.length}`;
+    if (seccionais.length > 0) {
+        regParams.push(seccionais);
+        regQuery += ` AND seccional = ANY($${regParams.length})`;
     }
     const { rows: regRows } = await cenos_pool.query(regQuery, regParams);
     result.regionais = regRows.map(r => r.regional);
@@ -880,6 +927,19 @@ async function get_user_agent_options({ estado, regional, seccional, user }) {
         const { rows: rows6 } = await cenos_pool.query(query6);
         result.estados = rows6.map(r => r.estado);
     }
+
+    // Status - valores distintos presentes na tabela
+    const query7 = `SELECT DISTINCT status::text AS status FROM colaboradores WHERE status IS NOT NULL ${queryCond}`;
+    const { rows: rows7 } = await cenos_pool.query(query7, queryParams);
+    result.status = rows7.map(r => (r.status === 'true' ? 'true' : 'false'));
+
+    // Situação - valores distintos presentes na tabela
+    const query8 = `SELECT DISTINCT situacao FROM colaboradores WHERE situacao IS NOT NULL AND TRIM(situacao) <> '' ${queryCond}`;
+    const { rows: rows8 } = await cenos_pool.query(query8, queryParams);
+    result.situacao = rows8.map(r => r.situacao);
+
+    // Login status - conjunto canônico do algoritmo em get_users_agents_admin_paginated
+    result.login_status = ['online', 'offline', 'pending', 'none'];
 
     return result;
 }
@@ -1109,10 +1169,10 @@ async function delete_user_agent_admin({ id, user, deleteLogin = false }) {
     }
 
     try {
-        await cenos_pool.query(`DELETE FROM colaboradores WHERE "ID" = $1`, [id?.toUpperCase()]);
+        await cenos_pool.query(`DELETE FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id?.toUpperCase()]);
 
         if (deleteLogin) {
-            await cenos_pool.query(`DELETE FROM login WHERE UPPER(id) = $1`, [id?.toUpperCase()]);
+            await cenos_pool.query(`DELETE FROM login WHERE TRIM(UPPER(id)) = TRIM(UPPER($1))`, [id?.toUpperCase()]);
         }
 
         return { message: 'Usuário deletado com sucesso' };
@@ -1187,7 +1247,7 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
         const id = rawId?.toUpperCase();
         if (!id) continue;
         
-        const { rows: colabRows } = await cenos_pool.query(`SELECT estado, status, situacao FROM colaboradores WHERE "ID" = $1`, [id]);
+        const { rows: colabRows } = await cenos_pool.query(`SELECT estado, status, situacao FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id]);
         let estado = null;
         let existsInColab = colabRows.length > 0;
         
@@ -1232,7 +1292,7 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
                 const oldStatus = colabRows[0].status;
                 const oldSituacao = colabRows[0].situacao;
                 params.push(id);
-                await cenos_pool.query(`UPDATE colaboradores SET ${setClauses.join(', ')} WHERE "ID" = $${idx}`, params);
+                await cenos_pool.query(`UPDATE colaboradores SET ${setClauses.join(', ')} WHERE TRIM(UPPER("ID")) = TRIM(UPPER($${idx}))`, params);
                 const changedBy = getChangedBy(user);
                 const auditEntries = [];
                 if (data.status !== undefined && data.status !== '' && String(data.status === 'true' || data.status === true) !== String(oldStatus)) {
@@ -1249,7 +1309,7 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
             }
         } else {
             const { rows: existingColab } = await cenos_pool.query(
-                `SELECT status, situacao FROM colaboradores WHERE "ID" = $1`, [id]
+                `SELECT status, situacao FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id]
             );
             const hadOldValues = existingColab.length > 0;
             const beforeStatus = hadOldValues ? existingColab[0].status : null;
@@ -1316,7 +1376,7 @@ async function bulk_delete_user_agents_admin({ ids, deleteLogin = false, user })
         const id = rawId?.toUpperCase();
         if (!id) continue;
         
-        const resColab = await cenos_pool.query(`DELETE FROM colaboradores WHERE "ID" = $1`, [id]);
+        const resColab = await cenos_pool.query(`DELETE FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id]);
         if (deleteLogin || resColab.rowCount === 0) {
             await cenos_pool.query(`DELETE FROM login WHERE UPPER(id) = $1`, [id]);
         }

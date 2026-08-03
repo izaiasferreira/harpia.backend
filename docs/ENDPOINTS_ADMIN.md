@@ -191,7 +191,24 @@ Remove um usuário administrativo do sistema.
 ---
 
 ### `GET /admin/users_agents`
-Lista os colaboradores de campo (técnicos) cadastrados no sistema. Suporta filtros por seccional, regional, gestor, estado e busca textual.
+Lista os colaboradores de campo (técnicos) cadastrados no sistema. Suporta filtros por cargo, seccional, regional, gestor, estado e busca textual.
+
+**Query Params (opcionais):**
+Todos os filtros aceitam **múltiplos valores**: basta separar por vírgula (ex.: `estado=pi,ma` ou `regional=NORTE,SUL`) — o backend monta uma cláusula `= ANY(...)`. O valor especial `__VAZIO__` pode ser combinado com outros valores para incluir registros sem preenchimento.
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `page` | number | Página (default `1`) |
+| `limit` | number | Limite por página (default `50`) |
+| `search` | string | Busca por nome/matrícula (múltiplos separados por vírgula) |
+| `estado` | string | Filtra por estado(s) (`pi`, `ma`) |
+| `regional` | string | Filtra por regional(is) (`__VAZIO__` para vazio) |
+| `seccional` | string | Filtra por seccional(is) (`__VAZIO__` para vazio) |
+| `gestor` | string | Filtra por gestor(es) (`__VAZIO__` para vazio) |
+| `cargo` | string | Filtra por cargo(s) (`__VAZIO__` para vazio) |
+| `status` | string | `true` (ativo) e/ou `false` (inativo) — multi via `status=true,false` |
+| `situacao` | string | `active`, `vocation`, `inactive`, `away` |
+| `login_status` | string | `online`, `offline`, `pending`, `none` |
 
 **Resposta 200 (JSON):**
 Retorna uma lista de agentes enriquecida com campos de login e inventário:
@@ -213,7 +230,7 @@ Retorna uma lista de agentes enriquecida com campos de login e inventário:
 ```
 
 * **Mapeamento Adicional:** Cada registro inclui a propriedade computada `has_inventory` (boolean), que sinaliza de forma reativa se aquele agente possui um inventário ativo cadastrado no sistema.
-* **Exportação CSV:** O botão de exportação da listagem em massa gera um arquivo delimitado por ponto e vírgula (`;`) contendo o BOM (`\uFEFF`) e as colunas adicionais **"TEM TELEGRAM"** e **"TEM INVENTÁRIO"**.
+* **Exportação CSV:** O botão de exportação da listagem em massa gera um arquivo delimitado por ponto e vírgula (`;`) contendo o BOM (`\uFEFF`), a coluna **"STATUS LOGIN"** (Online, Offline, Pendente, Nunca Gerado PIN) e a coluna **"TEM INVENTÁRIO"**.
 
 ---
 
@@ -247,10 +264,40 @@ Atualiza dados de um agente de campo.
 ### `DELETE /admin/users_agents/:id`
 Remove um agente de campo do sistema.
 
+**Query Params:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `deleteLogin` | string | não | `true` para remover também o registro na tabela `login` |
+
+A remoção é case-insensitive no ID (usa `TRIM(UPPER("ID")) = TRIM(UPPER($1))`), compatível com IDs armazenados em minúsculo.
+
+**Response 200:** `{ "message": "Usuário deletado com sucesso" }`
+
+**Erros:**
+- `404` — `{ "error": "Usuário não encontrado" }`
+- `403` — `{ "error": "Você não tem permissão para deletar agentes no estado X" }`
+
 ---
 
 ### `GET /admin/users_agents/options`
-Retorna listas de valores para filtros (regionais, seccionais, estados).
+Retorna listas de valores para filtros (regionais, seccionais, gestores, cargos, processos, estados, status, situacao, login_status). Aceita `estado`, `regional` e `seccional` como query params (também multi-valor separado por vírgula) para refinar as listas. Quando `estado` não é informado, as listas cobrem **todos os estados** que o usuário tem acesso (sem fallback para o estado do admin).
+
+**Response 200:**
+```json
+{
+  "gestores": ["G1", "G2"],
+  "cargos": ["AGENTE A", "AGENTE B"],
+  "regionais": ["NORTE", "SUL"],
+  "seccionais": ["S1", "S2"],
+  "processos": ["LEITURA", "COBRANÇA", "NEGOCIAÇÃO"],
+  "estados": ["pi", "ma"],
+  "status": ["true", "false"],
+  "situacao": ["active", "vocation", "inactive", "away"],
+  "login_status": ["online", "offline", "pending", "none"]
+}
+```
+
+`status` e `situacao` são derivados dos valores distintos presentes em `colaboradores` (respeitando o escopo de estado/regional/seccional). `login_status` é o conjunto canônico do algoritmo de login/logout (não é coluna do banco).
 
 ---
 
