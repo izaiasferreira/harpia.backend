@@ -25,14 +25,27 @@ function generateDashboard({ state, id, stats }) {
 
     let widgets = [
         {
+            id: 'alert_agent_performance',
+            type: 'alertCard',
+            size: { colSpan: 3, rowSpan: 1 },
+            data: {
+                title: "DESEMPENHO DA SEMANA",
+                message: (stats.percent_cnl && stats.percent_cnl > 10)
+                    ? `Atenção: Seu índice de CNL (${stats.percent_cnl.toFixed(1)}%) está acima da semana anterior. Verifique suas pendências.`
+                    : `Seu índice de CNL (${(stats.percent_cnl || 0).toFixed(1)}%) está controlado em relação à semana anterior. Continue assim!`,
+                severity: (stats.percent_cnl && stats.percent_cnl > 10) ? "warning" : "info"
+            },
+        },
+        {
             id: 'stat_leituras',
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Leituras Realizadas',
+                title: 'Lidas',
                 value: String(stats.quant_leituras),
-                icon: 'BookCheck',
-                color: 'text-emerald-500 bg-emerald-50/10'
+                icon: 'FileCheck',
+                variant: 'mint',
+                color: 'text-emerald-600 bg-emerald-500/15 dark:text-emerald-400 dark:bg-emerald-500/20'
             },
             action: { type: 'link', url: '/services?filter=all' }
         },
@@ -41,10 +54,11 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Leituras Pendentes',
+                title: 'Pendentes',
                 value: String(stats.pending.length),
-                icon: 'AlertTriangle',
-                color: 'text-red-500 bg-red-50/10'
+                icon: 'Clock',
+                variant: 'rose',
+                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
             },
             action: { type: 'link', url: '/justify-pending' }
         },
@@ -53,22 +67,15 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Perdas Geradas',
+                title: 'Perdas',
                 value: `${stats.perdas} Kwh`,
-                icon: 'Zap',
-                color: 'text-yellow-500 bg-yellow-50/10'
+                icon: 'Flame',
+                variant: 'amber',
+                color: 'text-amber-600 bg-amber-500/15 dark:text-amber-400 dark:bg-amber-500/20'
             },
             action: { type: 'link', url: '/perdas' }
         },
-        {
-            id: 'banner_promo',
-            type: 'bannerCarousel',
-            size: { colSpan: 3, rowSpan: 1 },
-            data: {
-                autoSlideInterval: 5000,
-                banners: banners
-            },
-        },
+        
         {
             id: 'chart_producao_hora',
             type: 'chartCard',
@@ -84,10 +91,11 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Tempo Total de Trabalho',
+                title: 'Tempo Total',
                 value: stats.total_time_fmt,
-                icon: 'Clock',
-                color: 'text-blue-500 bg-blue-50/10'
+                icon: 'Timer',
+                variant: 'sky',
+                color: 'text-blue-600 bg-blue-500/15 dark:text-blue-400 dark:bg-blue-500/20'
             },
             action: { type: 'link', url: '/services?filter=all' }
         },
@@ -96,10 +104,11 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Tempo em Pausa',
+                title: 'Pausa',
                 value: stats.pause_time_fmt,
-                icon: 'CirclePause',
-                color: 'text-blue-500 bg-blue-50/10'
+                icon: 'PauseCircle',
+                variant: 'sky',
+                color: 'text-blue-600 bg-blue-500/15 dark:text-blue-400 dark:bg-blue-500/20'
             }
         },
         {
@@ -107,10 +116,11 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Tempo Efetivo',
+                title: 'Efetivo',
                 value: stats.work_time_fmt,
-                icon: 'ClockCheck',
-                color: 'text-blue-500 bg-blue-50/10'
+                icon: 'Briefcase',
+                variant: 'sky',
+                color: 'text-blue-600 bg-blue-500/15 dark:text-blue-400 dark:bg-blue-500/20'
             }
         },
         {
@@ -118,10 +128,11 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 2, rowSpan: 1 },
             data: {
-                title: 'Quantidade de CNL',
+                title: 'CNL Total',
                 value: String(stats.cnl),
-                icon: 'UserX',
-                color: 'text-red-500 bg-red-50/10'
+                icon: 'FileX',
+                variant: 'rose',
+                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
             },
             action: { type: 'link', url: '/services?filter=cnl' }
         },
@@ -130,10 +141,11 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Percentual de CNL',
+                title: 'CNL %',
                 value: `${stats.percent_cnl.toFixed(1)}%`,
-                icon: 'TrendingUp',
-                color: 'text-red-500 bg-red-50/10'
+                icon: 'Percent',
+                variant: 'rose',
+                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
             },
             action: { type: 'link', url: '/services?filter=cnl' }
         },
@@ -158,11 +170,12 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'C12 Fora de Horário',
+                title: 'C12 Fora Hora',
                 value: String(stats.quant_c12_out_hour),
                 subtitle: 'Antes das 08:00',
-                icon: 'Moon',
-                color: 'text-red-500 bg-red-50/10'
+                icon: 'AlarmClock',
+                variant: 'purple',
+                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
             },
             action: { type: 'link', url: '/services?filter=c12_out_time' }
         },
@@ -171,10 +184,11 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 2, rowSpan: 1 },
             data: {
-                title: 'Total de C12',
+                title: 'C12 Total',
                 value: String(stats.quant_c12),
-                icon: 'House',
-                color: 'text-red-500 bg-red-50/10'
+                icon: 'Building',
+                variant: 'purple',
+                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
             },
             action: { type: 'link', url: '/services?filter=c12' }
         },
@@ -183,10 +197,11 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'C12 em Ligação Nova',
+                title: 'C12 Nova',
                 value: String(stats.licacao_nova_c12),
-                icon: 'HousePlus',
-                color: 'text-red-500 bg-red-50/10'
+                icon: 'PlusCircle',
+                variant: 'purple',
+                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
             },
             action: { type: 'link', url: '/services?filter=c12_ligacao_nova' }
         },
@@ -197,8 +212,9 @@ function generateDashboard({ state, id, stats }) {
             data: {
                 title: 'C12 Rápido',
                 value: String(stats.fast_c12),
-                icon: 'UserPlus',
-                color: 'text-red-500 bg-red-50/10'
+                icon: 'FastForward',
+                variant: 'purple',
+                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
             },
             action: { type: 'link', url: '/services?filter=fast_c12' }
         },
@@ -209,8 +225,9 @@ function generateDashboard({ state, id, stats }) {
             data: {
                 title: 'C12 Entrante',
                 value: String(stats.first_c12),
-                icon: 'SearchAlert',
-                color: 'text-red-500 bg-red-50/10'
+                icon: 'Inbox',
+                variant: 'purple',
+                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
             },
             action: { type: 'link', url: '/services?filter=first_c12' }
         },
@@ -234,10 +251,11 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Total de leituras',
+                title: 'Total Mês',
                 value: String(stats.month_total_leituras),
-                icon: 'Check',
-                color: 'text-emerald-500 bg-emerald-50/10'
+                icon: 'CalendarCheck',
+                variant: 'mint',
+                color: 'text-emerald-600 bg-emerald-500/15 dark:text-emerald-400 dark:bg-emerald-500/20'
             },
             action: { type: 'link', url: '/services?filter=all' }
         },

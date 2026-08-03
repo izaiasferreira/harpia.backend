@@ -5,18 +5,32 @@ function generateCustomLinks({ state, id, user }) {
 
     const links = [
         {
-            "id": "profile-app",
-            "label": "Perfil",
-            "description": "Meu perfil",
-            "url": `/profile`,
-            "emoji": "User",
-            "color": "text-indigo-600",
+            "id": "leituras-app",
+            "label": "Leituras",
+            "url": `/services`,
+            "emoji": "BookCheck",
+            "color": "text-emerald-600",
+            "states": VALID_STATE_VALUES
+        },
+        {
+            "id": "perdas-app",
+            "label": "Perdas",
+            "url": `/perdas`,
+            "emoji": "Zap",
+            "color": "text-amber-600",
+            "states": VALID_STATE_VALUES
+        },
+        {
+            "id": "agenda-app",
+            "label": "Agenda",
+            "url": `/calendar`,
+            "emoji": "Calendar",
+            "color": "text-purple-600",
             "states": VALID_STATE_VALUES
         },
         {
             "id": "security-checklist-app",
-            "label": "Checklist de Segurança",
-            "description": "Faça seu checklist",
+            "label": "Checklist",
             "url": `/checklists`,
             "emoji": "ShieldCheck",
             "color": "text-green-600",
@@ -24,26 +38,15 @@ function generateCustomLinks({ state, id, user }) {
         },
         {
             "id": "security-report-app",
-            "label": "Reportes de segurança",
-            "description": "Consulte perigos na rota",
+            "label": "Reportes",
             "url": `/security-reports`,
             "emoji": "Shield",
             "color": "text-orange-600",
             "states":VALID_STATE_VALUES
         },
         {
-            "id": "camera-app",
-            "label": "Câmera",
-            "description": "Fotos com timestamp",
-            "url": `/camera`,
-            "emoji": "Camera",
-            "color": "text-yellow-600",
-            "states": VALID_STATE_VALUES
-        },
-        {
             "id": "ceneduc-app",
-            "label": "Ceneduc",
-            "description": "Cursos",
+            "label": "Educação",
             "url": `/ceneduc`,
             "emoji": "BookOpen",
             "color": "text-blue-600",
@@ -52,7 +55,6 @@ function generateCustomLinks({ state, id, user }) {
         {
             "id": "chatmessages-app",
             "label": "Chat",
-            "description": "Converse com o suporte",
             "url": '/chat',
             "emoji": "MessageCircle",
             "color": "text-purple-600",
@@ -61,25 +63,14 @@ function generateCustomLinks({ state, id, user }) {
         {
             "id": "servicos-app",
             "label": "Serviços",
-            "description": "Meus serviços atribuídos",
             "url": '/service-notes',
             "emoji": "Smartphone",
             "color": "text-yellow-600",
             "states": ['pi']
         },
         {
-            "id": "busca-app",
-            "label": "Pesquisar Instalação",
-            "description": "Encontre instalações",
-            "url": `/search`,
-            "emoji": "MapPinned",
-            "color": "text-red-600",
-            "states": VALID_STATE_VALUES
-        },
-        {
             "id": "inventario-app",
             "label": "Inventário",
-            "description": "Cadastre os equipamentos",
             "url": `/inventory`,
             "emoji": "Box",
             "color": "text-yellow-600",
@@ -87,8 +78,7 @@ function generateCustomLinks({ state, id, user }) {
         },
         {
             "id": "daily-report-app",
-            "label": "Diário de bordo",
-            "description": "Como foi seu dia?",
+            "label": "Diário",
             "url": `/daily-report`,
             "emoji": "Newspaper",
             "color": "text-green-600",
@@ -96,21 +86,11 @@ function generateCustomLinks({ state, id, user }) {
         },
         {
             "id": "justify-pending-app",
-            "label": "Justificar pendências",
-            "description": "Justifique suas pendências",
+            "label": "Pendências",
             "url": `/justify-pending`,
             "emoji": "AlertTriangle",
             "color": "text-indigo-600",
             "states": VALID_STATE_VALUES
-        },
-        {
-            "id": "atestado-app",
-            "label": "Atestado",
-            "description": "Envie seu atestado",
-            "url": `https://docs.google.com/forms/d/e/1FAIpQLSccADjOMTX5FItKyJaEYQ_4Wqlrup2HgHEqHbkyXuzBrnax2Q/viewform?usp=send_form`,
-            "emoji": "FileText",
-            "color": "text-red-600",
-            "states": ['pi']
         }
     ]
 
