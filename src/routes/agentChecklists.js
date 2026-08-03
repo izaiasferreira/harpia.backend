@@ -178,6 +178,30 @@ router.get('/:id', telegramAuth, async (req, res) => {
   }
 });
 
+// Helper para validar se o template é válido para o agente
+async function validateTemplateForAgent(agentId, agentEstado, templateId) {
+  const { rows: profileRows } = await cenos_pool.query(
+    `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo
+     FROM login l
+     LEFT JOIN colaboradores col ON l.id = col."ID"
+     WHERE l.id = $1`,
+    [agentId]
+  );
+  const agentProfile = profileRows[0] || {};
+  const templates = await listTemplatesForAgentWithProfile(agentEstado, agentProfile);
+  const isProfileAllowed = templates.some(t => String(t.id) === String(templateId));
+  if (isProfileAllowed) return true;
+
+  // Fallback: se não passou no filtro estrito de perfil, mas o template existe e está ativo para o estado do agente
+  const { rows: tRows } = await cenos_pool.query(
+    `SELECT id FROM checklist_templates
+     WHERE id = $1 AND is_active = true AND is_deleted = false
+       AND (estado IS NULL OR UPPER(estado) = UPPER($2))`,
+    [templateId, agentEstado]
+  );
+  return tRows.length > 0;
+}
+
 // POST /agent/checklists — enviar/sincronizar checklist
 router.post('/', telegramAuth, async (req, res) => {
   try {
@@ -187,22 +211,12 @@ router.post('/', telegramAuth, async (req, res) => {
     if (!data.template_id) return res.status(400).json({ error: 'template_id é obrigatório' });
     if (!data.date) return res.status(400).json({ error: 'date é obrigatório' });
 
-    // Validate authorization
     const agentEstado = req.colaborador.estado;
-    const { rows } = await cenos_pool.query(
-      `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo
-       FROM login l
-       LEFT JOIN colaboradores col ON l.id = col."ID"
-       WHERE l.id = $1`,
-      [agentId]
-    );
-    const agentProfile = rows[0] || {};
-    const templates = await listTemplatesForAgentWithProfile(agentEstado, agentProfile);
-    const isAllowed = templates.some(t => t.id === data.template_id);
+    const isValid = await validateTemplateForAgent(agentId, agentEstado, data.template_id);
 
-    if (!isAllowed) {
-      console.warn(`[AGENT_CHECKLISTS] Agente ${agentId} tentou enviar checklist não autorizado: ${data.template_id}. Descartando silenciosamente.`);
-      return res.status(201).json({ success: true, checklist: { id: data.id || 'fake-id', status: 'completed', date: data.date } });
+    if (!isValid) {
+      console.warn(`[AGENT_CHECKLISTS] Agente ${agentId} tentou enviar checklist de template inválido ou inativo: ${data.template_id}.`);
+      return res.status(400).json({ error: 'Template de checklist inválido ou inativo' });
     }
 
     const checklist = await saveChecklistSubmission(agentId, data);
@@ -223,22 +237,12 @@ router.post('/:id/sync', telegramAuth, async (req, res) => {
     if (!data.template_id) return res.status(400).json({ error: 'template_id é obrigatório' });
     if (!data.date) return res.status(400).json({ error: 'date é obrigatório' });
 
-    // Validate authorization
     const agentEstado = req.colaborador.estado;
-    const { rows } = await cenos_pool.query(
-      `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo
-       FROM login l
-       LEFT JOIN colaboradores col ON l.id = col."ID"
-       WHERE l.id = $1`,
-      [agentId]
-    );
-    const agentProfile = rows[0] || {};
-    const templates = await listTemplatesForAgentWithProfile(agentEstado, agentProfile);
-    const isAllowed = templates.some(t => t.id === data.template_id);
+    const isValid = await validateTemplateForAgent(agentId, agentEstado, data.template_id);
 
-    if (!isAllowed) {
-      console.warn(`[AGENT_CHECKLISTS] Agente ${agentId} tentou sincronizar checklist não autorizado: ${data.template_id}. Descartando silenciosamente.`);
-      return res.json({ success: true, checklist: { id: data.id || 'fake-id', status: 'completed', date: data.date } });
+    if (!isValid) {
+      console.warn(`[AGENT_CHECKLISTS] Agente ${agentId} tentou sincronizar checklist de template inválido ou inativo: ${data.template_id}.`);
+      return res.status(400).json({ error: 'Template de checklist inválido ou inativo' });
     }
 
     const checklist = await saveChecklistSubmission(agentId, data);

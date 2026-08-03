@@ -516,9 +516,10 @@ async function saveChecklistSubmission(agentId, data) {
       if (tRows.length > 0) {
         const sections = tRows[0].data?.sections || [];
         for (const ans of answers) {
-          if (ans.is_compliant === false && ans.question_uuid) {
+          const qUuid = ans.question_uuid || ans.question_id;
+          if (ans.is_compliant === false && qUuid) {
             for (const sec of sections) {
-              const found = (sec.questions || []).find(q => q.uuid === ans.question_uuid);
+              const found = (sec.questions || []).find(q => String(q.uuid) === String(qUuid));
               if (found && found.severity === 'critical') {
                 hasCriticalNonCompliant = true;
                 break;
@@ -529,9 +530,10 @@ async function saveChecklistSubmission(agentId, data) {
         }
         // Validate observation when required
         for (const ans of answers) {
-          if (ans.is_compliant === false && ans.question_uuid) {
+          const qUuid = ans.question_uuid || ans.question_id;
+          if (ans.is_compliant === false && qUuid) {
             for (const sec of sections) {
-              const found = (sec.questions || []).find(q => q.uuid === ans.question_uuid);
+              const found = (sec.questions || []).find(q => String(q.uuid) === String(qUuid));
               if (found && found.requires_observation_if_nc && found.observation_required && (!ans.observation || !ans.observation.trim())) {
                 throw { status: 400, message: `Observação obrigatória para a pergunta: ${found.label}` };
               }
