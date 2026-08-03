@@ -9,8 +9,8 @@ async function checkToken(req, res) {
         return false;
     }
 
-    if (!rawToken.startsWith('cenos_')) {
-        res.status(401).json({ error: 'Token inválido' });
+    if (!rawToken.startsWith('gedai_') && !rawToken.startsWith('cenos_')) {
+        res.status(401).json({ error: 'Token inválido (deve começar com gedai_)' });
         return false;
     }
 

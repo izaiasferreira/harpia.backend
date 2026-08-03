@@ -206,6 +206,12 @@ app.use('/admin/api-tokens', adminApiTokensRouter)
 app.use('/admin/tracking/share', adminTrackingShareRouter)
 app.use('/public/tracking', publicTrackingRouter)
 
+const externalApiRouter = require('./routes/externalApi');
+app.use('/api/v1', externalApiRouter);
+app.use('/api/external', externalApiRouter);
+app.use('/api', externalApiRouter);
+app.use('/public', externalApiRouter);
+
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
 const path = require('path');
