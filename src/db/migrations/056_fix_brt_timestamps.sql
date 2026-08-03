@@ -17,9 +17,14 @@ WHERE submitted_at IS NOT NULL
   AND EXTRACT(EPOCH FROM (created_at - submitted_at)) BETWEEN 10700 AND 10900;
 
 -- checklists_old (backup): mesma correção se existir
-UPDATE checklists_old
-SET submitted_at = submitted_at + INTERVAL '3 hours',
-    synced_at = CASE WHEN synced_at IS NOT NULL THEN synced_at + INTERVAL '3 hours' ELSE NULL END
-WHERE submitted_at IS NOT NULL
-  AND created_at IS NOT NULL
-  AND EXTRACT(EPOCH FROM (created_at - submitted_at)) BETWEEN 10700 AND 10900;
+DO $$
+BEGIN
+    IF to_regclass('public.checklists_old') IS NOT NULL THEN
+        UPDATE checklists_old
+        SET submitted_at = submitted_at + INTERVAL '3 hours',
+            synced_at = CASE WHEN synced_at IS NOT NULL THEN synced_at + INTERVAL '3 hours' ELSE NULL END
+        WHERE submitted_at IS NOT NULL
+          AND created_at IS NOT NULL
+          AND EXTRACT(EPOCH FROM (created_at - submitted_at)) BETWEEN 10700 AND 10900;
+    END IF;
+END $$;

@@ -28,15 +28,18 @@ A API possui um módulo de inteligência artificial modular (utilizado, por exem
 
 ---
 
-## 3. Armazenamento de Arquivos (MinIO / S3)
+## 3. Armazenamento de Arquivos (S3-compatible / Wasabi)
 
-Configurações para conexão com o servidor local MinIO ou serviço Amazon S3 para upload e recuperação de fotos de vistorias de campo e avatares de perfis.
+Configurações para conexão com um provedor de storage S3-compatible (ex.: Wasabi, MinIO ou Amazon S3) para upload e recuperação de fotos de vistorias de campo e avatares de perfis.
 
 | Variável | Descrição | Exemplo |
 |---|---|---|
-| `MINIO_ENDPOINT` | Host/IP do servidor MinIO. | `192.168.1.100` |
-| `MINIO_PORT` | Porta de rede do serviço MinIO (geralmente porta do console de API S3). | `9000` |
-| `MINIO_ACCESS_KEY` | Chave de acesso (Access Key) do MinIO. | `cenosaccess` |
-| `MINIO_SECRET_KEY` | Chave secreta (Secret Key) do MinIO. | `cenossecret` |
-| `MINIO_BUCKET` | Nome do bucket padrão para armazenamento das mídias. | `api-banco-dev` |
-| `MINIO_USE_SSL` | Define se a conexão com o servidor MinIO utilizará HTTPS/SSL (`true` ou `false`). | `false` |
+| `STORAGE_ENDPOINT` | Endpoint do provedor (Wasabi: `s3.<região>.wasabisys.com`). | `s3.us-central-1.wasabisys.com` |
+| `STORAGE_PORT` | Porta do serviço S3 (Wasabi usa 443). | `443` |
+| `STORAGE_USE_SSL` | Define se a conexão utilizará HTTPS/SSL (`true` ou `false`). | `true` |
+| `STORAGE_ACCESS_KEY` | Chave de acesso (Access Key) do provedor. | `cenosaccess` |
+| `STORAGE_SECRET_KEY` | Chave secreta (Secret Key) do provedor. | `cenossecret` |
+| `STORAGE_REGION` | Região do provedor (usada na assinatura/`makeBucket`). | `us-central-1` |
+| `STORAGE_BUCKET` | Nome do bucket padrão para armazenamento das mídias. | `api-banco-dev` |
+
+> **Legado:** As variáveis `MINIO_*` ainda funcionam como fallback caso `STORAGE_*` não sejam definidas (compatibilidade temporária durante a migração).
