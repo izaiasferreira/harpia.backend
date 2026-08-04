@@ -158,6 +158,41 @@ async function generateBulkPins(agentIds) {
     return results;
 }
 
+async function getSessionHistory(agentId) {
+    const normalizedId = normalizeAgentId(agentId);
+    
+    // Historico de login pins
+    const { rows: loginPins } = await cenos_pool.query(
+        `SELECT id, 'login_pin' as type, pin, created_at, created_by_name as author_name
+         FROM app_pins 
+         WHERE upper(agent_id) = $1`,
+        [normalizedId]
+    );
+
+    // Historico de logout pins
+    const { rows: logoutPins } = await cenos_pool.query(
+        `SELECT id, 'logout_pin' as type, pin, created_at, created_by_name as author_name
+         FROM app_logout_pins 
+         WHERE upper(agent_id) = $1`,
+        [normalizedId]
+    );
+
+    // Historico de invalidação
+    const { rows: invalidations } = await cenos_pool.query(
+        `SELECT id, 'invalidation' as type, null as pin, created_at, invalidated_by_name as author_name
+         FROM session_invalidation_log 
+         WHERE upper(agent_id) = $1`,
+        [normalizedId]
+    );
+
+    const history = [...loginPins, ...logoutPins, ...invalidations];
+    
+    // Sort by created_at desc
+    history.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    return history;
+}
+
 module.exports = {
     findAgentById,
     invalidateExistingPins,
@@ -168,4 +203,5 @@ module.exports = {
     findValidPin,
     markPinAsUsed,
     generateBulkPins,
+    getSessionHistory,
 };

@@ -12,7 +12,20 @@ const {
     listPins,
     deletePinById,
     generateBulkPins,
+    getSessionHistory,
 } = require('../functions/database/appPins');
+
+// GET /admin/agent/:id/session_history
+router.get('/:id/session_history', verifyToken(), verifyModule('app_pins'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const history = await getSessionHistory(id);
+        res.json(history);
+    } catch (err) {
+        console.error('[GET_SESSION_HISTORY] Erro:', err);
+        res.status(500).json({ error: 'Erro ao buscar histórico de sessões' });
+    }
+});
 
 // POST /admin/agent/generate_app_pin
 router.post('/generate_app_pin', verifyToken(), verifyModule('app_pins'), validate(z.object({ agent_id: z.string().min(1) })), async (req, res) => {

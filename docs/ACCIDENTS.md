@@ -39,11 +39,11 @@ Documentação do módulo de registro de acidentes reportados pelo agente via FA
 
 ---
 
-## 2. Endpoints do Agente
+## 2. Endpoint do Agente
 
-Prefixo: `/agent/*` — Autenticação: `telegramAuth` → `req.colaborador`
+Prefixo: `/agent/v2/*` — Autenticação: `telegramAuth` → `req.colaborador`
 
-### `POST /agent/accident`
+### `POST /agent/v2/accident`
 
 Registra um novo acidente.
 
@@ -53,7 +53,8 @@ Registra um novo acidente.
   "tipo": "Acidente de moto",
   "descricao": "Bati de frente com um carro na BR-316",
   "latitude": "-5.1234567",
-  "longitude": "-42.1234567"
+  "longitude": "-42.1234567",
+  "foto": "https://minio.cenos.com.br/..."
 }
 ```
 
@@ -72,16 +73,7 @@ Registra um novo acidente.
 }
 ```
 
-### `GET /agent/accident`
-
-Lista acidentes do agente autenticado.
-
-**Response 200:**
-```json
-[
-  { "id": 1, "autor": "T60702", "tipo": "...", ... }
-]
-```
+> **Nota**: As rotas legadas `POST /agent/accident` e `GET /agent/accident` foram removidas. A listagem de acidentes do agente é feita via `GET /agent/v2/my_reports`.
 
 ---
 

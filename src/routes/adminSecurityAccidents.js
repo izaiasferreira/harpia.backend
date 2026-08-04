@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 const {
+    create_accident,
     get_accidents_admin,
     resolve_accident,
     reopen_accident,
@@ -27,6 +28,25 @@ router.get('/', verifyToken(), verifyModule('security_reports'), async (req, res
     } catch (err) {
         console.error('[SECURITY ACCIDENTS] Erro ao listar:', err);
         res.status(500).json({ error: 'Erro ao listar acidentes' });
+    }
+});
+
+// POST /admin/security_reports/accidents — criar acidente (admin)
+router.post('/', verifyToken(), verifyModule('create_security_accident'), async (req, res) => {
+    try {
+        const { tipo, descricao, latitude, longitude, estado, regional, seccional, foto } = req.body;
+        if (!tipo) return res.status(400).json({ error: 'Tipo é obrigatório' });
+        if (!estado || !regional || !seccional) {
+            return res.status(400).json({ error: 'Estado, regional e seccional são obrigatórios' });
+        }
+        const autor = req.user.nome || req.user.id;
+        const result = await create_accident({
+            autor, tipo, descricao, latitude, longitude, estado, regional, seccional, foto
+        });
+        res.json(result);
+    } catch (err) {
+        console.error('[ADMIN CREATE ACCIDENT] Erro ao criar:', err);
+        res.status(500).json({ error: err.message || 'Erro ao criar acidente' });
     }
 });
 

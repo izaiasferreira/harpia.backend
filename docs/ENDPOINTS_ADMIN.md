@@ -2690,7 +2690,186 @@ Adiciona uma evidência a um relatório existente.
 
 ---
 
-## 23. Tokens de API (Admin)
+### `GET /admin/security_reports/configs/merged`
+
+Retorna os tipos de perigo e acidente mergeados das configs ativas (`security_report_configs`), filtrados por estado/regional/seccional. É a mesma fonte que o agente consome via `GET /agent/v2/config`.
+
+**Módulos Requeridos:** `create_security_report` **ou** `create_security_accident`
+
+**Query Params:**
+| Parâmetro | Tipo | Obrigatório | Descrição |
+|-----------|------|-------------|-----------|
+| `estado` | string | não | UF (`pi`, `ma`). Se ausente, considera todas as configs ativas |
+| `regional` | string | não | Filtra configs que possuem essa regional |
+| `seccional` | string | não | Filtra configs que possuem essa seccional |
+
+**Resposta 200:**
+```json
+{
+  "perigos": [ { "valor": "Cão bravo", "cor": "#ef4444", "ordem": 1 } ],
+  "tipos_acidente": [ { "valor": "Queda de Moto", "ordem": 1 } ]
+}
+```
+
+**Nota:** Configs com filtro de `cargo` não são excluídas (o admin cria por área, sem cargo associado).
+
+---
+
+## 23. Anotações de Serviço (Service Annotations)
+
+Gestão das anotações de serviço registradas pelos agentes (via `/agent/v2/annotation`) ou pelos administradores. Expõe listagem com filtros, criação, importação em massa (XLSX), resolução, reabertura e exclusão.
+
+**Módulos Requeridos:** `service_annotations` (ver), `create_service_annotation` (criar/importar), `resolve_service_annotation` (resolver/reabrir), `delete_service_annotation` (excluir).
+
+> **Expiração (`expires_at`):** anotações criadas por agentes são sempre ilimitadas (`expires_at = NULL`). Apenas administradores podem definir uma data de expiração. Anotações expiradas **não aparecem mais** para os agentes em `GET /agent/security_report`, mas permanecem visíveis na listagem do admin.
+
+> **Arquivamento (`arquivada`):** o admin pode arquivar/desarquivar anotações. Anotações arquivadas **não aparecem mais** para os agentes em `GET /agent/security_report` (reversível via desarquivamento), mas permanecem visíveis na listagem do admin.
+
+### `GET /admin/service_annotations`
+
+Lista paginada de anotações de serviço com filtros.
+
+**Módulo Requerido:** `service_annotations`
+
+**Query Params:**
+| Parâmetro | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `estado` | string | — | UF (`pi`, `ma`) |
+| `status` | string | — | `pendente`, `tratado` ou `arquivada` (filtros `pendente`/`tratado` excluem arquivadas) |
+| `search` | string | — | Busca por tipo, identificação, descrição ou solução |
+| `page` | number | 1 | Página atual |
+| `limit` | number | 50 | Itens por página |
+
+**Resposta 200:**
+```json
+{
+  "annotations": [
+    {
+      "id": 1,
+      "autor": "login_do_agente",
+      "tipo": "Remanejamento",
+      "identificacao_tipo": "Medidor",
+      "identificacao_valor": "12345",
+      "descricao": "Trocar medidor",
+      "latitude": null,
+      "longitude": null,
+      "estado": "pi",
+      "seccional": null,
+      "regional": null,
+      "foto": null,
+      "expires_at": null,
+      "arquivada": false,
+      "resolvido": false,
+      "descricao_solucao": null,
+      "created_at": "2026-01-01T00:00:00.000Z",
+      "agent_nome": "João da Silva",
+      "agent_estado": "pi"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 50
+}
+```
+
+### `POST /admin/service_annotations`
+
+Cria uma anotação de serviço. Admins podem definir `expires_at` opcional (em branco = nunca expira).
+
+**Módulo Requerido:** `create_service_annotation`
+
+**Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `tipo` | string | **sim** | Tipo da anotação (ex: Remanejamento, Anotação, Coordenada) |
+| `descricao` | string | **sim** | Descrição da anotação |
+| `estado` | string | **sim** | UF (`pi`/`ma`) |
+| `regional` | string | **sim** | Regional |
+| `seccional` | string | **sim** | Seccional |
+| `identificacao_tipo` | string | não | Tipo de identificação (ex: Medidor, Instalação) |
+| `identificacao_valor` | string | não | Valor da identificação |
+| `latitude` | number | não | Latitude |
+| `longitude` | number | não | Longitude |
+| `foto` | string | não | URL da foto |
+| `expires_at` | string | não | Data ISO de expiração. **Em branco = nunca expira** |
+
+**Resposta 200:** Objeto da anotação criada.
+
+### `POST /admin/service_annotations/import`
+
+Importação em massa de anotações a partir de planilha XLSX (multipart/form-data, campo `file`).
+
+**Módulo Requerido:** `create_service_annotation`
+
+**Colunas aceitas:** `TIPO`, `DESCRICAO`, `IDENTIFICACAO_TIPO`, `IDENTIFICACAO_VALOR`, `ESTADO`, `REGIONAL`, `SECCIONAL`, `EXPIRA_EM`, `LATITUDE`, `LONGITUDE`.
+
+- `TIPO` obrigatório ∈ `Remanejamento`, `Anotação`, `Coordenada`
+- `ESTADO` ∈ `PI`, `MA`
+- `IDENTIFICACAO_TIPO` ∈ `Medidor`, `Instalação`, `Unidade Consumidora`
+- `EXPIRA_EM` opcional no formato `AAAA-MM-DD` (em branco = nunca expira)
+
+**Resposta 200:**
+```json
+{
+  "totalProcessed": 3,
+  "successCount": 2,
+  "errorCount": 1,
+  "created": 2,
+  "errors": ["Linha 3: TIPO \"Invalido\" inválido. Use: Remanejamento, Anotação, Coordenada"]
+}
+```
+
+### `GET /admin/service_annotations/:id`
+
+**Módulo Requerido:** `service_annotations`
+
+Obtém uma anotação com suas evidências (`evidencias`).
+
+### `POST /admin/service_annotations/:id/resolve`
+
+Marca a anotação como tratada.
+
+**Módulo Requerido:** `resolve_service_annotation`
+
+**Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `descricao_solucao` | string | **sim** | Descrição da solução |
+| `evidencias` | array | não | `[{ nome_arquivo, tipo, caminho }]` |
+
+### `POST /admin/service_annotations/:id/reopen`
+
+Reabre uma anotação tratada (remove evidências e dados de resolução).
+
+**Módulo Requerido:** `resolve_service_annotation`
+
+### `POST /admin/service_annotations/:id/archive`
+
+Arquiva uma anotação — ela deixa de aparecer para os agentes em `GET /agent/security_report`, mas continua visível na listagem do admin.
+
+**Módulo Requerido:** `delete_service_annotation`
+
+**Resposta 200:** Objeto da anotação com `arquivada: true`.
+
+### `POST /admin/service_annotations/:id/unarchive`
+
+Desarquiva uma anotação — ela volta a aparecer para os agentes.
+
+**Módulo Requerido:** `delete_service_annotation`
+
+**Resposta 200:** Objeto da anotação com `arquivada: false`.
+
+### `DELETE /admin/service_annotations/:id`
+
+Exclui permanentemente uma anotação.
+
+**Módulo Requerido:** `delete_service_annotation`
+
+**Resposta 200:** `{ "success": true, "id": 1 }`
+
+---
+
+## 24. Tokens de API (Admin)
 
 Gerencia tokens de API para integração com sistemas externos. Os tokens são armazenados com hash SHA-256 e podem ser revogados individualmente.
 

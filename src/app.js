@@ -107,6 +107,9 @@ app.use('/admin/security_reports', adminSecurityReportsValidationRouter)
 const adminSecurityAccidentsRouter = require('./routes/adminSecurityAccidents')
 app.use('/admin/security_reports/accidents', adminSecurityAccidentsRouter)
 
+const adminServiceAnnotationsRouter = require('./routes/adminServiceAnnotations')
+app.use('/admin/service_annotations', adminServiceAnnotationsRouter)
+
 const adminCrashDetectionRouter = require('./routes/adminCrashDetection')
 app.use('/admin/crash-detection', adminCrashDetectionRouter)
 
@@ -183,9 +186,6 @@ app.use('/admin/messages', adminMessagesRouter)
 
 const adminSecurityReportConfigsRouter = require('./routes/adminSecurityReportConfigs')
 app.use('/admin/security_reports/configs', adminSecurityReportConfigsRouter)
-
-const agentSecurityReportConfigRouter = require('./routes/agentSecurityReportConfig')
-app.use('/agent/security_report', agentSecurityReportConfigRouter)
 
 const agentSecurityReportsRouter = require('./routes/agentSecurityReports')
 app.use('/agent/v2', agentSecurityReportsRouter)

@@ -1170,6 +1170,12 @@ async function get_security_report_points({ user }) {
     return rows;
 }
 
+async function get_security_reports_by_agent(autor) {
+    const query = `SELECT * FROM security_report WHERE autor = $1 ORDER BY created_at DESC;`;
+    const { rows } = await cenos_pool.query(query, [autor]);
+    return rows;
+}
+
 async function get_security_reports({ user }) {
     const { id, estado } = user;
     let result = {
@@ -1316,6 +1322,7 @@ module.exports = {
     get_inventory_by_agent,
     save_inventory,
     create_security_report,
+    get_security_reports_by_agent,
     getUserData,
     updateProfilePic,
     addBadgeToProfile,

@@ -60,6 +60,23 @@ Index: `idx_evidencias_report_id ON security_report_evidencias(report_id)`
 | `etapa` | Número da etapa |
 | `risco` | Descrição textual do risco |
 
+**`security_report_configs`** (fonte dos tipos de perigo/acidente, mesma usada pelo agente via `GET /agent/v2/config`)
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | `SERIAL PRIMARY KEY` | |
+| `title` | `VARCHAR(255) NOT NULL` | |
+| `config_type` | `VARCHAR(20) DEFAULT 'hazards'` | `hazards` ou `accidents` |
+| `estado` | `VARCHAR(2)` | `NULL` = todos os estados |
+| `data` | `JSONB NOT NULL DEFAULT '{}'` | `{ perigos: [{valor,cor,ordem}], tipos_acidente: [{valor,ordem}], filters: {cargo,regional,seccional} }` |
+| `is_active` | `BOOLEAN DEFAULT true` | |
+| `created_at` | `TIMESTAMP DEFAULT NOW()` | |
+| `updated_at` | `TIMESTAMP DEFAULT NOW()` | |
+
+**Admin — `GET /admin/security_reports/configs/merged?estado=&regional=&seccional=`**
+
+Retorna `{ perigos, tipos_acidente }` mergeados (dedup por valor, ordenados por `ordem`) das configs ativas compatíveis com o escopo. Usado pelo modal de criação do admin em `/security-reports` (os tipos não são hardcoded no frontend). Módulos: `create_security_report` ou `create_security_accident`.
+
 ---
 
 ## 2. Schemas Zod
@@ -118,13 +135,37 @@ const resolverSchema = z.object({
 
 | Method | Path | Auth |
 |---|---|---|
-| `POST` | `/agent/security_report` | Telegram |
 | `GET` | `/agent/security_report` | Telegram |
+| `POST` | `/agent/v2/security_report` | Telegram |
+| `POST` | `/agent/v2/accident` | Telegram |
+| `POST` | `/agent/v2/annotation` | Telegram |
 | `POST` | `/agent/security_check` | Telegram |
 | `GET` | `/agent/security_check` | Telegram |
 | `GET` | `/agent/security_check/check_today` | Telegram |
 
-**GET /agent/security_report** — Retorna `{ risks_list: string[], points: SecurityRiskPoint[] }`. Os riscos são filtrados por estado do agente e localidades associadas às leituras pendentes.
+**GET /agent/security_report** — Retorna `{ risks_list: string[], points: SecurityRiskPoint[] }`. Os riscos são filtrados por estado do agente e localidades associadas às leituras pendentes. Inclui apenas anotações **não expiradas** (`expires_at IS NULL OR expires_at > NOW()`).
+
+### 3.4. Anotações de Serviço (admin) — `routes/adminServiceAnnotations.js`
+
+| Method | Path | Auth | Módulo |
+|---|---|---|---|
+| `GET` | `/admin/service_annotations` | JWT | `service_annotations` |
+| `POST` | `/admin/service_annotations` | JWT | `create_service_annotation` |
+| `POST` | `/admin/service_annotations/import` | JWT | `create_service_annotation` |
+| `GET` | `/admin/service_annotations/:id` | JWT | `service_annotations` |
+| `POST` | `/admin/service_annotations/:id/resolve` | JWT | `resolve_service_annotation` |
+| `POST` | `/admin/service_annotations/:id/reopen` | JWT | `resolve_service_annotation` |
+| `POST` | `/admin/service_annotations/:id/archive` | JWT | `delete_service_annotation` |
+| `POST` | `/admin/service_annotations/:id/unarchive` | JWT | `delete_service_annotation` |
+| `DELETE` | `/admin/service_annotations/:id` | JWT | `delete_service_annotation` |
+
+**Expiração (`expires_at`):** anotações criadas por agentes são sempre ilimitadas (`NULL`). Só admins podem definir `expires_at`. `get_service_annotations_for_agent_state` exclui anotações com `expires_at <= NOW()` — agentes não veem anotações expiradas em `GET /agent/security_report`, mas o admin continua vendo na listagem.
+
+**Arquivamento (`arquivada`):** o admin pode arquivar/desarquivar anotações (`archive_service_annotation`/`unarchive_service_annotation`). `get_service_annotations_for_agent_state` também filtra `sa.arquivada = FALSE` — anotações arquivadas somem do app dos agentes (reversível). Na listagem admin, filtros `pendente`/`tratado` excluem arquivadas e o filtro `status=arquivada` lista apenas arquivadas.
+
+**FK `login`:** ao criar/importar anotações como admin (usuário da tabela `users`, sem linha na tabela `login`), `create_service_annotation` faz upsert defensivo do autor em `login` (INSERT ... ON CONFLICT (id) DO NOTHING) para satisfazer a foreign key.
+
+**Importação (XLSX):** `processServiceAnnotationImport` valida `TIPO` ∈ {Remanejamento, Anotação, Coordenada}, `ESTADO` ∈ {pi, ma}, `IDENTIFICACAO_TIPO` ∈ {Medidor, Instalação, Unidade Consumidora} e `EXPIRA_EM` (AAAA-MM-DD). Retorna `{ totalProcessed, successCount, errorCount, created, errors }`.
 
 ---
 
@@ -169,6 +210,10 @@ Definidos em `functions/modules.js`:
 | `create_security_report` | Criar Relatório de Segurança |
 | `delete_security_report` | Deletar Relatório de Segurança |
 | `resolve_security_report` | Resolver / Validar Relatório de Segurança |
+| `service_annotations` | Consultar Anotações de Serviço |
+| `create_service_annotation` | Criar Anotação de Serviço |
+| `delete_service_annotation` | Deletar Anotação de Serviço |
+| `resolve_service_annotation` | Resolver / Validar Anotação de Serviço |
 
 ---
 
@@ -190,6 +235,30 @@ Definidos em `functions/modules.js`:
 - Reabrir relatório (POST, 200)
 - Listar evidências (GET, 200)
 
+### `tests/adminServiceAnnotationsImport.test.js` (4 testes)
+
+- Import sem token (POST, 401)
+- Import sem arquivo (POST, 400)
+- Import com linhas válidas e inválidas (POST, 200 — 2 sucesso / 1 erro, `expires_at` persistido)
+- Import com `EXPIRA_EM` inválido (POST, 200 — erro reportado)
+
+### `tests/serviceAnnotationExpiry.test.js` (4 testes)
+
+- Admin cria anotação com `expires_at` no futuro
+- Admin cria anotação já expirada
+- Admin cria anotação sem expiração (ilimitada, `NULL`)
+- Agente não vê anotação expirada no `GET /agent/security_report`
+
+### `tests/serviceAnnotationArchive.test.js` (7 testes)
+
+- Arquiva sem token (POST, 401)
+- Arquiva id inexistente (POST, 404)
+- Admin cria anotação visível para o agente
+- Admin arquiva anotação (`arquivada: true`)
+- Agente não vê anotação arquivada no `GET /agent/security_report`
+- Admin vê anotação arquivada na listagem
+- Admin desarquiva anotação e agente volta a vê-la
+
 ---
 
-*Documento atualizado em: 11/06/2026*
+*Documento atualizado em: 04/08/2026*

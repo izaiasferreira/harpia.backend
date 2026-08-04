@@ -172,18 +172,13 @@ async function getMatchingSecurityReportConfigs(profile) {
   return matching;
 }
 
-async function getAgentSecurityReportConfig(agentId) {
-  const profile = await getAgentProfileById(agentId);
-  if (!profile) { return { hasAccess: false, perigos: [], tipos_acidente: [] }; }
-  const configs = await getMatchingSecurityReportConfigs(profile);
-  if (configs.length === 0) { return { hasAccess: false, perigos: [], tipos_acidente: [] }; }
-  const hazardConfigs = configs.filter(c => c.config_type === 'hazards');
-  const accidentConfigs = configs.filter(c => c.config_type === 'accidents');
+function mergeConfigTypes(configs) {
   const mergedPerigos = [];
   const mergedTipos = [];
   const seenPerigos = new Set();
   const seenTipos = new Set();
-  for (const cfg of hazardConfigs) {
+  for (const cfg of configs) {
+    if (cfg.config_type !== 'hazards') continue;
     const perigos = cfg.data?.perigos || [];
     for (const p of perigos) {
       if (!seenPerigos.has(p.valor)) {
@@ -192,7 +187,8 @@ async function getAgentSecurityReportConfig(agentId) {
       }
     }
   }
-  for (const cfg of accidentConfigs) {
+  for (const cfg of configs) {
+    if (cfg.config_type !== 'accidents') continue;
     const tipos = cfg.data?.tipos_acidente || [];
     for (const t of tipos) {
       if (!seenTipos.has(t.valor)) {
@@ -203,8 +199,49 @@ async function getAgentSecurityReportConfig(agentId) {
   }
   mergedPerigos.sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
   mergedTipos.sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+  return { perigos: mergedPerigos, tipos_acidente: mergedTipos };
+}
+
+function matchesScope(config, { regional, seccional }) {
+  const filters = config.data?.filters;
+  if (!filters) return true;
+  if (filters.regional?.length) {
+    const match = filters.regional.some(r => r.toUpperCase() === (regional || '').toUpperCase());
+    if (!match) return false;
+  }
+  if (filters.seccional?.length) {
+    const match = filters.seccional.some(s => s.toUpperCase() === (seccional || '').toUpperCase());
+    if (!match) return false;
+  }
+  return true;
+}
+
+async function getMergedSecurityReportConfigs({ estado, regional, seccional }) {
+  await ensureTable();
+  const params = [];
+  let where = 'is_active = true';
+  if (estado) {
+    params.push(estado);
+    where += ` AND (estado IS NULL OR LOWER(estado) = LOWER($${params.length}))`;
+  }
+  const { rows } = await cenos_pool.query(
+    `SELECT * FROM security_report_configs WHERE ${where} ORDER BY created_at DESC`,
+    params
+  );
+  const matching = rows.filter(r => matchesScope(r, { regional, seccional }));
+  return mergeConfigTypes(matching);
+}
+
+async function getAgentSecurityReportConfig(agentId) {
+  const profile = await getAgentProfileById(agentId);
+  if (!profile) { return { hasAccess: false, perigos: [], tipos_acidente: [] }; }
+  const configs = await getMatchingSecurityReportConfigs(profile);
+  if (configs.length === 0) { return { hasAccess: false, perigos: [], tipos_acidente: [] }; }
+  const hazardConfigs = configs.filter(c => c.config_type === 'hazards');
+  const accidentConfigs = configs.filter(c => c.config_type === 'accidents');
+  const { perigos, tipos_acidente } = mergeConfigTypes(configs);
   const hasAccess = hazardConfigs.length > 0 || accidentConfigs.length > 0;
-  return { hasAccess, perigos: mergedPerigos, tipos_acidente: mergedTipos };
+  return { hasAccess, perigos, tipos_acidente };
 }
 
 async function checkAgentHasAccess(agentId) {
@@ -221,5 +258,6 @@ module.exports = {
   updateSecurityReportConfig,
   deleteSecurityReportConfig,
   getAgentSecurityReportConfig,
+  getMergedSecurityReportConfigs,
   checkAgentHasAccess,
 };

@@ -421,21 +421,6 @@ Verifica se o check-in de segurança já foi realizado hoje.
 
 ---
 
-### `POST /agent/security_report`
-Permite ao colaborador reportar geograficamente um local ou instalação perigosa que oferece risco à vida (ex: cão bravo solto, risco de assalto, cabo elétrico caído).
-
-**Body:**
-```json
-{
-    "motivo": "Cão bravo",
-    "observacao": "Pitbull de grande porte solto na frente do medidor.",
-    "latitude": "-5.0912",
-    "longitude": "-42.8021"
-}
-```
-
----
-
 ### `GET /agent/security_report`
 Lista os relatórios de segurança do agente, incluindo status de resolução.
 
