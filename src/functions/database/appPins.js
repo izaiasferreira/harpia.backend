@@ -31,7 +31,7 @@ async function invalidateExistingPins(agentId) {
     );
 }
 
-async function invalidateAgentSessions(agentId) {
+async function invalidateAgentSessions(agentId, user) {
     const normalizedId = normalizeAgentId(agentId);
     await cenos_pool.query(
         'DELETE FROM telegram_tokens WHERE upper(agent_id) = $1',
@@ -41,14 +41,20 @@ async function invalidateAgentSessions(agentId) {
         'DELETE FROM fcm_tokens WHERE upper(agent_id) = $1',
         [normalizedId]
     );
+    if (user) {
+        await cenos_pool.query(
+            'INSERT INTO session_invalidation_log (agent_id, invalidated_by_id, invalidated_by_name) VALUES ($1, $2, $3)',
+            [normalizedId, user.id || null, user.nome || null]
+        );
+    }
 }
 
-async function createPin(agentId, pin, expiresAt) {
+async function createPin(agentId, pin, expiresAt, user) {
     const validated = pinCreateSchema.parse({ agent_id: agentId, pin, expires_at: expiresAt });
     const normalizedId = normalizeAgentId(validated.agent_id);
     await cenos_pool.query(
-        'INSERT INTO app_pins (agent_id, pin, expires_at) VALUES ($1, $2, $3)',
-        [normalizedId, validated.pin, validated.expires_at]
+        'INSERT INTO app_pins (agent_id, pin, expires_at, created_by_id, created_by_name) VALUES ($1, $2, $3, $4, $5)',
+        [normalizedId, validated.pin, validated.expires_at, user?.id || null, user?.nome || null]
     );
 }
 

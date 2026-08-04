@@ -12,12 +12,12 @@ async function invalidateExistingLogoutPins(agentId) {
     );
 }
 
-async function createLogoutPin(agentId, pin, expiresAt) {
+async function createLogoutPin(agentId, pin, expiresAt, user) {
     const validated = logoutPinCreateSchema.parse({ agent_id: agentId, pin, expires_at: expiresAt });
     const normalizedId = normalizeAgentId(validated.agent_id);
     await cenos_pool.query(
-        'INSERT INTO app_logout_pins (agent_id, pin, expires_at) VALUES ($1, $2, $3)',
-        [normalizedId, validated.pin, validated.expires_at]
+        'INSERT INTO app_logout_pins (agent_id, pin, expires_at, created_by_id, created_by_name) VALUES ($1, $2, $3, $4, $5)',
+        [normalizedId, validated.pin, validated.expires_at, user?.id || null, user?.nome || null]
     );
 }
 

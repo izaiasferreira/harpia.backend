@@ -34,7 +34,7 @@ router.post('/generate_app_pin', verifyToken(), verifyModule('app_pins'), valida
         const pin = String(Math.floor(100000 + Math.random() * 900000));
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
-        await createPin(agent.id, pin, expiresAt);
+        await createPin(agent.id, pin, expiresAt, req.user);
 
         res.json({
             pin,
@@ -44,6 +44,24 @@ router.post('/generate_app_pin', verifyToken(), verifyModule('app_pins'), valida
     } catch (err) {
         console.error('[GENERATE_PIN] Erro:', err);
         res.status(500).json({ error: 'Erro ao gerar PIN' });
+    }
+});
+
+// POST /admin/agent/invalidate_session
+router.post('/invalidate_session', verifyToken(), verifyModule('app_pins'), validate(z.object({ agent_id: z.string().min(1) })), async (req, res) => {
+    try {
+        const { agent_id } = req.body;
+        const agent = await findAgentById(agent_id);
+        if (!agent) {
+            return res.status(404).json({ error: 'Agente não encontrado' });
+        }
+
+        await invalidateAgentSessions(agent.id, req.user);
+
+        res.json({ success: true, message: 'Sessão invalidada com sucesso.' });
+    } catch (err) {
+        console.error('[INVALIDATE_SESSION] Erro:', err);
+        res.status(500).json({ error: 'Erro ao invalidar sessão' });
     }
 });
 
