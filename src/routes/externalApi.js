@@ -1260,4 +1260,623 @@ router.post('/notify', async (req, res) => {
     }
 });
 
+// ============================================================================
+// 1.1 REPORTES DE SEGURANÇA (PERIGOS) - GET BY ID, POST, PUT, DELETE
+// ============================================================================
+
+router.get('/security-reports/:id', async (req, res) => {
+    if (!await checkToken(req, res)) return;
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+        const query = `
+            SELECT sr.id, sr.autor as agent_id, c."Nome" as agent_nome, c.regional, c.seccional,
+                   c."Cargo" as agent_cargo, c."GESTOR IMEDIATO" as agent_gestor,
+                   COALESCE(sr.estado, c.estado) as estado,
+                   sr.motivo, sr.observacao, sr.latitude, sr.longitude, sr.foto as photo_url,
+                   sr.resolvido, sr.resolvido_por, sr.resolvido_por_nome, sr.resolvido_em, sr.descricao_solucao,
+                   sr.created_at
+            FROM security_report sr
+            LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(sr.autor)
+            WHERE sr.id = $1
+        `;
+        const { rows } = await cenos_pool.query(query, [id]);
+        if (rows.length === 0) return res.status(404).json({ error: 'Reporte de segurança não encontrado' });
+
+        res.json({ data: rows[0] });
+    } catch (err) {
+        console.error('[API_EXTERNAL] Erro em GET /security-reports/:id:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/security-reports', async (req, res) => {
+    if (!await checkToken(req, res)) return;
+    try {
+        const { autor, motivo, observacao, foto, latitude, longitude, estado, regional, seccional } = req.body;
+        if (!autor) return res.status(400).json({ error: 'autor é obrigatório' });
+        if (!motivo) return res.status(400).json({ error: 'motivo é obrigatório' });
+
+        const userState = (estado || 'pi').toLowerCase();
+        await cenos_pool.query(
+            'INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
+            [String(autor).slice(0, 50), userState]
+        );
+
+        const insertQuery = `
+            INSERT INTO security_report (autor, motivo, observacao, foto, latitude, longitude, estado, regional, seccional, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+            RETURNING *
+        `;
+        const { rows } = await cenos_pool.query(insertQuery, [
+            autor, motivo, observacao || null, foto || null,
+            latitude || null, longitude || null, userState,
+            regional || null, seccional || null
+        ]);
+
+        res.status(201).json({ success: true, data: rows[0] });
+    } catch (err) {
+        console.error('[API_EXTERNAL] Erro em POST /security-reports:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.put('/security-reports/:id', async (req, res) => {
+    if (!await checkToken(req, res)) return;
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+        const fields = ['motivo', 'observacao', 'foto', 'latitude', 'longitude', 'estado', 'regional', 'seccional', 'resolvido', 'descricao_solucao', 'resolvido_por', 'resolvido_por_nome'];
+        const updates = [];
+        const params = [];
+
+        fields.forEach(f => {
+            if (req.body[f] !== undefined) {
+                params.push(req.body[f]);
+                updates.push(`${f} = $${params.length}`);
+            }
+        });
+
+        if (req.body.resolvido === true) {
+            updates.push(`resolvido_em = COALESCE(resolvido_em, NOW())`);
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'Nenhum campo para atualizar informado' });
+        }
+
+        params.push(id);
+        const query = `UPDATE security_report SET ${updates.join(', ')} WHERE id = $${params.length} RETURNING *`;
+        const { rows } = await cenos_pool.query(query, params);
+        if (rows.length === 0) return res.status(404).json({ error: 'Reporte de segurança não encontrado' });
+
+        res.json({ success: true, data: rows[0] });
+    } catch (err) {
+        console.error('[API_EXTERNAL] Erro em PUT /security-reports/:id:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete('/security-reports/:id', async (req, res) => {
+    if (!await checkToken(req, res)) return;
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+        const { rows } = await cenos_pool.query('DELETE FROM security_report WHERE id = $1 RETURNING *', [id]);
+        if (rows.length === 0) return res.status(404).json({ error: 'Reporte de segurança não encontrado' });
+
+        res.json({ success: true, deleted: rows[0] });
+    } catch (err) {
+        console.error('[API_EXTERNAL] Erro em DELETE /security-reports/:id:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============================================================================
+// 1.2 ACIDENTES DE SEGURANÇA - GET, GET BY ID, POST, PUT, DELETE
+// ============================================================================
+
+router.get('/accidents', async (req, res) => {
+    if (!await checkToken(req, res)) return;
+    try {
+        const page = parseIntDef(req.query.page, 1);
+        const limit = Math.min(parseIntDef(req.query.limit, 20), 100);
+        const offset = (page - 1) * limit;
+
+        const { estado, tipo, date_from, date_to, agent_id, autor, regional, seccional, resolvido, latitude, longitude, radius_km, radius_m } = req.query;
+
+        const params = [];
+        const whereClauses = [];
+
+        if (estado) {
+            params.push(estado.toUpperCase());
+            whereClauses.push(`UPPER(COALESCE(a.estado, c.estado)) = $${params.length}`);
+        }
+        if (tipo) {
+            params.push(`%${tipo.trim()}%`);
+            whereClauses.push(`(a.tipo ILIKE $${params.length} OR a.descricao ILIKE $${params.length})`);
+        }
+        if (date_from) {
+            params.push(date_from);
+            whereClauses.push(`a.created_at >= $${params.length}`);
+        }
+        if (date_to) {
+            params.push(date_to);
+            whereClauses.push(`a.created_at <= $${params.length}`);
+        }
+
+        const agentFilter = agent_id || autor;
+        if (agentFilter) {
+            params.push(`%${agentFilter.trim()}%`);
+            whereClauses.push(`(a.autor ILIKE $${params.length} OR c."Nome" ILIKE $${params.length})`);
+        }
+        if (regional) {
+            params.push(`%${regional.trim()}%`);
+            whereClauses.push(`COALESCE(a.regional, c.regional) ILIKE $${params.length}`);
+        }
+        if (seccional) {
+            params.push(`%${seccional.trim()}%`);
+            whereClauses.push(`COALESCE(a.seccional, c.seccional) ILIKE $${params.length}`);
+        }
+        if (resolvido !== undefined) {
+            params.push(resolvido === 'true' || resolvido === '1');
+            whereClauses.push(`a.resolvido = $${params.length}`);
+        }
+
+        let selectDistanceField = '';
+        let radiusFilterClause = '';
+        const latVal = parseFloat(latitude);
+        const lngVal = parseFloat(longitude);
+        const maxRadiusKm = parseFloat(radius_km) || (parseFloat(radius_m) ? parseFloat(radius_m) / 1000 : null);
+
+        if (!isNaN(latVal) && !isNaN(lngVal)) {
+            params.push(latVal, lngVal);
+            const latIdx = params.length - 1;
+            const lngIdx = params.length;
+
+            selectDistanceField = `,
+                ROUND(
+                    (6371 * acos(
+                        LEAST(1.0, GREATEST(-1.0,
+                            cos(radians($${latIdx})) * cos(radians(a.latitude)) *
+                            cos(radians(a.longitude) - radians($${lngIdx})) +
+                            sin(radians($${latIdx})) * sin(radians(a.latitude))
+                        ))
+                    ))::numeric, 3
+                ) as distance_km`;
+
+            if (maxRadiusKm && maxRadiusKm > 0) {
+                params.push(maxRadiusKm);
+                radiusFilterClause = ` AND (
+                    6371 * acos(
+                        LEAST(1.0, GREATEST(-1.0,
+                            cos(radians($${latIdx})) * cos(radians(a.latitude)) *
+                            cos(radians(a.longitude) - radians($${lngIdx})) +
+                            sin(radians($${latIdx})) * sin(radians(a.latitude))
+                        ))
+                    )
+                ) <= $${params.length}`;
+            }
+        }
+
+        const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+        const fullWhereSql = whereSql + radiusFilterClause;
+
+        const countQuery = `
+            SELECT COUNT(1) as total
+            FROM accidents a
+            LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(a.autor)
+            ${fullWhereSql}
+        `;
+        const countRes = await cenos_pool.query(countQuery, params);
+        const total = parseInt(countRes.rows[0]?.total || 0, 10);
+
+        const orderBySql = (!isNaN(latVal) && !isNaN(lngVal)) ? 'ORDER BY distance_km ASC, a.created_at DESC' : 'ORDER BY a.created_at DESC';
+
+        const dataQuery = `
+            SELECT a.id, a.autor as agent_id, c."Nome" as agent_nome,
+                   COALESCE(a.regional, c.regional) as regional, COALESCE(a.seccional, c.seccional) as seccional,
+                   c."Cargo" as agent_cargo, c."GESTOR IMEDIATO" as agent_gestor,
+                   COALESCE(a.estado, c.estado) as estado,
+                   a.tipo, a.descricao, a.latitude, a.longitude,
+                   a.resolvido, a.resolvido_por, a.resolvido_por_nome, a.resolvido_em, a.descricao_solucao,
+                   a.created_at
+                   ${selectDistanceField}
+            FROM accidents a
+            LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(a.autor)
+            ${fullWhereSql}
+            ${orderBySql}
+            LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+        `;
+
+        const { rows } = await cenos_pool.query(dataQuery, [...params, limit, offset]);
+        const data = rows.map(r => {
+            if (r.distance_km !== undefined && r.distance_km !== null) {
+                r.distance_m = Math.round(parseFloat(r.distance_km) * 1000);
+            }
+            return r;
+        });
+
+        res.json({ data, total, page, limit, totalPages: Math.ceil(total / limit) });
+    } catch (err) {
+        console.error('[API_EXTERNAL] Erro em GET /accidents:', err);
+        res.status(500).json({ error: 'Erro ao consultar acidentes' });
+    }
+});
+
+router.get('/accidents/:id', async (req, res) => {
+    if (!await checkToken(req, res)) return;
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+        const query = `
+            SELECT a.id, a.autor as agent_id, c."Nome" as agent_nome,
+                   COALESCE(a.regional, c.regional) as regional, COALESCE(a.seccional, c.seccional) as seccional,
+                   c."Cargo" as agent_cargo, c."GESTOR IMEDIATO" as agent_gestor,
+                   COALESCE(a.estado, c.estado) as estado,
+                   a.tipo, a.descricao, a.latitude, a.longitude,
+                   a.resolvido, a.resolvido_por, a.resolvido_por_nome, a.resolvido_em, a.descricao_solucao,
+                   a.created_at
+            FROM accidents a
+            LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(a.autor)
+            WHERE a.id = $1
+        `;
+        const { rows } = await cenos_pool.query(query, [id]);
+        if (rows.length === 0) return res.status(404).json({ error: 'Acidente não encontrado' });
+
+        res.json({ data: rows[0] });
+    } catch (err) {
+        console.error('[API_EXTERNAL] Erro em GET /accidents/:id:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/accidents', async (req, res) => {
+    if (!await checkToken(req, res)) return;
+    try {
+        const { autor, tipo, descricao, latitude, longitude, estado, regional, seccional } = req.body;
+        if (!autor) return res.status(400).json({ error: 'autor é obrigatório' });
+        if (!tipo) return res.status(400).json({ error: 'tipo é obrigatório' });
+
+        const userState = (estado || 'pi').toLowerCase();
+        await cenos_pool.query(
+            'INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
+            [String(autor).slice(0, 50), userState]
+        );
+
+        const insertQuery = `
+            INSERT INTO accidents (autor, tipo, descricao, latitude, longitude, estado, regional, seccional, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+            RETURNING *
+        `;
+        const { rows } = await cenos_pool.query(insertQuery, [
+            autor, tipo, descricao || null,
+            latitude || null, longitude || null, userState,
+            regional || null, seccional || null
+        ]);
+
+        res.status(201).json({ success: true, data: rows[0] });
+    } catch (err) {
+        console.error('[API_EXTERNAL] Erro em POST /accidents:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.put('/accidents/:id', async (req, res) => {
+    if (!await checkToken(req, res)) return;
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+        const fields = ['tipo', 'descricao', 'latitude', 'longitude', 'estado', 'regional', 'seccional', 'resolvido', 'descricao_solucao', 'resolvido_por', 'resolvido_por_nome'];
+        const updates = [];
+        const params = [];
+
+        fields.forEach(f => {
+            if (req.body[f] !== undefined) {
+                params.push(req.body[f]);
+                updates.push(`${f} = $${params.length}`);
+            }
+        });
+
+        if (req.body.resolvido === true) {
+            updates.push(`resolvido_em = COALESCE(resolvido_em, NOW())`);
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'Nenhum campo para atualizar informado' });
+        }
+
+        params.push(id);
+        const query = `UPDATE accidents SET ${updates.join(', ')} WHERE id = $${params.length} RETURNING *`;
+        const { rows } = await cenos_pool.query(query, params);
+        if (rows.length === 0) return res.status(404).json({ error: 'Acidente não encontrado' });
+
+        res.json({ success: true, data: rows[0] });
+    } catch (err) {
+        console.error('[API_EXTERNAL] Erro em PUT /accidents/:id:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete('/accidents/:id', async (req, res) => {
+    if (!await checkToken(req, res)) return;
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+        const { rows } = await cenos_pool.query('DELETE FROM accidents WHERE id = $1 RETURNING *', [id]);
+        if (rows.length === 0) return res.status(404).json({ error: 'Acidente não encontrado' });
+
+        res.json({ success: true, deleted: rows[0] });
+    } catch (err) {
+        console.error('[API_EXTERNAL] Erro em DELETE /accidents/:id:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============================================================================
+// 1.3 ANOTAÇÕES DE SERVIÇO - GET, GET BY ID, POST, PUT, DELETE
+// ============================================================================
+
+router.get('/service-annotations', async (req, res) => {
+    if (!await checkToken(req, res)) return;
+    try {
+        const page = parseIntDef(req.query.page, 1);
+        const limit = Math.min(parseIntDef(req.query.limit, 20), 100);
+        const offset = (page - 1) * limit;
+
+        const { estado, tipo, identificacao_tipo, identificacao_valor, date_from, date_to, agent_id, autor, regional, seccional, resolvido, arquivada, latitude, longitude, radius_km, radius_m } = req.query;
+
+        const params = [];
+        const whereClauses = [];
+
+        if (estado) {
+            params.push(estado.toUpperCase());
+            whereClauses.push(`UPPER(COALESCE(sa.estado, c.estado)) = $${params.length}`);
+        }
+        if (tipo) {
+            params.push(`%${tipo.trim()}%`);
+            whereClauses.push(`(sa.tipo ILIKE $${params.length} OR sa.descricao ILIKE $${params.length})`);
+        }
+        if (identificacao_tipo) {
+            params.push(`%${identificacao_tipo.trim()}%`);
+            whereClauses.push(`sa.identificacao_tipo ILIKE $${params.length}`);
+        }
+        if (identificacao_valor) {
+            params.push(`%${identificacao_valor.trim()}%`);
+            whereClauses.push(`sa.identificacao_valor ILIKE $${params.length}`);
+        }
+        if (date_from) {
+            params.push(date_from);
+            whereClauses.push(`sa.created_at >= $${params.length}`);
+        }
+        if (date_to) {
+            params.push(date_to);
+            whereClauses.push(`sa.created_at <= $${params.length}`);
+        }
+
+        const agentFilter = agent_id || autor;
+        if (agentFilter) {
+            params.push(`%${agentFilter.trim()}%`);
+            whereClauses.push(`(sa.autor ILIKE $${params.length} OR c."Nome" ILIKE $${params.length})`);
+        }
+        if (regional) {
+            params.push(`%${regional.trim()}%`);
+            whereClauses.push(`COALESCE(sa.regional, c.regional) ILIKE $${params.length}`);
+        }
+        if (seccional) {
+            params.push(`%${seccional.trim()}%`);
+            whereClauses.push(`COALESCE(sa.seccional, c.seccional) ILIKE $${params.length}`);
+        }
+        if (resolvido !== undefined) {
+            params.push(resolvido === 'true' || resolvido === '1');
+            whereClauses.push(`sa.resolvido = $${params.length}`);
+        }
+        if (arquivada !== undefined) {
+            params.push(arquivada === 'true' || arquivada === '1');
+            whereClauses.push(`sa.arquivada = $${params.length}`);
+        }
+
+        let selectDistanceField = '';
+        let radiusFilterClause = '';
+        const latVal = parseFloat(latitude);
+        const lngVal = parseFloat(longitude);
+        const maxRadiusKm = parseFloat(radius_km) || (parseFloat(radius_m) ? parseFloat(radius_m) / 1000 : null);
+
+        if (!isNaN(latVal) && !isNaN(lngVal)) {
+            params.push(latVal, lngVal);
+            const latIdx = params.length - 1;
+            const lngIdx = params.length;
+
+            selectDistanceField = `,
+                ROUND(
+                    (6371 * acos(
+                        LEAST(1.0, GREATEST(-1.0,
+                            cos(radians($${latIdx})) * cos(radians(sa.latitude)) *
+                            cos(radians(sa.longitude) - radians($${lngIdx})) +
+                            sin(radians($${latIdx})) * sin(radians(sa.latitude))
+                        ))
+                    ))::numeric, 3
+                ) as distance_km`;
+
+            if (maxRadiusKm && maxRadiusKm > 0) {
+                params.push(maxRadiusKm);
+                radiusFilterClause = ` AND (
+                    6371 * acos(
+                        LEAST(1.0, GREATEST(-1.0,
+                            cos(radians($${latIdx})) * cos(radians(sa.latitude)) *
+                            cos(radians(sa.longitude) - radians($${lngIdx})) +
+                            sin(radians($${latIdx})) * sin(radians(sa.latitude))
+                        ))
+                    )
+                ) <= $${params.length}`;
+            }
+        }
+
+        const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+        const fullWhereSql = whereSql + radiusFilterClause;
+
+        const countQuery = `
+            SELECT COUNT(1) as total
+            FROM service_annotations sa
+            LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(sa.autor)
+            ${fullWhereSql}
+        `;
+        const countRes = await cenos_pool.query(countQuery, params);
+        const total = parseInt(countRes.rows[0]?.total || 0, 10);
+
+        const orderBySql = (!isNaN(latVal) && !isNaN(lngVal)) ? 'ORDER BY distance_km ASC, sa.created_at DESC' : 'ORDER BY sa.created_at DESC';
+
+        const dataQuery = `
+            SELECT sa.id, sa.autor as agent_id, c."Nome" as agent_nome,
+                   COALESCE(sa.regional, c.regional) as regional, COALESCE(sa.seccional, c.seccional) as seccional,
+                   c."Cargo" as agent_cargo, c."GESTOR IMEDIATO" as agent_gestor,
+                   COALESCE(sa.estado, c.estado) as estado,
+                   sa.tipo, sa.identificacao_tipo, sa.identificacao_valor, sa.descricao, sa.latitude, sa.longitude, sa.foto,
+                   sa.expires_at, sa.arquivada, sa.resolvido, sa.resolvido_por, sa.resolvido_por_nome, sa.resolvido_em, sa.descricao_solucao,
+                   sa.created_at
+                   ${selectDistanceField}
+            FROM service_annotations sa
+            LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(sa.autor)
+            ${fullWhereSql}
+            ${orderBySql}
+            LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+        `;
+
+        const { rows } = await cenos_pool.query(dataQuery, [...params, limit, offset]);
+        const data = rows.map(r => {
+            if (r.distance_km !== undefined && r.distance_km !== null) {
+                r.distance_m = Math.round(parseFloat(r.distance_km) * 1000);
+            }
+            return r;
+        });
+
+        res.json({ data, total, page, limit, totalPages: Math.ceil(total / limit) });
+    } catch (err) {
+        console.error('[API_EXTERNAL] Erro em GET /service-annotations:', err);
+        res.status(500).json({ error: 'Erro ao consultar anotações de serviço' });
+    }
+});
+
+router.get('/service-annotations/:id', async (req, res) => {
+    if (!await checkToken(req, res)) return;
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+        const query = `
+            SELECT sa.id, sa.autor as agent_id, c."Nome" as agent_nome,
+                   COALESCE(sa.regional, c.regional) as regional, COALESCE(sa.seccional, c.seccional) as seccional,
+                   c."Cargo" as agent_cargo, c."GESTOR IMEDIATO" as agent_gestor,
+                   COALESCE(sa.estado, c.estado) as estado,
+                   sa.tipo, sa.identificacao_tipo, sa.identificacao_valor, sa.descricao, sa.latitude, sa.longitude, sa.foto,
+                   sa.expires_at, sa.arquivada, sa.resolvido, sa.resolvido_por, sa.resolvido_por_nome, sa.resolvido_em, sa.descricao_solucao,
+                   sa.created_at
+            FROM service_annotations sa
+            LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(sa.autor)
+            WHERE sa.id = $1
+        `;
+        const { rows } = await cenos_pool.query(query, [id]);
+        if (rows.length === 0) return res.status(404).json({ error: 'Anotação de serviço não encontrada' });
+
+        res.json({ data: rows[0] });
+    } catch (err) {
+        console.error('[API_EXTERNAL] Erro em GET /service-annotations/:id:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/service-annotations', async (req, res) => {
+    if (!await checkToken(req, res)) return;
+    try {
+        const { autor, tipo, identificacao_tipo, identificacao_valor, descricao, latitude, longitude, foto, estado, regional, seccional, expires_at } = req.body;
+        if (!autor) return res.status(400).json({ error: 'autor é obrigatório' });
+        if (!tipo) return res.status(400).json({ error: 'tipo é obrigatório' });
+        if (!descricao) return res.status(400).json({ error: 'descricao é obrigatória' });
+
+        const userState = (estado || 'pi').toLowerCase();
+        await cenos_pool.query(
+            'INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
+            [String(autor).slice(0, 50), userState]
+        );
+
+        const insertQuery = `
+            INSERT INTO service_annotations (
+                autor, tipo, identificacao_tipo, identificacao_valor, descricao,
+                latitude, longitude, foto, estado, regional, seccional, expires_at, created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+            RETURNING *
+        `;
+        const { rows } = await cenos_pool.query(insertQuery, [
+            autor, tipo, identificacao_tipo || null, identificacao_valor || null, descricao,
+            latitude || null, longitude || null, foto || null, userState,
+            regional || null, seccional || null, expires_at || null
+        ]);
+
+        res.status(201).json({ success: true, data: rows[0] });
+    } catch (err) {
+        console.error('[API_EXTERNAL] Erro em POST /service-annotations:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.put('/service-annotations/:id', async (req, res) => {
+    if (!await checkToken(req, res)) return;
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+        const fields = ['tipo', 'identificacao_tipo', 'identificacao_valor', 'descricao', 'latitude', 'longitude', 'foto', 'estado', 'regional', 'seccional', 'expires_at', 'arquivada', 'resolvido', 'descricao_solucao', 'resolvido_por', 'resolvido_por_nome'];
+        const updates = [];
+        const params = [];
+
+        fields.forEach(f => {
+            if (req.body[f] !== undefined) {
+                params.push(req.body[f]);
+                updates.push(`${f} = $${params.length}`);
+            }
+        });
+
+        if (req.body.resolvido === true) {
+            updates.push(`resolvido_em = COALESCE(resolvido_em, NOW())`);
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'Nenhum campo para atualizar informado' });
+        }
+
+        params.push(id);
+        const query = `UPDATE service_annotations SET ${updates.join(', ')} WHERE id = $${params.length} RETURNING *`;
+        const { rows } = await cenos_pool.query(query, params);
+        if (rows.length === 0) return res.status(404).json({ error: 'Anotação de serviço não encontrada' });
+
+        res.json({ success: true, data: rows[0] });
+    } catch (err) {
+        console.error('[API_EXTERNAL] Erro em PUT /service-annotations/:id:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete('/service-annotations/:id', async (req, res) => {
+    if (!await checkToken(req, res)) return;
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+        const { rows } = await cenos_pool.query('DELETE FROM service_annotations WHERE id = $1 RETURNING *', [id]);
+        if (rows.length === 0) return res.status(404).json({ error: 'Anotação de serviço não encontrada' });
+
+        res.json({ success: true, deleted: rows[0] });
+    } catch (err) {
+        console.error('[API_EXTERNAL] Erro em DELETE /service-annotations/:id:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

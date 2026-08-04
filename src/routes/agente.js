@@ -822,6 +822,8 @@ router.get('/security_report', telegramAuth, async (req, res) => {
             getLeiturasPendingForAgent({ state, id, date: today(), limit: 99999 }),
         ]);
 
+
+
         const accidentPoints = accidents.map(a => ({
             motivo: a.tipo,
             observacao: a.descricao,
@@ -848,20 +850,24 @@ router.get('/security_report', telegramAuth, async (req, res) => {
             foto: an.foto || null,
         }));
 
+        sec_reports.risks_list = Array.from(new Set(sec_reports?.points?.map(point => point.motivo)))
+        if (accidentPoints.length > 0) sec_reports.risks_list.push(`${accidentPoints.length} acidentes reportados`)
+        if (annotationPoints.length > 0) sec_reports.risks_list.push(`${annotationPoints.length} anotações reportadas`)
+
         // Tag existing security report points
         sec_reports.points = sec_reports.points.map(p => ({ ...p, tipo_ponto: 'perigo' }));
 
         // Merge all point types
         sec_reports.points = [...sec_reports.points, ...accidentPoints, ...annotationPoints];
 
-       sec_reports.pending = pending.map(ins =>{
-        delete ins.data_conclusao
-        delete ins.ntlei
-        delete ins.tem_perda
-        delete ins.perda_prevista_mensal
+        sec_reports.pending = pending.map(ins => {
+            delete ins.data_conclusao
+            delete ins.ntlei
+            delete ins.tem_perda
+            delete ins.perda_prevista_mensal
 
-        return ins
-       });
+            return ins
+        });
 
         res.status(200).json(sec_reports);
     } catch (err) {

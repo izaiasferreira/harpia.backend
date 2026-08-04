@@ -24,7 +24,11 @@ security:
 
 tags:
   - name: Reportes de Segurança
-    description: Consulta de riscos e reportes de segurança com filtro de raio/perímetro geográfico
+    description: Consulta, criação, atualização e exclusão de riscos e reportes de segurança
+  - name: Acidentes
+    description: Consulta, criação, atualização e exclusão de acidentes operacionais
+  - name: Anotações de Serviço
+    description: Consulta, criação, atualização e exclusão de anotações de serviço, remanejamentos e coordenadas
   - name: Limites de Velocidade
     description: Ocorrências de excesso de velocidade registradas pelos dispositivos móveis
   - name: Rastreamento & Heartbeats
@@ -118,6 +122,487 @@ paths:
       responses:
         "200":
           description: Lista de reportes de segurança
+    post:
+      tags: [Reportes de Segurança]
+      summary: Cria um novo reporte de segurança
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [autor, motivo]
+              properties:
+                autor:
+                  type: string
+                  example: AG102030
+                motivo:
+                  type: string
+                  example: Buraco na via
+                observacao:
+                  type: string
+                foto:
+                  type: string
+                latitude:
+                  type: string
+                longitude:
+                  type: string
+                estado:
+                  type: string
+                  example: PI
+                regional:
+                  type: string
+                seccional:
+                  type: string
+      responses:
+        "201":
+          description: Reporte criado com sucesso
+
+  /api/v1/security-reports/{id}:
+    get:
+      tags: [Reportes de Segurança]
+      summary: Obtém um reporte de segurança pelo ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalhes do reporte de segurança
+        "404":
+          description: Não encontrado
+    put:
+      tags: [Reportes de Segurança]
+      summary: Atualiza um reporte de segurança
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                motivo:
+                  type: string
+                observacao:
+                  type: string
+                foto:
+                  type: string
+                latitude:
+                  type: string
+                longitude:
+                  type: string
+                estado:
+                  type: string
+                regional:
+                  type: string
+                seccional:
+                  type: string
+                resolvido:
+                  type: boolean
+                descricao_solucao:
+                  type: string
+                resolvido_por:
+                  type: string
+                resolvido_por_nome:
+                  type: string
+      responses:
+        "200":
+          description: Reporte atualizado com sucesso
+        "404":
+          description: Não encontrado
+    delete:
+      tags: [Reportes de Segurança]
+      summary: Exclui um reporte de segurança
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reporte excluído com sucesso
+        "404":
+          description: Não encontrado
+
+  # ─── 1.1 ACIDENTES DE SEGURANÇA ─────────────────────────────────────────────
+  /api/v1/accidents:
+    get:
+      tags: [Acidentes]
+      summary: Consulta acidentes de segurança
+      parameters:
+        - name: estado
+          in: query
+          schema:
+            type: string
+        - name: tipo
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+        - name: date_to
+          in: query
+          schema:
+            type: string
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+        - name: regional
+          in: query
+          schema:
+            type: string
+        - name: seccional
+          in: query
+          schema:
+            type: string
+        - name: resolvido
+          in: query
+          schema:
+            type: boolean
+        - name: latitude
+          in: query
+          schema:
+            type: number
+        - name: longitude
+          in: query
+          schema:
+            type: number
+        - name: radius_km
+          in: query
+          schema:
+            type: number
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Lista de acidentes
+    post:
+      tags: [Acidentes]
+      summary: Cria um novo registro de acidente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [autor, tipo]
+              properties:
+                autor:
+                  type: string
+                  example: AG102030
+                tipo:
+                  type: string
+                  example: Acidente de trânsito
+                descricao:
+                  type: string
+                latitude:
+                  type: string
+                longitude:
+                  type: string
+                estado:
+                  type: string
+                regional:
+                  type: string
+                seccional:
+                  type: string
+      responses:
+        "201":
+          description: Acidente registrado com sucesso
+
+  /api/v1/accidents/{id}:
+    get:
+      tags: [Acidentes]
+      summary: Obtém um acidente pelo ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalhes do acidente
+        "404":
+          description: Não encontrado
+    put:
+      tags: [Acidentes]
+      summary: Atualiza um registro de acidente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tipo:
+                  type: string
+                descricao:
+                  type: string
+                latitude:
+                  type: string
+                longitude:
+                  type: string
+                estado:
+                  type: string
+                regional:
+                  type: string
+                seccional:
+                  type: string
+                resolvido:
+                  type: boolean
+                descricao_solucao:
+                  type: string
+                resolvido_por:
+                  type: string
+                resolvido_por_nome:
+                  type: string
+      responses:
+        "200":
+          description: Acidente atualizado com sucesso
+        "404":
+          description: Não encontrado
+    delete:
+      tags: [Acidentes]
+      summary: Exclui um registro de acidente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Acidente excluído com sucesso
+        "404":
+          description: Não encontrado
+
+  # ─── 1.2 ANOTAÇÕES DE SERVIÇO ──────────────────────────────────────────────
+  /api/v1/service-annotations:
+    get:
+      tags: [Anotações de Serviço]
+      summary: Consulta anotações de serviço
+      parameters:
+        - name: estado
+          in: query
+          schema:
+            type: string
+        - name: tipo
+          in: query
+          schema:
+            type: string
+        - name: identificacao_tipo
+          in: query
+          schema:
+            type: string
+        - name: identificacao_valor
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+        - name: date_to
+          in: query
+          schema:
+            type: string
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+        - name: regional
+          in: query
+          schema:
+            type: string
+        - name: seccional
+          in: query
+          schema:
+            type: string
+        - name: resolvido
+          in: query
+          schema:
+            type: boolean
+        - name: arquivada
+          in: query
+          schema:
+            type: boolean
+        - name: latitude
+          in: query
+          schema:
+            type: number
+        - name: longitude
+          in: query
+          schema:
+            type: number
+        - name: radius_km
+          in: query
+          schema:
+            type: number
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Lista de anotações de serviço
+    post:
+      tags: [Anotações de Serviço]
+      summary: Cria uma nova anotação de serviço
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [autor, tipo, descricao]
+              properties:
+                autor:
+                  type: string
+                  example: AG102030
+                tipo:
+                  type: string
+                  enum: [Remanejamento, Anotação, Coordenada]
+                  example: Anotação
+                identificacao_tipo:
+                  type: string
+                  enum: [Medidor, Instalação, Unidade Consumidora]
+                identificacao_valor:
+                  type: string
+                descricao:
+                  type: string
+                  example: Trocar medidor da unidade
+                latitude:
+                  type: string
+                longitude:
+                  type: string
+                foto:
+                  type: string
+                estado:
+                  type: string
+                regional:
+                  type: string
+                seccional:
+                  type: string
+                expires_at:
+                  type: string
+      responses:
+        "201":
+          description: Anotação criada com sucesso
+
+  /api/v1/service-annotations/{id}:
+    get:
+      tags: [Anotações de Serviço]
+      summary: Obtém uma anotação de serviço pelo ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalhes da anotação de serviço
+        "404":
+          description: Não encontrada
+    put:
+      tags: [Anotações de Serviço]
+      summary: Atualiza uma anotação de serviço
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tipo:
+                  type: string
+                identificacao_tipo:
+                  type: string
+                identificacao_valor:
+                  type: string
+                descricao:
+                  type: string
+                latitude:
+                  type: string
+                longitude:
+                  type: string
+                foto:
+                  type: string
+                estado:
+                  type: string
+                regional:
+                  type: string
+                seccional:
+                  type: string
+                expires_at:
+                  type: string
+                arquivada:
+                  type: boolean
+                resolvido:
+                  type: boolean
+                descricao_solucao:
+                  type: string
+                resolvido_por:
+                  type: string
+                resolvido_por_nome:
+                  type: string
+      responses:
+        "200":
+          description: Anotação atualizada com sucesso
+        "404":
+          description: Não encontrada
+    delete:
+      tags: [Anotações de Serviço]
+      summary: Exclui uma anotação de serviço
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Anotação excluída com sucesso
+        "404":
+          description: Não encontrada
 
   # ─── 2. LIMITES DE VELOCIDADE ──────────────────────────────────────────────
   /api/v1/speed-violations:

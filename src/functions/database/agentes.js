@@ -1235,6 +1235,7 @@ async function get_security_reports({ user }) {
 
 async function save_security_check({
     state = 'pi',
+    estado,
     autor,
     latitude,
     longitude,
@@ -1242,15 +1243,24 @@ async function save_security_check({
     updated_at = new Date()
 }) {
     const validated = securityCheckCreateSchema.parse({
-        state, autor, latitude, longitude, created_at, updated_at
+        estado: estado || state || 'pi',
+        autor,
+        latitude,
+        longitude,
+        created_at,
+        updated_at
     });
     const pool = cenos_pool;
+
+    if (!validated.autor) {
+        throw new Error('Autor é obrigatório para confirmação de segurança');
+    }
 
     const existingQuery = `
         SELECT id FROM security_check
         WHERE LOWER(autor) = LOWER($1) AND DATE(created_at) = CURRENT_DATE;
     `;
-    const existing = await pool.query(existingQuery, [validated.autor.toLowerCase()]);
+    const existing = await pool.query(existingQuery, [validated.autor]);
     if (existing.rows.length > 0) {
         throw new Error('Já existe uma confirmação de segurança para hoje');
     }
@@ -1260,7 +1270,14 @@ async function save_security_check({
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *;
     `;
-    const { rows } = await pool.query(insertQuery, [validated.autor.toLowerCase(), validated.latitude, validated.longitude, validated.state.toLowerCase(), validated.created_at, validated.updated_at]);
+    const { rows } = await pool.query(insertQuery, [
+        validated.autor,
+        validated.latitude || null,
+        validated.longitude || null,
+        validated.estado,
+        validated.created_at,
+        validated.updated_at
+    ]);
     return rows[0];
 }
 
