@@ -53,6 +53,7 @@ router.get('/security-reports', async (req, res) => {
     if (!await checkToken(req, res)) return;
 
     try {
+        console.log(req.query);
         const page = parseIntDef(req.query.page, 1);
         const limit = Math.min(parseIntDef(req.query.limit, 20), 100);
         const offset = (page - 1) * limit;
@@ -166,7 +167,7 @@ router.get('/security-reports', async (req, res) => {
             SELECT sr.id, sr.autor as agent_id, c."Nome" as agent_nome, c.regional, c.seccional,
                    c."Cargo" as agent_cargo, c."GESTOR IMEDIATO" as agent_gestor,
                    COALESCE(sr.estado, c.estado) as estado,
-                   sr.motivo, sr.observacao, sr.latitude, sr.longitude, sr.photo_url, sr.created_at
+                   sr.motivo, sr.observacao, sr.latitude, sr.longitude, sr.foto as photo_url, sr.created_at
                    ${selectDistanceField}
             FROM security_report sr
             LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(sr.autor)
@@ -206,6 +207,7 @@ router.get('/speed-violations', async (req, res) => {
     if (!await checkToken(req, res)) return;
 
     try {
+        console.log(req.query);
         const page = parseIntDef(req.query.page, 1);
         const limit = Math.min(parseIntDef(req.query.limit, 20), 100);
         const offset = (page - 1) * limit;
@@ -221,7 +223,9 @@ router.get('/speed-violations', async (req, res) => {
             latitude,
             longitude,
             radius_km,
-            radius_m
+            radius_m,
+            min_speed,
+            max_speed
         } = req.query;
 
         const params = [];
@@ -252,6 +256,14 @@ router.get('/speed-violations', async (req, res) => {
         if (seccional) {
             params.push(`%${seccional.trim()}%`);
             whereClauses.push(`c.seccional ILIKE $${params.length}`);
+        }
+        if (min_speed) {
+            params.push(parseFloat(min_speed));
+            whereClauses.push(`tsp.speed >= $${params.length}`);
+        }
+        if (max_speed) {
+            params.push(parseFloat(max_speed));
+            whereClauses.push(`tsp.speed <= $${params.length}`);
         }
 
         let selectDistanceField = '';
@@ -348,9 +360,11 @@ router.get('/heartbeats', async (req, res) => {
     if (!await checkToken(req, res)) return;
 
     try {
-        const { estado, agent_id, period = 'now', date, regional, seccional } = req.query;
+        const { estado, agent_id, period, inactive_period, active_period, date, regional, seccional, latest_only } = req.query;
 
-        if (!agent_id && (!date || date === new Date().toISOString().split('T')[0])) {
+        // MODO ÚLTIMA POSIÇÃO: retorna apenas 1 ponto por agente (o mais recente)
+        if (latest_only === 'true' || inactive_period || active_period || (!agent_id && !date && !period)) {
+            const { getAgentsLastPositionUnified } = require('../functions/database/trackingUnified');
             const allAgents = await getAgentsLastPositionUnified(null);
             
             let filtered = allAgents;
@@ -363,15 +377,20 @@ router.get('/heartbeats', async (req, res) => {
             if (seccional) {
                 filtered = filtered.filter(a => (a.seccional || '').toLowerCase().includes(seccional.toLowerCase()));
             }
+            if (agent_id) {
+                filtered = filtered.filter(a => (a.agent_id || '').toUpperCase() === agent_id.toUpperCase());
+            }
 
             const nowMs = Date.now();
-            let maxAgeMs = 15 * 60 * 1000;
-            if (period === '1h') maxAgeMs = 1 * 60 * 60 * 1000;
-            else if (period === '5h') maxAgeMs = 5 * 60 * 60 * 1000;
-            else if (period === '12h') maxAgeMs = 12 * 60 * 60 * 1000;
-            else if (period === '24h') maxAgeMs = 24 * 60 * 60 * 1000;
-
-            if (period !== 'all') {
+            
+            // Filtro para quem envio nas ÚLTIMAS X horas (ativo recentemente)
+            if (active_period && active_period !== 'all') {
+                let maxAgeMs = 15 * 60 * 1000;
+                if (active_period === '1h') maxAgeMs = 1 * 60 * 60 * 1000;
+                else if (active_period === '5h') maxAgeMs = 5 * 60 * 60 * 1000;
+                else if (active_period === '12h') maxAgeMs = 12 * 60 * 60 * 1000;
+                else if (active_period === '24h') maxAgeMs = 24 * 60 * 60 * 1000;
+                
                 filtered = filtered.filter(a => {
                     if (!a.recorded_at) return false;
                     const recTime = new Date(a.recorded_at).getTime();
@@ -379,8 +398,40 @@ router.get('/heartbeats', async (req, res) => {
                 });
             }
 
-            return res.json({ data: filtered, total: filtered.length, period });
+            // Filtro para quem NÃO envia há pelo menos X horas (inativo)
+            if (inactive_period && inactive_period !== 'all') {
+                let minAgeMs = 15 * 60 * 1000;
+                if (inactive_period === '1h') minAgeMs = 1 * 60 * 60 * 1000;
+                else if (inactive_period === '5h') minAgeMs = 5 * 60 * 60 * 1000;
+                else if (inactive_period === '12h') minAgeMs = 12 * 60 * 60 * 1000;
+                else if (inactive_period === '24h') minAgeMs = 24 * 60 * 60 * 1000;
+
+                filtered = filtered.filter(a => {
+                    if (!a.recorded_at) return true; // se nunca enviou, está inativo
+                    const recTime = new Date(a.recorded_at).getTime();
+                    return (nowMs - recTime) >= minAgeMs;
+                });
+            }
+
+            const page = parseIntDef(req.query.page, 1);
+            const limit = Math.min(parseIntDef(req.query.limit, 100), 1000);
+            const offset = (page - 1) * limit;
+
+            const paginated = filtered.slice(offset, offset + limit);
+
+            return res.json({ 
+                data: paginated, 
+                total: filtered.length,
+                page,
+                limit,
+                totalPages: Math.ceil(filtered.length / limit)
+            });
         }
+
+        // MODO HISTÓRICO: Retorna a trilha de coordenadas no período (vários pontos por agente)
+        const page = parseIntDef(req.query.page, 1);
+        const limit = Math.min(parseIntDef(req.query.limit, 100), 1000);
+        const offset = (page - 1) * limit;
 
         const params = [];
         const whereClauses = [];
@@ -404,12 +455,32 @@ router.get('/heartbeats', async (req, res) => {
         if (date) {
             params.push(`${date} 00:00:00`, `${date} 23:59:59`);
             whereClauses.push(`tsp.recorded_at BETWEEN $${params.length - 1} AND $${params.length}`);
+        } else if (period && period !== 'all') {
+            let hours = 0;
+            if (period === 'now') hours = 0.25; // 15 mins
+            else if (period === '1h') hours = 1;
+            else if (period === '5h') hours = 5;
+            else if (period === '12h') hours = 12;
+            else if (period === '24h') hours = 24;
+            
+            if (hours > 0) {
+                whereClauses.push(`tsp.recorded_at >= NOW() - INTERVAL '${hours} hours'`);
+            }
         }
 
         const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
+        const countQuery = `
+            SELECT COUNT(1) as total
+            FROM tracking_session_points tsp
+            LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(tsp.agent_id)
+            ${whereSql}
+        `;
+        const countRes = await cenos_pool.query(countQuery, params);
+        const total = parseInt(countRes.rows[0]?.total || 0, 10);
+
         const query = `
-            SELECT tsp.agent_id, c."Nome" as agent_nome, c.regional, c.seccional, c.estado as agent_estado,
+            SELECT tsp.id, tsp.agent_id, c."Nome" as agent_nome, c.regional, c.seccional, c.estado as agent_estado,
                    tsp.latitude, tsp.longitude, tsp.speed, tsp.accuracy, tsp.battery_level,
                    tsp.is_charging, tsp.network_type, tsp.gps_enabled, tsp.device_model,
                    tsp.recorded_at
@@ -417,15 +488,22 @@ router.get('/heartbeats', async (req, res) => {
             LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(tsp.agent_id)
             ${whereSql}
             ORDER BY tsp.recorded_at DESC
-            LIMIT 1000
+            LIMIT $${params.length + 1} OFFSET $${params.length + 2}
         `;
 
-        const { rows } = await cenos_pool.query(query, params);
-        res.json({ data: rows, total: rows.length, period });
+        const { rows } = await cenos_pool.query(query, [...params, limit, offset]);
+        res.json({ 
+            data: rows, 
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            period 
+        });
 
     } catch (err) {
         console.error('[API_EXTERNAL] Erro em /heartbeats:', err);
-        res.status(500).json({ error: 'Erro ao consultar heartbeats / posições' });
+        res.status(500).json({ error: 'Erro ao consultar heartbeats / posições', details: err.message, stack: err.stack });
     }
 });
 

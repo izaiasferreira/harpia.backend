@@ -10,10 +10,8 @@ info:
     Todos os endpoints desta documentação exigem um token de API ativo (gerado no painel administrativo `/control/api-keys`).
     Cada token possui o prefixo `gedai_` (exemplo: `gedai_a1b2c3d4e5f67890123456789abcdef0`).
 
-    O token pode ser enviado em qualquer uma das três formas:
-    1. **Header HTTP**: `X-API-Token: gedai_<token>` (Recomendado)
-    2. **Header HTTP**: `Authorization: Bearer gedai_<token>`
-    3. **Query Parameter**: `?token=gedai_<token>`
+    O token deve ser enviado no formato:
+    1. **Header HTTP**: `Authorization: Bearer gedai_<token>`
   version: "2.0.0"
 servers:
   - url: http://localhost:3040
@@ -22,9 +20,7 @@ servers:
     description: Servidor Oficial de Produção
 
 security:
-  - ApiKeyHeader: []
   - BearerAuth: []
-  - ApiKeyQuery: []
 
 tags:
   - name: Reportes de Segurança
@@ -162,6 +158,14 @@ paths:
           in: query
           schema:
             type: number
+        - name: min_speed
+          in: query
+          schema:
+            type: number
+        - name: max_speed
+          in: query
+          schema:
+            type: number
         - name: radius_km
           in: query
           schema:
@@ -186,8 +190,9 @@ paths:
       tags: [Rastreamento & Heartbeats]
       summary: Consulta posições ativas dos agentes em tempo real
       description: |
-        Retorna o último sinal GPS dos agentes.
-        Suporta o parâmetro `period`: `now` (últimos 15 min), `1h`, `5h`, `12h`, `24h` ou `all`.
+        Retorna as posições dos agentes. Suporta 3 modos:
+        - MODO ÚLTIMA POSIÇÃO: retorna apenas 1 ponto (o mais recente) por agente (use `latest_only=true`, `inactive_period` ou `active_period` ou não passe período).
+        - MODO HISTÓRICO: Retorna a trilha de coordenadas no período (vários pontos). (passe `period` ou `date`).
       parameters:
         - name: estado
           in: query
@@ -202,7 +207,24 @@ paths:
           schema:
             type: string
             enum: [now, 1h, 5h, 12h, 24h, all]
-            default: now
+            description: Retorna todo o histórico de pontos dentro do período.
+        - name: active_period
+          in: query
+          schema:
+            type: string
+            enum: [1h, 5h, 12h, 24h]
+            description: Filtra apenas a última posição dos agentes que transmitiram no período informado (Ativos).
+        - name: inactive_period
+          in: query
+          schema:
+            type: string
+            enum: [1h, 5h, 12h, 24h]
+            description: Filtra apenas a última posição dos agentes que NÃO transmitem há pelo menos o tempo informado (Inativos).
+        - name: latest_only
+          in: query
+          schema:
+            type: boolean
+            description: Retornar apenas a última posição conhecida de cada agente em vez do histórico completo.
         - name: date
           in: query
           schema:
@@ -986,18 +1008,8 @@ paths:
 
 components:
   securitySchemes:
-    ApiKeyHeader:
-      type: apiKey
-      in: header
-      name: X-API-Token
-      description: Token da API com prefixo 'gedai_' (ex. gedai_a1b2c3d4e5f67890123456789abcdef0)
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: gedai_<hash>
       description: Token no header Authorization (ex. Bearer gedai_a1b2c3d4e5f67890123456789abcdef0)
-    ApiKeyQuery:
-      type: apiKey
-      in: query
-      name: token
-      description: Token via query parameter na URL (?token=gedai_...)
