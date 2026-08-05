@@ -836,7 +836,7 @@ router.get('/security_report', telegramAuth, async (req, res) => {
         }));
 
         const annotationPoints = annotations.map(an => ({
-            motivo: `${an.tipo}${an.identificacao_tipo ? ` (${an.identificacao_tipo}: ${an.identificacao_valor || ''})` : ''}`,
+            motivo: `${an.identificacao_tipo}: ${an.identificacao_valor || ''}`,
             observacao: an.descricao,
             latitude: an.latitude,
             longitude: an.longitude,
@@ -850,6 +850,7 @@ router.get('/security_report', telegramAuth, async (req, res) => {
             foto: an.foto || null,
         }));
 
+        console.log(annotationPoints[0])
         sec_reports.risks_list = Array.from(new Set(sec_reports?.points?.map(point => point.motivo)))
         if (accidentPoints.length > 0) sec_reports.risks_list.push(`${accidentPoints.length} acidentes reportados`)
         if (annotationPoints.length > 0) sec_reports.risks_list.push(`${annotationPoints.length} anotações reportadas`)
