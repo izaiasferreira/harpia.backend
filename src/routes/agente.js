@@ -850,7 +850,6 @@ router.get('/security_report', telegramAuth, async (req, res) => {
             foto: an.foto || null,
         }));
 
-        console.log(annotationPoints[0])
         sec_reports.risks_list = Array.from(new Set(sec_reports?.points?.map(point => point.motivo)))
         if (accidentPoints.length > 0) sec_reports.risks_list.push(`${accidentPoints.length} acidentes reportados`)
         if (annotationPoints.length > 0) sec_reports.risks_list.push(`${annotationPoints.length} anotações reportadas`)
