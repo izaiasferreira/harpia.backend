@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 
 /**
  * Registra ou atualiza o vínculo de um dispositivo a um agente.
@@ -16,7 +16,7 @@ async function recordAgentDevice(agentId, deviceId, platform = 'android') {
                 platform = EXCLUDED.platform
             RETURNING *;
         `;
-        const res = await cenos_pool.query(query, [String(agentId).trim(), String(deviceId).trim(), platform]);
+        const res = await sinergia_pool.query(query, [String(agentId).trim(), String(deviceId).trim(), platform]);
         return res.rows[0];
     } catch (err) {
         console.error('[agentDevices] Erro ao gravar vínculo de dispositivo:', err.message);
@@ -30,7 +30,7 @@ async function recordAgentDevice(agentId, deviceId, platform = 'android') {
 async function getDevicesByAgent(agentId) {
     if (!agentId) return [];
     try {
-        const res = await cenos_pool.query(
+        const res = await sinergia_pool.query(
             'SELECT * FROM agent_devices WHERE UPPER(agent_id) = UPPER($1) ORDER BY last_seen_at DESC',
             [String(agentId).trim()]
         );
@@ -47,7 +47,7 @@ async function getDevicesByAgent(agentId) {
 async function getAgentsByDevice(deviceId) {
     if (!deviceId) return [];
     try {
-        const res = await cenos_pool.query(
+        const res = await sinergia_pool.query(
             'SELECT * FROM agent_devices WHERE device_id = $1 ORDER BY last_seen_at DESC',
             [String(deviceId).trim()]
         );

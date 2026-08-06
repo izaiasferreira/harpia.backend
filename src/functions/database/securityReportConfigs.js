@@ -1,7 +1,7 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 
 async function ensureTable() {
-  await cenos_pool.query(`
+  await sinergia_pool.query(`
     CREATE TABLE IF NOT EXISTS security_report_configs (
       id SERIAL PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
@@ -13,7 +13,7 @@ async function ensureTable() {
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `);
-  await cenos_pool.query(`
+  await sinergia_pool.query(`
     DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'security_report_configs' AND column_name = 'config_type') THEN
         ALTER TABLE security_report_configs ADD COLUMN config_type VARCHAR(20) NOT NULL DEFAULT 'hazards';
@@ -26,7 +26,7 @@ async function listSecurityReportConfigs(user) {
   await ensureTable();
   const isAdmin = user && (user.role || '').toLowerCase().includes('admin');
   if (isAdmin) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
       'SELECT * FROM security_report_configs ORDER BY created_at DESC'
     );
     return rows;
@@ -34,7 +34,7 @@ async function listSecurityReportConfigs(user) {
   const allowedPools = getUserAllowedStatePools(user);
   const allowedStates = allowedPools.map(p => p.state.toUpperCase());
   if (allowedStates.length === 0) return [];
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT * FROM security_report_configs
      WHERE is_active = true AND (estado IS NULL OR UPPER(estado) = ANY($1::varchar[]))
      ORDER BY created_at DESC`,
@@ -56,7 +56,7 @@ function getUserAllowedStatePools(user) {
 
 async function getSecurityReportConfig(id) {
   await ensureTable();
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     'SELECT * FROM security_report_configs WHERE id = $1',
     [id]
   );
@@ -65,7 +65,7 @@ async function getSecurityReportConfig(id) {
 
 async function createSecurityReportConfig({ title, config_type, estado, data, is_active }) {
   await ensureTable();
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `INSERT INTO security_report_configs (title, config_type, estado, data, is_active)
      VALUES ($1, $2, $3, $4, $5) RETURNING *`,
     [title, config_type || 'hazards', estado || null, JSON.stringify(data || {}), is_active !== false]
@@ -86,7 +86,7 @@ async function updateSecurityReportConfig(id, fields) {
   if (sets.length === 0) return null;
   sets.push(`updated_at = NOW()`);
   params.push(id);
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `UPDATE security_report_configs SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
     params
   );
@@ -95,7 +95,7 @@ async function updateSecurityReportConfig(id, fields) {
 
 async function deleteSecurityReportConfig(id) {
   await ensureTable();
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     'DELETE FROM security_report_configs WHERE id = $1 RETURNING id',
     [id]
   );
@@ -103,7 +103,7 @@ async function deleteSecurityReportConfig(id) {
 }
 
 async function getAgentProfileById(agentId) {
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT "ID", "Cargo", regional, seccional, estado FROM colaboradores WHERE LOWER("ID") = LOWER($1)`,
     [agentId]
   );
@@ -119,7 +119,7 @@ async function getAgentProfileById(agentId) {
     }
     return profile;
   }
-  const { rows: loginRows } = await cenos_pool.query(
+  const { rows: loginRows } = await sinergia_pool.query(
     'SELECT estado FROM login WHERE id = $1',
     [agentId]
   );
@@ -157,7 +157,7 @@ function agentMatchesFilters(profile, filters) {
 async function getMatchingSecurityReportConfigs(profile) {
   await ensureTable();
   if (!profile) { return []; }
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT * FROM security_report_configs
      WHERE is_active = true AND (estado IS NULL OR LOWER(estado) = LOWER($1))
      ORDER BY created_at DESC`,
@@ -224,7 +224,7 @@ async function getMergedSecurityReportConfigs({ estado, regional, seccional }) {
     params.push(estado);
     where += ` AND (estado IS NULL OR LOWER(estado) = LOWER($${params.length}))`;
   }
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT * FROM security_report_configs WHERE ${where} ORDER BY created_at DESC`,
     params
   );

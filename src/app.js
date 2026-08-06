@@ -26,7 +26,8 @@ app.use(cors({
     allowedHeaders: [
         'Content-Type', 
         'Authorization', 
-        'gedai-device-id', 
+        'gedai-device-id',
+        'sinergia-device-id',
         'X-Requested-With', 
         'x-telegram-init-data', 
         'X-Telegram-Init-Data', 
@@ -222,7 +223,7 @@ try {
     const swaggerDocument = YAML.load(path.join(__dirname, '..', 'docs', 'openapi.yaml'));
     app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
         customCss: '.swagger-ui .topbar { display: none }',
-        customSiteTitle: 'Gedai API Docs',
+        customSiteTitle: 'Sinergia API Docs',
     }));
     app.get('/docs/openapi.yaml', (req, res) => {
         res.sendFile(path.join(__dirname, '..', 'docs', 'openapi.yaml'));

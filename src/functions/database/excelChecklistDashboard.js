@@ -1,5 +1,5 @@
 const XLSX = require('xlsx');
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { getColaboradoresFilter } = require('./admin');
 
 function normalizeName(str) {
@@ -48,7 +48,7 @@ async function processExcelChecklist(fileBuffer, user) {
   }
   query += ` ORDER BY "Nome" ASC`;
 
-  const { rows: dbAgents } = await cenos_pool.query(query, filter.params);
+  const { rows: dbAgents } = await sinergia_pool.query(query, filter.params);
 
   const completed = [];
   const pending = [];

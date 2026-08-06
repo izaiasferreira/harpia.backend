@@ -2,7 +2,7 @@ const request = require('supertest');
 const app = require('../src/app');
 const jwt = require('jsonwebtoken');
 const { createUser } = require('../src/functions/database/users');
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'jwt_secret_change_me';
 
@@ -23,21 +23,21 @@ describe('Admin Security Report Configs Merged (GET /admin/security_reports/conf
         userId = user.id;
         token = jwt.sign({ id: userId, estado: 'pi' }, JWT_SECRET);
 
-        const hazards = await cenos_pool.query(
+        const hazards = await sinergia_pool.query(
             `INSERT INTO security_report_configs (title, config_type, estado, data, is_active)
              VALUES ($1, 'hazards', 'pi', $2, true) RETURNING id`,
             ['Perigos PI', JSON.stringify({ perigos: [{ valor: 'Cão bravo', cor: '#ef4444', ordem: 1 }, { valor: 'Risco elétrico', cor: '#3b82f6', ordem: 2 }] })]
         );
         configIds.push(hazards.rows[0].id);
 
-        const accidents = await cenos_pool.query(
+        const accidents = await sinergia_pool.query(
             `INSERT INTO security_report_configs (title, config_type, estado, data, is_active)
              VALUES ($1, 'accidents', 'pi', $2, true) RETURNING id`,
             ['Acidentes PI', JSON.stringify({ tipos_acidente: [{ valor: 'Queda de Moto', ordem: 1 }, { valor: 'Colisão de Trânsito', ordem: 2 }] })]
         );
         configIds.push(accidents.rows[0].id);
 
-        const seccionalCfg = await cenos_pool.query(
+        const seccionalCfg = await sinergia_pool.query(
             `INSERT INTO security_report_configs (title, config_type, estado, data, is_active)
              VALUES ($1, 'hazards', 'pi', $2, true) RETURNING id`,
             ['Perigos Seccional', JSON.stringify({
@@ -50,10 +50,10 @@ describe('Admin Security Report Configs Merged (GET /admin/security_reports/conf
 
     afterAll(async () => {
         for (const id of configIds) {
-            await cenos_pool.query('DELETE FROM security_report_configs WHERE id = $1', [id]);
+            await sinergia_pool.query('DELETE FROM security_report_configs WHERE id = $1', [id]);
         }
         if (userId) {
-            await cenos_pool.query('DELETE FROM users WHERE id = $1', [userId]);
+            await sinergia_pool.query('DELETE FROM users WHERE id = $1', [userId]);
         }
     }, 15000);
 

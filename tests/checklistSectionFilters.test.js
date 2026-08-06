@@ -1,8 +1,8 @@
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 const { getTemplateById } = require('../src/functions/database/checklists');
 
 jest.mock('../src/db', () => ({
-  cenos_pool: { query: jest.fn() },
+  sinergia_pool: { query: jest.fn() },
   pi_pool: { query: jest.fn() },
   ma_pool: { query: jest.fn() },
   localizacoes_pi_pool: { query: jest.fn() }
@@ -21,18 +21,18 @@ function makeProfile(cargo, regional, seccional, processo) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  cenos_pool.query.mockResolvedValue({ rows: [] });
+  sinergia_pool.query.mockResolvedValue({ rows: [] });
 });
 
 describe('getTemplateById — seção com filtros', () => {
   test('deve retornar null se template não existe', async () => {
-    cenos_pool.query.mockResolvedValueOnce({ rows: [] });
+    sinergia_pool.query.mockResolvedValueOnce({ rows: [] });
     const result = await getTemplateById(TEMPLATE_ID, AGENT_ID);
     expect(result).toBeNull();
   });
 
   test('admin (sem agentId) vê todas as seções', async () => {
-    cenos_pool.query.mockResolvedValueOnce({ rows: [makeTemplate({
+    sinergia_pool.query.mockResolvedValueOnce({ rows: [makeTemplate({
       sections: [
         { title: 'Sec1', questions: [] },
         { title: 'Sec2', filters: { cargo: ['NEG'] }, questions: [] }
@@ -43,7 +43,7 @@ describe('getTemplateById — seção com filtros', () => {
   });
 
   test('seção sem filters fica visível para todos', async () => {
-    cenos_pool.query
+    sinergia_pool.query
       .mockResolvedValueOnce({ rows: [makeTemplate({
         sections: [{ title: 'Sec1', questions: [{ label: 'P1', exemption_days: 0 }] }]
       })] })
@@ -54,7 +54,7 @@ describe('getTemplateById — seção com filtros', () => {
   });
 
   test('agente com cargo correspondente vê a seção', async () => {
-    cenos_pool.query
+    sinergia_pool.query
       .mockResolvedValueOnce({ rows: [makeTemplate({
         sections: [{ title: 'EPI', filters: { cargo: ['NEG'] }, questions: [] }]
       })] })
@@ -64,7 +64,7 @@ describe('getTemplateById — seção com filtros', () => {
   });
 
   test('agente com cargo diferente NÃO vê a seção', async () => {
-    cenos_pool.query
+    sinergia_pool.query
       .mockResolvedValueOnce({ rows: [makeTemplate({
         sections: [{ title: 'EPI', filters: { cargo: ['NEG'] }, questions: [] }]
       })] })
@@ -74,7 +74,7 @@ describe('getTemplateById — seção com filtros', () => {
   });
 
   test('match OR dentro da lista de cargos', async () => {
-    cenos_pool.query
+    sinergia_pool.query
       .mockResolvedValueOnce({ rows: [makeTemplate({
         sections: [{ title: 'Geral', filters: { cargo: ['NEG', 'SUP'] }, questions: [] }]
       })] })
@@ -84,7 +84,7 @@ describe('getTemplateById — seção com filtros', () => {
   });
 
   test('match AND entre cargo e regional', async () => {
-    cenos_pool.query
+    sinergia_pool.query
       .mockResolvedValueOnce({ rows: [makeTemplate({
         sections: [{
           title: 'Norte',
@@ -98,7 +98,7 @@ describe('getTemplateById — seção com filtros', () => {
   });
 
   test('AND entre categorias — falha se uma não bater', async () => {
-    cenos_pool.query
+    sinergia_pool.query
       .mockResolvedValueOnce({ rows: [makeTemplate({
         sections: [{
           title: 'Norte',
@@ -112,7 +112,7 @@ describe('getTemplateById — seção com filtros', () => {
   });
 
   test('filtro por seccional', async () => {
-    cenos_pool.query
+    sinergia_pool.query
       .mockResolvedValueOnce({ rows: [makeTemplate({
         sections: [{ title: 'UAC01', filters: { seccional: ['UAC01'] }, questions: [] }]
       })] })
@@ -122,7 +122,7 @@ describe('getTemplateById — seção com filtros', () => {
   });
 
   test('filtro por processo', async () => {
-    cenos_pool.query
+    sinergia_pool.query
       .mockResolvedValueOnce({ rows: [makeTemplate({
         sections: [{ title: 'ProcA', filters: { processo: ['PROC_A'] }, questions: [] }]
       })] })
@@ -132,7 +132,7 @@ describe('getTemplateById — seção com filtros', () => {
   });
 
   test('case-insensitive matching', async () => {
-    cenos_pool.query
+    sinergia_pool.query
       .mockResolvedValueOnce({ rows: [makeTemplate({
         sections: [{ title: 'EPI', filters: { cargo: ['neg'] }, questions: [] }]
       })] })
@@ -142,7 +142,7 @@ describe('getTemplateById — seção com filtros', () => {
   });
 
   test('agente sem perfil no JOIN vê seções sem filtro', async () => {
-    cenos_pool.query
+    sinergia_pool.query
       .mockResolvedValueOnce({ rows: [makeTemplate({
         sections: [
           { title: 'Geral', questions: [] },

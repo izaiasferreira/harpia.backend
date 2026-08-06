@@ -2,7 +2,7 @@ const request = require('supertest');
 const app = require('../src/app');
 const jwt = require('jsonwebtoken');
 const { createUser } = require('../src/functions/database/users');
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'jwt_secret_change_me';
 
@@ -26,9 +26,9 @@ describe('Admin Security Reports Validation (Resolver)', () => {
         userId = user.id;
         token = jwt.sign({ id: userId, estado: 'pi', role: 'COMPANY_ADMIN' }, JWT_SECRET);
 
-        await cenos_pool.query("INSERT INTO login (id, estado) VALUES ('T99999', 'pi') ON CONFLICT (id) DO NOTHING");
+        await sinergia_pool.query("INSERT INTO login (id, estado) VALUES ('T99999', 'pi') ON CONFLICT (id) DO NOTHING");
 
-        const insert = await cenos_pool.query(`
+        const insert = await sinergia_pool.query(`
             INSERT INTO security_report (autor, motivo, observacao, latitude, longitude, estado)
             VALUES ('T99999', 'Teste Validação', 'Observação teste', '-5.089', '-42.801', 'pi')
             RETURNING id
@@ -38,12 +38,12 @@ describe('Admin Security Reports Validation (Resolver)', () => {
 
     afterAll(async () => {
         if (reportId) {
-            await cenos_pool.query('DELETE FROM security_report WHERE id = $1', [reportId]);
+            await sinergia_pool.query('DELETE FROM security_report WHERE id = $1', [reportId]);
         }
         if (userId) {
-            await cenos_pool.query('DELETE FROM users WHERE id = $1', [userId]);
+            await sinergia_pool.query('DELETE FROM users WHERE id = $1', [userId]);
         }
-        await cenos_pool.query("DELETE FROM login WHERE id = 'T99999'");
+        await sinergia_pool.query("DELETE FROM login WHERE id = 'T99999'");
     });
 
     test('GET /admin/security_reports/dashboard - deve retornar estatísticas', async () => {

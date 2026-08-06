@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { cenos_pool } = require('../db');
+const { sinergia_pool } = require('../db');
 
 // Validar link e retornar metadados
 router.get('/:token', async (req, res) => {
@@ -11,7 +11,7 @@ router.get('/:token', async (req, res) => {
             FROM tracking_shared_links
             WHERE token = $1
         `;
-        const { rows } = await cenos_pool.query(query, [token]);
+        const { rows } = await sinergia_pool.query(query, [token]);
 
         if (rows.length === 0) {
             return res.status(404).json({ error: 'Link não encontrado' });
@@ -46,7 +46,7 @@ router.get('/:token/live', async (req, res) => {
             FROM tracking_shared_links
             WHERE token = $1
         `;
-        const { rows: linkRows } = await cenos_pool.query(queryLink, [token]);
+        const { rows: linkRows } = await sinergia_pool.query(queryLink, [token]);
 
         if (linkRows.length === 0) return res.status(404).json({ error: 'Link não encontrado' });
         const link = linkRows[0];
@@ -58,7 +58,7 @@ router.get('/:token/live', async (req, res) => {
         if (agentIds.length === 0) return res.json([]);
 
         // Buscar agentes do sistema para confirmar que existem (traz estado)
-        const { rows: allAgents } = await cenos_pool.query(`
+        const { rows: allAgents } = await sinergia_pool.query(`
             SELECT l.id AS agent_id, l.estado AS agent_estado 
             FROM login l 
             WHERE l.id = ANY($1)
@@ -68,7 +68,7 @@ router.get('/:token/live', async (req, res) => {
 
         // Buscar último ponto de tracking para cada agente
         const foundAgentIds = allAgents.map(a => a.agent_id);
-        const { rows: lastPoints } = await cenos_pool.query(`
+        const { rows: lastPoints } = await sinergia_pool.query(`
             SELECT a.agent_id, p.latitude, p.longitude, p.speed, p.accuracy,
                    p.battery_level, p.is_charging, p.network_type, p.gps_enabled,
                    p.device_model, p.device_platform, p.os_version, p.recorded_at
@@ -89,7 +89,7 @@ router.get('/:token/live', async (req, res) => {
         lastPoints.forEach(p => { lastPointsMap[p.agent_id] = p; });
 
         // Buscar também o heartbeat para cada agente (assim como no painel admin)
-        const { rows: heartbeats } = await cenos_pool.query(`
+        const { rows: heartbeats } = await sinergia_pool.query(`
             SELECT agent_id, last_heartbeat_at, last_heartbeat_lat, last_heartbeat_lng
             FROM agent_heartbeats
             WHERE agent_id = ANY($1)
@@ -99,7 +99,7 @@ router.get('/:token/live', async (req, res) => {
         heartbeats.forEach(h => { hbMap[h.agent_id] = h; });
 
         // Enriquecer com dados do colaborador
-        const { rows: cols } = await cenos_pool.query(
+        const { rows: cols } = await sinergia_pool.query(
             `SELECT "ID", "Nome", "seccional", "regional" FROM colaboradores WHERE "ID" = ANY($1)`,
             [foundAgentIds.map(id => id.toUpperCase())]
         );

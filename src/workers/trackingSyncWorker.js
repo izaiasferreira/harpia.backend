@@ -4,7 +4,7 @@
  * Worker responsável por processar a tabela de staging do tracking de forma assíncrona.
  */
 
-const { cenos_pool } = require('../db');
+const { sinergia_pool } = require('../db');
 const {
     claimPendingBatch,
     markBatchDone,
@@ -106,7 +106,7 @@ async function batchInsertPoints(points) {
         paramIdx += 19;
     }
 
-    await cenos_pool.query(`
+    await sinergia_pool.query(`
         INSERT INTO tracking_session_points
             (agent_id, latitude, longitude, speed, accuracy,
              battery_level, is_charging, network_type, gps_enabled,
@@ -144,7 +144,7 @@ async function getActiveGeofences() {
     if (Date.now() - geofencesCache.timestamp < 60000) {
         return geofencesCache.fences;
     }
-    const { rows } = await cenos_pool.query(`
+    const { rows } = await sinergia_pool.query(`
         SELECT id, name, type, estado, geometry, speed_limit
         FROM tracking_fences
         WHERE is_active = true
@@ -182,7 +182,7 @@ async function getAgentStateCached(agentId) {
         return cached.estado;
     }
     // Busca do banco
-    const { rows } = await cenos_pool.query(`SELECT estado FROM colaboradores WHERE lower("ID") = $1 LIMIT 1`, [agentId.toLowerCase()]);
+    const { rows } = await sinergia_pool.query(`SELECT estado FROM colaboradores WHERE lower("ID") = $1 LIMIT 1`, [agentId.toLowerCase()]);
     const estado = rows.length > 0 ? rows[0].estado : null;
     agentStateCache[agentId] = { estado, timestamp: Date.now() };
     return estado;

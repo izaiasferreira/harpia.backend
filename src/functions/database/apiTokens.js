@@ -1,7 +1,7 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const crypto = require('crypto');
 
-const TOKEN_PREFIX = 'gedai_';
+const TOKEN_PREFIX = 'sinergia_';
 const IDENTIFIER_LENGTH = 16;
 
 function generateToken() {
@@ -18,7 +18,7 @@ function generateIdentifier() {
 }
 
 async function initApiTokensTable() {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     await pool.query(`
         CREATE TABLE IF NOT EXISTS api_tokens (
             id SERIAL PRIMARY KEY,
@@ -55,7 +55,7 @@ async function initApiTokensTable() {
 }
 
 async function createToken({ createdBy, createdByName, label, expiresAt }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     await initApiTokensTable();
 
     const rawToken = generateToken();
@@ -72,7 +72,7 @@ async function createToken({ createdBy, createdByName, label, expiresAt }) {
 }
 
 async function listTokens() {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     await initApiTokensTable();
 
     const { rows } = await pool.query(`
@@ -85,7 +85,7 @@ async function listTokens() {
 }
 
 async function revokeToken(tokenId, revokedBy) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const { rows } = await pool.query(`
         UPDATE api_tokens SET revoked_at = NOW(), revoked_by = $1
         WHERE id = $2 AND revoked_at IS NULL
@@ -95,7 +95,7 @@ async function revokeToken(tokenId, revokedBy) {
 }
 
 async function unrevokeToken(tokenId) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const { rows } = await pool.query(`
         UPDATE api_tokens SET revoked_at = NULL, revoked_by = NULL
         WHERE id = $1
@@ -105,7 +105,7 @@ async function unrevokeToken(tokenId) {
 }
 
 async function deleteToken(tokenId) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const { rows } = await pool.query(`
         DELETE FROM api_tokens WHERE id = $1 RETURNING id
     `, [tokenId]);
@@ -113,9 +113,9 @@ async function deleteToken(tokenId) {
 }
 
 async function validateToken(rawToken) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
-    if (!rawToken || !rawToken.startsWith(TOKEN_PREFIX)) {
+    if (!rawToken || (!rawToken.startsWith('sinergia_') && !rawToken.startsWith('gedai_') && !rawToken.startsWith('cenos_'))) {
         return null;
     }
 
@@ -144,7 +144,7 @@ async function validateToken(rawToken) {
 }
 
 async function logUsage({ tokenId, endpoint, method, ip, userAgent }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     await pool.query(`
         INSERT INTO api_token_usage (token_id, endpoint, method, ip, user_agent)
         VALUES ($1, $2, $3, $4, $5)
@@ -157,7 +157,7 @@ async function logUsage({ tokenId, endpoint, method, ip, userAgent }) {
 }
 
 async function getUsageLogs(tokenId, page = 1, limit = 50) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const offset = (page - 1) * limit;
 
     const countResult = await pool.query(`

@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { equipmentCreateSchema, equipmentUpdateSchema } = require('../../db/schemas/equipment');
 const { getEquipmentTypeBySlug } = require('./equipmentTypes');
 const { minioClient, CONFIG, compressImage, getFileUrl } = require('../minio');
@@ -46,7 +46,7 @@ async function log_equipment_event(client_or_pool, { equipment_id, event_type, a
 // ─── Listagem ─────────────────────────────────────────────────────────────────
 
 async function list_equipment({ estado, regional, seccional, tipo, status, condicao, search, page = 1, limit = 15, userRole, userPermissions = [] } = {}) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const params = [];
     let paramIdx = 1;
 
@@ -133,7 +133,7 @@ async function list_equipment({ estado, regional, seccional, tipo, status, condi
 }
 
 async function get_equipment_stats() {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     
     // Total geral
     const { rows: [{ total }] } = await pool.query(`SELECT COUNT(*)::int AS total FROM equipment`);
@@ -178,7 +178,7 @@ async function get_equipment_stats() {
 }
 
 async function get_equipment_by_id(id) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const { rows } = await pool.query(`
         SELECT ${EQUIPMENT_SELECT}
         FROM equipment e
@@ -189,7 +189,7 @@ async function get_equipment_by_id(id) {
 }
 
 async function get_equipment_by_agent(agente) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const { rows } = await pool.query(`
         SELECT e.id, e.tipo, e.estado, e.dados, e.status, e.condicao, e.fotos,
                ea.id              AS assignment_id,
@@ -212,7 +212,7 @@ async function get_equipment_by_agent(agente) {
 }
 
 async function list_available_equipment({ tipo, estado, search, page = 1, limit = 15 } = {}) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const params = [];
     let paramIdx = 1;
 
@@ -262,7 +262,7 @@ async function create_equipment(data) {
     }
     if (erros.length > 0) throw new Error(`Dados inválidos: ${erros.join('; ')}`);
 
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
@@ -296,7 +296,7 @@ async function create_equipment(data) {
 
 async function update_equipment(id, data) {
     const validated = equipmentUpdateSchema.parse(data);
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const { rows: eqRows } = await pool.query(`SELECT * FROM equipment WHERE id = $1`, [id]);
     if (!eqRows[0]) throw new Error('Equipamento não encontrado');
@@ -365,7 +365,7 @@ async function update_equipment(id, data) {
 }
 
 async function delete_equipment(id) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     
     // Validação para impedir deleção se houver associação ativa
     const { rows: asgRows } = await pool.query(`SELECT id FROM equipment_assignments WHERE equipment_id = $1 AND status = 'ativa'`, [id]);
@@ -378,7 +378,7 @@ async function delete_equipment(id) {
 
 
 async function get_equipment_history_full(equipment_id) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const { rows } = await pool.query(`
         SELECT * FROM equipment_events
         WHERE equipment_id = $1
@@ -391,7 +391,7 @@ async function get_equipment_history_full(equipment_id) {
 // ─── Solicitações de Agentes ──────────────────────────────────────────────────
 
 async function create_equipment_request({ equipment_id, agente, foto_buffer, foto_mime, latitude, longitude, observacao_agente, tipo_solicitacao = 'associacao' }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const client = await pool.connect();
     let foto_url = null;
 
@@ -462,7 +462,7 @@ async function create_equipment_request({ equipment_id, agente, foto_buffer, fot
 }
 
 async function list_pending_requests({ estado, page = 1, limit = 15, userRole, userPermissions = [] } = {}) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const params = [];
     let paramIdx = 1;
 
@@ -532,7 +532,7 @@ async function list_pending_requests({ estado, page = 1, limit = 15, userRole, u
 }
 
 async function approve_equipment_request({ request_id, aprovado_por, aprovado_por_nome }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
@@ -625,7 +625,7 @@ async function approve_equipment_request({ request_id, aprovado_por, aprovado_po
     } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
 }
 async function reject_equipment_request({ request_id, rejeitado_por, rejeitado_por_nome, observacao_admin }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const client = await pool.connect();
     try {
         await client.query('BEGIN');

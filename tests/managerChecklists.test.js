@@ -1,6 +1,6 @@
 const request = require('supertest');
 const app = require('../src/app');
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
@@ -27,31 +27,31 @@ describe('Manager Checklists V2', () => {
         const hashedPassword = await bcrypt.hash('123456', 10);
         
         // Cleanup
-        await cenos_pool.query(`DELETE FROM login WHERE id IN ('TESTGESTOR', 'TESTAGENTE')`);
-        await cenos_pool.query(`DELETE FROM colaboradores WHERE "ID" IN ('TESTGESTOR', 'TESTAGENTE')`);
-        await cenos_pool.query(`DELETE FROM checklist_templates WHERE title = 'Template Gestor Teste'`);
+        await sinergia_pool.query(`DELETE FROM login WHERE id IN ('TESTGESTOR', 'TESTAGENTE')`);
+        await sinergia_pool.query(`DELETE FROM colaboradores WHERE "ID" IN ('TESTGESTOR', 'TESTAGENTE')`);
+        await sinergia_pool.query(`DELETE FROM checklist_templates WHERE title = 'Template Gestor Teste'`);
         
         // Create Gestor
-        await cenos_pool.query(`
+        await sinergia_pool.query(`
             INSERT INTO users (id, email, nome, senha, role, estado)
             VALUES (99990, 'gestor@test.com', 'Gestor', $1, 'COMPANY_ADMIN', 'pi')
             ON CONFLICT (id) DO NOTHING
         `, [hashedPassword]);
-        await cenos_pool.query(`
+        await sinergia_pool.query(`
             INSERT INTO colaboradores ("ID", "MAT", "Nome", is_gestor, "GESTOR IMEDIATO", status)
             VALUES ('TESTGESTOR', 'TESTGESTOR', 'Gestor Teste', true, NULL, true)
         `);
-        await cenos_pool.query(`
+        await sinergia_pool.query(`
             INSERT INTO login (id, estado)
             VALUES ('TESTGESTOR', 'pi')
         `);
         
         // Create Agente (Subordinate)
-        await cenos_pool.query(`
+        await sinergia_pool.query(`
             INSERT INTO colaboradores ("ID", "MAT", "Nome", is_gestor, "GESTOR IMEDIATO", status)
             VALUES ('TESTAGENTE', 'TESTAGENTE', 'Agente Teste', false, 'Gestor Teste', true)
         `);
-        await cenos_pool.query(`
+        await sinergia_pool.query(`
             INSERT INTO login (id, estado)
             VALUES ('TESTAGENTE', 'pi')
         `);
@@ -60,9 +60,9 @@ describe('Manager Checklists V2', () => {
         tokenAgente = jwt.sign({ id: 'TESTAGENTE', role: 'AGENT' }, process.env.JWT_SECRET || 'test_secret');
         
         // Ensure is_gestor column exists for tests
-        await cenos_pool.query(`ALTER TABLE checklist_templates ADD COLUMN IF NOT EXISTS is_gestor boolean DEFAULT false`);
+        await sinergia_pool.query(`ALTER TABLE checklist_templates ADD COLUMN IF NOT EXISTS is_gestor boolean DEFAULT false`);
         // Create Gestor Template
-        const { rows: tRows } = await cenos_pool.query(`
+        const { rows: tRows } = await sinergia_pool.query(`
             INSERT INTO checklist_templates (title, is_gestor, is_active, data)
             VALUES ('Template Gestor Teste', true, true, '{"sections":[]}')
             RETURNING id
@@ -71,10 +71,10 @@ describe('Manager Checklists V2', () => {
     });
 
     afterAll(async () => {
-        await cenos_pool.query(`DELETE FROM checklists WHERE template_id = $1`, [templateIdGestor]);
-        await cenos_pool.query(`DELETE FROM checklist_templates WHERE id = $1`, [templateIdGestor]);
-        await cenos_pool.query(`DELETE FROM login WHERE id IN ('TESTGESTOR', 'TESTAGENTE')`);
-        await cenos_pool.query(`DELETE FROM colaboradores WHERE "ID" IN ('TESTGESTOR', 'TESTAGENTE')`);
+        await sinergia_pool.query(`DELETE FROM checklists WHERE template_id = $1`, [templateIdGestor]);
+        await sinergia_pool.query(`DELETE FROM checklist_templates WHERE id = $1`, [templateIdGestor]);
+        await sinergia_pool.query(`DELETE FROM login WHERE id IN ('TESTGESTOR', 'TESTAGENTE')`);
+        await sinergia_pool.query(`DELETE FROM colaboradores WHERE "ID" IN ('TESTGESTOR', 'TESTAGENTE')`);
     });
 
     test('listTemplatesUnified retorna templates mistos', async () => {
@@ -118,7 +118,7 @@ describe('Manager Checklists V2', () => {
         expect(res.status).toBe(201);
 
         // Verify in DB
-        const { rows } = await cenos_pool.query(`SELECT * FROM checklists WHERE local_id = 'sync-gestor-123'`);
+        const { rows } = await sinergia_pool.query(`SELECT * FROM checklists WHERE local_id = 'sync-gestor-123'`);
         expect(rows.length).toBe(1);
         expect(rows[0].target_agent_id).toBe('TESTAGENTE');
 

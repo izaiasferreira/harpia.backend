@@ -1,4 +1,4 @@
-const { cenos_pool, pi_pool, ma_pool } = require('../../db');
+const { sinergia_pool, pi_pool, ma_pool } = require('../../db');
 const { securityReportCreateSchema } = require('../../db/schemas/security');
 const { get_users_agents_admin } = require('./admin');
 
@@ -22,7 +22,7 @@ const getUserAllowedStatePools = (user) => {
 
 async function get_security_reports_admin({ user, estado, page = 1, limit = 9999, search }) {
     const availablePools = getUserAllowedStatePools(user).map(p => p.state);
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const limitVal = parseInt(limit) || 9999;
     const offsetVal = (parseInt(page) - 1) * limitVal;
@@ -104,7 +104,7 @@ async function get_security_reports_admin({ user, estado, page = 1, limit = 9999
 }
 
 async function delete_security_report_admin(id, user) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const reportId = parseInt(id, 10);
     if (isNaN(reportId)) return null;
     

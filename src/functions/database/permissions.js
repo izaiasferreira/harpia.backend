@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { permissionCreateSchema, permissionSchema } = require('../../db/schemas');
 
 function generateSlug(name) {
@@ -15,7 +15,7 @@ async function createPermission({
     const slug = generateSlug(name);
     const validated = permissionCreateSchema.parse({ name, slug, description, modules, filters, state });
 
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const checkActiveQuery = `SELECT id FROM permissions WHERE slug = $1 AND state = $2 AND ativo = true`;
     const checkActiveResult = await pool.query(checkActiveQuery, [slug, validated.state.toLowerCase()]);
@@ -54,7 +54,7 @@ async function createPermission({
 }
 
 async function getPermissionById(id, state = 'pi') {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `
         SELECT id, name, slug, description, modules, filters, user_count, state, ativo, created_at
@@ -66,7 +66,7 @@ async function getPermissionById(id, state = 'pi') {
 }
 
 async function listPermissions(state = 'pi') {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `
         SELECT id, name, slug, description, modules, filters, user_count, state, ativo, created_at
@@ -79,7 +79,7 @@ async function listPermissions(state = 'pi') {
 }
 
 async function updatePermission(id, data, state = 'pi') {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const validated = permissionSchema.partial().parse(data);
     const { name, description, modules, filters, ativo } = validated;
     
@@ -131,7 +131,7 @@ async function updatePermission(id, data, state = 'pi') {
 }
 
 async function deletePermission(id, state = 'pi') {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `
         UPDATE permissions 
@@ -144,7 +144,7 @@ async function deletePermission(id, state = 'pi') {
 }
 
 async function assignPermissionsToUser(userId, permissionIds, state = 'pi') {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     await pool.query('BEGIN');
 
@@ -177,7 +177,7 @@ async function assignPermissionsToUser(userId, permissionIds, state = 'pi') {
 }
 
 async function getUserPermissions(userId, state = 'pi') {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `
         SELECT p.id, p.name, p.slug, p.modules, p.filters

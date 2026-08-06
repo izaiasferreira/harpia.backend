@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { cenos_pool } = require('../db');
+const { sinergia_pool } = require('../db');
 const { recordAgentDevice } = require('../functions/database/agentDevices');
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -60,7 +60,7 @@ async function telegramAuth(req, res, next) {
             }
         } else {
 
-            const { rows } = await cenos_pool.query(
+            const { rows } = await sinergia_pool.query(
                 'SELECT telegram_user_id, agent_id, expires_at FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
                 [initData]
             );
@@ -72,7 +72,7 @@ async function telegramAuth(req, res, next) {
             // Sliding expiration
             const daysUntilExpiry = (new Date(rows[0].expires_at) - Date.now()) / (1000 * 60 * 60 * 24);
             if (daysUntilExpiry < 15) {
-                cenos_pool.query(
+                sinergia_pool.query(
                     "UPDATE telegram_tokens SET expires_at = CURRENT_TIMESTAMP + interval '30 days' WHERE token = $1",
                     [initData]
                 ).catch(e => console.error('[SLIDING EXPIRATION AUTH] Erro:', e.message));
@@ -83,7 +83,7 @@ async function telegramAuth(req, res, next) {
                 const agentIdUpper = rows[0].agent_id.toUpperCase();
                 
             // Busca em colaboradores (única fonte de dados do agente)
-                let { rows: agentRows } = await cenos_pool.query(
+                let { rows: agentRows } = await sinergia_pool.query(
                     `SELECT "ID" as id, "estado", "seccional", "regional", "Nome" as nome, "MAT" as mat, "is_gestor"
                      FROM colaboradores
                      WHERE upper("ID") = $1`,
@@ -118,7 +118,7 @@ async function telegramAuth(req, res, next) {
         // Garantir que o ID seja string para bater com o tipo TEXT na tabela login
         const telegramIdStr = String(telegramId).trim();
 
-        const { rows: collaboratorRows } = await cenos_pool.query(
+        const { rows: collaboratorRows } = await sinergia_pool.query(
             `SELECT l.id, l.estado, c."seccional", c."regional", c."Nome" as nome, c."MAT" as mat, c."is_gestor"
              FROM login l
              LEFT JOIN colaboradores c ON l.id = c."ID"

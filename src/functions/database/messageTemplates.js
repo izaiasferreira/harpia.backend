@@ -1,8 +1,8 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { messageTemplateCreateSchema, messageTemplateSchema } = require('../../db/schemas');
 
 async function get_message_templates_admin({ search, page = 1, limit = 9999, creator_id }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     let query = `SELECT * FROM message_templates_admin WHERE creator_id = $1`;
     const params = [creator_id];
@@ -47,7 +47,7 @@ async function get_message_templates_admin({ search, page = 1, limit = 9999, cre
 
 async function save_message_template_admin({ name, text, file, webAppButtonText, webAppButtonUrl, creator_id }) {
     const validated = messageTemplateCreateSchema.parse({ name, text, file, webAppButtonText, webAppButtonUrl, creator_id });
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const query = `
         INSERT INTO message_templates_admin (name, text, file, web_app_button_text, web_app_button_url, creator_id, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
@@ -59,7 +59,7 @@ async function save_message_template_admin({ name, text, file, webAppButtonText,
 
 async function update_message_template_admin(id, data, creator_id) {
     const validated = messageTemplateSchema.partial().parse(data);
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const fields = [];
     const params = [creator_id];
     let paramIndex = 2;
@@ -89,7 +89,7 @@ async function update_message_template_admin(id, data, creator_id) {
 }
 
 async function delete_message_template_admin(id, creator_id) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const { rows } = await pool.query('DELETE FROM message_templates_admin WHERE id = $1 AND creator_id = $2 RETURNING *', [parseInt(id, 10), creator_id]);
     return rows[0];
 }

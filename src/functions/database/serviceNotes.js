@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { serviceGroupCreateSchema, serviceGroupSchema, markerCategorySchema, serviceNoteCreateSchema, serviceNoteSchema } = require('../../db/schemas');
 
 function parseNum(value) {
@@ -167,18 +167,18 @@ async function processBase64Files(completionData, agentId) {
 // ==========================================
 
 async function listServiceGroups() {
-    const { rows } = await cenos_pool.query('SELECT * FROM service_groups ORDER BY created_at DESC');
+    const { rows } = await sinergia_pool.query('SELECT * FROM service_groups ORDER BY created_at DESC');
     return rows;
 }
 
 async function getServiceGroupById(id) {
-    const { rows } = await cenos_pool.query('SELECT * FROM service_groups WHERE id = $1', [id]);
+    const { rows } = await sinergia_pool.query('SELECT * FROM service_groups WHERE id = $1', [id]);
     return rows[0] || null;
 }
 
 async function createServiceGroup({ name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation, created_by }) {
     const validated = serviceGroupCreateSchema.parse({ name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation, created_by });
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `INSERT INTO service_groups (name, description, completion_config, allow_all_agents, allowed_agents, allow_agent_creation, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
         [
             validated.name,
@@ -208,12 +208,12 @@ async function updateServiceGroup(id, data) {
     if (updates.length === 0) return null;
     updates.push('updated_at = NOW()');
     params.push(id);
-    const { rows } = await cenos_pool.query(`UPDATE service_groups SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`, params);
+    const { rows } = await sinergia_pool.query(`UPDATE service_groups SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`, params);
     return rows[0] || null;
 }
 
 async function deleteServiceGroup(id) {
-    const { rows } = await cenos_pool.query('DELETE FROM service_groups WHERE id = $1 RETURNING *', [id]);
+    const { rows } = await sinergia_pool.query('DELETE FROM service_groups WHERE id = $1 RETURNING *', [id]);
     return rows[0] || null;
 }
 
@@ -222,13 +222,13 @@ async function deleteServiceGroup(id) {
 // ==========================================
 
 async function listCategoriesByGroup(groupId) {
-    const { rows } = await cenos_pool.query('SELECT * FROM marker_categories WHERE group_id = $1 ORDER BY name', [groupId]);
+    const { rows } = await sinergia_pool.query('SELECT * FROM marker_categories WHERE group_id = $1 ORDER BY name', [groupId]);
     return rows;
 }
 
 async function createCategory({ group_id, name, color }) {
     const validated = markerCategorySchema.parse({ group_id: Number(group_id), name, color });
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `INSERT INTO marker_categories (group_id, name, color) VALUES ($1, $2, $3) RETURNING *`,
         [validated.group_id, validated.name, validated.color || '#2563EB']
     );
@@ -236,7 +236,7 @@ async function createCategory({ group_id, name, color }) {
 }
 
 async function deleteCategory(id) {
-    const { rows } = await cenos_pool.query('DELETE FROM marker_categories WHERE id = $1 RETURNING *', [id]);
+    const { rows } = await sinergia_pool.query('DELETE FROM marker_categories WHERE id = $1 RETURNING *', [id]);
     return rows[0] || null;
 }
 
@@ -260,12 +260,12 @@ async function listServiceNotes({ groupId, status, assignedTo, archived, unassig
     if (completedFrom) { query += ` AND sn.completed_at >= $${idx}`; params.push(completedFrom); idx++; }
     if (completedTo) { query += ` AND sn.completed_at <= $${idx}`; params.push(completedTo + 'T23:59:59'); idx++; }
     query += ' ORDER BY sn.created_at DESC';
-    const { rows } = await cenos_pool.query(query, params);
+    const { rows } = await sinergia_pool.query(query, params);
     return rows;
 }
 
 async function getServiceNoteById(id) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT sn.*, mc.name as category_name, mc.color as category_color, sg.completion_config
          FROM service_notes sn
          LEFT JOIN marker_categories mc ON sn.marker_category_id = mc.id
@@ -309,7 +309,7 @@ async function createServiceNote({ group_id, title, description, coordinates, la
         coordinates_path: validPath
     });
 
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `INSERT INTO service_notes (group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, custom_fields, coordinates_path)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
         [
@@ -380,12 +380,12 @@ async function updateServiceNote(id, fields) {
     if (updates.length === 0) return null;
     updates.push('updated_at = NOW()');
     params.push(id);
-    const { rows } = await cenos_pool.query(`UPDATE service_notes SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`, params);
+    const { rows } = await sinergia_pool.query(`UPDATE service_notes SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`, params);
     return rows[0] || null;
 }
 
 async function deleteServiceNote(id) {
-    const { rows } = await cenos_pool.query('DELETE FROM service_notes WHERE id = $1 RETURNING *', [id]);
+    const { rows } = await sinergia_pool.query('DELETE FROM service_notes WHERE id = $1 RETURNING *', [id]);
     return rows[0] || null;
 }
 
@@ -394,14 +394,14 @@ async function deleteServiceNote(id) {
 // ==========================================
 
 async function assignServiceNote(noteId, agentId, assignedBy) {
-    await cenos_pool.query('UPDATE service_notes SET assigned_to = $1, updated_at = NOW() WHERE id = $2', [agentId, noteId]);
+    await sinergia_pool.query('UPDATE service_notes SET assigned_to = $1, updated_at = NOW() WHERE id = $2', [agentId, noteId]);
     if (agentId) {
-        await cenos_pool.query('INSERT INTO service_assignments (service_note_id, agent_id, assigned_by) VALUES ($1, $2, $3)', [noteId, agentId, assignedBy || null]);
+        await sinergia_pool.query('INSERT INTO service_assignments (service_note_id, agent_id, assigned_by) VALUES ($1, $2, $3)', [noteId, agentId, assignedBy || null]);
     }
 }
 
 async function bulkAssign(serviceIds, agentId, assignedBy) {
-    const client = await cenos_pool.connect();
+    const client = await sinergia_pool.connect();
     try {
         await client.query('BEGIN');
         for (const id of serviceIds) {
@@ -420,19 +420,19 @@ async function bulkAssign(serviceIds, agentId, assignedBy) {
 }
 
 async function bulkUpdateCategory(serviceIds, categoryId) {
-    await cenos_pool.query('UPDATE service_notes SET marker_category_id = $1, updated_at = NOW() WHERE id = ANY($2::int[])', [categoryId, serviceIds]);
+    await sinergia_pool.query('UPDATE service_notes SET marker_category_id = $1, updated_at = NOW() WHERE id = ANY($2::int[])', [categoryId, serviceIds]);
 }
 
 async function bulkDelete(serviceIds) {
-    await cenos_pool.query('DELETE FROM service_notes WHERE id = ANY($1::int[])', [serviceIds]);
+    await sinergia_pool.query('DELETE FROM service_notes WHERE id = ANY($1::int[])', [serviceIds]);
 }
 
 async function bulkArchive(serviceIds) {
-    await cenos_pool.query('UPDATE service_notes SET archived = true, updated_at = NOW() WHERE id = ANY($1::int[])', [serviceIds]);
+    await sinergia_pool.query('UPDATE service_notes SET archived = true, updated_at = NOW() WHERE id = ANY($1::int[])', [serviceIds]);
 }
 
 async function bulkUnarchive(serviceIds) {
-    await cenos_pool.query('UPDATE service_notes SET archived = false, updated_at = NOW() WHERE id = ANY($1::int[])', [serviceIds]);
+    await sinergia_pool.query('UPDATE service_notes SET archived = false, updated_at = NOW() WHERE id = ANY($1::int[])', [serviceIds]);
 }
 
 // ==========================================
@@ -442,7 +442,7 @@ async function bulkUnarchive(serviceIds) {
 async function completeServiceNote(noteId, { agentId, coordinates, completionData, completedAt }) {
     const validCoords = validateCoordinates(coordinates);
     const processedCompletionData = await processBase64Files(completionData, agentId);
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `UPDATE service_notes 
          SET status = 'CONCLUIDO', 
               completed_by = $1, 
@@ -488,7 +488,7 @@ async function selfRegisterServiceNote({ groupId, agentId, title, coordinates, c
 
     const autoTitle = title || `Registro – ${group.name} – ${new Date().toLocaleDateString('pt-BR')}`;
     const processedCompletionData = await processBase64Files(completionData, agentId);
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `INSERT INTO service_notes (group_id, title, coordinates, latitude, longitude, status, assigned_to, completed_by, completed_at, completion_coordinates, completion_data, self_registered, coordinates_path)
          VALUES ($1, $2, $3, $4, $5, 'CONCLUIDO', $6, $6, $7, $3, $8, true, $9) RETURNING *`,
         [groupId, autoTitle, coordVal || null, latVal, lngVal, agentId, completedAt || new Date().toISOString(), processedCompletionData ? JSON.stringify(processedCompletionData) : null, validPath ? JSON.stringify(validPath) : null]
@@ -532,14 +532,14 @@ async function createAgentServiceNote({ group_id, title, description, coordinate
 
     const assignTo = assignToSelf ? agentId : null;
 
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `INSERT INTO service_notes (group_id, title, description, coordinates, latitude, longitude, address, marker_category_id, assigned_to, self_registered, coordinates_path)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10) RETURNING *`,
         [group_id, title, description || null, coordVal || null, latVal, lngVal, address || null, marker_category_id || null, assignTo, validPath ? JSON.stringify(validPath) : null]
     );
 
     if (assignTo) {
-        await cenos_pool.query(
+        await sinergia_pool.query(
             'INSERT INTO service_assignments (service_note_id, agent_id, assigned_by) VALUES ($1, $2, $3)',
             [rows[0].id, agentId, null]
         );
@@ -549,7 +549,7 @@ async function createAgentServiceNote({ group_id, title, description, coordinate
 }
 
 async function listCreatableGroups(agentId) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT * FROM service_groups
          WHERE allow_agent_creation = true
            AND (allow_all_agents = true
@@ -561,7 +561,7 @@ async function listCreatableGroups(agentId) {
 }
 
 async function listVisibleGroups(agentId) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT * FROM service_groups
          WHERE allow_all_agents = true
             OR (allowed_agents IS NOT NULL AND allowed_agents @> jsonb_build_array($1::text))
@@ -572,7 +572,7 @@ async function listVisibleGroups(agentId) {
 }
 
 async function listVisibleGroupsWithCounts(agentId) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT sg.*,
                 COUNT(sn.id) AS total_notes,
                 COUNT(sn.id) FILTER (WHERE sn.status = 'CONCLUIDO') AS done_notes
@@ -592,7 +592,7 @@ async function listVisibleGroupsWithCounts(agentId) {
 // ==========================================
 
 async function bulkInsertServiceNotes(groupId, notes) {
-    const client = await cenos_pool.connect();
+    const client = await sinergia_pool.connect();
     const inserted = [];
     try {
         await client.query('BEGIN');
@@ -639,7 +639,7 @@ async function bulkInsertServiceNotes(groupId, notes) {
 // ==========================================
 
 async function getAssignedNotes(agentId) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT sn.*, mc.name as category_name, mc.color as category_color, sg.name as group_name, sg.completion_config
          FROM service_notes sn
          LEFT JOIN marker_categories mc ON sn.marker_category_id = mc.id
@@ -655,7 +655,7 @@ async function getAssignedNotes(agentId) {
 // ==========================================
 
 async function getGroupNotesForAgent(groupId, agentId) {
-    const { rows: groups } = await cenos_pool.query(
+    const { rows: groups } = await sinergia_pool.query(
         `SELECT * FROM service_groups WHERE id = $1`, [groupId]
     );
     const group = groups[0];
@@ -668,7 +668,7 @@ async function getGroupNotesForAgent(groupId, agentId) {
     if (!isPublic && !isAssigned) throw new Error('Sem permissao para ver este grupo');
 
     if (isPublic) {
-        const { rows } = await cenos_pool.query(
+        const { rows } = await sinergia_pool.query(
             `SELECT sn.*, mc.name as category_name, mc.color as category_color, sg.name as group_name, sg.completion_config
              FROM service_notes sn
              LEFT JOIN marker_categories mc ON sn.marker_category_id = mc.id
@@ -687,7 +687,7 @@ async function getGroupNotesForAgent(groupId, agentId) {
 // ==========================================
 
 async function bulkMove(serviceIds, targetGroupId) {
-    await cenos_pool.query('UPDATE service_notes SET group_id = $1, updated_at = NOW() WHERE id = ANY($2::int[])', [targetGroupId, serviceIds]);
+    await sinergia_pool.query('UPDATE service_notes SET group_id = $1, updated_at = NOW() WHERE id = ANY($2::int[])', [targetGroupId, serviceIds]);
 }
 
 // ==========================================
@@ -696,7 +696,7 @@ async function bulkMove(serviceIds, targetGroupId) {
 
 async function adminCompleteNote(noteId, { adminId, completionData }) {
     const processedCompletionData = await processBase64Files(completionData, adminId);
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `UPDATE service_notes SET status = 'CONCLUIDO', completed_by = $1, completed_at = NOW(), completion_data = $2, updated_at = NOW()
          WHERE id = $3 RETURNING *`,
         [adminId, processedCompletionData ? JSON.stringify(processedCompletionData) : null, noteId]
@@ -709,7 +709,7 @@ async function adminCompleteNote(noteId, { adminId, completionData }) {
 // ==========================================
 
 async function restoreServiceNoteCompletion(id) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `UPDATE service_notes 
          SET status = 'PENDENTE', 
              completed_by = NULL, 
@@ -725,7 +725,7 @@ async function restoreServiceNoteCompletion(id) {
 }
 
 async function bulkRestore(serviceIds) {
-    await cenos_pool.query(
+    await sinergia_pool.query(
         `UPDATE service_notes 
          SET status = 'PENDENTE', 
              completed_by = NULL, 

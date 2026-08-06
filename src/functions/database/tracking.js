@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { fallIncidentSchema, crashIncidentSyncSchema } = require('../../db/schemas');
 const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
 
@@ -9,7 +9,7 @@ async function insertFallIncident(agentId, incident) {
         ...incident,
         agent_id: agentId,
     });
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `INSERT INTO fall_incidents (
             agent_id, latitude, longitude, status, recorded_at,
             free_fall_gravity, impact_gravity,
@@ -119,7 +119,7 @@ async function getFallIncidents(filters = {}, user = null) {
 
     query += ' ORDER BY fi.recorded_at DESC LIMIT 200';
 
-    const { rows } = await cenos_pool.query(query, params);
+    const { rows } = await sinergia_pool.query(query, params);
 
     // Aplica filtro em memória para regional/seccional/gestor
     if (user && !userIsAdmin(user)) {
@@ -142,7 +142,7 @@ async function getFallIncidents(filters = {}, user = null) {
 async function updateFallIncidentStatus(id, status, notes) {
     const validated = fallIncidentSchema.pick({ status: true, notes: true }).parse({ status, notes });
     const confirmedAt = (validated.status === 'confirmed' || validated.status === 'false_positive') ? new Date() : null;
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `UPDATE fall_incidents SET status = $1, confirmed_at = $2, notes = $3 WHERE id = $4 RETURNING *`,
         [validated.status, confirmedAt, validated.notes || null, id]
     );
@@ -171,7 +171,7 @@ async function insertAlertLogs(agentId, alerts) {
         paramIdx += 6;
     }
 
-    await cenos_pool.query(
+    await sinergia_pool.query(
         `INSERT INTO agent_alerts_log (agent_id, alert_type, latitude, longitude, details, recorded_at) VALUES ${values.join(',')}`,
         params
     );
@@ -203,7 +203,7 @@ async function getAlertLogs(filters = {}) {
 
     query += ' ORDER BY al.recorded_at DESC LIMIT 200';
 
-    const { rows } = await cenos_pool.query(query, params);
+    const { rows } = await sinergia_pool.query(query, params);
     return rows;
 }
 
@@ -231,7 +231,7 @@ async function insertProximityAlerts(agentId, alerts) {
         paramIdx += 8;
     }
 
-    await cenos_pool.query(
+    await sinergia_pool.query(
         `INSERT INTO agent_proximity_alerts (id, agent_id, latitude, longitude, motivo, distance, action_taken, recorded_at) VALUES ${values.join(',')} ON CONFLICT (id) DO NOTHING`,
         params
     );

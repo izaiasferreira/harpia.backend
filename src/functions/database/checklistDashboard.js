@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { getUserAllowedStatePools, getColaboradoresFilter, userIsAdmin, buildUserPermissionSQL } = require('./admin');
 const { getExemptAgentIds, countActiveExemptions, listActiveExemptions } = require('./agentExemptions');
 const { batchGetResolutions, batchGetResolutionsFull } = require('./nonconformityResolutions');
@@ -21,16 +21,16 @@ function getTodayStr() {
 
 
 async function getDashboardFilterOptions() {
-  const regionais = await cenos_pool.query(
+  const regionais = await sinergia_pool.query(
     `SELECT DISTINCT regional FROM colaboradores WHERE regional IS NOT NULL ORDER BY regional`
   );
-  const seccionais = await cenos_pool.query(
+  const seccionais = await sinergia_pool.query(
     `SELECT DISTINCT seccional FROM colaboradores WHERE seccional IS NOT NULL ORDER BY seccional`
   );
-  const estados = await cenos_pool.query(
+  const estados = await sinergia_pool.query(
     `SELECT DISTINCT estado FROM colaboradores WHERE estado IS NOT NULL ORDER BY estado`
   );
-  const gestores = await cenos_pool.query(
+  const gestores = await sinergia_pool.query(
     `SELECT DISTINCT "GESTOR IMEDIATO" as gestor FROM colaboradores WHERE "GESTOR IMEDIATO" IS NOT NULL ORDER BY gestor`
   );
 
@@ -101,26 +101,26 @@ async function getDashboardStats({ date_from, date_to, regional, sectional, esta
   }
 
   const [activeAgentsRes, totalRes, compliantRes, nonCompliantRes, regionalRes, pendingRes] = await Promise.all([
-    cenos_pool.query(
+    sinergia_pool.query(
       `SELECT COUNT(*) as total FROM colaboradores
        WHERE situacao = 'active' AND status = true
          AND "ID" = ANY($1::varchar[])`,
       [agentIds]
     ),
-    cenos_pool.query(
+    sinergia_pool.query(
       `SELECT COUNT(*) as total FROM checklists c ${colJoin} ${cWhere}`, dParams
     ),
-    cenos_pool.query(
+    sinergia_pool.query(
       `SELECT COUNT(*) as total FROM checklists c ${colJoin}
        ${cWhere} AND ((c.data->'compliance_summary'->>'non_compliant')::int) = 0`,
       dParams
     ),
-    cenos_pool.query(
+    sinergia_pool.query(
       `SELECT COUNT(*) as total FROM checklists c ${colJoin}
        ${cWhere} AND ((c.data->'compliance_summary'->>'non_compliant')::int) > 0`,
       dParams
     ),
-    cenos_pool.query(
+    sinergia_pool.query(
       `SELECT
          col.regional,
          COUNT(DISTINCT col."ID") as total_agents,
@@ -135,7 +135,7 @@ async function getDashboardStats({ date_from, date_to, regional, sectional, esta
        ORDER BY col.regional`,
       [dParams[0], dParams[1], agentIds]
     ),
-    cenos_pool.query(
+    sinergia_pool.query(
       `SELECT col."ID" as agent_id, col."Nome" as nome, col.regional, col.seccional, col.estado, col."Cargo" as cargo
        FROM colaboradores col
        WHERE col.situacao = 'active' AND col.status = true
@@ -192,7 +192,7 @@ async function getDashboardNonCompliantItems({ date_from, date_to, regional, sec
   const cFilters = [`c.status = 'submitted'`, ...dateFilters, ...colFilters];
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT a.item->>'question_label' as label, COUNT(*) as count
      FROM checklists c
      ${colJoin},
@@ -223,7 +223,7 @@ async function getDashboardAlerts({ date_from, date_to, regional, sectional, est
   const cFilters = [`c.status = 'submitted'`, ...dateFilters, ...colFilters];
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT c.id as checklist_id, c.agent_id, col."Nome" as agent_nome,
             a.item->>'question_label' as question, a.item->>'severity' as severity,
             c.date, a.item->>'observation' as observation,
@@ -301,8 +301,8 @@ async function listDashboardChecklists({
   `;
   const countQuery = `SELECT count(1) as total FROM checklists c ${colJoin} ${whereClause}`;
 
-  const { rows } = await cenos_pool.query(query, [...params, limit, offset]);
-  const countRes = await cenos_pool.query(countQuery, params);
+  const { rows } = await sinergia_pool.query(query, [...params, limit, offset]);
+  const countRes = await sinergia_pool.query(countQuery, params);
   const total = parseInt(countRes.rows[0].total, 10);
 
   const enriched = rows.map(r => {
@@ -403,8 +403,8 @@ async function getDashboardPendingAgents({
   const countParams = params.slice(0, -2);
 
   const [dataRes, countRes] = await Promise.all([
-    cenos_pool.query(query, params),
-    cenos_pool.query(countQuery, countParams),
+    sinergia_pool.query(query, params),
+    sinergia_pool.query(countQuery, countParams),
   ]);
 
   return {
@@ -431,13 +431,13 @@ async function getDashboardTemplates(user) {
   const isMainAdmin = user && (user.role || '').toLowerCase().includes('admin') && allowedPools.length >= 2;
 
   if (isMainAdmin) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
       `SELECT id, title, estado FROM checklist_templates WHERE is_active = true ORDER BY title`
     );
     return rows;
   }
 
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT id, title, estado FROM checklist_templates
      WHERE is_active = true AND (estado IS NULL OR UPPER(estado) = ANY($1::varchar[]))
      ORDER BY title`,
@@ -505,7 +505,7 @@ async function getAgentsMatchingTemplates(templates, user, date_from, date_to) {
 
     // Template matches ALL agents (no filters, no estado restriction, no user permission restrictions)
     if (match.conditions.length === 0 && !estadoClause && perm.conditions.length === 0) {
-      const { rows } = await cenos_pool.query(
+      const { rows } = await sinergia_pool.query(
         `SELECT col."ID" FROM colaboradores col WHERE col.situacao = 'active' AND col.status = true`
       );
       rows.forEach(r => allAgentIds.add(r.ID));
@@ -529,7 +529,7 @@ async function getAgentsMatchingTemplates(templates, user, date_from, date_to) {
     `;
 
     if (whereClause.length > 1) {
-      const { rows } = await cenos_pool.query(
+      const { rows } = await sinergia_pool.query(
         `SELECT col."ID" FROM colaboradores col WHERE ${whereClause.join(' AND ')} ${extWhere}`,
         params
       );
@@ -553,7 +553,7 @@ async function computeV2RegionalBreakdown(templates, date_from, date_to, user) {
 
   const agentIds = Array.from(agentIdSet);
 
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT
        col.regional,
        COUNT(DISTINCT col."ID") as total_agents,
@@ -594,7 +594,7 @@ async function computeV2RegionalBreakdown(templates, date_from, date_to, user) {
 async function getAllowedTemplates(user) {
   // Admin users see all active templates regardless of estado
   if (user && (user.role || '').toLowerCase().includes('admin')) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
       `SELECT id, title, data, estado FROM checklist_templates WHERE is_active = true`
     );
     return rows;
@@ -606,7 +606,7 @@ async function getAllowedTemplates(user) {
 
   if (allowedStates.length === 0) return [];
 
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT id, title, data, estado FROM checklist_templates
      WHERE is_active = true AND (estado IS NULL OR UPPER(estado) = ANY($1::varchar[]))
      ORDER BY title`,
@@ -625,7 +625,7 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
   let templatesMap = {};
 
   if (template_id) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
       `SELECT id, title, data, estado FROM checklist_templates WHERE id = $1 AND is_active = true`, [template_id]
     );
     if (rows.length === 0) return null;
@@ -684,7 +684,7 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     const colWhereClause = combinedColFilters.length > 0 ? `AND ${combinedColFilters.join(' AND ')}` : '';
 
     // Active agents matching this template AND user permissions AND UI filters
-    const activeRes = await cenos_pool.query(
+    const activeRes = await sinergia_pool.query(
       `SELECT COUNT(*) as total FROM colaboradores col
        WHERE col.situacao = 'active' AND col.status = true AND $1::text=$1::text AND $2::text=$2::text ${colWhereClause}
        AND NOT EXISTS (
@@ -707,7 +707,7 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     const templateIdIdx = tIdx;
     tIdx++;
 
-    const submittedRes = await cenos_pool.query(
+    const submittedRes = await sinergia_pool.query(
       `SELECT COUNT(c.id) as total FROM checklists c
        ${colJoin}
        WHERE ${combinedCFilters.join(' AND ')}`,
@@ -716,7 +716,7 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     const totalSubmitted = parseInt(submittedRes.rows[0].total, 10);
 
     // Compliant (zero non_compliant)
-    const compliantRes = await cenos_pool.query(
+    const compliantRes = await sinergia_pool.query(
       `SELECT COUNT(c.id) as total FROM checklists c
        ${colJoin}
        WHERE ${combinedCFilters.join(' AND ')}
@@ -783,7 +783,7 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
       )
     `;
 
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
       `SELECT col."ID" as agent_id
        FROM colaboradores col
        WHERE col.situacao = 'active' AND col.status = true ${whereClause} ${extWhere}`,
@@ -802,7 +802,7 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
   let totalPending = 0;
 
   if (agentIds.length > 0) {
-    const { rows: submittedRows } = await cenos_pool.query(
+    const { rows: submittedRows } = await sinergia_pool.query(
       `SELECT DISTINCT agent_id, template_id FROM checklists
        WHERE agent_id = ANY($1::varchar[])
          AND date >= $2 AND date <= $3
@@ -873,7 +873,7 @@ async function getDashboardPendingAgentsV2({
   // Get relevant template(s)
   let templates = [];
   if (template_id) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
       `SELECT id, title, data, estado FROM checklist_templates WHERE id = $1 AND is_active = true`, [template_id]
     );
     templates = rows;
@@ -932,7 +932,7 @@ async function getDashboardPendingAgentsV2({
       )
     `;
 
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
       `SELECT col."ID" as agent_id, col."Nome" as nome, col.regional, col.seccional,
               col.estado, col."Cargo" as cargo, col."GESTOR IMEDIATO" as gestor
        FROM colaboradores col
@@ -955,7 +955,7 @@ async function getDashboardPendingAgentsV2({
     return { data: [], total: 0, page, limit, totalPages: 0 };
   }
 
-  const { rows: submittedRows } = await cenos_pool.query(
+  const { rows: submittedRows } = await sinergia_pool.query(
     `SELECT DISTINCT agent_id, template_id FROM checklists
      WHERE agent_id = ANY($1::varchar[])
        AND date >= $2 AND date <= $3
@@ -1033,7 +1033,7 @@ async function getDashboardCompletedAgentsV2({
   let allowedTemplates = [];
   
   if (template_id) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
       `SELECT id, data, estado, title FROM checklist_templates WHERE id = $1 AND is_active = true`, [template_id]
     );
     if (rows.length > 0) allowedTemplates = rows;
@@ -1051,7 +1051,7 @@ async function getDashboardCompletedAgentsV2({
     return { data: [], total: 0, page, limit, totalPages: 0 };
   }
 
-  const { rows: submittedRows } = await cenos_pool.query(
+  const { rows: submittedRows } = await sinergia_pool.query(
     `SELECT DISTINCT agent_id, template_id FROM checklists
      WHERE date >= $1 AND date <= $2
        AND status = 'submitted'
@@ -1076,7 +1076,7 @@ async function getDashboardCompletedAgentsV2({
 
   const submittedAgentIds = Array.from(submittedAgentIdsSet);
 
-  const { rows: agentRows } = await cenos_pool.query(
+  const { rows: agentRows } = await sinergia_pool.query(
     `SELECT col."ID" as agent_id, col."Nome" as nome, col.regional, col.seccional,
             col.estado, col."Cargo" as cargo, col."GESTOR IMEDIATO" as gestor
      FROM colaboradores col
@@ -1126,7 +1126,7 @@ async function getV2TemplateAndAgentIds({ template_id, date_from, date_to }, use
   let templateIds = [];
 
   if (template_id) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
       `SELECT id, data, estado FROM checklist_templates WHERE id = $1 AND is_active = true`, [template_id]
     );
     if (rows.length === 0) return { templateIds: [], agentIds: [] };
@@ -1176,7 +1176,7 @@ async function getDashboardNonCompliantItemsV2({
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
   if (export_raw) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
       `SELECT 
           col."ID" as id,
           col."MAT" as matricula,
@@ -1197,7 +1197,7 @@ async function getDashboardNonCompliantItemsV2({
     return rows;
   }
 
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT a.item->>'question_label' as label, COUNT(*) as count
      FROM checklists c
      ${colJoin},
@@ -1319,7 +1319,7 @@ async function getDashboardAlertsV2({
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
   if (export_raw) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
       `SELECT c.agent_id as "Agente",
               col."MAT" as "Matrícula",
               col."Nome" as "Nome",
@@ -1354,7 +1354,7 @@ async function getDashboardAlertsV2({
   }
 
   // Step 1: Find which agent+question+severity combinations exist in the date range
-  const { rows: groups } = await cenos_pool.query(
+  const { rows: groups } = await sinergia_pool.query(
     `SELECT c.agent_id, col."Nome" as agent_nome,
             col."MAT" as agent_matricula, col.estado, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
             a.item->>'question_label' as question, COALESCE(a.item->>'severity', 'critical') as severity,
@@ -1383,7 +1383,7 @@ async function getDashboardAlertsV2({
   // Step 3: For each group, fetch ALL historical dates + checklist_id map (no date filter)
   const results = await Promise.all(groups.map(async (g) => {
     const histParams = [g.agent_id, g.question, templateIds];
-    const { rows: histRows } = await cenos_pool.query(
+    const { rows: histRows } = await sinergia_pool.query(
       `SELECT array_agg(DISTINCT sub.date ORDER BY sub.date) as all_dates,
               CASE WHEN count(*) = 0 THEN '{}'::jsonb
               ELSE jsonb_object_agg(sub.date::text, sub.id) END as date_checklist_map
@@ -1492,7 +1492,7 @@ async function getDashboardNonConformitiesV2({
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
   if (export_raw) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
       `SELECT c.agent_id as "Agente",
               col."MAT" as "Matrícula",
               col."Nome" as "Nome",
@@ -1527,7 +1527,7 @@ async function getDashboardNonConformitiesV2({
   }
 
   // Step 1: Find which agent+question+severity combinations exist in the date range
-  const { rows: groups } = await cenos_pool.query(
+  const { rows: groups } = await sinergia_pool.query(
     `SELECT c.agent_id, col."Nome" as agent_nome,
             col."MAT" as agent_matricula, col.estado, col.regional, col.seccional, col."GESTOR IMEDIATO" as gestor,
             a.item->>'question_label' as question, COALESCE(a.item->>'severity', 'normal') as severity,
@@ -1556,7 +1556,7 @@ async function getDashboardNonConformitiesV2({
   // Step 3: For each group, fetch ALL historical dates + checklist_id map (no date filter)
   const results = await Promise.all(groups.map(async (g) => {
     const histParams = [g.agent_id, g.question, templateIds];
-    const { rows: histRows } = await cenos_pool.query(
+    const { rows: histRows } = await sinergia_pool.query(
       `SELECT array_agg(DISTINCT sub.date ORDER BY sub.date) as all_dates,
               CASE WHEN count(*) = 0 THEN '{}'::jsonb
               ELSE jsonb_object_agg(sub.date::text, sub.id) END as date_checklist_map

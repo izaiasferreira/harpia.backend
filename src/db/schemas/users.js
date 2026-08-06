@@ -39,7 +39,7 @@ const { normalizeAgentId, normalizeAgentName, normalizeTextUpper } = require('..
 
 const agentCreateSchema = z.object({
   id: z.string().transform(normalizeAgentId).pipe(z.string().min(1, 'Matrícula da Concessionária é obrigatória e deve conter caracteres alfanuméricos').max(255)),
-  matricula: z.string().transform(normalizeAgentId).pipe(z.string().min(1, 'Matrícula Ceneged é obrigatória e deve conter caracteres alfanuméricos').max(255)),
+  matricula: z.string().transform(normalizeAgentId).pipe(z.string().min(1, 'Matrícula Sinergia é obrigatória e deve conter caracteres alfanuméricos').max(255)),
   nome: z.string().min(1, 'Nome completo é obrigatório').max(255).transform(normalizeAgentName),
   estado: z.string().min(2).max(2),
   gestor: z.string().max(255).optional().nullable().transform(val => typeof val === 'string' ? normalizeTextUpper(val) : val),

@@ -1,8 +1,8 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const llm = require('../../llm');
 
 async function getChatMessages(trainingId) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT id, role, content, created_at FROM training_chat_messages WHERE training_id = $1 ORDER BY created_at ASC`,
         [trainingId]
     );
@@ -10,7 +10,7 @@ async function getChatMessages(trainingId) {
 }
 
 async function addChatMessage(trainingId, role, content) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `INSERT INTO training_chat_messages (training_id, role, content) VALUES ($1, $2, $3) RETURNING id, role, content, created_at`,
         [trainingId, role, content]
     );
@@ -18,7 +18,7 @@ async function addChatMessage(trainingId, role, content) {
 }
 
 async function clearChatMessages(trainingId) {
-    await cenos_pool.query(`DELETE FROM training_chat_messages WHERE training_id = $1`, [trainingId]);
+    await sinergia_pool.query(`DELETE FROM training_chat_messages WHERE training_id = $1`, [trainingId]);
 }
 
 async function sendTrainingChatMessage(trainingId, userMessage, currentFlowData, selectedNodeIds = []) {

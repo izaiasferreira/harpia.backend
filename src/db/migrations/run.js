@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 
 const { Client } = require('pg');
 
@@ -32,7 +32,7 @@ async function ensureMigrated() {
   }
 
   // 1. Garantir existência da tabela de controle de migrações
-  await cenos_pool.query(`
+  await sinergia_pool.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version VARCHAR(255) PRIMARY KEY,
       executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -45,7 +45,7 @@ async function ensureMigrated() {
     .sort();
 
   // 2. Obter migrações já executadas
-  const { rows } = await cenos_pool.query('SELECT version FROM schema_migrations');
+  const { rows } = await sinergia_pool.query('SELECT version FROM schema_migrations');
   const executed = new Set(rows.map(r => r.version));
 
   for (const file of files) {
@@ -57,8 +57,8 @@ async function ensureMigrated() {
     const sql = fs.readFileSync(filePath, 'utf8');
     console.log(`[MIGRATION] Executando migração: ${file}`);
     try {
-      await cenos_pool.query(sql);
-      await cenos_pool.query('INSERT INTO schema_migrations (version) VALUES ($1)', [file]);
+      await sinergia_pool.query(sql);
+      await sinergia_pool.query('INSERT INTO schema_migrations (version) VALUES ($1)', [file]);
       console.log(`[MIGRATION] Sucesso: ${file}`);
     } catch (err) {
       console.error(`[MIGRATION] Erro ao executar ${file}:`, err.message);

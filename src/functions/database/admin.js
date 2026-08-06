@@ -1,6 +1,6 @@
 const { VALID_STATE_VALUES } = require('../../constants/states');
 const axios = require('axios');
-const { pi_pool, ma_pool, localizacoes_pi_pool, cenos_pool } = require('../../db');
+const { pi_pool, ma_pool, localizacoes_pi_pool, sinergia_pool } = require('../../db');
 const { today } = require('../../utils/dates');
 const { normalizeAgentId, normalizeAgentName, normalizeTextUpper } = require('../../utils/agentNormalize');
 
@@ -37,7 +37,7 @@ async function insert_agent_audit_logs(entries) {
     values.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`);
     params.push(e.agente_id, e.field, e.from_value, e.to_value, e.changed_by);
   }
-  await cenos_pool.query(
+  await sinergia_pool.query(
     `INSERT INTO agente_audit_log (agente_id, field, from_value, to_value, changed_by) VALUES ${values.join(',')}`,
     params
   );
@@ -275,7 +275,7 @@ const applyColaboradoresFilter = async (results, user, idField = 'agente') => {
         if (ids.length === 0) return results;
 
         const query = `SELECT "ID", estado, "regional", "seccional", "GESTOR IMEDIATO" FROM colaboradores WHERE UPPER("ID") = ANY($1)`;
-        const { rows: colabData } = await cenos_pool.query(query, [ids.map(i => String(i).toUpperCase())]);
+        const { rows: colabData } = await sinergia_pool.query(query, [ids.map(i => String(i).toUpperCase())]);
         const colabMap = new Map();
         colabData.forEach(c => colabMap.set(c['ID'].toUpperCase(), c));
 
@@ -301,7 +301,7 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
         targetPools = availablePools.filter(p => estados.includes(p.state));
     }
 
-    // Busca IDs no login (cenos_pool) se houver busca por texto
+    // Busca IDs no login (sinergia_pool) se houver busca por texto
     let searchIdsFromLogin = [];
     let ilikeTerms = [];
     if (search) {
@@ -309,7 +309,7 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
         let terms = isMulti ? search.split(',').map(s => s.trim()).filter(Boolean) : [search.trim()];
         ilikeTerms = terms.map(t => `%${t}%`);
 
-        const { rows: loginMatches } = await cenos_pool.query(
+        const { rows: loginMatches } = await sinergia_pool.query(
             `SELECT id FROM login WHERE id ILIKE ANY($1)`,
             [ilikeTerms]
         );
@@ -319,7 +319,7 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
     // Busca quais agentes têm inventário cadastrado
     let inventoryAgentsSet = new Set();
     try {
-        const { rows: inventoryAgents } = await cenos_pool.query(`SELECT DISTINCT agente FROM inventory`);
+        const { rows: inventoryAgents } = await sinergia_pool.query(`SELECT DISTINCT agente FROM inventory`);
         inventoryAgents.forEach(i => {
             if (i.agente) inventoryAgentsSet.add(i.agente.toString().toUpperCase());
         });
@@ -330,7 +330,7 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
     // Busca contagem de mensagens de chat não lidas enviadas pelos agentes
     let unreadChatsSet = new Map();
     try {
-        const { rows: unreadCounts } = await cenos_pool.query(`
+        const { rows: unreadCounts } = await sinergia_pool.query(`
             SELECT r.agent_id, COUNT(m.id)::integer as count 
             FROM chat_messages m 
             JOIN chat_rooms r ON m.room_id = r.id 
@@ -346,7 +346,7 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
 
     const allowedStates = targetPools.map(p => p.state);
 
-    // Busca total (COUNT único em cenos_pool)
+    // Busca total (COUNT único em sinergia_pool)
     let countQuery = `SELECT COUNT(*) as total FROM colaboradores WHERE estado = ANY($1)`;
     const countParams = [allowedStates];
     let paramIdx = 2;
@@ -406,10 +406,10 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
         paramIdx++;
     }
 
-    const { rows: countRows } = await cenos_pool.query(countQuery, countParams);
+    const { rows: countRows } = await sinergia_pool.query(countQuery, countParams);
     const grandTotal = parseInt(countRows[0]?.total || 0);
 
-    // Busca dados paginados (query única em cenos_pool)
+    // Busca dados paginados (query única em sinergia_pool)
     const limitVal = parseInt(limit) || 50;
     const offsetVal = (parseInt(page) - 1) * limitVal;
 
@@ -475,7 +475,7 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
     colabQuery += ` ORDER BY "Nome" ASC LIMIT $${cpIdx} OFFSET $${cpIdx + 1}`;
     colabParams.push(limitVal, offsetVal);
 
-    const { rows } = await cenos_pool.query(colabQuery, colabParams);
+    const { rows } = await sinergia_pool.query(colabQuery, colabParams);
 
     const result = rows.map(r => {
         const mapped = {
@@ -505,7 +505,7 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
 
     // Enriquecimento com login data
     if (result.length > 0) {
-        const { rows: loginData } = await cenos_pool.query(
+        const { rows: loginData } = await sinergia_pool.query(
             `SELECT * FROM login WHERE id IN (${result.map((_, i) => `$${i + 1}`).join(',')})`,
             result.map(r => r.id)
         );
@@ -524,7 +524,7 @@ async function get_users_agents_admin_paginated({ user, ids = [], page = 1, limi
     if (result.length > 0) {
         const agentIds = result.map(r => r.id);
 
-        const { rows: pinStatus } = await cenos_pool.query(`
+        const { rows: pinStatus } = await sinergia_pool.query(`
             WITH pin_status AS (
                 SELECT 
                     upper(agent_id) AS agent_id,
@@ -699,7 +699,7 @@ async function get_users_only_login_paginated({ user, page = 1, limit = 50, sear
 
     let inventoryAgentsSet = new Set();
     try {
-        const { rows: inventoryAgents } = await cenos_pool.query(`SELECT DISTINCT agente FROM inventory`);
+        const { rows: inventoryAgents } = await sinergia_pool.query(`SELECT DISTINCT agente FROM inventory`);
         inventoryAgents.forEach(i => {
             if (i.agente) inventoryAgentsSet.add(i.agente.toString().toUpperCase());
         });
@@ -707,7 +707,7 @@ async function get_users_only_login_paginated({ user, page = 1, limit = 50, sear
 
     let unreadChatsSet = new Map();
     try {
-        const { rows: unreadCounts } = await cenos_pool.query(`
+        const { rows: unreadCounts } = await sinergia_pool.query(`
             SELECT r.agent_id, COUNT(m.id)::integer as count 
             FROM chat_messages m 
             JOIN chat_rooms r ON m.room_id = r.id 
@@ -739,7 +739,7 @@ async function get_users_only_login_paginated({ user, page = 1, limit = 50, sear
     const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
 
     const countQuery = `SELECT COUNT(*) as total FROM login l ${whereClause}`;
-    const { rows: countRows } = await cenos_pool.query(countQuery, queryParams);
+    const { rows: countRows } = await sinergia_pool.query(countQuery, queryParams);
     const grandTotal = parseInt(countRows[0]?.total || 0);
 
     const limitVal = parseInt(limit) || 50;
@@ -755,7 +755,7 @@ async function get_users_only_login_paginated({ user, page = 1, limit = 50, sear
     `;
     queryParams.push(limitVal, offsetVal);
 
-    const { rows } = await cenos_pool.query(dataQuery, queryParams);
+    const { rows } = await sinergia_pool.query(dataQuery, queryParams);
 
     const data = rows.map(r => ({
         id: (r.id || '').toUpperCase(),
@@ -777,7 +777,7 @@ async function get_users_only_login_paginated({ user, page = 1, limit = 50, sear
 
     if (data.length > 0 && loginStatuses.length > 0) {
         const agentIds = data.map(r => r.id);
-        const { rows: pinStatus } = await cenos_pool.query(`
+        const { rows: pinStatus } = await sinergia_pool.query(`
             WITH pin_status AS (
                 SELECT 
                     upper(agent_id) AS agent_id,
@@ -885,7 +885,7 @@ async function get_user_agent_options({ estado, regional, seccional, user }) {
             gestoresParams = [gestoresPermitidos];
         }
     }
-    const { rows } = await cenos_pool.query(gestoresQuery, gestoresParams);
+    const { rows } = await sinergia_pool.query(gestoresQuery, gestoresParams);
     result.gestores = rows.map(r => r['GESTOR IMEDIATO']);
 
     // Seccionais - vem da tabela colaboradores
@@ -895,7 +895,7 @@ async function get_user_agent_options({ estado, regional, seccional, user }) {
         secParams.push(regionais);
         secQuery += ` AND regional = ANY($${secParams.length})`;
     }
-    const { rows: secRows } = await cenos_pool.query(secQuery, secParams);
+    const { rows: secRows } = await sinergia_pool.query(secQuery, secParams);
     result.seccionais = secRows.map(r => r.seccional);
 
     // Regionais - vem da tabela colaboradores
@@ -905,17 +905,17 @@ async function get_user_agent_options({ estado, regional, seccional, user }) {
         regParams.push(seccionais);
         regQuery += ` AND seccional = ANY($${regParams.length})`;
     }
-    const { rows: regRows } = await cenos_pool.query(regQuery, regParams);
+    const { rows: regRows } = await sinergia_pool.query(regQuery, regParams);
     result.regionais = regRows.map(r => r.regional);
 
     // Cargos
     const query4 = `SELECT DISTINCT "Cargo" FROM colaboradores WHERE "Cargo" IS NOT NULL ${queryCond}`;
-    const { rows: rows4 } = await cenos_pool.query(query4, queryParams);
+    const { rows: rows4 } = await sinergia_pool.query(query4, queryParams);
     result.cargos = rows4.map(r => r['Cargo']);
 
     // Processos
     const query5 = `SELECT DISTINCT "processo" FROM colaboradores WHERE "processo" IS NOT NULL AND TRIM("processo") <> '' ${queryCond}`;
-    const { rows: rows5 } = await cenos_pool.query(query5, queryParams);
+    const { rows: rows5 } = await sinergia_pool.query(query5, queryParams);
     const dbProcessos = rows5.map(r => r['processo']);
     const defaultProcessos = ['LEITURA', 'COBRANÇA', 'NEGOCIAÇÃO'];
     result.processos = Array.from(new Set([...defaultProcessos, ...dbProcessos]));
@@ -925,18 +925,18 @@ async function get_user_agent_options({ estado, regional, seccional, user }) {
         result.estados = colabFilter.allowedStates;
     } else {
         const query6 = `SELECT DISTINCT estado FROM colaboradores WHERE estado IS NOT NULL ORDER BY estado`;
-        const { rows: rows6 } = await cenos_pool.query(query6);
+        const { rows: rows6 } = await sinergia_pool.query(query6);
         result.estados = rows6.map(r => r.estado);
     }
 
     // Status - valores distintos presentes na tabela
     const query7 = `SELECT DISTINCT status::text AS status FROM colaboradores WHERE status IS NOT NULL ${queryCond}`;
-    const { rows: rows7 } = await cenos_pool.query(query7, queryParams);
+    const { rows: rows7 } = await sinergia_pool.query(query7, queryParams);
     result.status = rows7.map(r => (r.status === 'true' ? 'true' : 'false'));
 
     // Situação - valores distintos presentes na tabela
     const query8 = `SELECT DISTINCT situacao FROM colaboradores WHERE situacao IS NOT NULL AND TRIM(situacao) <> '' ${queryCond}`;
-    const { rows: rows8 } = await cenos_pool.query(query8, queryParams);
+    const { rows: rows8 } = await sinergia_pool.query(query8, queryParams);
     result.situacao = rows8.map(r => r.situacao);
 
     // Login status - conjunto canônico do algoritmo em get_users_agents_admin_paginated
@@ -985,8 +985,8 @@ async function create_user_agent_admin({ id, matricula, nome, estado: inputEstad
     ];
 
     try {
-        await cenos_pool.query(query, params);
-        await cenos_pool.query(
+        await sinergia_pool.query(query, params);
+        await sinergia_pool.query(
             `INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET estado = EXCLUDED.estado`,
             [normalizedId, inputEstado.toLowerCase()]
         );
@@ -1076,9 +1076,9 @@ async function send_message_to_agent({ id, agent: providedAgent, text, file, web
         }
     }
 
-    // Gravar log no banco cenos_pool
+    // Gravar log no banco sinergia_pool
     try {
-        await cenos_pool.query(`
+        await sinergia_pool.query(`
             CREATE TABLE IF NOT EXISTS sent_messages_admin (
                 id SERIAL PRIMARY KEY,
                 agente_id TEXT,
@@ -1103,7 +1103,7 @@ async function send_message_to_agent({ id, agent: providedAgent, text, file, web
             !result.error,
             JSON.stringify(result.telegramResponse || result.details || result)
         ];
-        await cenos_pool.query(insertQuery, logParams);
+        await sinergia_pool.query(insertQuery, logParams);
     } catch (logError) {
         console.error('Erro ao gravar log de mensagem:', logError.message);
     }
@@ -1112,8 +1112,8 @@ async function send_message_to_agent({ id, agent: providedAgent, text, file, web
 }
 
 async function send_telegram_to_agent_by_id(agentId, text, webAppButtonText, webAppButtonUrl) {
-    // telegram_id fica na tabela login (cenos_pool)
-    const { rows: loginRows } = await cenos_pool.query(
+    // telegram_id fica na tabela login (sinergia_pool)
+    const { rows: loginRows } = await sinergia_pool.query(
         `SELECT telegram_id FROM login WHERE id = $1 AND telegram_id IS NOT NULL`,
         [agentId.toUpperCase()]
     );
@@ -1169,7 +1169,7 @@ async function delete_user_agent_admin({ id, user, deleteLogin = false }) {
     if (userData.length) {
         agentState = userData[0].estado;
     } else {
-        const { rows: loginRows } = await cenos_pool.query(`SELECT estado FROM login WHERE UPPER(id) = $1`, [id?.toUpperCase()]);
+        const { rows: loginRows } = await sinergia_pool.query(`SELECT estado FROM login WHERE UPPER(id) = $1`, [id?.toUpperCase()]);
         if (!loginRows.length) return { error: 'Usuário não encontrado' };
         agentState = loginRows[0].estado || 'pi';
         deleteLogin = true;
@@ -1183,10 +1183,10 @@ async function delete_user_agent_admin({ id, user, deleteLogin = false }) {
     }
 
     try {
-        await cenos_pool.query(`DELETE FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id?.toUpperCase()]);
+        await sinergia_pool.query(`DELETE FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id?.toUpperCase()]);
 
         if (deleteLogin) {
-            await cenos_pool.query(`DELETE FROM login WHERE TRIM(UPPER(id)) = TRIM(UPPER($1))`, [id?.toUpperCase()]);
+            await sinergia_pool.query(`DELETE FROM login WHERE TRIM(UPPER(id)) = TRIM(UPPER($1))`, [id?.toUpperCase()]);
         }
 
         return { message: 'Usuário deletado com sucesso' };
@@ -1238,8 +1238,8 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
     ];
 
     try {
-        await cenos_pool.query(query, params);
-        await cenos_pool.query(
+        await sinergia_pool.query(query, params);
+        await sinergia_pool.query(
             `INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET estado = EXCLUDED.estado`,
             [normalizedId, estado !== undefined ? estado.toLowerCase() : agent.estado.toLowerCase()]
         );
@@ -1270,14 +1270,14 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
         const id = normalizeAgentId(rawId);
         if (!id) continue;
         
-        const { rows: colabRows } = await cenos_pool.query(`SELECT estado, status, situacao FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id]);
+        const { rows: colabRows } = await sinergia_pool.query(`SELECT estado, status, situacao FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id]);
         let estado = null;
         let existsInColab = colabRows.length > 0;
         
         if (existsInColab) {
             estado = colabRows[0].estado;
         } else {
-            const { rows: loginRows } = await cenos_pool.query(`SELECT estado FROM login WHERE TRIM(UPPER(id)) = TRIM(UPPER($1))`, [id]);
+            const { rows: loginRows } = await sinergia_pool.query(`SELECT estado FROM login WHERE TRIM(UPPER(id)) = TRIM(UPPER($1))`, [id]);
             if (!loginRows.length) continue;
             estado = loginRows[0].estado || 'pi';
         }
@@ -1321,7 +1321,7 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
                 const oldStatus = colabRows[0].status;
                 const oldSituacao = colabRows[0].situacao;
                 params.push(id);
-                await cenos_pool.query(`UPDATE colaboradores SET ${setClauses.join(', ')} WHERE TRIM(UPPER("ID")) = TRIM(UPPER($${idx}))`, params);
+                await sinergia_pool.query(`UPDATE colaboradores SET ${setClauses.join(', ')} WHERE TRIM(UPPER("ID")) = TRIM(UPPER($${idx}))`, params);
                 const changedBy = getChangedBy(user);
                 const auditEntries = [];
                 if (data.status !== undefined && data.status !== '' && String(data.status === 'true' || data.status === true) !== String(oldStatus)) {
@@ -1332,12 +1332,12 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
                 }
                 await insert_agent_audit_logs(auditEntries);
                 if (data.estado) {
-                    await cenos_pool.query(`UPDATE login SET estado = $1 WHERE TRIM(UPPER(id)) = TRIM(UPPER($2))`, [targetEstado, id]);
+                    await sinergia_pool.query(`UPDATE login SET estado = $1 WHERE TRIM(UPPER(id)) = TRIM(UPPER($2))`, [targetEstado, id]);
                 }
                 updatedCount++;
             }
         } else {
-            const { rows: existingColab } = await cenos_pool.query(
+            const { rows: existingColab } = await sinergia_pool.query(
                 `SELECT status, situacao FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id]
             );
             const hadOldValues = existingColab.length > 0;
@@ -1368,8 +1368,8 @@ async function bulk_update_user_agents_admin({ ids, data, user }) {
                 data.situacao || 'active',
                 normalizeTextUpper(data.processo) || null
             ];
-            await cenos_pool.query(insertQuery, params);
-            await cenos_pool.query(`UPDATE login SET estado = $1 WHERE TRIM(UPPER(id)) = TRIM(UPPER($2))`, [targetEstado, id]);
+            await sinergia_pool.query(insertQuery, params);
+            await sinergia_pool.query(`UPDATE login SET estado = $1 WHERE TRIM(UPPER(id)) = TRIM(UPPER($2))`, [targetEstado, id]);
 
             const changedBy = getChangedBy(user);
             const newStatus = data.status !== undefined && data.status !== '' ? (data.status === 'true' || data.status === true) : true;
@@ -1405,9 +1405,9 @@ async function bulk_delete_user_agents_admin({ ids, deleteLogin = false, user })
         const id = rawId?.toUpperCase();
         if (!id) continue;
         
-        const resColab = await cenos_pool.query(`DELETE FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id]);
+        const resColab = await sinergia_pool.query(`DELETE FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id]);
         if (deleteLogin || resColab.rowCount === 0) {
-            await cenos_pool.query(`DELETE FROM login WHERE UPPER(id) = $1`, [id]);
+            await sinergia_pool.query(`DELETE FROM login WHERE UPPER(id) = $1`, [id]);
         }
         deletedCount++;
     }
@@ -1419,7 +1419,7 @@ async function bulk_delete_user_agents_admin({ ids, deleteLogin = false, user })
 // ─── inventory ───────────────────────────────────────────────────────────
 async function get_inventory_admin({ user, page = 1, limit = 9999, search, agente, estado, regional, seccional }) {
     const allowedPools = getUserAllowedStatePools(user).map(p => p.state);
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     // Garante existência da tabela e colunas novas
     await pool.query(`
@@ -1589,7 +1589,7 @@ const checkAgentPermission = (agentData, user) => {
 };
 
 async function update_inventory_admin(id, data) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const fields = Object.keys(data).filter(k => k !== 'id');
     const values = fields.map(k => data[k]);
     const setClause = fields.map((k, i) => `${k} = $${i + 1}`).join(', ');
@@ -1599,14 +1599,14 @@ async function update_inventory_admin(id, data) {
 }
 
 async function delete_inventory_admin(id) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const { rows } = await pool.query('DELETE FROM inventory WHERE id = $1 RETURNING *', [id]);
     return rows[0];
 }
 
 // ─── justify ───────────────────────────────────────────────────────────
 async function get_justify_types_admin() {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     let query = `SELECT DISTINCT tipo FROM justificativas WHERE tipo IS NOT NULL AND tipo <> '' ORDER BY tipo ASC`;
     const { rows } = await pool.query(query);
@@ -1616,7 +1616,7 @@ async function get_justify_types_admin() {
 
 async function get_justify_admin({ instalacao, tipo, data_leit_prev, estado, page = 1, limit = 9999, search, user }) {
     const colabFilter = getColaboradoresFilter(user, { includeAllStates: true });
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     let query = `SELECT * FROM justificativas WHERE 1=1`;
     const params = [];
@@ -1691,7 +1691,7 @@ async function get_justify_admin({ instalacao, tipo, data_leit_prev, estado, pag
 
 async function save_justify_admin(data) {
     const { instalacao, tipo, motivo, justificativa, foto, data_leit_prev, author, estado, quantidade } = data;
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const query = `
         INSERT INTO justificativas (instalacao, tipo, motivo, justificativa, foto, data_leit_prev, author, estado, quantidade, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
@@ -1703,7 +1703,7 @@ async function save_justify_admin(data) {
 }
 
 async function update_justify_admin(id, data) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const fields = Object.keys(data).filter(k => k !== 'id');
     const values = fields.map(k => data[k]);
     const setClause = fields.map((k, i) => `${k} = $${i + 1}`).join(', ');
@@ -1713,7 +1713,7 @@ async function update_justify_admin(id, data) {
 }
 
 async function delete_justify_admin(id) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const { rows } = await pool.query('DELETE FROM justificativas WHERE id = $1 RETURNING *', [id]);
     return rows[0];
 }
@@ -1722,7 +1722,7 @@ async function delete_justify_admin(id) {
 
 async function get_pending_justifies_admin({ state, autor, status = 'pendente', page = 1, limit = 9999, user, search }) {
     const colabFilter = getColaboradoresFilter(user, { includeAllStates: true });
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     let query = `SELECT * FROM justify_pending WHERE 1=1`;
     const params = [];
@@ -1792,7 +1792,7 @@ async function get_pending_justifies_admin({ state, autor, status = 'pendente', 
 }
 
 async function update_pending_justify_admin(id, data) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     // Injetamos o status respondido para garantir que a pendência seja marcada como tratada
     // Fazemos isso no objeto data para evitar erro de duplicidade no SQL caso status venha no body
@@ -1807,7 +1807,7 @@ async function update_pending_justify_admin(id, data) {
 }
 
 async function delete_pending_justify_admin(id) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const { rows } = await pool.query('DELETE FROM justify_pending WHERE id = $1 RETURNING *', [id]);
     return rows[0];
 }
@@ -1815,7 +1815,7 @@ async function delete_pending_justify_admin(id) {
 // ─── daily_report ───────────────────────────────────────────────────────────
 async function get_daily_reports_admin({ autor, data, limit = 9999, page = 1, includeAll = false, user, search, estado, motivo }) {
     const colabFilter = getColaboradoresFilter(user, { includeAllStates: true });
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     let query = `SELECT * FROM daily_report WHERE 1=1`;
     const params = [];
@@ -1892,7 +1892,7 @@ async function get_daily_reports_admin({ autor, data, limit = 9999, page = 1, in
 }
 
 async function update_daily_report_admin(id, data) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const fields = Object.keys(data).filter(k => k !== 'id');
     const values = fields.map(k => data[k]);
     const setClause = fields.map((k, i) => `${k} = $${i + 1}`).join(', ');
@@ -1902,7 +1902,7 @@ async function update_daily_report_admin(id, data) {
 }
 
 async function delete_daily_report_admin(id) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const { rows } = await pool.query('DELETE FROM daily_report WHERE id = $1 RETURNING *', [id]);
     return rows[0];
 }
@@ -2013,7 +2013,7 @@ async function get_instalations_admin({ query = [], type, user, estado }) {
 
 async function get_agent_audit_log(agenteId, { page = 1, limit = 20 } = {}) {
     const offset = (page - 1) * limit;
-    const { rows } = await cenos_pool.query(`
+    const { rows } = await sinergia_pool.query(`
         SELECT a.id, a.agente_id, a.field, a.from_value, a.to_value, 
                COALESCE(u.nome, a.changed_by) AS changed_by, a.changed_at
         FROM agente_audit_log a
@@ -2022,7 +2022,7 @@ async function get_agent_audit_log(agenteId, { page = 1, limit = 20 } = {}) {
         ORDER BY a.changed_at DESC, a.id DESC
         LIMIT $2 OFFSET $3
     `, [agenteId, limit, offset]);
-    const { rows: [countRow] } = await cenos_pool.query(
+    const { rows: [countRow] } = await sinergia_pool.query(
         `SELECT COUNT(*)::int as total FROM agente_audit_log WHERE agente_id = $1`,
         [agenteId]
     );

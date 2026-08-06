@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { get_users_agents_admin_paginated } = require('./admin');
 
 const EQUIPMENT_TIPO_LABEL = {
@@ -93,7 +93,7 @@ async function getAdminDashboardStats({ user, filters = {} }) {
     let agentsWithInventory = 0;
     const inventoryByTypeMap = new Map();
     try {
-        const { rows: equipmentRows } = await cenos_pool.query(
+        const { rows: equipmentRows } = await sinergia_pool.query(
             `SELECT ea.agente, e.tipo
              FROM equipment_assignments ea
              INNER JOIN equipment e ON e.id = ea.equipment_id
@@ -123,7 +123,7 @@ async function getAdminDashboardStats({ user, filters = {} }) {
     let todayLogins = 0;
     try {
         const startOfDay = getStartOfDayUTC();
-        const { rows: heartbeatRows } = await cenos_pool.query(
+        const { rows: heartbeatRows } = await sinergia_pool.query(
             `SELECT DISTINCT UPPER(agent_id) AS agent_id
              FROM agent_heartbeats
              WHERE last_heartbeat_at >= $1`,

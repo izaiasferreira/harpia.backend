@@ -9,7 +9,7 @@ const {
     get_rooms_for_agent, 
     get_messages_for_room
 } = require('../functions/database/chat');
-const { cenos_pool } = require('../db');
+const { sinergia_pool } = require('../db');
 
 // Configuração do Multer para uploads de chat
 const storage = multer.memoryStorage();
@@ -74,7 +74,7 @@ router.get('/api/chat/rooms', chatAuth, async (req, res) => {
         const agentId = req.colaborador.id?.toUpperCase();
         
         // Pega os dados do agente para dar o nome correto à sala de suporte
-        const { rows: agentData } = await cenos_pool.query(
+        const { rows: agentData } = await sinergia_pool.query(
             `SELECT "Nome" FROM colaboradores WHERE "ID" = $1`, 
             [agentId]
         );
@@ -98,7 +98,7 @@ router.get('/api/chat/rooms/:roomId/messages', chatAuth, async (req, res) => {
         const roomId = parseInt(req.params.roomId);
 
         // SEGURANÇA: Verificar se a sala pertence ao agente
-        const { rows: room } = await cenos_pool.query(
+        const { rows: room } = await sinergia_pool.query(
             `SELECT * FROM chat_rooms WHERE id = $1`,
             [roomId]
         );

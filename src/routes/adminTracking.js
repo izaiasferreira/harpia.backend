@@ -19,7 +19,7 @@ const {
     get_accident_by_id,
     delete_accident_admin,
 } = require('../functions/database/accidents');
-const { cenos_pool } = require('../db');
+const { sinergia_pool } = require('../db');
 
 // GET /admin/tracking/agents — lista agentes com última posição (tabela unificada)
 router.get('/agents', verifyToken(), verifyModule('tracking_live'), async (req, res) => {
@@ -78,7 +78,7 @@ router.get('/speed_violations', verifyToken(), verifyModule('tracking_speed'), a
 router.delete('/speed_violations/:id', verifyToken('COMPANY_ADMIN'), async (req, res) => {
     try {
         const { id } = req.params;
-        const { rows } = await cenos_pool.query(
+        const { rows } = await sinergia_pool.query(
             `DELETE FROM tracking_session_points WHERE id = $1 AND is_speed_violation = TRUE RETURNING id`,
             [id]
         );
@@ -121,7 +121,7 @@ router.post('/agent/:id/alert', verifyToken(), verifyModule('tracking_alerts'), 
 // GET /admin/tracking/global-config — configurações globais de tracking
 router.get('/global-config', verifyToken(), verifyModule('tracking_settings'), async (req, res) => {
     try {
-        const { rows } = await cenos_pool.query(
+        const { rows } = await sinergia_pool.query(
             `SELECT key, value, updated_at FROM tracking_global_config ORDER BY key`
         );
         const config = {};
@@ -140,7 +140,7 @@ router.put('/global-config', verifyToken(), verifyModule('tracking_settings'), a
         if (!key || value == null) {
             return res.status(400).json({ error: 'key e value são obrigatórios' });
         }
-        await cenos_pool.query(`
+        await sinergia_pool.query(`
             INSERT INTO tracking_global_config (key, value, updated_at)
             VALUES ($1, $2, NOW())
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
@@ -156,7 +156,7 @@ router.put('/global-config', verifyToken(), verifyModule('tracking_settings'), a
 router.get('/agent-config/:agentId', verifyToken(), verifyModule('tracking_settings'), async (req, res) => {
     try {
         const { agentId } = req.params;
-        const { rows } = await cenos_pool.query(
+        const { rows } = await sinergia_pool.query(
             `SELECT agent_id, speed_limit_kmh, updated_at, updated_by FROM tracking_agent_config WHERE agent_id = $1`,
             [agentId]
         );
@@ -179,7 +179,7 @@ router.put('/agent-config/:agentId', verifyToken(), verifyModule('tracking_setti
             if (isNaN(limit) || limit < 1 || limit > 300) {
                 return res.status(400).json({ error: 'speedLimitKmh deve ser entre 1 e 300' });
             }
-            await cenos_pool.query(`
+            await sinergia_pool.query(`
                 INSERT INTO tracking_agent_config (agent_id, speed_limit_kmh, updated_at, updated_by)
                 VALUES ($1, $2, NOW(), $3)
                 ON CONFLICT (agent_id) DO UPDATE SET

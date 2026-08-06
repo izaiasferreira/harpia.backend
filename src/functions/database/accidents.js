@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { accidentCreateSchema } = require('../../db/schemas/accidents');
 const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
 
@@ -13,7 +13,7 @@ async function create_accident(data) {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
     `;
-    const { rows } = await cenos_pool.query(query, [
+    const { rows } = await sinergia_pool.query(query, [
         autor, tipo, descricao || null, latitude || null, longitude || null, estado || 'pi', seccional || null, regional || null, foto || null
     ]);
     return rows[0];
@@ -32,7 +32,7 @@ async function get_accidents_by_agent(autor) {
         WHERE a.autor = $1
         ORDER BY a.created_at DESC
     `;
-    const { rows } = await cenos_pool.query(query, [autor]);
+    const { rows } = await sinergia_pool.query(query, [autor]);
     return rows;
 }
 
@@ -59,7 +59,7 @@ async function get_accidents_for_agent_state(estado, seccional = null) {
         WHERE ${conditions.join(' AND ')}
         ORDER BY a.created_at DESC
     `;
-    const { rows } = await cenos_pool.query(query, params);
+    const { rows } = await sinergia_pool.query(query, params);
     return rows;
 }
 
@@ -109,7 +109,7 @@ async function get_accidents_admin({ user, estado, status, search, page = 1, lim
         LEFT JOIN login l ON l.id = a.autor
         WHERE ${whereClause}
     `;
-    const { rows: countRows } = await cenos_pool.query(countQuery, params);
+    const { rows: countRows } = await sinergia_pool.query(countQuery, params);
     const total = parseInt(countRows[0]?.total || 0);
 
     let dataQuery = `
@@ -125,7 +125,7 @@ async function get_accidents_admin({ user, estado, status, search, page = 1, lim
         ORDER BY a.created_at DESC
         LIMIT $${paramIdx++} OFFSET $${paramIdx}
     `;
-    const { rows } = await cenos_pool.query(dataQuery, [...params, parseInt(limit), offset]);
+    const { rows } = await sinergia_pool.query(dataQuery, [...params, parseInt(limit), offset]);
 
     // Se não for admin, aplica filtro adicional em memória para regional/seccional/gestor
     if (!userIsAdmin(user)) {
@@ -159,7 +159,7 @@ async function resolve_accident({ id, user, descricao_solucao }) {
         WHERE id = $4
         RETURNING *
     `;
-    const { rows } = await cenos_pool.query(query, [
+    const { rows } = await sinergia_pool.query(query, [
         user.id,
         user.nome || user.name || user.login || user.id,
         descricao_solucao,
@@ -181,7 +181,7 @@ async function reopen_accident(id) {
         WHERE id = $1
         RETURNING *
     `;
-    const { rows } = await cenos_pool.query(query, [id]);
+    const { rows } = await sinergia_pool.query(query, [id]);
     return rows[0];
 }
 
@@ -193,7 +193,7 @@ async function add_accident_evidencia({ accident_id, nome_arquivo, tipo, caminho
         VALUES ($1, $2, $3, $4)
         RETURNING *
     `;
-    const { rows } = await cenos_pool.query(query, [accident_id, nome_arquivo, tipo, caminho]);
+    const { rows } = await sinergia_pool.query(query, [accident_id, nome_arquivo, tipo, caminho]);
     return rows[0];
 }
 
@@ -205,7 +205,7 @@ async function get_accident_evidencias(accident_id) {
         WHERE accident_id = $1
         ORDER BY created_at ASC
     `;
-    const { rows } = await cenos_pool.query(query, [accident_id]);
+    const { rows } = await sinergia_pool.query(query, [accident_id]);
     return rows;
 }
 
@@ -221,14 +221,14 @@ async function get_accident_by_id(id) {
         LEFT JOIN colaboradores c ON c."ID" = a.autor
         WHERE a.id = $1
     `;
-    const { rows } = await cenos_pool.query(query, [id]);
+    const { rows } = await sinergia_pool.query(query, [id]);
     return rows[0] || null;
 }
 
 // ─── Admin: deletar acidente ────────────────────────────────────────────────────
 
 async function delete_accident_admin(id, user) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const accidentId = parseInt(id, 10);
     if (isNaN(accidentId)) return null;
 

@@ -1,4 +1,4 @@
-const { pi_pool, ma_pool, localizacoes_pi_pool, cenos_pool } = require('../../db');
+const { pi_pool, ma_pool, localizacoes_pi_pool, sinergia_pool } = require('../../db');
 const { justificativaCreateSchema, justifyPendingCreateSchema } = require('../../db/schemas/justify');
 const { dailyReportCreateSchema } = require('../../db/schemas/dailyReport');
 const { inventoryCreateSchema } = require('../../db/schemas/inventory');
@@ -14,7 +14,7 @@ async function getUserData({ id }) {
     let colaborador = {};
     let profileData = {};
 
-    const { rows: loginMatches } = await cenos_pool.query(
+    const { rows: loginMatches } = await sinergia_pool.query(
         `SELECT * FROM login WHERE lower(id) = $1`,
         [id.toLowerCase()]
     );
@@ -24,7 +24,7 @@ async function getUserData({ id }) {
         login = loginMatches[0];
     }
 
-    const { rows: colaboradorMatches } = await cenos_pool.query(
+    const { rows: colaboradorMatches } = await sinergia_pool.query(
         `SELECT * FROM colaboradores WHERE lower("ID") = $1`,
         [id.toLowerCase()]
     );
@@ -45,7 +45,7 @@ async function getUserData({ id }) {
         delete colaborador['Cargo'];
     }
 
-    const { rows: profileMatches } = await cenos_pool.query(
+    const { rows: profileMatches } = await sinergia_pool.query(
         `SELECT * FROM profiles WHERE lower(id) = $1`,
         [id.toLowerCase()]
     );
@@ -74,13 +74,13 @@ async function getUserData({ id }) {
 
 async function addBadgeToProfile(id, badgeId) {
     const getQuery = `SELECT badges FROM profiles WHERE id = $1`;
-    const { rows } = await cenos_pool.query(getQuery, [id]);
+    const { rows } = await sinergia_pool.query(getQuery, [id]);
 
     let currentBadges = [];
     if (rows.length > 0) {
         currentBadges = rows[0].badges || [];
     } else {
-        await cenos_pool.query(
+        await sinergia_pool.query(
             `INSERT INTO profiles (id, "profilePicUrl", badges) VALUES ($1, NULL, '[]'::jsonb)`,
             [id]
         );
@@ -91,7 +91,7 @@ async function addBadgeToProfile(id, badgeId) {
 
     if (!currentBadges.includes(numericBadgeId)) {
         currentBadges.push(numericBadgeId);
-        await cenos_pool.query(
+        await sinergia_pool.query(
             `UPDATE profiles SET badges = $1 WHERE id = $2`,
             [JSON.stringify(currentBadges), id]
         );
@@ -102,7 +102,7 @@ async function addBadgeToProfile(id, badgeId) {
 
 async function removeBadgeFromProfile(id, badgeId) {
     const getQuery = `SELECT badges FROM profiles WHERE id = $1`;
-    const { rows } = await cenos_pool.query(getQuery, [id]);
+    const { rows } = await sinergia_pool.query(getQuery, [id]);
 
     if (rows.length === 0) return [];
 
@@ -111,7 +111,7 @@ async function removeBadgeFromProfile(id, badgeId) {
 
     if (currentBadges.includes(numericBadgeId)) {
         const updatedBadges = currentBadges.filter(bId => bId !== numericBadgeId);
-        await cenos_pool.query(
+        await sinergia_pool.query(
             `UPDATE profiles SET badges = $1 WHERE id = $2`,
             [JSON.stringify(updatedBadges), id]
         );
@@ -130,7 +130,7 @@ async function updateProfilePic(id, imageUrl) {
         DO UPDATE SET "profilePicUrl" = EXCLUDED."profilePicUrl"
         RETURNING *;
     `;
-    const { rows } = await cenos_pool.query(query, [id, imageUrl]);
+    const { rows } = await sinergia_pool.query(query, [id, imageUrl]);
     return rows[0];
 }
 
@@ -139,7 +139,7 @@ async function updateProfilePic(id, imageUrl) {
  * Retorna mapa: { instalacao: true/false }
  */
 async function checkJustifiedByInstallations(installations, estado = 'pi') {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     if (!installations || installations.length === 0) return {};
 
@@ -529,7 +529,7 @@ async function getAgentTelegramId({ state = 'pi', id }) {
     WHERE id in ($1, $2)
     `;
 
-    const { rows } = await cenos_pool.query(query, [id.toUpperCase(), id.toLowerCase()]);
+    const { rows } = await sinergia_pool.query(query, [id.toUpperCase(), id.toLowerCase()]);
     return rows;
 }
 
@@ -685,7 +685,7 @@ async function save_justify({
         state, instalacao, tipo, motivo, justificativa, foto,
         data_leit_prev, author, quantidade, created_at, updated_at
     });
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const insertQuery = `
         INSERT INTO justificativas (
@@ -713,7 +713,7 @@ async function save_justify({
 
 // ─── get_justify ─────────────────────────────────────────────────────────────
 async function get_justify({ instalacao, data_leit_prev, estado = 'pi', author, tipo, quantidade }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     let querySql = `SELECT * FROM justificativas WHERE 1=1`;
     const params = [];
@@ -750,7 +750,7 @@ async function get_justify({ instalacao, data_leit_prev, estado = 'pi', author, 
 
 // ─── update_justify ───────────────────────────────────────────────────────────
 async function update_justify({ id, estado = 'pi', ...fields }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     // Campos permitidos para atualização
     const allowedFields = ['instalacao', 'tipo', 'motivo', 'justificativa', 'foto', 'data_leit_prev', 'quantidade'];
@@ -792,7 +792,7 @@ async function update_justify({ id, estado = 'pi', ...fields }) {
 
 // ─── delete_justify ───────────────────────────────────────────────────────────
 async function delete_justify({ id, estado = 'pi' }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const sql = `DELETE FROM justificativas WHERE id = $1 RETURNING *;`;
     const { rows } = await pool.query(sql, [id]);
@@ -859,7 +859,7 @@ async function pre_create_pending_justify({
     const validated = justifyPendingCreateSchema.parse({
         state, autor, quantidade, tipo, unidade_leitura, instalacao, created_at, updated_at
     });
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const insertQuery = `
         INSERT INTO justify_pending (autor, quantidade, tipo, unidade_leitura, instalacao, foto, estado, status, created_at, updated_at)
@@ -878,7 +878,7 @@ async function respond_pending_justify({
     foto,
     updated_at = new Date()
 }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const updateQuery = `
         UPDATE justify_pending 
@@ -891,7 +891,7 @@ async function respond_pending_justify({
 }
 
 async function get_pending_justify_by_id({ id, estado = 'pi' }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `SELECT * FROM justify_pending WHERE id = $1;`;
     const { rows } = await pool.query(query, [id]);
@@ -899,7 +899,7 @@ async function get_pending_justify_by_id({ id, estado = 'pi' }) {
 }
 
 async function get_pending_justifies({ autor, status = 'pendente', page = 1, limit = 20 }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     let query = `SELECT * FROM justify_pending WHERE 1=1`;
     const params = [];
@@ -931,7 +931,7 @@ async function get_pending_justifies({ autor, status = 'pendente', page = 1, lim
 }
 
 async function delete_pending_justify({ id, estado = 'pi' }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const sql = `DELETE FROM justify_pending WHERE id = $1 RETURNING *;`;
     const { rows } = await pool.query(sql, [id]);
@@ -953,7 +953,7 @@ async function save_daily_report({
     const validated = dailyReportCreateSchema.parse({
         estado: state, autor, nota, motivo, observacao, foto, created_at, updated_at
     });
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const existingQuery = `
         SELECT id FROM daily_report
@@ -974,7 +974,7 @@ async function save_daily_report({
 }
 
 async function get_daily_reports({ state = 'pi', autor, data, limit = 10 }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     let query = `SELECT * FROM daily_report WHERE 1=1`;
     const params = [];
@@ -995,7 +995,7 @@ async function get_daily_reports({ state = 'pi', autor, data, limit = 10 }) {
 }
 
 async function get_daily_report_today({ state = 'pi', autor }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `
         SELECT * FROM daily_report 
@@ -1006,7 +1006,7 @@ async function get_daily_report_today({ state = 'pi', autor }) {
 }
 
 async function delete_daily_report({ id, estado = 'pi' }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const sql = `DELETE FROM daily_report WHERE id = $1 RETURNING *;`;
     const { rows } = await pool.query(sql, [id]);
@@ -1016,7 +1016,7 @@ async function delete_daily_report({ id, estado = 'pi' }) {
 
 // ─── inventory ───────────────────────────────────────────────────────────
 async function get_inventory_by_agent({ agente, estado = 'pi' }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `
         SELECT * FROM inventory 
@@ -1053,7 +1053,7 @@ async function save_inventory({
         impressora_numero_serie, impressora_modelo, impressora_marca,
         maquininha_numero_serie, maquininha_numero_logico, created_at, updated_at
     });
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const existing = await get_inventory_by_agent({ agente: validated.agente, estado: validated.state });
 
@@ -1151,7 +1151,7 @@ async function create_security_report(data) {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
     `;
-    const { rows } = await cenos_pool.query(query, [autor, motivo, observacao, latitude, longitude, estado, seccional || null, regional || null, foto || null]);
+    const { rows } = await sinergia_pool.query(query, [autor, motivo, observacao, latitude, longitude, estado, seccional || null, regional || null, foto || null]);
     return rows[0];
 }
 
@@ -1166,13 +1166,13 @@ async function get_security_report_points({ user }) {
     const query = `
         SELECT * FROM security_report WHERE ${conditions.join(' AND ')};
     `;
-    const { rows } = await cenos_pool.query(query, params);
+    const { rows } = await sinergia_pool.query(query, params);
     return rows;
 }
 
 async function get_security_reports_by_agent(autor) {
     const query = `SELECT * FROM security_report WHERE autor = $1 ORDER BY created_at DESC;`;
-    const { rows } = await cenos_pool.query(query, [autor]);
+    const { rows } = await sinergia_pool.query(query, [autor]);
     return rows;
 }
 
@@ -1214,7 +1214,7 @@ async function get_security_reports({ user }) {
     if (locals.length > 0) {
         const municipios = [...new Set(locals.map(l => l.municipio))];
         const placeholders = municipios.map((_, i) => `$${i + 1}`).join(', ');
-        const { rows } = await cenos_pool.query(
+        const { rows } = await sinergia_pool.query(
             `SELECT * FROM mapa_seguranca WHERE localidade IN (${placeholders})`,
             municipios
         );
@@ -1250,7 +1250,7 @@ async function save_security_check({
         created_at,
         updated_at
     });
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     if (!validated.autor) {
         throw new Error('Autor é obrigatório para confirmação de segurança');
@@ -1282,7 +1282,7 @@ async function save_security_check({
 }
 
 async function get_security_checks({ state = 'pi', autor, data, limit = 10 }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     let query = `SELECT * FROM security_check WHERE 1=1`;
     const params = [];
@@ -1303,7 +1303,7 @@ async function get_security_checks({ state = 'pi', autor, data, limit = 10 }) {
 }
 
 async function get_security_check_today({ state = 'pi', autor }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `
         SELECT * FROM security_check 

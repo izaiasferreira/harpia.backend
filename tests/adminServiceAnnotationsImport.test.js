@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const XLSX = require('xlsx');
 const app = require('../src/app');
 const { createUser } = require('../src/functions/database/users');
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'jwt_secret_change_me';
 
@@ -36,12 +36,12 @@ describe('Admin Service Annotations Import (POST /admin/service_annotations/impo
 
     afterAll(async () => {
         if (createdIds.length > 0) {
-            await cenos_pool.query('DELETE FROM service_annotations WHERE id = ANY($1)', [createdIds]);
+            await sinergia_pool.query('DELETE FROM service_annotations WHERE id = ANY($1)', [createdIds]);
         }
-        await cenos_pool.query('DELETE FROM login WHERE id = $1', [String(userId)]).catch(() => {});
-        await cenos_pool.query('DELETE FROM login WHERE id = $1', [adminName]).catch(() => {});
+        await sinergia_pool.query('DELETE FROM login WHERE id = $1', [String(userId)]).catch(() => {});
+        await sinergia_pool.query('DELETE FROM login WHERE id = $1', [adminName]).catch(() => {});
         if (userId) {
-            await cenos_pool.query('DELETE FROM users WHERE id = $1', [userId]);
+            await sinergia_pool.query('DELETE FROM users WHERE id = $1', [userId]);
         }
     }, 15000);
 
@@ -77,14 +77,14 @@ describe('Admin Service Annotations Import (POST /admin/service_annotations/impo
         expect(res.body.created).toBe(2);
         expect(res.body.errors.length).toBe(1);
 
-        const { rows } = await cenos_pool.query(
+        const { rows } = await sinergia_pool.query(
             'SELECT id, expires_at FROM service_annotations WHERE autor = $1 AND descricao = $2',
             [String(userId), 'Trocar medidor']
         );
         expect(rows.length).toBe(1);
         expect(rows[0].expires_at).not.toBeNull();
         createdIds = rows.map(r => r.id);
-        const { rows: more } = await cenos_pool.query(
+        const { rows: more } = await sinergia_pool.query(
             'SELECT id FROM service_annotations WHERE autor = $1 AND descricao = $2',
             [String(userId), 'Cliente reclamou de vazamento']
         );

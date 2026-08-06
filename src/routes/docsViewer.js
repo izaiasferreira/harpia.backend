@@ -29,7 +29,7 @@ router.get('/', (req, res) => {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gedai - Documentação</title>
+<title>Sinergia - Documentação</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -157,7 +157,7 @@ body {
 <body>
 <nav class="sidebar">
     <div class="sidebar-header">
-        <h1>📄 Gedai Docs</h1>
+        <h1>📄 Sinergia Docs</h1>
         <p>Documentação da API</p>
     </div>
     <div class="sidebar-search">

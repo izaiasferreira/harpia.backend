@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { addBadgeToProfile } = require('./agentes');
 const { assignBadgesFromLinkedCeneducCards } = require('./ceneduc');
 const { formCreateSchema, formSchema, formSubmitSchema } = require('../../db/schemas');
@@ -13,7 +13,7 @@ async function createForm({ userId, title, description, coverUrl, settings, stru
         settings,
         structure
     });
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `
         INSERT INTO forms (user_id, title, description, cover_url, badge_id, settings, structure)
@@ -33,14 +33,14 @@ async function createForm({ userId, title, description, coverUrl, settings, stru
 }
 
 async function getFormById(id) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const query = `SELECT * FROM forms WHERE id = $1`;
     const { rows } = await pool.query(query, [id]);
     return rows[0] || null;
 }
 
 async function listForms(userId, page = 1, limit = 20) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const offset = (page - 1) * limit;
 
     const countQuery = `SELECT COUNT(*) as total FROM forms`;
@@ -73,7 +73,7 @@ async function updateForm(id, { title, description, coverUrl, isActive, settings
         settings,
         structure
     });
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const updates = [];
     const params = [];
     let paramIndex = 1;
@@ -129,7 +129,7 @@ async function updateForm(id, { title, description, coverUrl, isActive, settings
 }
 
 async function checkFormResponse(formId, respondentId) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const query = `
         SELECT id FROM form_responses 
         WHERE form_id = $1 AND answers->>'respondent_id' = $2
@@ -140,7 +140,7 @@ async function checkFormResponse(formId, respondentId) {
 }
 
 async function deleteForm(id) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const query = `DELETE FROM forms WHERE id = $1 RETURNING *`;
     const { rows } = await pool.query(query, [id]);
     return rows[0] || null;
@@ -155,7 +155,7 @@ async function submitForm({ formId, answers, metadata }) {
     formId = validated.form_id;
     answers = validated.answers;
     metadata = validated.metadata;
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const client = await pool.connect();
 
     try {
@@ -303,7 +303,7 @@ function calcScoreFromStructure(structure, answers) {
 }
 
 async function getFormResponses(formId, page = 1, limit = 20) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const offset = (page - 1) * limit;
 
     const countQuery = `SELECT COUNT(*) as total FROM form_responses WHERE form_id = $1`;
@@ -327,7 +327,7 @@ async function getFormResponses(formId, page = 1, limit = 20) {
         const placeholders = agentIds.map((_, i) => `$${i + 1}`).join(',');
         const agentQuery = `SELECT "ID", "Nome", "seccional", "regional", estado FROM colaboradores WHERE "ID" IN (${placeholders})`;
         try {
-            const { rows: agentRows } = await cenos_pool.query(agentQuery, agentIds);
+            const { rows: agentRows } = await sinergia_pool.query(agentQuery, agentIds);
             for (const a of agentRows) {
                 agentMap[a['ID']] = { name: a['Nome'], seccional: a['seccional'], regional: a['regional'], state: a['estado']?.toUpperCase() };
             }
@@ -369,7 +369,7 @@ async function getFormResponses(formId, page = 1, limit = 20) {
 }
 
 async function getFormStats(formId) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const formQuery = `SELECT structure FROM forms WHERE id = $1`;
     const formResult = await pool.query(formQuery, [formId]);
@@ -440,7 +440,7 @@ async function getFormStats(formId) {
 }
 
 async function exportFormResponsesToCsv(formId) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const formQuery = `SELECT id, title, structure FROM forms WHERE id = $1`;
     const formResult = await pool.query(formQuery, [formId]);
@@ -501,7 +501,7 @@ async function exportFormResponsesToCsv(formId) {
 }
 
 async function deleteFormResponse(id) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         'DELETE FROM form_responses WHERE id = $1 RETURNING *',
         [id]
     );

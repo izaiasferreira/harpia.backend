@@ -1,7 +1,7 @@
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 
 jest.mock('../src/db', () => ({
-    cenos_pool: { query: jest.fn() },
+    sinergia_pool: { query: jest.fn() },
     pi_pool: { query: jest.fn() },
     ma_pool: { query: jest.fn() },
     localizacoes_pi_pool: { query: jest.fn() }
@@ -36,7 +36,7 @@ const HEARTBEAT_ROWS = [
 
 beforeEach(() => {
     jest.clearAllMocks();
-    cenos_pool.query.mockResolvedValue({ rows: [] });
+    sinergia_pool.query.mockResolvedValue({ rows: [] });
 });
 
 describe('getAdminDashboardStats', () => {
@@ -73,7 +73,7 @@ describe('getAdminDashboardStats', () => {
 
     test('deve contar inventário apenas de agentes com equipamento ativo e itens por tipo', async () => {
         admin.get_users_agents_admin_paginated.mockResolvedValue({ data: AGENTS, total: 4 });
-        cenos_pool.query.mockResolvedValueOnce({ rows: EQUIPMENT_ROWS });
+        sinergia_pool.query.mockResolvedValueOnce({ rows: EQUIPMENT_ROWS });
 
         const stats = await getAdminDashboardStats({ user: { id: 1, role: 'COMPANY_ADMIN' } });
 
@@ -87,8 +87,8 @@ describe('getAdminDashboardStats', () => {
 
     test('deve contar logins do dia via heartbeats apenas de agentes visíveis', async () => {
         admin.get_users_agents_admin_paginated.mockResolvedValue({ data: AGENTS, total: 4 });
-        cenos_pool.query.mockResolvedValueOnce({ rows: [] });
-        cenos_pool.query.mockResolvedValueOnce({ rows: HEARTBEAT_ROWS });
+        sinergia_pool.query.mockResolvedValueOnce({ rows: [] });
+        sinergia_pool.query.mockResolvedValueOnce({ rows: HEARTBEAT_ROWS });
 
         const stats = await getAdminDashboardStats({ user: { id: 1, role: 'COMPANY_ADMIN' } });
 

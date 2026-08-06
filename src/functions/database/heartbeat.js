@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const redisClient = require('../../redis');
 const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
 
@@ -10,7 +10,7 @@ async function updateHeartbeat(agentId, lat, lng, deviceTimestamp = null, androi
     } else {
         ts = new Date().toISOString();
     }
-    await cenos_pool.query(
+    await sinergia_pool.query(
         `INSERT INTO agent_heartbeats 
             (agent_id, last_heartbeat_at, last_heartbeat_lat, last_heartbeat_lng, updated_at, android_version, device_model, metadata)
          VALUES ($1, $2, $3, $4, $2, $5, $6, $7)
@@ -65,7 +65,7 @@ async function getAgentsHeartbeat(user = null) {
 
     query += ` ORDER BY h.last_heartbeat_at DESC`;
 
-    const { rows } = await cenos_pool.query(query, params);
+    const { rows } = await sinergia_pool.query(query, params);
     return rows;
 }
 

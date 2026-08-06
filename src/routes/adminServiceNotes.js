@@ -10,7 +10,7 @@ const categoryCreateSchema = z.object({
   name: z.string().min(1),
   color: z.string().max(7).optional()
 });
-const { cenos_pool } = require('../db');
+const { sinergia_pool } = require('../db');
 const {
     listServiceGroups, getServiceGroupById, createServiceGroup, updateServiceGroup, deleteServiceGroup,
     listCategoriesByGroup, createCategory, deleteCategory,
@@ -23,7 +23,7 @@ const {
 async function notifyAssignedAgents(serviceIds) {
     if (!global.sendLiveNotification || !serviceIds || serviceIds.length === 0) return;
     try {
-        const { rows } = await cenos_pool.query(
+        const { rows } = await sinergia_pool.query(
             'SELECT DISTINCT assigned_to FROM service_notes WHERE id = ANY($1::int[]) AND assigned_to IS NOT NULL',
             [serviceIds]
         );
@@ -151,12 +151,12 @@ router.get('/', verifyToken(), verifyModule('service_notes'), async (req, res) =
     }
 });
 
-// Helper to get names of agents from colaboradores table (cenos_pool)
+// Helper to get names of agents from colaboradores table (sinergia_pool)
 async function getColaboradoresNames(agentIds) {
     if (!agentIds || agentIds.length === 0) return {};
     try {
         const uppercaseIds = agentIds.map(id => id.toUpperCase());
-        const { rows } = await cenos_pool.query(
+        const { rows } = await sinergia_pool.query(
             `SELECT "ID" AS id, "Nome" AS nome FROM colaboradores WHERE "ID" = ANY($1::varchar[])`, [uppercaseIds]
         );
         
@@ -202,7 +202,7 @@ router.get('/nearest-agents', verifyToken(), verifyModule('service_notes'), asyn
 
         if (!results || results.length === 0) {
             // Se nao houver resultados no Redis, buscar do Postgres como fallback
-            const { rows } = await cenos_pool.query(
+            const { rows } = await sinergia_pool.query(
                 `SELECT 
                     h.agent_id,
                     c.estado,
@@ -253,7 +253,7 @@ router.get('/nearest-agents', verifyToken(), verifyModule('service_notes'), asyn
         }
 
         const agentIds = results.map(r => r.member);
-        const { rows: dbAgents } = await cenos_pool.query(
+        const { rows: dbAgents } = await sinergia_pool.query(
             `SELECT h.agent_id, c.estado, h.last_heartbeat_at 
              FROM agent_heartbeats h 
              LEFT JOIN colaboradores c ON UPPER(h.agent_id) = UPPER(c."ID") 

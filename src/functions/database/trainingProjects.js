@@ -1,10 +1,10 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { addBadgeToProfile } = require('./agentes');
 const { assignBadgesFromLinkedCeneducCards } = require('./ceneduc');
 const { trainingProjectCreateSchema, trainingProjectSchema } = require('../../db/schemas');
 
 async function updateTrainingFlow(id, flowData) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const query = `
         UPDATE training_projects
         SET flow_data = $1, updated_at = NOW()
@@ -25,7 +25,7 @@ async function createTrainingProject({ userId, name, description, badge_id }) {
         description,
         badge_id
     });
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `
         INSERT INTO training_projects (user_id, name, description, badge_id)
@@ -37,7 +37,7 @@ async function createTrainingProject({ userId, name, description, badge_id }) {
 }
 
 async function getTrainingProjectById(id) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const query = `
         SELECT id, user_id, name, description, badge_id, flow_data, created_at, updated_at
         FROM training_projects
@@ -48,7 +48,7 @@ async function getTrainingProjectById(id) {
 }
 
 async function listTrainingProjects(userId, page = 1, limit = 20) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const offset = (page - 1) * limit;
 
     const countQuery = `
@@ -76,7 +76,7 @@ async function listTrainingProjects(userId, page = 1, limit = 20) {
 
 async function updateTrainingProject(id, { name, description, badge_id }) {
     const validated = trainingProjectSchema.partial().parse({ name, description, badge_id });
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const updates = [];
     const params = [];
     let paramIndex = 1;
@@ -113,7 +113,7 @@ async function updateTrainingProject(id, { name, description, badge_id }) {
 }
 
 async function deleteTrainingProject(id) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const query = `
         DELETE FROM training_projects
         WHERE id = $1
@@ -124,7 +124,7 @@ async function deleteTrainingProject(id) {
 }
 
 async function completeTrainingAndAssignBadge(trainingId, agentId) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `SELECT id, badge_id FROM training_projects WHERE id = $1`;
     const { rows } = await pool.query(query, [trainingId]);

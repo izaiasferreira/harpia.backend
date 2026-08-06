@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { notificationCreateSchema } = require('../../db/schemas');
 
 async function createNotification(agentId, sender, title, body, type, method, metadata) {
@@ -11,7 +11,7 @@ async function createNotification(agentId, sender, title, body, type, method, me
         method: Array.isArray(method) ? method : (method ? [method] : undefined),
         metadata
     });
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `INSERT INTO notifications (agent_id, sender, title, body, type, method, metadata)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
@@ -34,17 +34,17 @@ async function getAgentNotifications(agentId, page = 1, limit = 20, unreadOnly =
         ? 'WHERE agent_id = $1 AND read = FALSE'
         : 'WHERE agent_id = $1';
 
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT * FROM notifications ${whereClause} ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
         [agentId.toUpperCase(), limit, offset]
     );
 
-    const { rows: countRows } = await cenos_pool.query(
+    const { rows: countRows } = await sinergia_pool.query(
         `SELECT COUNT(*) as total FROM notifications ${whereClause}`,
         [agentId.toUpperCase()]
     );
 
-    const { rows: unreadRows } = await cenos_pool.query(
+    const { rows: unreadRows } = await sinergia_pool.query(
         `SELECT COUNT(*) as unread FROM notifications WHERE agent_id = $1 AND read = FALSE`,
         [agentId.toUpperCase()]
     );
@@ -62,7 +62,7 @@ async function getAgentNotifications(agentId, page = 1, limit = 20, unreadOnly =
 }
 
 async function markNotificationsRead(agentId, ids) {
-    await cenos_pool.query(
+    await sinergia_pool.query(
         `UPDATE notifications SET read = TRUE, read_at = NOW()
          WHERE agent_id = $1 AND id = ANY($2) AND read = FALSE`,
         [agentId.toUpperCase(), ids]
@@ -70,7 +70,7 @@ async function markNotificationsRead(agentId, ids) {
 }
 
 async function markAllNotificationsRead(agentId) {
-    await cenos_pool.query(
+    await sinergia_pool.query(
         `UPDATE notifications SET read = TRUE, read_at = NOW()
          WHERE agent_id = $1 AND read = FALSE`,
         [agentId.toUpperCase()]
@@ -101,12 +101,12 @@ async function getAdminNotificationHistory(agentId, page = 1, limit = 30, search
         paramIndex++;
     }
 
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT * FROM notifications ${whereClause} ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
         [...params, limit, offset]
     );
 
-    const { rows: countRows } = await cenos_pool.query(
+    const { rows: countRows } = await sinergia_pool.query(
         `SELECT COUNT(*) as total FROM notifications ${whereClause}`,
         params
     );

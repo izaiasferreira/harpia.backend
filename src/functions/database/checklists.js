@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { processBase64Files } = require('./serviceNotes');
 const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
 
@@ -8,14 +8,14 @@ const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgen
 // ==========================================
 
 async function listTemplatesAdmin() {
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     'SELECT id, title, is_active, estado, created_by, data, created_at, updated_at FROM checklist_templates WHERE is_deleted = false ORDER BY created_at DESC'
   );
   return rows;
 }
 
 async function listTemplatesForAgent(agentEstado, agentProfile) {
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT id, title, data, is_gestor FROM checklist_templates
      WHERE is_active = true
        AND COALESCE(is_deleted, false) = false
@@ -43,7 +43,7 @@ async function listTemplatesForAgentWithProfile(agentEstado, agentProfile) {
 }
 
 async function getTemplateById(id, agentId = null) {
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     'SELECT * FROM checklist_templates WHERE id = $1',
     [id]
   );
@@ -51,7 +51,7 @@ async function getTemplateById(id, agentId = null) {
   const template = rows[0];
 
   if (agentId) {
-    const { rows: profileRows } = await cenos_pool.query(
+    const { rows: profileRows } = await sinergia_pool.query(
       `SELECT col."Cargo", col."seccional", col."regional", col."processo", col.estado
        FROM login l
        LEFT JOIN colaboradores col ON l.id = col."ID"
@@ -78,7 +78,7 @@ async function getTemplateById(id, agentId = null) {
         q.is_exempt = false;
         q.exempt_until = null;
         if (q.exemption_days > 0 && q.uuid) {
-          const { rows: ansRows } = await cenos_pool.query(
+          const { rows: ansRows } = await sinergia_pool.query(
             `SELECT c.submitted_at
              FROM checklists c
              WHERE c.agent_id = $1
@@ -105,7 +105,7 @@ async function getTemplateById(id, agentId = null) {
 }
 
 async function createTemplate({ title, description, created_by, estado, data, is_gestor = false }) {
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `INSERT INTO checklist_templates (title, created_by, estado, data, is_gestor)
      VALUES ($1, $2, $3, $4, $5) RETURNING *`,
     [title, created_by, estado || null, { description, sections: data?.sections || [], filters: data?.filters || null }, is_gestor]
@@ -126,7 +126,7 @@ async function updateTemplate(id, { title, description, is_active, estado, data,
 
   if (fields.length === 0) return null;
 
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `UPDATE checklist_templates SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $1 RETURNING *`,
     values
   );
@@ -134,7 +134,7 @@ async function updateTemplate(id, { title, description, is_active, estado, data,
 }
 
 async function duplicateTemplate(id, createdBy) {
-  const { rows } = await cenos_pool.query('SELECT * FROM checklist_templates WHERE id = $1', [id]);
+  const { rows } = await sinergia_pool.query('SELECT * FROM checklist_templates WHERE id = $1', [id]);
   if (!rows.length) return null;
   const original = rows[0];
 
@@ -153,7 +153,7 @@ async function duplicateTemplate(id, createdBy) {
 
   const newTitle = `Cópia de ${original.title}`;
   
-  const { rows: newRows } = await cenos_pool.query(
+  const { rows: newRows } = await sinergia_pool.query(
     `INSERT INTO checklist_templates (title, created_by, estado, data, is_active)
      VALUES ($1, $2, $3, $4, false) RETURNING *`,
     [newTitle, createdBy, original.estado, newData]
@@ -162,7 +162,7 @@ async function duplicateTemplate(id, createdBy) {
 }
 
 async function deleteTemplate(id) {
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     'UPDATE checklist_templates SET is_active = false, is_deleted = true, updated_at = NOW() WHERE id = $1 RETURNING *',
     [id]
   );
@@ -184,7 +184,7 @@ async function syncTemplate(id, templateData) {
     values.push(templateData.is_gestor);
   }
   
-  await cenos_pool.query(
+  await sinergia_pool.query(
     `UPDATE checklist_templates SET ${setQuery} WHERE id = $1`,
     values
   );
@@ -202,7 +202,7 @@ async function getAgentTodayChecklist(agentId, dateStr) {
     LEFT JOIN checklist_templates t ON c.template_id = t.id
     WHERE c.agent_id = $1 AND c.date = $2 AND c.type = 'official'
   `;
-  const { rows } = await cenos_pool.query(query, [agentId, dateStr]);
+  const { rows } = await sinergia_pool.query(query, [agentId, dateStr]);
   if (rows.length === 0) return null;
 
   const checklist = rows[0];
@@ -217,7 +217,7 @@ async function getAgentTodayChecklist(agentId, dateStr) {
     WHERE parent_checklist_id = $1 AND type = 'supplementary'
     ORDER BY submitted_at ASC
   `;
-  const { rows: supplementaries } = await cenos_pool.query(suppQuery, [checklist.id]);
+  const { rows: supplementaries } = await sinergia_pool.query(suppQuery, [checklist.id]);
   checklist.supplementaries = supplementaries;
 
   return checklist;
@@ -238,7 +238,7 @@ async function getChecklistById(id) {
     LEFT JOIN colaboradores col ON l.id = col."ID"
     WHERE ${whereClause}
   `;
-  const { rows } = await cenos_pool.query(query, [id]);
+  const { rows } = await sinergia_pool.query(query, [id]);
   if (rows.length === 0) return null;
 
   const checklist = rows[0];
@@ -260,7 +260,7 @@ async function getChecklistById(id) {
     .map(a => a.question_label);
 
   if (ncQuestions.length > 0 && checklist.agent_id) {
-    const { rows: resolutions } = await cenos_pool.query(
+    const { rows: resolutions } = await sinergia_pool.query(
       `SELECT id, question_label, resolved_date::text as resolved_date,
               resolved_by, resolved_at, photo_url, description
        FROM checklist_nonconformity_resolutions
@@ -306,7 +306,7 @@ async function getChecklistById(id) {
   }
 
   if (checklist.type === 'official') {
-    const { rows: supps } = await cenos_pool.query(
+    const { rows: supps } = await sinergia_pool.query(
       `SELECT id, submitted_at FROM checklists
        WHERE parent_checklist_id = $1 AND type = 'supplementary'
        ORDER BY submitted_at ASC`,
@@ -364,8 +364,8 @@ async function listChecklistsAdmin({ page = 1, limit = 10, regional_id, sectiona
   `;
   const countQuery = `SELECT count(1) as total FROM checklists c ${whereClause}`;
 
-  const { rows } = await cenos_pool.query(query, [...params, limit, offset]);
-  const countRes = await cenos_pool.query(countQuery, params);
+  const { rows } = await sinergia_pool.query(query, [...params, limit, offset]);
+  const countRes = await sinergia_pool.query(countQuery, params);
   const total = parseInt(countRes.rows[0].total, 10);
 
   return { data: rows, total, page, limit, totalPages: Math.ceil(total / limit) };
@@ -399,17 +399,17 @@ async function getChecklistsStats({ date_from, date_to }, user = null) {
 
   const whereClause = `WHERE ${filters.join(' AND ')}`;
 
-  const totalRes = await cenos_pool.query(
+  const totalRes = await sinergia_pool.query(
     `SELECT count(1) as total FROM checklists c ${whereClause}`, params
   );
   const totalSubmitted = parseInt(totalRes.rows[0].total, 10);
 
-  const criticalRes = await cenos_pool.query(
+  const criticalRes = await sinergia_pool.query(
     `SELECT count(1) as total FROM checklists c ${whereClause} AND c.has_critical_non_compliant = true`, params
   );
   const criticalCount = parseInt(criticalRes.rows[0].total, 10);
 
-  const compRes = await cenos_pool.query(
+  const compRes = await sinergia_pool.query(
     `SELECT
        count(1) as total_answers,
        count(case when ans->>'is_compliant' = 'true' then 1 end) as compliant_answers
@@ -421,7 +421,7 @@ async function getChecklistsStats({ date_from, date_to }, user = null) {
   const compliantAnswers = parseInt(compRes.rows[0].compliant_answers || 0, 10);
   const complianceRate = totalAnswers > 0 ? parseFloat(((compliantAnswers / totalAnswers) * 100).toFixed(1)) : 100;
 
-  const pendingRes = await cenos_pool.query(
+  const pendingRes = await sinergia_pool.query(
     `SELECT count(1) as total
      FROM login l
      WHERE l.id NOT IN (
@@ -431,7 +431,7 @@ async function getChecklistsStats({ date_from, date_to }, user = null) {
   );
   const totalPending = parseInt(pendingRes.rows[0].total, 10);
 
-  const regionalRes = await cenos_pool.query(
+  const regionalRes = await sinergia_pool.query(
     `SELECT col.regional, count(1) as total
      FROM checklists c
      LEFT JOIN colaboradores col ON c.agent_id = col."ID"
@@ -486,7 +486,7 @@ async function saveChecklistSubmission(agentId, data) {
     }
   }
 
-  const pool = cenos_pool;
+  const pool = sinergia_pool;
   const client = await pool.connect();
 
   try {
@@ -624,7 +624,7 @@ async function saveChecklistSubmission(agentId, data) {
 }
 
 async function deleteChecklist(id) {
-  const { rowCount } = await cenos_pool.query('DELETE FROM checklists WHERE id = $1', [id]);
+  const { rowCount } = await sinergia_pool.query('DELETE FROM checklists WHERE id = $1', [id]);
   return rowCount > 0;
 }
 
@@ -640,7 +640,7 @@ async function deleteChecklist(id) {
  * Templates without filters (null or empty) match ALL active agents.
  */
 async function getRequiredTemplatesForAgent(agentId) {
-  const { rows: profileRows } = await cenos_pool.query(
+  const { rows: profileRows } = await sinergia_pool.query(
     `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo,
             col.estado, col.situacao, col.is_gestor
      FROM login l
@@ -651,7 +651,7 @@ async function getRequiredTemplatesForAgent(agentId) {
   const profile = profileRows[0] || {};
   if ((profile.situacao || '').toLowerCase() !== 'active') return [];
 
-  const { rows: templates } = await cenos_pool.query(
+  const { rows: templates } = await sinergia_pool.query(
     `SELECT id, title, data FROM checklist_templates
      WHERE is_active = true
        AND COALESCE(is_deleted, false) = false
@@ -686,7 +686,7 @@ async function getAgentTemplatesStatus(agentId, dateStr) {
 
   // Check which templates already have submitted checklists today
   const ids = required.map(t => t.id);
-  const { rows: submittedRows } = await cenos_pool.query(
+  const { rows: submittedRows } = await sinergia_pool.query(
     `SELECT DISTINCT template_id FROM checklists
      WHERE agent_id = $1 AND date = $2 AND type = 'official' AND status = 'submitted'
      AND template_id = ANY($3::uuid[])`,
@@ -736,7 +736,7 @@ module.exports = {
 };
 
 async function listTemplatesForGestor(agentEstado, agentProfile) {
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT id, title, data FROM checklist_templates
      WHERE is_active = true AND is_gestor = true AND COALESCE(is_deleted, false) = false
        AND (estado IS NULL OR UPPER(estado) = UPPER($1))
@@ -765,7 +765,7 @@ async function listTemplatesUnified(agentEstado, isGestor, agentProfile) {
 }
 
 async function listSubordinatesPendingMonth(gestorId, gestorNome, monthStart, monthEnd) {
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT c."ID" as id, c."Nome" as nome, c."MAT" as matricula, c.estado
      FROM colaboradores c
      WHERE UPPER(TRIM(c."GESTOR IMEDIATO")) = UPPER(TRIM($1))
@@ -783,7 +783,7 @@ async function listSubordinatesPendingMonth(gestorId, gestorNome, monthStart, mo
 }
 
 async function isSubordinateOf(gestorId, gestorNome, targetAgentId) {
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT 1 FROM colaboradores
      WHERE UPPER("ID") = UPPER($1)
        AND UPPER(TRIM("GESTOR IMEDIATO")) = UPPER(TRIM($2))

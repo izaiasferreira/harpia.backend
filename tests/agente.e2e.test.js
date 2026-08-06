@@ -1,7 +1,7 @@
 const app = require('../src/app');
 const request = require('supertest');
 const crypto = require('crypto');
-const { pi_pool, cenos_pool } = require('../src/db');
+const { pi_pool, sinergia_pool } = require('../src/db');
 
 // ─── Configuração de teste ───────────────────────────────────────────────────
 const TEST_TELEGRAM_ID = process.env.TEST_TELEGRAM_ID || '8469360771';
@@ -22,12 +22,12 @@ let createdJustifyId = null;
 // ─── Setup / Teardown ────────────────────────────────────────────────────────
 beforeAll(async () => {
     // Insert agent to satisfy authentication
-    await cenos_pool.query(
+    await sinergia_pool.query(
         "INSERT INTO login (id, estado, telegram_id) VALUES ('T12345', 'pi', $1) ON CONFLICT (id) DO UPDATE SET telegram_id = $1, estado = 'pi'",
         [TEST_TELEGRAM_ID]
     );
-    await cenos_pool.query("DELETE FROM colaboradores WHERE \"ID\" = 'T12345'").catch(() => {});
-    await cenos_pool.query(
+    await sinergia_pool.query("DELETE FROM colaboradores WHERE \"ID\" = 'T12345'").catch(() => {});
+    await sinergia_pool.query(
         `INSERT INTO colaboradores ("ID", "MAT", "Nome", "GESTOR IMEDIATO", "Cargo", "estado") 
          VALUES ('T12345', '12345', 'Agente de Teste', 'Victor', 'AG.COMER LEITURISTA/MOTOCICLIS', 'pi')`
     ).catch(() => {});
@@ -50,10 +50,10 @@ beforeAll(async () => {
 }, 30000);
 
 afterAll(async () => {
-    await cenos_pool.query("DELETE FROM login WHERE id = 'T12345'").catch(() => {});
-    await cenos_pool.query("DELETE FROM colaboradores WHERE \"ID\" = 'T12345'").catch(() => {});
+    await sinergia_pool.query("DELETE FROM login WHERE id = 'T12345'").catch(() => {});
+    await sinergia_pool.query("DELETE FROM colaboradores WHERE \"ID\" = 'T12345'").catch(() => {});
     // Limpar token de teste
-    await cenos_pool.query('DELETE FROM telegram_tokens WHERE token = $1', [AUTH_TOKEN]).catch(() => {});
+    await sinergia_pool.query('DELETE FROM telegram_tokens WHERE token = $1', [AUTH_TOKEN]).catch(() => {});
 
     // Limpar justificativas de teste
     await pi_pool.query(

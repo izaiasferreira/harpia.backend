@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { serviceAnnotationCreateSchema } = require('../../db/schemas/serviceAnnotations');
 const { userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
 
@@ -11,7 +11,7 @@ async function create_service_annotation(data) {
 
     // Garante que o autor exista na tabela login para satisfazer a FK
     // (agentes já existem; admins/imports criam a linha sob demanda — no-op para agentes)
-    await cenos_pool.query(
+    await sinergia_pool.query(
         'INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
         [String(autor).slice(0, 50), (estado || 'pi').toLowerCase()]
     );
@@ -24,7 +24,7 @@ async function create_service_annotation(data) {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *
     `;
-    const { rows } = await cenos_pool.query(query, [
+    const { rows } = await sinergia_pool.query(query, [
         autor, 
         tipo, 
         identificacao_tipo || null, 
@@ -53,7 +53,7 @@ async function get_service_annotations_by_agent(autor) {
         WHERE sa.autor = $1
         ORDER BY sa.created_at DESC
     `;
-    const { rows } = await cenos_pool.query(query, [autor]);
+    const { rows } = await sinergia_pool.query(query, [autor]);
     return rows;
 }
 
@@ -81,7 +81,7 @@ async function get_service_annotations_for_agent_state(estado, seccional = null)
         WHERE ${conditions.join(' AND ')}
         ORDER BY sa.created_at DESC
     `;
-    const { rows } = await cenos_pool.query(query, params);
+    const { rows } = await sinergia_pool.query(query, params);
     return rows;
 }
 
@@ -135,7 +135,7 @@ async function get_service_annotations_admin({ user, estado, status, search, pag
         LEFT JOIN login l ON l.id = sa.autor
         WHERE ${whereClause}
     `;
-    const { rows: countRows } = await cenos_pool.query(countQuery, params);
+    const { rows: countRows } = await sinergia_pool.query(countQuery, params);
     const total = parseInt(countRows[0]?.total || 0);
 
     let dataQuery = `
@@ -151,7 +151,7 @@ async function get_service_annotations_admin({ user, estado, status, search, pag
         ORDER BY sa.created_at DESC
         LIMIT $${paramIdx++} OFFSET $${paramIdx}
     `;
-    const { rows } = await cenos_pool.query(dataQuery, [...params, parseInt(limit), offset]);
+    const { rows } = await sinergia_pool.query(dataQuery, [...params, parseInt(limit), offset]);
 
     if (!userIsAdmin(user)) {
         const filteredRows = rows.filter(r => {
@@ -184,13 +184,13 @@ async function get_service_annotation_by_id(id) {
         LEFT JOIN colaboradores c ON c."ID" = sa.autor
         WHERE sa.id = $1
     `;
-    const { rows } = await cenos_pool.query(query, [id]);
+    const { rows } = await sinergia_pool.query(query, [id]);
     if (rows.length === 0) return null;
 
     const annotation = rows[0];
 
     // Buscar evidências
-    const { rows: evidencias } = await cenos_pool.query(
+    const { rows: evidencias } = await sinergia_pool.query(
         'SELECT * FROM service_annotation_evidencias WHERE annotation_id = $1 ORDER BY created_at ASC',
         [id]
     );
@@ -211,14 +211,14 @@ async function resolve_service_annotation({ id, resolvido_por, resolvido_por_nom
         WHERE id = $4
         RETURNING *
     `;
-    const { rows } = await cenos_pool.query(query, [resolvido_por, resolvido_por_nome, descricao_solucao, id]);
+    const { rows } = await sinergia_pool.query(query, [resolvido_por, resolvido_por_nome, descricao_solucao, id]);
     if (rows.length === 0) return null;
 
     const annotation = rows[0];
 
     // Salvar evidências se houver
     for (const ev of evidencias) {
-        await cenos_pool.query(
+        await sinergia_pool.query(
             'INSERT INTO service_annotation_evidencias (annotation_id, nome_arquivo, tipo, caminho) VALUES ($1, $2, $3, $4)',
             [id, ev.nome_arquivo || 'evidencia', ev.tipo || 'imagem', ev.caminho]
         );
@@ -240,11 +240,11 @@ async function reopen_service_annotation(id) {
         WHERE id = $1
         RETURNING *
     `;
-    const { rows } = await cenos_pool.query(query, [id]);
+    const { rows } = await sinergia_pool.query(query, [id]);
     if (rows.length === 0) return null;
 
     // Remover evidências
-    await cenos_pool.query('DELETE FROM service_annotation_evidencias WHERE annotation_id = $1', [id]);
+    await sinergia_pool.query('DELETE FROM service_annotation_evidencias WHERE annotation_id = $1', [id]);
 
     return rows[0];
 }
@@ -252,14 +252,14 @@ async function reopen_service_annotation(id) {
 // ─── Admin: excluir anotação ──────────────────────────────────────────────────
 
 async function delete_service_annotation(id) {
-    const { rows } = await cenos_pool.query('DELETE FROM service_annotations WHERE id = $1 RETURNING *', [id]);
+    const { rows } = await sinergia_pool.query('DELETE FROM service_annotations WHERE id = $1 RETURNING *', [id]);
     return rows[0];
 }
 
 // ─── Admin: arquivar anotação (some do app dos agentes, mantém no admin) ──────
 
 async function archive_service_annotation(id) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         'UPDATE service_annotations SET arquivada = TRUE WHERE id = $1 RETURNING *',
         [id]
     );
@@ -269,7 +269,7 @@ async function archive_service_annotation(id) {
 // ─── Admin: desarquivar anotação ───────────────────────────────────────────────
 
 async function unarchive_service_annotation(id) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         'UPDATE service_annotations SET arquivada = FALSE WHERE id = $1 RETURNING *',
         [id]
     );

@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission, buildUserPermissionSQL } = require('./admin');
 
 /**
@@ -10,7 +10,7 @@ async function isAgentExempt(agentId, targetDate) {
   const d = new Date(targetDate + 'T12:00:00Z');
   if (d.getUTCDay() === 0) return true;
 
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT 1 FROM agent_exemptions
      WHERE agent_id = $1
        AND start_date <= $2::date
@@ -29,7 +29,7 @@ async function getExemptAgentIds(targetDate) {
   const d = new Date(targetDate + 'T12:00:00Z');
   if (d.getUTCDay() === 0) return { isSunday: true, ids: [] };
 
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT DISTINCT col."ID" as agent_id
      FROM colaboradores col
      LEFT JOIN agent_exemptions ae ON ae.agent_id = col."ID" 
@@ -47,7 +47,7 @@ async function countActiveExemptions(targetDate) {
   const d = new Date(targetDate + 'T12:00:00Z');
   if (d.getUTCDay() === 0) return 0;
 
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT COUNT(DISTINCT col."ID") AS total
      FROM colaboradores col
      LEFT JOIN agent_exemptions ae ON ae.agent_id = col."ID" 
@@ -62,7 +62,7 @@ async function countActiveExemptions(targetDate) {
  * Lista o histórico de isenções de um agente específico.
  */
 async function listAgentExemptions(agentId) {
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `SELECT
        ae.id,
        ae.agent_id,
@@ -84,7 +84,7 @@ async function listAgentExemptions(agentId) {
  * Cria uma nova isenção para o agente. Registrado para auditoria.
  */
 async function createAgentExemption({ agentId, startDate, endDate, reason, createdBy }) {
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `INSERT INTO agent_exemptions (agent_id, start_date, end_date, reason, created_by)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
@@ -97,7 +97,7 @@ async function createAgentExemption({ agentId, startDate, endDate, reason, creat
  * Remove uma isenção pelo ID (e valida que pertence ao agente).
  */
 async function deleteAgentExemption({ exemptionId, agentId }) {
-  const { rows } = await cenos_pool.query(
+  const { rows } = await sinergia_pool.query(
     `DELETE FROM agent_exemptions
      WHERE id = $1 AND agent_id = $2
      RETURNING *`,
@@ -168,8 +168,8 @@ async function listActiveExemptions({
   const paramsWithPagination = [...params, limit, offset];
 
   const [countRes, dataRes] = await Promise.all([
-    cenos_pool.query(countQuery, params),
-    cenos_pool.query(dataQuery, paramsWithPagination),
+    sinergia_pool.query(countQuery, params),
+    sinergia_pool.query(dataQuery, paramsWithPagination),
   ]);
 
   const SITUACAO_LABEL = {

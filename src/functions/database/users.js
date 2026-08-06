@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const bcrypt = require('bcrypt');
 const { userDbCreateSchema } = require('../../db/schemas');
 const z = require('zod');
@@ -13,7 +13,7 @@ async function createUser({
 }) {
     const validated = userDbCreateSchema.parse({ email, senha, nome, role, estado });
 
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const checkQuery = `SELECT id FROM users WHERE email = $1`;
     const checkResult = await pool.query(checkQuery, [validated.email.toLowerCase()]);
@@ -53,7 +53,7 @@ async function createUser({
 }
 
 async function verifyUser(email, senha) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `
         SELECT id, email, senha, nome, role, estado, ativo, foto
@@ -72,7 +72,7 @@ async function verifyUser(email, senha) {
 }
 
 async function getUserById(id, estado = 'pi') {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `
         SELECT id, email, nome, role, estado, ativo, foto, created_at, ultimo_login
@@ -84,7 +84,7 @@ async function getUserById(id, estado = 'pi') {
 }
 
 async function updateLastLogin(id, estado = 'pi') {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `
         UPDATE users 
@@ -95,7 +95,7 @@ async function updateLastLogin(id, estado = 'pi') {
 }
 
 async function listUsers(estado = 'pi') {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `
         SELECT id, email, nome, role, estado, ativo, foto, created_at, ultimo_login
@@ -108,7 +108,7 @@ async function listUsers(estado = 'pi') {
 }
 
 async function updateUser(id, data, estado = 'pi') {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const updates = [];
     const params = [];
@@ -162,7 +162,7 @@ async function updateUser(id, data, estado = 'pi') {
 }
 
 async function changePassword(id, novaSenha) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const validatedPassword = z.string().min(6).max(255).parse(novaSenha);
     const hashedSenha = await bcrypt.hash(validatedPassword, 10);
 
@@ -177,7 +177,7 @@ async function changePassword(id, novaSenha) {
 }
 
 async function deleteUser(id, estado = 'pi') {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
 
     const query = `
         UPDATE users 

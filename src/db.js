@@ -14,7 +14,7 @@ const POOL_CONFIG = {
     options: '-c timezone=UTC',
 };
 
-const cenos_pool = new Pool({
+const sinergia_pool = new Pool({
     connectionString: process.env.PG_CONNECTION,
     ...POOL_CONFIG,
 });
@@ -34,5 +34,5 @@ const localizacoes_pi_pool = new Pool({
     ...POOL_CONFIG,
 });
 
-module.exports = { cenos_pool, pi_pool, ma_pool, localizacoes_pi_pool };
+module.exports = { sinergia_pool, pi_pool, ma_pool, localizacoes_pi_pool };
 

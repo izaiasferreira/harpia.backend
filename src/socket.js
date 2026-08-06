@@ -2,7 +2,7 @@ const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { get_or_create_support_room, save_chat_message, mark_messages_as_read } = require('./functions/database/chat');
-const { cenos_pool } = require('./db');
+const { sinergia_pool } = require('./db');
 const { getTokensByAgent } = require('./functions/database/fcmTokens');
 const { sendToMultiple } = require('./functions/firebase');
 
@@ -122,7 +122,7 @@ function initSocket(httpServer) {
                 } else {
                     // 2. Token Standalone ou DEV token em telegram_tokens
                     try {
-                        const { rows } = await cenos_pool.query(
+                        const { rows } = await sinergia_pool.query(
                             'SELECT telegram_user_id, agent_id, expires_at FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
                             [tgInitData]
                         );
@@ -132,7 +132,7 @@ function initSocket(httpServer) {
                             
                             const daysUntilExpiry = (new Date(rows[0].expires_at) - Date.now()) / (1000 * 60 * 60 * 24);
                             if (daysUntilExpiry < 15) {
-                                cenos_pool.query(
+                                sinergia_pool.query(
                                     "UPDATE telegram_tokens SET expires_at = CURRENT_TIMESTAMP + interval '30 days' WHERE token = $1",
                                     [tgInitData]
                                 ).catch(e => console.error('[SLIDING EXPIRATION SOCKET] Erro:', e.message));
@@ -146,7 +146,7 @@ function initSocket(httpServer) {
                 // Se encontramos por agentId (login por PIN)
                 if (agentId) {
                     const agentIdUpper = agentId.toUpperCase();
-                    const { rows } = await cenos_pool.query(
+                    const { rows } = await sinergia_pool.query(
                         `SELECT "ID" as id, "Nome" as nome FROM colaboradores WHERE upper("ID") = $1`,
                         [agentIdUpper]
                     );
@@ -164,7 +164,7 @@ function initSocket(httpServer) {
                 // Se encontramos por telegramId
                 if (telegramId) {
                     const telegramIdStr = String(telegramId).trim();
-                    const { rows } = await cenos_pool.query(
+                    const { rows } = await sinergia_pool.query(
                         'SELECT id FROM login WHERE telegram_id = $1',
                         [telegramIdStr]
                     );
@@ -220,7 +220,7 @@ function initSocket(httpServer) {
                 const rId = parseInt(roomId);
 
                 // SEGURANÇA: Validar se o usuário tem permissão para entrar nessa sala
-                const { rows: room } = await cenos_pool.query(
+                const { rows: room } = await sinergia_pool.query(
                     `SELECT * FROM chat_rooms WHERE id = $1`,
                     [rId]
                 );
@@ -263,7 +263,7 @@ function initSocket(httpServer) {
                 const rId = parseInt(roomId);
 
                 // SEGURANÇA: Verificar se pertence à sala antes de enviar
-                const { rows: room } = await cenos_pool.query(
+                const { rows: room } = await sinergia_pool.query(
                     `SELECT * FROM chat_rooms WHERE id = $1`,
                     [rId]
                 );

@@ -2,7 +2,7 @@ const request = require('supertest');
 const app = require('../src/app');
 const jwt = require('jsonwebtoken');
 const { createUser } = require('../src/functions/database/users');
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'jwt_secret_change_me';
 
@@ -34,10 +34,10 @@ describe('Message Templates', () => {
 
     afterAll(async () => {
         if (userId) {
-            await cenos_pool.query('DELETE FROM users WHERE id = $1', [userId]);
+            await sinergia_pool.query('DELETE FROM users WHERE id = $1', [userId]);
         }
         if (templateId) {
-            await cenos_pool.query('DELETE FROM message_templates_admin WHERE id = $1', [templateId]);
+            await sinergia_pool.query('DELETE FROM message_templates_admin WHERE id = $1', [templateId]);
         }
     });
 
@@ -157,7 +157,7 @@ describe('Message Templates', () => {
 
         } finally {
             // Cleanup user 2
-            await cenos_pool.query('DELETE FROM users WHERE id = $1', [user2.id]);
+            await sinergia_pool.query('DELETE FROM users WHERE id = $1', [user2.id]);
         }
     });
 });

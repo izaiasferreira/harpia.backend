@@ -38,7 +38,7 @@ jest.mock('../src/functions/database/serviceNotes', () => {
 });
 
 jest.mock('../src/db', () => ({
-    cenos_pool: { query: jest.fn().mockResolvedValue({ rows: [] }) },
+    sinergia_pool: { query: jest.fn().mockResolvedValue({ rows: [] }) },
     pi_pool: { query: jest.fn().mockResolvedValue({ rows: [] }) },
     ma_pool: { query: jest.fn().mockResolvedValue({ rows: [] }) },
     localizacoes_pi_pool: { query: jest.fn().mockResolvedValue({ rows: [] }) },

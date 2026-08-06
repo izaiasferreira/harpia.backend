@@ -195,7 +195,7 @@ router.post('/resolve-pending-photos', telegramAuth, async (req, res) => {
             return res.status(400).json({ error: 'urlMap invalido' });
         }
 
-        const { cenos_pool } = require('../db');
+        const { sinergia_pool } = require('../db');
         let updatedCount = 0;
 
         for (const [photoId, realUrl] of Object.entries(urlMap)) {
@@ -208,7 +208,7 @@ router.post('/resolve-pending-photos', telegramAuth, async (req, res) => {
                     updated_at = NOW()
                 WHERE completion_data IS NOT NULL AND CAST(completion_data AS TEXT) LIKE $3
             `;
-            const resJson = await cenos_pool.query(queryJson, [placeholder, realUrl, `%${placeholder}%`]);
+            const resJson = await sinergia_pool.query(queryJson, [placeholder, realUrl, `%${placeholder}%`]);
             updatedCount += resJson.rowCount;
 
             // 2. Atualizar em description
@@ -218,7 +218,7 @@ router.post('/resolve-pending-photos', telegramAuth, async (req, res) => {
                     updated_at = NOW()
                 WHERE description IS NOT NULL AND description LIKE $3
             `;
-            const resDesc = await cenos_pool.query(queryDesc, [placeholder, realUrl, `%${placeholder}%`]);
+            const resDesc = await sinergia_pool.query(queryDesc, [placeholder, realUrl, `%${placeholder}%`]);
             updatedCount += resDesc.rowCount;
         }
 

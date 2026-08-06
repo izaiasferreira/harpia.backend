@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
-const { cenos_pool } = require('../db');
+const { sinergia_pool } = require('../db');
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 
 // Criar link de compartilhamento
@@ -26,7 +26,7 @@ router.post('/', verifyToken(), verifyModule('tracking_live'), async (req, res) 
             VALUES ($1, $2, $3, $4, $5)
             RETURNING id, token, created_at, expires_at, duration_minutes, target_agents
         `;
-        const { rows } = await cenos_pool.query(query, [
+        const { rows } = await sinergia_pool.query(query, [
             token,
             req.user.id,
             expires_at.toISOString(),
@@ -52,7 +52,7 @@ router.get('/', verifyToken(), verifyModule('tracking_live'), async (req, res) =
             WHERE created_by = $1
             ORDER BY created_at DESC
         `;
-        const { rows } = await cenos_pool.query(query, [req.user.id]);
+        const { rows } = await sinergia_pool.query(query, [req.user.id]);
         res.json(rows);
     } catch (error) {
         console.error('Error fetching shared links:', error);
@@ -70,7 +70,7 @@ router.post('/:id/revoke', verifyToken(), verifyModule('tracking_live'), async (
             WHERE id = $1 AND created_by = $2
             RETURNING *
         `;
-        const { rows } = await cenos_pool.query(query, [id, req.user.id]);
+        const { rows } = await sinergia_pool.query(query, [id, req.user.id]);
         if (rows.length === 0) {
             return res.status(404).json({ error: 'Link não encontrado ou você não tem permissão para revogá-lo' });
         }
@@ -97,7 +97,7 @@ router.delete('/:id', verifyToken(), verifyModule('tracking_live'), async (req, 
         
         query += ` RETURNING id`;
         
-        const { rows } = await cenos_pool.query(query, params);
+        const { rows } = await sinergia_pool.query(query, params);
         if (rows.length === 0) {
             return res.status(404).json({ error: 'Link não encontrado ou você não tem permissão para excluí-lo' });
         }

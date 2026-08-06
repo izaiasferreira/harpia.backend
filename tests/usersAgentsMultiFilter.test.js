@@ -1,7 +1,7 @@
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 
 jest.mock('../src/db', () => ({
-    cenos_pool: { query: jest.fn() },
+    sinergia_pool: { query: jest.fn() },
     pi_pool: { query: jest.fn() },
     ma_pool: { query: jest.fn() },
     localizacoes_pi_pool: { query: jest.fn() }
@@ -21,7 +21,7 @@ const COLAB = [
 
 // Dispatcher: resolve linhas de acordo com o SQL executado
 const mockPool = (overrides = {}) => {
-    cenos_pool.query.mockImplementation((sql) => {
+    sinergia_pool.query.mockImplementation((sql) => {
         if (sql.includes('SELECT COUNT')) return Promise.resolve({ rows: overrides.count || [] });
         if (sql.startsWith('SELECT * FROM colaboradores')) return Promise.resolve({ rows: overrides.colab || [] });
         if (sql.includes('FROM login WHERE id IN')) return Promise.resolve({ rows: overrides.login || [] });
@@ -34,18 +34,18 @@ const mockPool = (overrides = {}) => {
 };
 
 const findCountSql = () => {
-    const call = cenos_pool.query.mock.calls.find(([sql]) => String(sql).includes('SELECT COUNT'));
+    const call = sinergia_pool.query.mock.calls.find(([sql]) => String(sql).includes('SELECT COUNT'));
     return call ? { sql: call[0], params: call[1] } : null;
 };
 
 const findColabSql = () => {
-    const call = cenos_pool.query.mock.calls.find(([sql]) => String(sql).startsWith('SELECT * FROM colaboradores'));
+    const call = sinergia_pool.query.mock.calls.find(([sql]) => String(sql).startsWith('SELECT * FROM colaboradores'));
     return call ? { sql: call[0], params: call[1] } : null;
 };
 
 beforeEach(() => {
     jest.clearAllMocks();
-    cenos_pool.query.mockResolvedValue({ rows: [] });
+    sinergia_pool.query.mockResolvedValue({ rows: [] });
 });
 
 describe('get_users_agents_admin_paginated — filtros multi-valor', () => {
@@ -141,7 +141,7 @@ describe('get_user_agent_options — filtros multi-valor', () => {
             seccional: ['S1', 'S2']
         });
 
-        const gestoresCall = cenos_pool.query.mock.calls.find(([sql]) => String(sql).includes('GESTOR IMEDIATO'));
+        const gestoresCall = sinergia_pool.query.mock.calls.find(([sql]) => String(sql).includes('GESTOR IMEDIATO'));
         expect(gestoresCall[0]).toContain(`AND regional = ANY($1)`);
         expect(gestoresCall[0]).toContain(`AND seccional = ANY($2)`);
         expect(gestoresCall[1][0]).toEqual(['NORTE', 'SUL']);
@@ -155,7 +155,7 @@ describe('get_user_agent_options — filtros multi-valor', () => {
             estado: ['pi', 'ma']
         });
 
-        const gestoresCall = cenos_pool.query.mock.calls.find(([sql]) => String(sql).includes('GESTOR IMEDIATO'));
+        const gestoresCall = sinergia_pool.query.mock.calls.find(([sql]) => String(sql).includes('GESTOR IMEDIATO'));
         expect(gestoresCall[0]).toContain(`AND estado = ANY($1)`);
         expect(gestoresCall[1][0]).toEqual(['pi', 'ma']);
     });
@@ -180,7 +180,7 @@ describe('get_user_agent_options — filtros multi-valor', () => {
         mockPool();
         await get_user_agent_options({ user: ADMIN, estado: undefined });
 
-        const cargosCall = cenos_pool.query.mock.calls.find(([sql]) => String(sql).includes('"Cargo"'));
+        const cargosCall = sinergia_pool.query.mock.calls.find(([sql]) => String(sql).includes('"Cargo"'));
         expect(cargosCall[0]).not.toContain('AND estado');
     });
 
@@ -191,11 +191,11 @@ describe('get_user_agent_options — filtros multi-valor', () => {
         });
         await get_user_agent_options({ user: ADMIN, estado: ['pi'] });
 
-        const statusCall = cenos_pool.query.mock.calls.find(([sql]) => String(sql).includes('status::text'));
+        const statusCall = sinergia_pool.query.mock.calls.find(([sql]) => String(sql).includes('status::text'));
         expect(statusCall[0]).toContain(`AND estado = ANY($1)`);
         expect(statusCall[1][0]).toEqual(['pi']);
 
-        const situacaoCall = cenos_pool.query.mock.calls.find(([sql]) => String(sql).includes('TRIM(situacao)'));
+        const situacaoCall = sinergia_pool.query.mock.calls.find(([sql]) => String(sql).includes('TRIM(situacao)'));
         expect(situacaoCall[0]).toContain(`AND estado = ANY($1)`);
         expect(situacaoCall[1][0]).toEqual(['pi']);
     });

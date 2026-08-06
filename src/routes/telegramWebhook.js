@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
-const { cenos_pool } = require('../db');
+const { sinergia_pool } = require('../db');
 const { get_or_create_support_room, save_chat_message } = require('../functions/database/chat');
 const { minioClient, CONFIG, ensureBucketExists, getFileUrl } = require('../functions/minio');
 const { checkToken } = require('../functions/middlewares');
@@ -31,7 +31,7 @@ router.post('/telegram-webhook', async (req, res) => {
         const telegramId = String(payload.from?.id || payload.chatId);
         const senderName = [payload.from?.firstName, payload.from?.lastName].filter(Boolean).join(' ') || 'Agente';
 
-        const { rows: loginRows } = await cenos_pool.query(
+        const { rows: loginRows } = await sinergia_pool.query(
             'SELECT id FROM login WHERE telegram_id = $1',
             [telegramId]
         );

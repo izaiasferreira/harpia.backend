@@ -1,12 +1,12 @@
 const { get_instalations } = require('../src/functions/database/agentes');
-const { pi_pool, ma_pool, localizacoes_pi_pool, cenos_pool } = require('../src/db');
+const { pi_pool, ma_pool, localizacoes_pi_pool, sinergia_pool } = require('../src/db');
 
 describe('get_instalations function', () => {
     afterAll(async () => {
         await pi_pool.end().catch(() => {});
         await ma_pool.end().catch(() => {});
         await localizacoes_pi_pool.end().catch(() => {});
-        await cenos_pool.end().catch(() => {});
+        await sinergia_pool.end().catch(() => {});
     });
 
     it('should return an array of installations', async () => {

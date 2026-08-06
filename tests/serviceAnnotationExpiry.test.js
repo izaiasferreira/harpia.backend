@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const app = require('../src/app');
 const { createUser } = require('../src/functions/database/users');
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'jwt_secret_change_me';
 
@@ -37,12 +37,12 @@ describe('Service Annotation Expiry (admin expires_at + filtro no agente)', () =
         adminName = user.nome;
         adminToken = jwt.sign({ id: userId, estado: 'pi' }, JWT_SECRET);
 
-        await cenos_pool.query(
+        await sinergia_pool.query(
             "INSERT INTO login (id, estado, telegram_id) VALUES ($1, 'pi', $2) ON CONFLICT (id) DO UPDATE SET telegram_id = $2, estado = 'pi'",
             [AGENT_ID, TELEGRAM_ID]
         );
         AUTH_TOKEN = crypto.randomBytes(32).toString('hex');
-        await cenos_pool.query(
+        await sinergia_pool.query(
             `INSERT INTO telegram_tokens (token, telegram_user_id, expires_at)
              VALUES ($1, $2, NOW() + INTERVAL '1 day')`,
             [AUTH_TOKEN, TELEGRAM_ID]
@@ -51,13 +51,13 @@ describe('Service Annotation Expiry (admin expires_at + filtro no agente)', () =
 
     afterAll(async () => {
         if (createdIds.length > 0) {
-            await cenos_pool.query('DELETE FROM service_annotations WHERE id = ANY($1)', [createdIds]);
+            await sinergia_pool.query('DELETE FROM service_annotations WHERE id = ANY($1)', [createdIds]);
         }
-        await cenos_pool.query('DELETE FROM telegram_tokens WHERE token = $1', [AUTH_TOKEN]).catch(() => {});
-        await cenos_pool.query('DELETE FROM login WHERE id = $1', [AGENT_ID]).catch(() => {});
-        await cenos_pool.query('DELETE FROM login WHERE id = $1', [adminName]).catch(() => {});
+        await sinergia_pool.query('DELETE FROM telegram_tokens WHERE token = $1', [AUTH_TOKEN]).catch(() => {});
+        await sinergia_pool.query('DELETE FROM login WHERE id = $1', [AGENT_ID]).catch(() => {});
+        await sinergia_pool.query('DELETE FROM login WHERE id = $1', [adminName]).catch(() => {});
         if (userId) {
-            await cenos_pool.query('DELETE FROM users WHERE id = $1', [userId]);
+            await sinergia_pool.query('DELETE FROM users WHERE id = $1', [userId]);
         }
     }, 15000);
 

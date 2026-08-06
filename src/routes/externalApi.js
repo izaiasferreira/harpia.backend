@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { checkToken } = require('../functions/middlewares');
-const { cenos_pool } = require('../db');
+const { sinergia_pool } = require('../db');
 const { listChecklistsAdmin, getChecklistsStats } = require('../functions/database/checklists');
 const { get_users_agents_admin_paginated } = require('../functions/database/admin');
 const { getAgentsLastPositionUnified } = require('../functions/database/trackingUnified');
@@ -158,7 +158,7 @@ router.get('/security-reports', async (req, res) => {
             LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(sr.autor)
             ${fullWhereSql}
         `;
-        const countRes = await cenos_pool.query(countQuery, params);
+        const countRes = await sinergia_pool.query(countQuery, params);
         const total = parseInt(countRes.rows[0]?.total || 0, 10);
 
         const orderBySql = (!isNaN(latVal) && !isNaN(lngVal)) ? 'ORDER BY distance_km ASC, sr.created_at DESC' : 'ORDER BY sr.created_at DESC';
@@ -176,7 +176,7 @@ router.get('/security-reports', async (req, res) => {
             LIMIT $${params.length + 1} OFFSET $${params.length + 2}
         `;
 
-        const { rows } = await cenos_pool.query(dataQuery, [...params, limit, offset]);
+        const { rows } = await sinergia_pool.query(dataQuery, [...params, limit, offset]);
 
         const data = rows.map(r => {
             if (r.distance_km !== undefined && r.distance_km !== null) {
@@ -311,7 +311,7 @@ router.get('/speed-violations', async (req, res) => {
             INNER JOIN colaboradores c ON UPPER(c."ID") = UPPER(tsp.agent_id)
             ${whereSql}
         `;
-        const countRes = await cenos_pool.query(countQuery, params);
+        const countRes = await sinergia_pool.query(countQuery, params);
         const total = parseInt(countRes.rows[0]?.total || 0, 10);
 
         const orderBySql = (!isNaN(latVal) && !isNaN(lngVal)) ? 'ORDER BY distance_km ASC, tsp.recorded_at DESC' : 'ORDER BY tsp.recorded_at DESC';
@@ -329,7 +329,7 @@ router.get('/speed-violations', async (req, res) => {
             LIMIT $${params.length + 1} OFFSET $${params.length + 2}
         `;
 
-        const { rows } = await cenos_pool.query(dataQuery, [...params, limit, offset]);
+        const { rows } = await sinergia_pool.query(dataQuery, [...params, limit, offset]);
 
         const data = rows.map(r => {
             if (r.distance_km !== undefined && r.distance_km !== null) {
@@ -476,7 +476,7 @@ router.get('/heartbeats', async (req, res) => {
             LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(tsp.agent_id)
             ${whereSql}
         `;
-        const countRes = await cenos_pool.query(countQuery, params);
+        const countRes = await sinergia_pool.query(countQuery, params);
         const total = parseInt(countRes.rows[0]?.total || 0, 10);
 
         const query = `
@@ -491,7 +491,7 @@ router.get('/heartbeats', async (req, res) => {
             LIMIT $${params.length + 1} OFFSET $${params.length + 2}
         `;
 
-        const { rows } = await cenos_pool.query(query, [...params, limit, offset]);
+        const { rows } = await sinergia_pool.query(query, [...params, limit, offset]);
         res.json({ 
             data: rows, 
             total,
@@ -674,7 +674,7 @@ router.get('/checklists/non-conformities', async (req, res) => {
             jsonb_array_elements(chk.data->'answers') as ans
             ${whereSql}
         `;
-        const countRes = await cenos_pool.query(countQuery, params);
+        const countRes = await sinergia_pool.query(countQuery, params);
         const total = parseInt(countRes.rows[0]?.total || 0, 10);
 
         const dataQuery = `
@@ -696,7 +696,7 @@ router.get('/checklists/non-conformities', async (req, res) => {
             LIMIT $${params.length + 1} OFFSET $${params.length + 2}
         `;
 
-        const { rows } = await cenos_pool.query(dataQuery, [...params, limit, offset]);
+        const { rows } = await sinergia_pool.query(dataQuery, [...params, limit, offset]);
 
         res.json({
             data: rows,
@@ -1127,7 +1127,7 @@ router.post('/telegram-webhook', async (req, res) => {
         const telegramId = String(payload.from?.id || payload.chatId);
         const senderName = [payload.from?.firstName, payload.from?.lastName].filter(Boolean).join(' ') || 'Agente';
 
-        const { rows: loginRows } = await cenos_pool.query(
+        const { rows: loginRows } = await sinergia_pool.query(
             'SELECT id FROM login WHERE telegram_id = $1',
             [telegramId]
         );
@@ -1281,7 +1281,7 @@ router.get('/security-reports/:id', async (req, res) => {
             LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(sr.autor)
             WHERE sr.id = $1
         `;
-        const { rows } = await cenos_pool.query(query, [id]);
+        const { rows } = await sinergia_pool.query(query, [id]);
         if (rows.length === 0) return res.status(404).json({ error: 'Reporte de segurança não encontrado' });
 
         res.json({ data: rows[0] });
@@ -1299,7 +1299,7 @@ router.post('/security-reports', async (req, res) => {
         if (!motivo) return res.status(400).json({ error: 'motivo é obrigatório' });
 
         const userState = (estado || 'pi').toLowerCase();
-        await cenos_pool.query(
+        await sinergia_pool.query(
             'INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
             [String(autor).slice(0, 50), userState]
         );
@@ -1309,7 +1309,7 @@ router.post('/security-reports', async (req, res) => {
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
             RETURNING *
         `;
-        const { rows } = await cenos_pool.query(insertQuery, [
+        const { rows } = await sinergia_pool.query(insertQuery, [
             autor, motivo, observacao || null, foto || null,
             latitude || null, longitude || null, userState,
             regional || null, seccional || null
@@ -1349,7 +1349,7 @@ router.put('/security-reports/:id', async (req, res) => {
 
         params.push(id);
         const query = `UPDATE security_report SET ${updates.join(', ')} WHERE id = $${params.length} RETURNING *`;
-        const { rows } = await cenos_pool.query(query, params);
+        const { rows } = await sinergia_pool.query(query, params);
         if (rows.length === 0) return res.status(404).json({ error: 'Reporte de segurança não encontrado' });
 
         res.json({ success: true, data: rows[0] });
@@ -1365,7 +1365,7 @@ router.delete('/security-reports/:id', async (req, res) => {
         const id = parseInt(req.params.id, 10);
         if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
 
-        const { rows } = await cenos_pool.query('DELETE FROM security_report WHERE id = $1 RETURNING *', [id]);
+        const { rows } = await sinergia_pool.query('DELETE FROM security_report WHERE id = $1 RETURNING *', [id]);
         if (rows.length === 0) return res.status(404).json({ error: 'Reporte de segurança não encontrado' });
 
         res.json({ success: true, deleted: rows[0] });
@@ -1471,7 +1471,7 @@ router.get('/accidents', async (req, res) => {
             LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(a.autor)
             ${fullWhereSql}
         `;
-        const countRes = await cenos_pool.query(countQuery, params);
+        const countRes = await sinergia_pool.query(countQuery, params);
         const total = parseInt(countRes.rows[0]?.total || 0, 10);
 
         const orderBySql = (!isNaN(latVal) && !isNaN(lngVal)) ? 'ORDER BY distance_km ASC, a.created_at DESC' : 'ORDER BY a.created_at DESC';
@@ -1492,7 +1492,7 @@ router.get('/accidents', async (req, res) => {
             LIMIT $${params.length + 1} OFFSET $${params.length + 2}
         `;
 
-        const { rows } = await cenos_pool.query(dataQuery, [...params, limit, offset]);
+        const { rows } = await sinergia_pool.query(dataQuery, [...params, limit, offset]);
         const data = rows.map(r => {
             if (r.distance_km !== undefined && r.distance_km !== null) {
                 r.distance_m = Math.round(parseFloat(r.distance_km) * 1000);
@@ -1525,7 +1525,7 @@ router.get('/accidents/:id', async (req, res) => {
             LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(a.autor)
             WHERE a.id = $1
         `;
-        const { rows } = await cenos_pool.query(query, [id]);
+        const { rows } = await sinergia_pool.query(query, [id]);
         if (rows.length === 0) return res.status(404).json({ error: 'Acidente não encontrado' });
 
         res.json({ data: rows[0] });
@@ -1543,7 +1543,7 @@ router.post('/accidents', async (req, res) => {
         if (!tipo) return res.status(400).json({ error: 'tipo é obrigatório' });
 
         const userState = (estado || 'pi').toLowerCase();
-        await cenos_pool.query(
+        await sinergia_pool.query(
             'INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
             [String(autor).slice(0, 50), userState]
         );
@@ -1553,7 +1553,7 @@ router.post('/accidents', async (req, res) => {
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
             RETURNING *
         `;
-        const { rows } = await cenos_pool.query(insertQuery, [
+        const { rows } = await sinergia_pool.query(insertQuery, [
             autor, tipo, descricao || null,
             latitude || null, longitude || null, userState,
             regional || null, seccional || null
@@ -1593,7 +1593,7 @@ router.put('/accidents/:id', async (req, res) => {
 
         params.push(id);
         const query = `UPDATE accidents SET ${updates.join(', ')} WHERE id = $${params.length} RETURNING *`;
-        const { rows } = await cenos_pool.query(query, params);
+        const { rows } = await sinergia_pool.query(query, params);
         if (rows.length === 0) return res.status(404).json({ error: 'Acidente não encontrado' });
 
         res.json({ success: true, data: rows[0] });
@@ -1609,7 +1609,7 @@ router.delete('/accidents/:id', async (req, res) => {
         const id = parseInt(req.params.id, 10);
         if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
 
-        const { rows } = await cenos_pool.query('DELETE FROM accidents WHERE id = $1 RETURNING *', [id]);
+        const { rows } = await sinergia_pool.query('DELETE FROM accidents WHERE id = $1 RETURNING *', [id]);
         if (rows.length === 0) return res.status(404).json({ error: 'Acidente não encontrado' });
 
         res.json({ success: true, deleted: rows[0] });
@@ -1727,7 +1727,7 @@ router.get('/service-annotations', async (req, res) => {
             LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(sa.autor)
             ${fullWhereSql}
         `;
-        const countRes = await cenos_pool.query(countQuery, params);
+        const countRes = await sinergia_pool.query(countQuery, params);
         const total = parseInt(countRes.rows[0]?.total || 0, 10);
 
         const orderBySql = (!isNaN(latVal) && !isNaN(lngVal)) ? 'ORDER BY distance_km ASC, sa.created_at DESC' : 'ORDER BY sa.created_at DESC';
@@ -1748,7 +1748,7 @@ router.get('/service-annotations', async (req, res) => {
             LIMIT $${params.length + 1} OFFSET $${params.length + 2}
         `;
 
-        const { rows } = await cenos_pool.query(dataQuery, [...params, limit, offset]);
+        const { rows } = await sinergia_pool.query(dataQuery, [...params, limit, offset]);
         const data = rows.map(r => {
             if (r.distance_km !== undefined && r.distance_km !== null) {
                 r.distance_m = Math.round(parseFloat(r.distance_km) * 1000);
@@ -1781,7 +1781,7 @@ router.get('/service-annotations/:id', async (req, res) => {
             LEFT JOIN colaboradores c ON UPPER(c."ID") = UPPER(sa.autor)
             WHERE sa.id = $1
         `;
-        const { rows } = await cenos_pool.query(query, [id]);
+        const { rows } = await sinergia_pool.query(query, [id]);
         if (rows.length === 0) return res.status(404).json({ error: 'Anotação de serviço não encontrada' });
 
         res.json({ data: rows[0] });
@@ -1800,7 +1800,7 @@ router.post('/service-annotations', async (req, res) => {
         if (!descricao) return res.status(400).json({ error: 'descricao é obrigatória' });
 
         const userState = (estado || 'pi').toLowerCase();
-        await cenos_pool.query(
+        await sinergia_pool.query(
             'INSERT INTO login (id, estado) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
             [String(autor).slice(0, 50), userState]
         );
@@ -1813,7 +1813,7 @@ router.post('/service-annotations', async (req, res) => {
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
             RETURNING *
         `;
-        const { rows } = await cenos_pool.query(insertQuery, [
+        const { rows } = await sinergia_pool.query(insertQuery, [
             autor, tipo, identificacao_tipo || null, identificacao_valor || null, descricao,
             latitude || null, longitude || null, foto || null, userState,
             regional || null, seccional || null, expires_at || null
@@ -1853,7 +1853,7 @@ router.put('/service-annotations/:id', async (req, res) => {
 
         params.push(id);
         const query = `UPDATE service_annotations SET ${updates.join(', ')} WHERE id = $${params.length} RETURNING *`;
-        const { rows } = await cenos_pool.query(query, params);
+        const { rows } = await sinergia_pool.query(query, params);
         if (rows.length === 0) return res.status(404).json({ error: 'Anotação de serviço não encontrada' });
 
         res.json({ success: true, data: rows[0] });
@@ -1869,7 +1869,7 @@ router.delete('/service-annotations/:id', async (req, res) => {
         const id = parseInt(req.params.id, 10);
         if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
 
-        const { rows } = await cenos_pool.query('DELETE FROM service_annotations WHERE id = $1 RETURNING *', [id]);
+        const { rows } = await sinergia_pool.query('DELETE FROM service_annotations WHERE id = $1 RETURNING *', [id]);
         if (rows.length === 0) return res.status(404).json({ error: 'Anotação de serviço não encontrada' });
 
         res.json({ success: true, deleted: rows[0] });

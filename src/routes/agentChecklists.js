@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { cenos_pool } = require('../db');
+const { sinergia_pool } = require('../db');
 const { telegramAuth } = require('../middlewares/telegramAuth');
 const {
   getTemplateById,
@@ -48,7 +48,7 @@ router.get('/today', telegramAuth, async (req, res) => {
     const agentId = req.colaborador.id;
 
     // Buscar situação e cargo da tabela colaboradores (via login.id = colaboradores."ID")
-    const { rows: profileRows } = await cenos_pool.query(
+    const { rows: profileRows } = await sinergia_pool.query(
       `SELECT c.situacao, c."Cargo" AS cargo
        FROM login l
        LEFT JOIN colaboradores c ON l.id = c."ID"
@@ -93,7 +93,7 @@ router.get('/templates-with-filters', telegramAuth, async (req, res) => {
   try {
     const agentId = req.colaborador.id;
     const agentEstado = req.colaborador.estado;
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
       `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo, col.is_gestor
        FROM login l
        LEFT JOIN colaboradores col ON l.id = col."ID"
@@ -197,7 +197,7 @@ router.get('/templates-unified', telegramAuth, async (req, res) => {
     const isGestor = !!req.colaborador.is_gestor;
 
     // perfil do agente (para o filtro de cargo/regional/seccional/processo)
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
       `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo
        FROM login l
        LEFT JOIN colaboradores col ON l.id = col."ID"
@@ -262,7 +262,7 @@ router.post('/manager-checklists', telegramAuth, async (req, res) => {
       return res.status(403).json({ error: 'Alvo não é um liderado seu' });
     }
 
-    const { rows: existingRows } = await cenos_pool.query(
+    const { rows: existingRows } = await sinergia_pool.query(
       `SELECT 1 FROM checklists 
        WHERE agent_id = $1 AND target_agent_id = $2 
          AND template_id = $3
@@ -322,7 +322,7 @@ router.get('/:id', telegramAuth, async (req, res) => {
 
 // Helper para validar se o template é válido para o agente
 async function validateTemplateForAgent(agentId, agentEstado, templateId) {
-  const { rows: profileRows } = await cenos_pool.query(
+  const { rows: profileRows } = await sinergia_pool.query(
     `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo
      FROM login l
      LEFT JOIN colaboradores col ON l.id = col."ID"
@@ -335,7 +335,7 @@ async function validateTemplateForAgent(agentId, agentEstado, templateId) {
   if (isProfileAllowed) return true;
 
   // Fallback: se não passou no filtro estrito de perfil, mas o template existe e está ativo para o estado do agente
-  const { rows: tRows } = await cenos_pool.query(
+  const { rows: tRows } = await sinergia_pool.query(
     `SELECT id FROM checklist_templates
      WHERE id = $1 AND is_active = true AND is_deleted = false
        AND (estado IS NULL OR UPPER(estado) = UPPER($2))`,

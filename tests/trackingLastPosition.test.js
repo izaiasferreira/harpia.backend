@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 const { getAgentsLastPositionUnified } = require('../src/functions/database/trackingUnified');
 
 const TEST_ID = 'T12345';
@@ -14,18 +14,18 @@ const POINTS = [
 
 beforeAll(async () => {
     // Agente com pontos de tracking
-    await cenos_pool.query(
+    await sinergia_pool.query(
         "INSERT INTO login (id, estado, telegram_id) VALUES ($1, 'pi', $2) ON CONFLICT (id) DO UPDATE SET telegram_id = $2, estado = 'pi'",
         [TEST_ID, TEST_TELEGRAM_ID]
     );
-    await cenos_pool.query(
+    await sinergia_pool.query(
         `INSERT INTO colaboradores ("ID", "MAT", "Nome", "GESTOR IMEDIATO", "Cargo", "estado", "status")
          VALUES ($1, '12345', 'Agente de Teste', 'Victor', 'AG.COMER LEITURISTA/MOTOCICLIS', 'pi', TRUE)
          ON CONFLICT ("ID") DO UPDATE SET "status" = TRUE`,
         [TEST_ID]
     );
     for (const p of POINTS) {
-        await cenos_pool.query(
+        await sinergia_pool.query(
             `INSERT INTO tracking_session_points (agent_id, latitude, longitude, speed, recorded_at)
              VALUES ($1, $2, $3, $4, $5)`,
             [TEST_ID, p.lat, p.lng, p.speed, p.recorded_at]
@@ -33,7 +33,7 @@ beforeAll(async () => {
     }
 
     // Agente sem pontos de tracking (deve ser excluído do resultado)
-    await cenos_pool.query(
+    await sinergia_pool.query(
         `INSERT INTO colaboradores ("ID", "MAT", "Nome", "Cargo", "estado", "status")
          VALUES ($1, '99999', 'Agente Sem Ponto', 'AG.COMER LEITURISTA/MOTOCICLIS', 'pi', TRUE)
          ON CONFLICT ("ID") DO UPDATE SET "status" = TRUE`,
@@ -42,9 +42,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    await cenos_pool.query("DELETE FROM tracking_session_points WHERE agent_id IN ($1, $2)", [TEST_ID, TEST_ID_NO_POINTS]).catch(() => {});
-    await cenos_pool.query("DELETE FROM colaboradores WHERE \"ID\" IN ($1, $2)", [TEST_ID, TEST_ID_NO_POINTS]).catch(() => {});
-    await cenos_pool.query("DELETE FROM login WHERE id = $1", [TEST_ID]).catch(() => {});
+    await sinergia_pool.query("DELETE FROM tracking_session_points WHERE agent_id IN ($1, $2)", [TEST_ID, TEST_ID_NO_POINTS]).catch(() => {});
+    await sinergia_pool.query("DELETE FROM colaboradores WHERE \"ID\" IN ($1, $2)", [TEST_ID, TEST_ID_NO_POINTS]).catch(() => {});
+    await sinergia_pool.query("DELETE FROM login WHERE id = $1", [TEST_ID]).catch(() => {});
 });
 
 describe('getAgentsLastPositionUnified (LATERAL query)', () => {
@@ -57,7 +57,7 @@ describe('getAgentsLastPositionUnified (LATERAL query)', () => {
         expect(Number(agent.longitude)).toBe(POINTS[2].lng);
         expect(Number(agent.speed)).toBe(POINTS[2].speed);
 
-        const { rows } = await cenos_pool.query(
+        const { rows } = await sinergia_pool.query(
             `SELECT MAX(recorded_at) AS max_ts FROM tracking_session_points WHERE agent_id = $1`,
             [TEST_ID]
         );

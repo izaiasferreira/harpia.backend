@@ -30,9 +30,9 @@ router.get('/agents/search', verifyModule('assign_equipment'), async (req, res) 
         if (!q || q.trim().length < 2) {
             return res.json([]);
         }
-        const { cenos_pool } = require('../db');
+        const { sinergia_pool } = require('../db');
         const term = `%${q.trim().toUpperCase()}%`;
-        const { rows } = await cenos_pool.query(`
+        const { rows } = await sinergia_pool.query(`
             SELECT "ID" AS id, "Nome" AS nome, "regional", "seccional", estado
             FROM colaboradores
             WHERE "ID" LIKE $1 OR UPPER("Nome") LIKE $1

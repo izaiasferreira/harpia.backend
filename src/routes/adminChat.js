@@ -76,12 +76,12 @@ router.post('/admin/chat/rooms', verifyToken(), verifyModule('chat'), validate(c
             return res.status(400).json({ error: 'agent_id é obrigatório' });
         }
 
-        const { cenos_pool: chatCenosPool } = require('../db');
+        const { sinergia_pool: chatPool } = require('../db');
         let agentInfo = null;
         let state = null;
 
-        // Busca agente no cenos_pool
-        const { rows: agentRows } = await chatCenosPool.query(
+        // Busca agente no sinergia_pool
+        const { rows: agentRows } = await chatPool.query(
             `SELECT "ID", "Nome", "regional", "seccional", estado FROM colaboradores WHERE "ID" = $1`,
             [agent_id.toUpperCase()]
         );

@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 
 // Mock db pools
 jest.mock('../src/db', () => ({
-    cenos_pool: { query: jest.fn() },
+    sinergia_pool: { query: jest.fn() },
     pi_pool: { query: jest.fn() },
     ma_pool: { query: jest.fn() },
     localizacoes_pi_pool: { query: jest.fn() }
@@ -28,7 +28,7 @@ jest.mock('../src/functions/database/branches', () => ({
     createBranchesTable: jest.fn().mockResolvedValue(true)
 }));
 
-const { cenos_pool, pi_pool, ma_pool } = require('../src/db');
+const { sinergia_pool, pi_pool, ma_pool } = require('../src/db');
 
 describe('Administrative GET Endpoints Integration', () => {
     let token;
@@ -40,7 +40,7 @@ describe('Administrative GET Endpoints Integration', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         // Default mocks for pool queries to prevent undefined errors
-        cenos_pool.query.mockResolvedValue({ rows: [] });
+        sinergia_pool.query.mockResolvedValue({ rows: [] });
         pi_pool.query.mockResolvedValue({ rows: [] });
         ma_pool.query.mockResolvedValue({ rows: [] });
     });
@@ -56,13 +56,13 @@ describe('Administrative GET Endpoints Integration', () => {
     describe('GET /admin/users_agents', () => {
         test('Pesquisa por Nome (Cruzamento de Bancos)', async () => {
             // Mock da busca de login (id ILIKE search)
-            cenos_pool.query.mockResolvedValueOnce({ rows: [{ id: 'T12345' }] }); // login search
+            sinergia_pool.query.mockResolvedValueOnce({ rows: [{ id: 'T12345' }] }); // login search
             
             // Mock COUNT colaboradores
-            cenos_pool.query.mockResolvedValueOnce({ rows: [{ total: 1 }] });
+            sinergia_pool.query.mockResolvedValueOnce({ rows: [{ total: 1 }] });
             
             // Mock SELECT colaboradores
-            cenos_pool.query.mockResolvedValueOnce({ rows: [{ ID: 'T12345', Nome: 'João Teste', Cargo: 'NEG', MAT: '12345', estado: 'pi', seccional: null, regional: null, GESTOR IMEDIATO: null }] });
+            sinergia_pool.query.mockResolvedValueOnce({ rows: [{ ID: 'T12345', Nome: 'João Teste', Cargo: 'NEG', MAT: '12345', estado: 'pi', seccional: null, regional: null, GESTOR IMEDIATO: null }] });
 
             const res = await request(app)
                 .get('/admin/users_agents?search=João')
@@ -83,7 +83,7 @@ describe('Administrative GET Endpoints Integration', () => {
 
     describe('GET /admin/inventory', () => {
         test('Lista com Paginação e Busca', async () => {
-            cenos_pool.query.mockImplementation(async (q) => {
+            sinergia_pool.query.mockImplementation(async (q) => {
                 if (q.includes('SELECT')) return { rows: [{ id: 1, agente: 'T123' }] };
                 return { rows: [] };
             });
@@ -93,7 +93,7 @@ describe('Administrative GET Endpoints Integration', () => {
                 .set('Authorization', `Bearer ${token}`);
             
             expect(res.status).toBe(200);
-            const selectCall = findQuery(cenos_pool.query, 'inventory');
+            const selectCall = findQuery(sinergia_pool.query, 'inventory');
             expect(selectCall[0]).toContain('LIMIT $2 OFFSET $3');
             expect(selectCall[1]).toContain(5); // limit
             expect(selectCall[1]).toContain(5); // offset
@@ -108,14 +108,14 @@ describe('Administrative GET Endpoints Integration', () => {
                 .set('Authorization', `Bearer ${token}`);
             
             expect(res.status).toBe(200);
-            const selectCall = findQuery(cenos_pool.query, 'justify_pending');
+            const selectCall = findQuery(sinergia_pool.query, 'justify_pending');
             expect(selectCall[1]).toContain('respondido');
         });
     });
 
     describe('GET /admin/justify', () => {
         test('Lista tipos únicos de motivos', async () => {
-            cenos_pool.query.mockResolvedValueOnce({ rows: [{ motivo: 'A' }, { motivo: 'B' }] });
+            sinergia_pool.query.mockResolvedValueOnce({ rows: [{ motivo: 'A' }, { motivo: 'B' }] });
             const res = await request(app)
                 .get('/admin/justify/types')
                 .set('Authorization', `Bearer ${token}`);
@@ -123,7 +123,7 @@ describe('Administrative GET Endpoints Integration', () => {
             expect(res.status).toBe(200);
             expect(res.body).toContain('A');
             expect(res.body).toContain('B');
-            const selectCall = findQuery(cenos_pool.query, 'justificativas');
+            const selectCall = findQuery(sinergia_pool.query, 'justificativas');
             expect(selectCall[0]).toContain('DISTINCT motivo');
         });
     });
@@ -135,7 +135,7 @@ describe('Administrative GET Endpoints Integration', () => {
                 .set('Authorization', `Bearer ${token}`);
             
             expect(res.status).toBe(200);
-            const selectCall = findQuery(cenos_pool.query, 'daily_report');
+            const selectCall = findQuery(sinergia_pool.query, 'daily_report');
             expect(selectCall[0]).toContain('OR motivo ILIKE');
             expect(selectCall[1]).toContain('%Teste%');
         });

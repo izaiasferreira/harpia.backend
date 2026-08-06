@@ -1,5 +1,5 @@
 const XLSX = require('xlsx');
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { normalizeAgentId, normalizeAgentName, normalizeTextUpper } = require('../../utils/agentNormalize');
 
 const getChangedBy = (user) => user?.email || user?.id || user?.nome || 'unknown';
@@ -66,13 +66,13 @@ async function processAgentImport(fileBuffer, user) {
     }
 
     try {
-      const existing = await cenos_pool.query(`SELECT "ID", status, situacao FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id]);
+      const existing = await sinergia_pool.query(`SELECT "ID", status, situacao FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id]);
       const changedBy = getChangedBy(user);
       
       if (existing.rows.length > 0) {
         const beforeStatus = existing.rows[0].status;
         const beforeSituacao = existing.rows[0].situacao;
-        await cenos_pool.query(`
+        await sinergia_pool.query(`
           UPDATE colaboradores SET
             "Nome" = COALESCE(NULLIF($2, ''), "Nome"),
             estado = COALESCE(NULLIF($3, ''), estado),
@@ -99,7 +99,7 @@ async function processAgentImport(fileBuffer, user) {
             `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`
           ).join(',');
           const flatParams = auditEntries.flatMap(e => [e.agente_id, e.field, e.from_value, e.to_value, e.changed_by]);
-          await cenos_pool.query(
+          await sinergia_pool.query(
             `INSERT INTO agente_audit_log (agente_id, field, from_value, to_value, changed_by) VALUES ${values}`,
             flatParams
           );
@@ -108,7 +108,7 @@ async function processAgentImport(fileBuffer, user) {
         successCount++;
         updatedIds.push(id);
       } else {
-        await cenos_pool.query(`
+        await sinergia_pool.query(`
           INSERT INTO colaboradores ("ID", "Nome", estado, regional, seccional, processo, "GESTOR IMEDIATO", "Cargo", "MAT", status, situacao)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         `, [id, nome, estado, regional, seccional, processo, gestor, cargo, matricula, status, situacao]);
@@ -121,7 +121,7 @@ async function processAgentImport(fileBuffer, user) {
           `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`
         ).join(',');
         const flatParams = auditEntries.flatMap(e => [e.agente_id, e.field, e.from_value, e.to_value, e.changed_by]);
-        await cenos_pool.query(
+        await sinergia_pool.query(
           `INSERT INTO agente_audit_log (agente_id, field, from_value, to_value, changed_by) VALUES ${values}`,
           flatParams
         );

@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 const request = require('supertest');
 const app = require('../src/app');
 
@@ -25,14 +25,14 @@ describe('Manager Dashboard V2', () => {
     beforeAll(async () => {
 
         // Create manager and subordinate
-        await cenos_pool.query(`
+        await sinergia_pool.query(`
             INSERT INTO colaboradores ("ID", "MAT", "Nome", "estado", is_gestor, "GESTOR IMEDIATO", status)
             VALUES 
             ('DASHGESTOR', 'DASHGESTOR', 'Gestor Dash', 'SP', true, NULL, true),
             ('DASHSUB', 'DASHSUB', 'Sub Dash', 'SP', false, 'Gestor Dash', true)
             ON CONFLICT ("ID") DO UPDATE SET "GESTOR IMEDIATO" = EXCLUDED."GESTOR IMEDIATO", status = true
         `);
-        await cenos_pool.query(`
+        await sinergia_pool.query(`
             INSERT INTO login (id, estado)
             VALUES ('DASHGESTOR', 'SP'), ('DASHSUB', 'SP')
             ON CONFLICT (id) DO NOTHING
@@ -40,7 +40,7 @@ describe('Manager Dashboard V2', () => {
     });
 
     afterAll(async () => {
-        await cenos_pool.query(`DELETE FROM colaboradores WHERE "ID" IN ('DASHGESTOR', 'DASHSUB')`);
+        await sinergia_pool.query(`DELETE FROM colaboradores WHERE "ID" IN ('DASHGESTOR', 'DASHSUB')`);
     });
 
     test('GET /manager/dashboard/stats retorna estatisticas corretamente (gestor_id explicito)', async () => {

@@ -1,4 +1,4 @@
-const { cenos_pool, pi_pool, ma_pool } = require('../../db');
+const { sinergia_pool, pi_pool, ma_pool } = require('../../db');
 const { resolverSchema } = require('../../db/schemas/securityValidation');
 
 const userIsAdmin = (user) => {
@@ -18,7 +18,7 @@ const getUserAllowedStatePools = (user) => {
 };
 
 async function resolve_security_report({ id, user, descricao_solucao }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const reportId = parseInt(id, 10);
     if (isNaN(reportId)) throw new Error('ID inválido');
 
@@ -50,7 +50,7 @@ async function resolve_security_report({ id, user, descricao_solucao }) {
 }
 
 async function reabrir_security_report({ id, user }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const reportId = parseInt(id, 10);
     if (isNaN(reportId)) throw new Error('ID inválido');
 
@@ -79,7 +79,7 @@ async function reabrir_security_report({ id, user }) {
 }
 
 async function add_evidencia({ report_id, nome_arquivo, tipo, caminho }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const { rows } = await pool.query(`
         INSERT INTO security_report_evidencias (report_id, nome_arquivo, tipo, caminho)
         VALUES ($1, $2, $3, $4)
@@ -89,7 +89,7 @@ async function add_evidencia({ report_id, nome_arquivo, tipo, caminho }) {
 }
 
 async function get_evidencias(report_id) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const { rows } = await pool.query(`
         SELECT * FROM security_report_evidencias
         WHERE report_id = $1
@@ -99,7 +99,7 @@ async function get_evidencias(report_id) {
 }
 
 async function get_dashboard_stats({ user, estado }) {
-    const pool = cenos_pool;
+    const pool = sinergia_pool;
     const allowedPools = getUserAllowedStatePools(user);
 
     let whereClause = '';

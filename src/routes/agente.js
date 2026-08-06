@@ -4,7 +4,7 @@ const { justifyCreateSchema } = require('../db/schemas/justify');
 const { dailyReportSchema } = require('../db/schemas/dailyReport');
 const { inventoryCreateSchema } = require('../db/schemas/inventory');
 const { securityCheckCreateSchema } = require('../db/schemas/security');
-const { cenos_pool } = require('../db');
+const { sinergia_pool } = require('../db');
 const { verifyToken } = require('../middlewares/jwtAuth');
 
 const router = express.Router();
@@ -1126,7 +1126,7 @@ router.get('/admin/tracking/speed-violations', verifyToken(), async (req, res) =
         const filters = { agentId, dateFrom, dateTo };
         const [rows, totalResult] = await Promise.all([
             getSpeedViolationsFromUnified(filters),
-            cenos_pool.query(`SELECT COUNT(*) FROM tracking_session_points WHERE is_speed_violation = TRUE`),
+            sinergia_pool.query(`SELECT COUNT(*) FROM tracking_session_points WHERE is_speed_violation = TRUE`),
         ]);
         res.json({ data: rows.slice(offset, offset + parseInt(limit)), total: Number(totalResult.rows[0].count) });
     } catch (err) {

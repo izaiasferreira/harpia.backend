@@ -110,7 +110,7 @@ router.get('/metabase_geral', async (req, res) => {
 const crypto = require('crypto');
 require('dotenv').config();
 
-const { cenos_pool, pi_pool, ma_pool } = require('../db');
+const { sinergia_pool, pi_pool, ma_pool } = require('../db');
 // ─── Training ───────────────────────────────────────────────────────────────
 
 router.get('/training/:id', publicLimiter, async (req, res) => {
@@ -231,7 +231,7 @@ router.get('/generate_token', async (req, res) => {
             const token = crypto.randomBytes(32).toString('hex');
             const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000 * 30);
 
-            await cenos_pool.query(
+            await sinergia_pool.query(
                 'INSERT INTO telegram_tokens (token, telegram_user_id, expires_at) VALUES ($1, $2, $3)',
                 [token, telegramId, expiresAt]
             );
@@ -279,7 +279,7 @@ router.post('/app_login', appLoginLimiter, async (req, res) => {
         await markPinAsUsed(validPin.id);
 
         // Invalida sessões anteriores (single device)
-        await cenos_pool.query(
+        await sinergia_pool.query(
             'DELETE FROM telegram_tokens WHERE upper(agent_id) = upper($1)',
             [agent.id]
         );
@@ -287,7 +287,7 @@ router.post('/app_login', appLoginLimiter, async (req, res) => {
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-        await cenos_pool.query(
+        await sinergia_pool.query(
             'INSERT INTO telegram_tokens (token, telegram_user_id, agent_id, expires_at) VALUES ($1, $2, $3, $4)',
             [token, agent.telegram_id || 0, agent.id, expiresAt]
         );
@@ -336,7 +336,7 @@ router.post('/app_logout', appLogoutLimiter, async (req, res) => {
             return res.status(401).json({ error: 'Sessão inválida' });
         }
 
-        const { rows } = await cenos_pool.query(
+        const { rows } = await sinergia_pool.query(
             'SELECT telegram_user_id, agent_id, expires_at FROM telegram_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
             [currentToken]
         );
@@ -354,12 +354,12 @@ router.post('/app_logout', appLogoutLimiter, async (req, res) => {
 
         await markLogoutPinAsUsed(validPin.id);
 
-        await cenos_pool.query(
+        await sinergia_pool.query(
             'DELETE FROM telegram_tokens WHERE token = $1',
             [currentToken]
         );
 
-        await cenos_pool.query(
+        await sinergia_pool.query(
             'DELETE FROM fcm_tokens WHERE upper(agent_id) = upper($1)',
             [agentId]
         );

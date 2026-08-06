@@ -103,7 +103,7 @@ router.post('/send', verifyToken(), upload.single('file'), async (req, res) => {
             // --- Push ---
             if (parsedChannels.includes('push') || parsedChannels.includes('overlay')) {
                 const isCritical = parsedChannels.includes('overlay') || critical === 'true' || critical === true;
-                const pushTitle = title || 'Gedai';
+                const pushTitle = title || 'Sinergia';
                 const channel = isCritical ? 'overlay' : 'push';
 
                 try {

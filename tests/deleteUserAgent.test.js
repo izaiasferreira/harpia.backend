@@ -1,7 +1,7 @@
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 
 jest.mock('../src/db', () => ({
-    cenos_pool: { query: jest.fn() },
+    sinergia_pool: { query: jest.fn() },
     pi_pool: { query: jest.fn() },
     ma_pool: { query: jest.fn() },
     localizacoes_pi_pool: { query: jest.fn() }
@@ -19,7 +19,7 @@ const COLAB = [
 ];
 
 const mockPool = (overrides = {}) => {
-    cenos_pool.query.mockImplementation((sql) => {
+    sinergia_pool.query.mockImplementation((sql) => {
         const s = String(sql);
         if (s.includes('SELECT COUNT')) return Promise.resolve({ rows: overrides.count || [] });
         if (s.startsWith('SELECT * FROM colaboradores')) return Promise.resolve({ rows: overrides.colab || [] });
@@ -33,7 +33,7 @@ const mockPool = (overrides = {}) => {
 
 beforeEach(() => {
     jest.clearAllMocks();
-    cenos_pool.query.mockResolvedValue({ rows: [] });
+    sinergia_pool.query.mockResolvedValue({ rows: [] });
 });
 
 describe('delete_user_agent_admin — exclusão case-insensitive', () => {
@@ -41,7 +41,7 @@ describe('delete_user_agent_admin — exclusão case-insensitive', () => {
         mockPool({ colab: COLAB });
         const result = await delete_user_agent_admin({ id: 'T61130', user: ADMIN, deleteLogin: true });
 
-        const delCall = cenos_pool.query.mock.calls.find(([sql]) => String(sql).includes('DELETE FROM colaboradores'));
+        const delCall = sinergia_pool.query.mock.calls.find(([sql]) => String(sql).includes('DELETE FROM colaboradores'));
         expect(delCall).toBeTruthy();
         expect(delCall[0]).toContain('TRIM(UPPER("ID")) = TRIM(UPPER($1))');
         expect(delCall[1][0]).toBe('T61130');
@@ -52,7 +52,7 @@ describe('delete_user_agent_admin — exclusão case-insensitive', () => {
         mockPool({ colab: COLAB });
         await delete_user_agent_admin({ id: 'T61130', user: ADMIN, deleteLogin: false });
 
-        const colabCall = cenos_pool.query.mock.calls.find(([sql]) => String(sql).startsWith('SELECT * FROM colaboradores'));
+        const colabCall = sinergia_pool.query.mock.calls.find(([sql]) => String(sql).startsWith('SELECT * FROM colaboradores'));
         expect(colabCall[0]).toContain('UPPER("ID") = ANY(');
         expect(colabCall[1].find(p => Array.isArray(p) && p.includes('T61130'))).toEqual(['T61130']);
     });
@@ -61,7 +61,7 @@ describe('delete_user_agent_admin — exclusão case-insensitive', () => {
         mockPool({ colab: COLAB });
         await delete_user_agent_admin({ id: 'T61130', user: ADMIN, deleteLogin: true });
 
-        const loginDelCall = cenos_pool.query.mock.calls.find(([sql]) => String(sql).includes('DELETE FROM login'));
+        const loginDelCall = sinergia_pool.query.mock.calls.find(([sql]) => String(sql).includes('DELETE FROM login'));
         expect(loginDelCall).toBeTruthy();
         expect(loginDelCall[0]).toContain('TRIM(UPPER(id)) = TRIM(UPPER($1))');
     });

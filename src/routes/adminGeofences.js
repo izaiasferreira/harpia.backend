@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { cenos_pool } = require('../db');
+const { sinergia_pool } = require('../db');
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
 
 // Listar todas as cercas virtuais (limitado ao estado do admin se ele não for super)
@@ -21,7 +21,7 @@ router.get('/', verifyToken(), verifyModule('geofences'), async (req, res) => {
 
         query += ` ORDER BY created_at DESC`;
 
-        const { rows } = await cenos_pool.query(query, params);
+        const { rows } = await sinergia_pool.query(query, params);
         res.json(rows);
     } catch (err) {
         console.error('[GEOFENCE] Erro ao listar:', err);
@@ -52,7 +52,7 @@ router.post('/', verifyToken(), verifyModule('create_geofence'), async (req, res
             is_active !== undefined ? is_active : true
         ];
 
-        const { rows } = await cenos_pool.query(query, params);
+        const { rows } = await sinergia_pool.query(query, params);
         res.status(201).json(rows[0]);
     } catch (err) {
         console.error('[GEOFENCE] Erro ao criar:', err);
@@ -89,7 +89,7 @@ router.put('/:id', verifyToken(), verifyModule('update_geofence'), async (req, r
             fenceId
         ];
 
-        const { rows } = await cenos_pool.query(query, params);
+        const { rows } = await sinergia_pool.query(query, params);
         if (rows.length === 0) {
             return res.status(404).json({ error: 'Cerca não encontrada' });
         }
@@ -106,7 +106,7 @@ router.delete('/:id', verifyToken(), verifyModule('delete_geofence'), async (req
     try {
         const fenceId = parseInt(req.params.id);
 
-        const { rowCount } = await cenos_pool.query('DELETE FROM tracking_fences WHERE id = $1', [fenceId]);
+        const { rowCount } = await sinergia_pool.query('DELETE FROM tracking_fences WHERE id = $1', [fenceId]);
         if (rowCount === 0) {
             return res.status(404).json({ error: 'Cerca não encontrada' });
         }

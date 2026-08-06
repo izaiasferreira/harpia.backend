@@ -1,11 +1,11 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { chatMessageCreateSchema } = require('../../db/schemas');
 const { getColaboradoresFilter, userIsAdmin, checkAgentPermission } = require('./admin');
 
 async function get_or_create_support_room(agentId, agentName) {
     const formattedId = agentId?.toUpperCase();
     // Verifica se já existe
-    const { rows: existing } = await cenos_pool.query(
+    const { rows: existing } = await sinergia_pool.query(
         `SELECT * FROM chat_rooms WHERE agent_id = $1 AND type = 'suporte'`,
         [formattedId]
     );
@@ -15,7 +15,7 @@ async function get_or_create_support_room(agentId, agentName) {
     }
 
     // Cria nova sala
-    const { rows: created } = await cenos_pool.query(
+    const { rows: created } = await sinergia_pool.query(
         `INSERT INTO chat_rooms (agent_id, name, type) VALUES ($1, $2, 'suporte') RETURNING *`,
         [formattedId, `Suporte Técnico`]
     );
@@ -26,20 +26,20 @@ async function get_rooms_for_agent(agentId) {
     const formattedId = agentId?.toUpperCase();
     
     // Pegar as salas do agente
-    const { rows: rooms } = await cenos_pool.query(
+    const { rows: rooms } = await sinergia_pool.query(
         `SELECT * FROM chat_rooms WHERE agent_id = $1 ORDER BY created_at DESC`,
         [formattedId]
     );
 
     // Para cada sala, puxar a última mensagem e contar as não lidas enviadas pelo admin
     for (const room of rooms) {
-        const { rows: lastMsg } = await cenos_pool.query(
+        const { rows: lastMsg } = await sinergia_pool.query(
             `SELECT * FROM chat_messages WHERE room_id = $1 ORDER BY created_at DESC LIMIT 1`,
             [room.id]
         );
         room.last_message = lastMsg[0] || null;
 
-        const { rows: countUnread } = await cenos_pool.query(
+        const { rows: countUnread } = await sinergia_pool.query(
             `SELECT COUNT(*)::integer as count FROM chat_messages WHERE room_id = $1 AND sender_type = 'admin' AND read = false`,
             [room.id]
         );
@@ -50,7 +50,7 @@ async function get_rooms_for_agent(agentId) {
 }
 
 async function get_rooms_for_admin(user) {
-    // Carrega todos os agentes do cenos_pool com filtro de permissão
+    // Carrega todos os agentes do sinergia_pool com filtro de permissão
     const agentsMap = new Map();
 
     try {
@@ -73,7 +73,7 @@ async function get_rooms_for_admin(user) {
             }
         }
 
-        const { rows } = await cenos_pool.query(query, params);
+        const { rows } = await sinergia_pool.query(query, params);
 
         // Aplica filtro em memória para regional, seccional e gestor (que não são fácilmente filtráveis no SQL)
         const filteredRows = rows.filter(r => {
@@ -101,7 +101,7 @@ async function get_rooms_for_admin(user) {
     }
 
     // Carrega todas as salas de suporte existentes
-    const { rows: rooms } = await cenos_pool.query(
+    const { rows: rooms } = await sinergia_pool.query(
         `SELECT * FROM chat_rooms WHERE type = 'suporte' ORDER BY id DESC`
     );
 
@@ -130,13 +130,13 @@ async function get_rooms_for_admin(user) {
         };
 
         if (room) {
-            const { rows: lastMsg } = await cenos_pool.query(
+            const { rows: lastMsg } = await sinergia_pool.query(
                 `SELECT * FROM chat_messages WHERE room_id = $1 ORDER BY created_at DESC LIMIT 1`,
                 [room.id]
             );
             entry.last_message = lastMsg[0] || null;
 
-            const { rows: countUnread } = await cenos_pool.query(
+            const { rows: countUnread } = await sinergia_pool.query(
                 `SELECT COUNT(*)::integer as count FROM chat_messages WHERE room_id = $1 AND sender_type = 'agent' AND read = false`,
                 [room.id]
             );
@@ -183,12 +183,12 @@ async function save_chat_message(roomId, senderId, senderType, senderName, messa
         validated.channel,
         validated.metadata ? (typeof validated.metadata === 'string' ? validated.metadata : JSON.stringify(validated.metadata)) : null
     ];
-    const { rows } = await cenos_pool.query(query, values);
+    const { rows } = await sinergia_pool.query(query, values);
     return rows[0];
 }
 
 async function get_messages_for_room(roomId, limit = 100) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT * FROM chat_messages WHERE room_id = $1 ORDER BY created_at ASC LIMIT $2`,
         [roomId, limit]
     );
@@ -196,7 +196,7 @@ async function get_messages_for_room(roomId, limit = 100) {
 }
 
 async function mark_messages_as_read(roomId, senderTypeToMark) {
-    await cenos_pool.query(
+    await sinergia_pool.query(
         `UPDATE chat_messages SET read = true WHERE room_id = $1 AND sender_type = $2 AND read = false`,
         [roomId, senderTypeToMark]
     );
@@ -205,7 +205,7 @@ async function mark_messages_as_read(roomId, senderTypeToMark) {
 
 // Obter contagem de salas com mensagens não lidas para o menu principal do admin
 async function get_admin_unread_rooms_count() {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT COUNT(DISTINCT room_id)::integer as count FROM chat_messages WHERE sender_type = 'agent' AND read = false`
     );
     return rows[0]?.count || 0;
@@ -231,7 +231,7 @@ async function get_rooms_for_admin_v2(user) {
             }
         }
 
-        const { rows } = await cenos_pool.query(query, params);
+        const { rows } = await sinergia_pool.query(query, params);
 
         const filteredRows = rows.filter(r => {
             const agentData = {
@@ -257,7 +257,7 @@ async function get_rooms_for_admin_v2(user) {
     const agentIds = Array.from(agentsMap.keys());
 
     // Single query: rooms + last message + unread count via LATERAL joins
-    const { rows: rooms } = await cenos_pool.query(
+    const { rows: rooms } = await sinergia_pool.query(
         `SELECT cr.id, cr.agent_id, cr.name, cr.type, cr.created_at,
                 lm.id as last_message_id, lm.sender_id as last_sender_id,
                 lm.sender_type as last_sender_type, lm.sender_name as last_sender_name,
@@ -333,7 +333,7 @@ async function get_rooms_for_admin_v2(user) {
 
 async function get_messages_for_room_cursor(roomId, cursor = null, limit = 30) {
     if (cursor) {
-        const { rows } = await cenos_pool.query(
+        const { rows } = await sinergia_pool.query(
             `SELECT * FROM chat_messages 
              WHERE room_id = $1 AND id < $2
              ORDER BY id DESC 
@@ -342,7 +342,7 @@ async function get_messages_for_room_cursor(roomId, cursor = null, limit = 30) {
         );
         return { messages: rows.reverse(), has_more: rows.length === limit };
     }
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT * FROM chat_messages 
          WHERE room_id = $1
          ORDER BY id DESC 

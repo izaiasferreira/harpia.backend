@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { SERVICE_NOTES_SYSTEM_PROMPT } = require('../../llm/prompts/serviceNotes');
 const llm = require('../../llm');
 const axios = require('axios');
@@ -42,7 +42,7 @@ async function urlToGeminiPart(url, mimeType) {
 }
 
 async function getChatMessages(groupId) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT id, role, content, attachments, name, tool_calls, tool_call_id, created_at 
          FROM service_notes_chat_messages 
          WHERE group_id = $1 
@@ -74,7 +74,7 @@ async function addChatMessage(groupId, role, content, attachments = null, name =
         toolCalls,
         toolCallId
     });
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `INSERT INTO service_notes_chat_messages (group_id, role, content, attachments, name, tool_calls, tool_call_id) 
          VALUES ($1, $2, $3, $4, $5, $6, $7) 
          RETURNING id, role, content, attachments, name, tool_calls, tool_call_id, created_at`,
@@ -92,7 +92,7 @@ async function addChatMessage(groupId, role, content, attachments = null, name =
 }
 
 async function clearChatMessages(groupId) {
-    await cenos_pool.query(`DELETE FROM service_notes_chat_messages WHERE group_id = $1`, [groupId]);
+    await sinergia_pool.query(`DELETE FROM service_notes_chat_messages WHERE group_id = $1`, [groupId]);
 }
 
 async function listAgents(user = null) {
@@ -120,7 +120,7 @@ async function listAgents(user = null) {
             }
         }
 
-        const { rows } = await cenos_pool.query(query, params);
+        const { rows } = await sinergia_pool.query(query, params);
 
         // Aplica filtro em memória para regional, seccional e gestor
         const filteredRows = rows.filter(r => {
@@ -166,7 +166,7 @@ async function executeTool(groupId, toolName, args, adminId) {
             });
         }
         case 'listar_categorias_marcadores': {
-            const { rows } = await cenos_pool.query(
+            const { rows } = await sinergia_pool.query(
                 `SELECT id, name, color FROM marker_categories WHERE group_id = $1 ORDER BY name ASC`,
                 [groupId]
             );
@@ -378,7 +378,7 @@ async function sendServiceNotesChatMessage(groupId, userMessage, attachments = n
                         pendingToolCalls.splice(matchIndex, 1);
                         
                         // Atualiza no banco de dados em background para persistir a cura
-                        cenos_pool.query(
+                        sinergia_pool.query(
                             `UPDATE service_notes_chat_messages SET tool_call_id = $1 WHERE id = $2`,
                             [toolCallId, m.id]
                         ).catch(err => console.error('[DB] Erro ao curar tool_call_id:', err.message));

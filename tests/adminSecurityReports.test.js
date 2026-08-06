@@ -2,7 +2,7 @@ const request = require('supertest');
 const app = require('../src/app');
 const jwt = require('jsonwebtoken');
 const { createUser } = require('../src/functions/database/users');
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'jwt_secret_change_me';
 
@@ -25,17 +25,17 @@ describe('Admin Security Reports', () => {
         token = jwt.sign({ id: userId, estado: 'pi' }, JWT_SECRET);
 
         // Insert agent to satisfy foreign key constraints
-        await cenos_pool.query("INSERT INTO login (id, estado) VALUES ('T12345', 'pi') ON CONFLICT (id) DO NOTHING");
+        await sinergia_pool.query("INSERT INTO login (id, estado) VALUES ('T12345', 'pi') ON CONFLICT (id) DO NOTHING");
     });
 
     afterAll(async () => {
         if (userId) {
-            await cenos_pool.query('DELETE FROM users WHERE id = $1', [userId]);
+            await sinergia_pool.query('DELETE FROM users WHERE id = $1', [userId]);
         }
         if (reportId) {
-            await cenos_pool.query('DELETE FROM security_report WHERE id = $1', [reportId]);
+            await sinergia_pool.query('DELETE FROM security_report WHERE id = $1', [reportId]);
         }
-        await cenos_pool.query("DELETE FROM login WHERE id = 'T12345'");
+        await sinergia_pool.query("DELETE FROM login WHERE id = 'T12345'");
     });
 
     test('POST /admin/security_reports - deve criar um relatório (Admin)', async () => {

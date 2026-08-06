@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { ceneducCardCreateSchema, ceneducCardSchema } = require('../../db/schemas');
 
 async function listCeneducCards({ state, activeOnly = true } = {}) {
@@ -17,18 +17,18 @@ async function listCeneducCards({ state, activeOnly = true } = {}) {
 
     query += ' ORDER BY sort_order ASC, id ASC';
 
-    const { rows } = await cenos_pool.query(query, params);
+    const { rows } = await sinergia_pool.query(query, params);
     return rows;
 }
 
 async function getCeneducCardById(id) {
-    const { rows } = await cenos_pool.query('SELECT * FROM ceneduc_cards WHERE id = $1', [id]);
+    const { rows } = await sinergia_pool.query('SELECT * FROM ceneduc_cards WHERE id = $1', [id]);
     return rows[0] || null;
 }
 
 async function createCeneducCard({ card_type, section, group_title, state, sort_order, badge_id, data }) {
     const validated = ceneducCardCreateSchema.parse({ card_type, section, group_title, state, sort_order, badge_id, data });
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `INSERT INTO ceneduc_cards (card_type, section, group_title, state, sort_order, badge_id, data)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
@@ -97,7 +97,7 @@ async function updateCeneducCard(id, { card_type, section, group_title, state, s
     updates.push('updated_at = NOW()');
     params.push(id);
 
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `UPDATE ceneduc_cards SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
         params
     );
@@ -105,7 +105,7 @@ async function updateCeneducCard(id, { card_type, section, group_title, state, s
 }
 
 async function deleteCeneducCard(id) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         'DELETE FROM ceneduc_cards WHERE id = $1 RETURNING *',
         [id]
     );
@@ -221,7 +221,7 @@ async function getCeneducForAgent(state, userId) {
 }
 
 async function recordTrainingCompletion(trainingId, agentId) {
-    await cenos_pool.query(
+    await sinergia_pool.query(
         `INSERT INTO agent_training_completions (training_id, agent_id)
          VALUES ($1, $2)
          ON CONFLICT (training_id, agent_id) DO NOTHING`,
@@ -230,7 +230,7 @@ async function recordTrainingCompletion(trainingId, agentId) {
 }
 
 async function checkTrainingCompletion(trainingId, agentId) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT id FROM agent_training_completions
          WHERE training_id = $1 AND agent_id = $2
          LIMIT 1`,
@@ -332,7 +332,7 @@ async function assignBadgesFromLinkedCeneducCards(resourceType, resourceId, agen
     `;
     
     try {
-        const { rows } = await cenos_pool.query(query, [resourceType, String(resourceId)]);
+        const { rows } = await sinergia_pool.query(query, [resourceType, String(resourceId)]);
         
         for (const card of rows) {
             if (card.badge_id) {

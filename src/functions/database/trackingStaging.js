@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 
 /**
  * Insere pontos na tabela de staging de forma instantânea (sem índices complexos, UNLOGGED).
@@ -16,7 +16,7 @@ async function insertStagingPoints(agentId, points) {
         paramIdx += 2;
     }
 
-    await cenos_pool.query(`
+    await sinergia_pool.query(`
         INSERT INTO tracking_staging (agent_id, payload, received_at, status)
         VALUES ${values.join(', ')}
     `, params);
@@ -28,7 +28,7 @@ async function insertStagingPoints(agentId, points) {
  * Retorna o número de registros atualmente pendentes no staging para controle de backpressure.
  */
 async function getStagingPendingCount() {
-    const { rows } = await cenos_pool.query(`
+    const { rows } = await sinergia_pool.query(`
         SELECT COUNT(*) as count FROM tracking_staging WHERE status = 'pending'
     `);
     return rows.length > 0 ? parseInt(rows[0].count, 10) : 0;
@@ -40,7 +40,7 @@ async function getStagingPendingCount() {
  * Utiliza SKIP LOCKED para garantir compatibilidade com múltiplos workers/instâncias.
  */
 async function claimPendingBatch(limit = 5000) {
-    const { rows } = await cenos_pool.query(`
+    const { rows } = await sinergia_pool.query(`
         UPDATE tracking_staging
         SET status = 'processing',
             attempts = attempts + 1,
@@ -67,7 +67,7 @@ async function claimPendingBatch(limit = 5000) {
  */
 async function markBatchDone(ids) {
     if (!ids || ids.length === 0) return;
-    await cenos_pool.query(`
+    await sinergia_pool.query(`
         UPDATE tracking_staging SET status = 'done'
         WHERE id = ANY($1::bigint[])
     `, [ids]);
@@ -83,14 +83,14 @@ async function markBatchFailed(ids, error, maxAttempts = 3) {
     const errorMsg = error ? error.message || String(error) : 'Unknown error';
 
     // Para itens que excederam o número máximo de tentativas
-    await cenos_pool.query(`
+    await sinergia_pool.query(`
         UPDATE tracking_staging 
         SET status = 'failed', error_message = $1
         WHERE id = ANY($2::bigint[]) AND attempts >= $3
     `, [errorMsg, ids, maxAttempts]);
 
     // Devolve os itens restantes para 'pending' para tentar novamente no próximo ciclo
-    await cenos_pool.query(`
+    await sinergia_pool.query(`
         UPDATE tracking_staging 
         SET status = 'pending', error_message = $1
         WHERE id = ANY($2::bigint[]) AND status = 'processing'
@@ -101,7 +101,7 @@ async function markBatchFailed(ids, error, maxAttempts = 3) {
  * Limpa registros processados com sucesso ou falhos definitivamente (mais de 24h).
  */
 async function cleanOldStaging() {
-    await cenos_pool.query(`
+    await sinergia_pool.query(`
         DELETE FROM tracking_staging
         WHERE status IN ('done', 'failed')
         AND received_at < NOW() - INTERVAL '24 hours'

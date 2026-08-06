@@ -62,8 +62,8 @@ router.post('/send', verifyToken(), verifyModule('send_message_user_agent'), upl
             try {
                 const file = req.file || fileUrl || null;
                 if (parsedBroadcast) {
-                    const { cenos_pool } = require('../../db');
-                    const { rows } = await cenos_pool.query("SELECT id FROM login");
+                    const { sinergia_pool } = require('../../db');
+                    const { rows } = await sinergia_pool.query("SELECT id FROM login");
                     const allIds = rows.map(r => r.id);
                     const telegramResult = await send_bulk_message_to_agents({
                         ids: allIds,
@@ -93,7 +93,7 @@ router.post('/send', verifyToken(), verifyModule('send_message_user_agent'), upl
         // --- Push FCM ---
         if (parsedChannels.includes('push')) {
             try {
-                const pushTitle = title || 'Gedai';
+                const pushTitle = title || 'Sinergia';
                 let tokens;
 
                 if (parsedBroadcast) {

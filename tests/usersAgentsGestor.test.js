@@ -1,6 +1,6 @@
 const request = require('supertest');
 const app = require('../src/app');
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 process.env.JWT_SECRET = 'test_secret_for_tests';
 const { generateToken } = require('../src/middlewares/jwtAuth');
 
@@ -9,9 +9,9 @@ describe('users_agents - is_gestor', () => {
 
     beforeAll(async () => {
         // Ensure admin user exists for token verification
-        await cenos_pool.query(`DELETE FROM login WHERE id LIKE 'TESTGESTOR%'`);
-        await cenos_pool.query(`DELETE FROM colaboradores WHERE "ID" LIKE 'TESTGESTOR%'`);
-        await cenos_pool.query(`
+        await sinergia_pool.query(`DELETE FROM login WHERE id LIKE 'TESTGESTOR%'`);
+        await sinergia_pool.query(`DELETE FROM colaboradores WHERE "ID" LIKE 'TESTGESTOR%'`);
+        await sinergia_pool.query(`
             INSERT INTO users (id, email, nome, senha, role, estado)
             VALUES (99999, 'admin_test@test.com', 'Admin', 'hashed', 'COMPANY_ADMIN', 'pi')
             ON CONFLICT (email) DO NOTHING
@@ -24,8 +24,8 @@ describe('users_agents - is_gestor', () => {
     });
 
     afterAll(async () => {
-        await cenos_pool.query(`DELETE FROM colaboradores WHERE "ID" LIKE 'TESTGESTOR%'`);
-        await cenos_pool.query(`DELETE FROM login WHERE id LIKE 'TESTGESTOR%'`);
+        await sinergia_pool.query(`DELETE FROM colaboradores WHERE "ID" LIKE 'TESTGESTOR%'`);
+        await sinergia_pool.query(`DELETE FROM login WHERE id LIKE 'TESTGESTOR%'`);
     });
 
     test('criar agente sem is_gestor persiste default false', async () => {
@@ -74,7 +74,7 @@ describe('users_agents - is_gestor', () => {
         expect(res.status).toBe(200);
         
         // Verifica no banco
-        const { rows } = await cenos_pool.query(`SELECT is_gestor FROM colaboradores WHERE "ID" = 'TESTGESTOR2'`);
+        const { rows } = await sinergia_pool.query(`SELECT is_gestor FROM colaboradores WHERE "ID" = 'TESTGESTOR2'`);
         expect(rows[0].is_gestor).toBe(false);
     });
 

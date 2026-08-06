@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
-const { cenos_pool } = require('../db');
+const { sinergia_pool } = require('../db');
 const { getFallIncidents, updateFallIncidentStatus } = require('../functions/database/tracking');
 const { userIsAdmin, getColaboradoresFilter } = require('../functions/database/admin');
 
@@ -80,10 +80,10 @@ router.get('/stats', verifyToken(), verifyModule('tracking_falls'), async (req, 
         }
 
         const [total, confirmed, falsePositive, withSpeedDrop] = await Promise.all([
-            cenos_pool.query(`SELECT COUNT(*) FROM fall_incidents fi LEFT JOIN login l ON l.id = fi.agent_id WHERE ${where}`, params),
-            cenos_pool.query(`SELECT COUNT(*) FROM fall_incidents fi LEFT JOIN login l ON l.id = fi.agent_id WHERE ${where} AND fi.status = 'confirmed'`, params),
-            cenos_pool.query(`SELECT COUNT(*) FROM fall_incidents fi LEFT JOIN login l ON l.id = fi.agent_id WHERE ${where} AND fi.status = 'false_positive'`, params),
-            cenos_pool.query(`SELECT COUNT(*) FROM fall_incidents fi LEFT JOIN login l ON l.id = fi.agent_id WHERE ${where} AND fi.speed_drop_confirmed = TRUE`, params),
+            sinergia_pool.query(`SELECT COUNT(*) FROM fall_incidents fi LEFT JOIN login l ON l.id = fi.agent_id WHERE ${where}`, params),
+            sinergia_pool.query(`SELECT COUNT(*) FROM fall_incidents fi LEFT JOIN login l ON l.id = fi.agent_id WHERE ${where} AND fi.status = 'confirmed'`, params),
+            sinergia_pool.query(`SELECT COUNT(*) FROM fall_incidents fi LEFT JOIN login l ON l.id = fi.agent_id WHERE ${where} AND fi.status = 'false_positive'`, params),
+            sinergia_pool.query(`SELECT COUNT(*) FROM fall_incidents fi LEFT JOIN login l ON l.id = fi.agent_id WHERE ${where} AND fi.speed_drop_confirmed = TRUE`, params),
         ]);
 
         res.json({
@@ -125,7 +125,7 @@ router.put('/:id/status', verifyToken(), verifyModule('tracking_falls'), async (
 router.get('/:id', verifyToken(), verifyModule('tracking_falls'), async (req, res) => {
     try {
         const { id } = req.params;
-        const { rows } = await cenos_pool.query(`
+        const { rows } = await sinergia_pool.query(`
             SELECT
                 fi.*,
                 l.estado as agent_estado,
@@ -154,11 +154,11 @@ router.get('/:id', verifyToken(), verifyModule('tracking_falls'), async (req, re
 router.delete('/:id', verifyToken('COMPANY_ADMIN'), async (req, res) => {
     try {
         const { id } = req.params;
-        const { rows: existing } = await cenos_pool.query('SELECT id FROM fall_incidents WHERE id = $1', [id]);
+        const { rows: existing } = await sinergia_pool.query('SELECT id FROM fall_incidents WHERE id = $1', [id]);
         if (existing.length === 0) {
             return res.status(404).json({ error: 'Incidente não encontrado' });
         }
-        await cenos_pool.query('DELETE FROM fall_incidents WHERE id = $1', [id]);
+        await sinergia_pool.query('DELETE FROM fall_incidents WHERE id = $1', [id]);
         res.json({ success: true, message: 'Incidente excluído com sucesso' });
     } catch (err) {
         console.error('[CRASH_DETECTION] Erro ao excluir:', err);

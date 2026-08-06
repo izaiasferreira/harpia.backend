@@ -2,7 +2,7 @@ const request = require('supertest');
 const app = require('../src/app');
 const jwt = require('jsonwebtoken');
 const { createUser } = require('../src/functions/database/users');
-const { cenos_pool } = require('../src/db');
+const { sinergia_pool } = require('../src/db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'jwt_secret_change_me';
 const AGENT_ID = 'TACCID01';
@@ -24,12 +24,12 @@ describe('Accidents', () => {
         adminId = user.id;
         adminToken = jwt.sign({ id: adminId, estado: 'pi' }, JWT_SECRET);
 
-        await cenos_pool.query(
+        await sinergia_pool.query(
             "INSERT INTO login (id, estado) VALUES ($1, 'pi') ON CONFLICT (id) DO NOTHING",
             [AGENT_ID]
         );
 
-        await cenos_pool.query(
+        await sinergia_pool.query(
             `INSERT INTO telegram_tokens (token, telegram_user_id, agent_id, expires_at)
              VALUES ($1, 999999, $2, NOW() + INTERVAL '1 day') ON CONFLICT (token) DO NOTHING`,
             [AGENT_TOKEN, AGENT_ID]
@@ -37,12 +37,12 @@ describe('Accidents', () => {
     });
 
     afterAll(async () => {
-        await cenos_pool.query('DELETE FROM accident_evidencias WHERE accident_id IN (SELECT id FROM accidents WHERE autor = $1)', [AGENT_ID]);
-        await cenos_pool.query('DELETE FROM accidents WHERE autor = $1', [AGENT_ID]);
-        await cenos_pool.query('DELETE FROM telegram_tokens WHERE token = $1', [AGENT_TOKEN]);
-        await cenos_pool.query('DELETE FROM login WHERE id = $1', [AGENT_ID]);
+        await sinergia_pool.query('DELETE FROM accident_evidencias WHERE accident_id IN (SELECT id FROM accidents WHERE autor = $1)', [AGENT_ID]);
+        await sinergia_pool.query('DELETE FROM accidents WHERE autor = $1', [AGENT_ID]);
+        await sinergia_pool.query('DELETE FROM telegram_tokens WHERE token = $1', [AGENT_TOKEN]);
+        await sinergia_pool.query('DELETE FROM login WHERE id = $1', [AGENT_ID]);
         if (adminId) {
-            await cenos_pool.query('DELETE FROM users WHERE id = $1', [adminId]);
+            await sinergia_pool.query('DELETE FROM users WHERE id = $1', [adminId]);
         }
     });
 
@@ -50,7 +50,7 @@ describe('Accidents', () => {
         let accidentId;
 
         beforeAll(async () => {
-            const { rows } = await cenos_pool.query(
+            const { rows } = await sinergia_pool.query(
                 `INSERT INTO accidents (autor, tipo, estado) VALUES ($1, 'Acidente admin test', 'pi') RETURNING id`,
                 [AGENT_ID]
             );
@@ -91,8 +91,8 @@ describe('Accidents', () => {
         });
 
         afterAll(async () => {
-            await cenos_pool.query('DELETE FROM accident_evidencias WHERE accident_id = $1', [accidentId]);
-            await cenos_pool.query('DELETE FROM accidents WHERE id = $1', [accidentId]);
+            await sinergia_pool.query('DELETE FROM accident_evidencias WHERE accident_id = $1', [accidentId]);
+            await sinergia_pool.query('DELETE FROM accidents WHERE id = $1', [accidentId]);
         });
     });
 });

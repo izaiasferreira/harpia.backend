@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
-const { cenos_pool } = require('../db');
+const { sinergia_pool } = require('../db');
 const {
     resolve_security_report,
     reabrir_security_report,
@@ -33,7 +33,7 @@ router.post('/:id/resolver', verifyToken(), verifyModule('resolve_security_repor
         // Evidência obrigatória apenas se não for "Sem Risco"
         let isSemRisco = false;
         try {
-            const { rows } = await cenos_pool.query('SELECT motivo FROM security_report WHERE id = $1', [id]);
+            const { rows } = await sinergia_pool.query('SELECT motivo FROM security_report WHERE id = $1', [id]);
             if (rows.length > 0 && rows[0].motivo === 'Sem Risco') isSemRisco = true;
         } catch (_) {}
 

@@ -1,8 +1,8 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { badgeCreateSchema, badgeSchema } = require('../../db/schemas');
 
 async function listBadges() {
-    const { rows } = await cenos_pool.query('SELECT * FROM badges ORDER BY id ASC');
+    const { rows } = await sinergia_pool.query('SELECT * FROM badges ORDER BY id ASC');
     return rows.map(b => ({
         id: b.id,
         title: b.title,
@@ -13,7 +13,7 @@ async function listBadges() {
 }
 
 async function getBadgeById(id) {
-    const { rows } = await cenos_pool.query('SELECT * FROM badges WHERE id = $1', [id]);
+    const { rows } = await sinergia_pool.query('SELECT * FROM badges WHERE id = $1', [id]);
     if (rows.length === 0) return null;
     const b = rows[0];
     return {
@@ -28,7 +28,7 @@ async function getBadgeById(id) {
 
 async function createBadge({ title, description, image_url }) {
     const validated = badgeCreateSchema.parse({ title, description, image_url });
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `INSERT INTO badges (title, description, image_url)
          VALUES ($1, $2, $3)
          RETURNING *`,
@@ -72,7 +72,7 @@ async function updateBadge(id, { title, description, image_url }) {
     updates.push('updated_at = NOW()');
     params.push(id);
 
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `UPDATE badges SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
         params
     );
@@ -89,7 +89,7 @@ async function updateBadge(id, { title, description, image_url }) {
 }
 
 async function deleteBadge(id) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         'DELETE FROM badges WHERE id = $1 RETURNING *',
         [id]
     );

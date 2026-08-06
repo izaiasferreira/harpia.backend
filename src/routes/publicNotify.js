@@ -103,7 +103,7 @@ router.post('/notify', async (req, res) => {
                             const tokenRows = await getTokensByAgent(agentId);
                             const tokens = (tokenRows || []).map(r => r.token || r);
                             if (tokens.length > 0) {
-                                const fcmResult = await sendToMultiple(tokens, title || 'Gedai', body, {});
+                                const fcmResult = await sendToMultiple(tokens, title || 'Sinergia', body, {});
                                 await cleanInvalidTokens(tokens, fcmResult?.responses);
                                 results.push = { success: true, sent: fcmResult?.successCount || 0 };
                             } else {

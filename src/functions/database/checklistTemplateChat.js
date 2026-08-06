@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { CHECKLIST_TEMPLATE_BUILDER_SYSTEM_PROMPT } = require('../../llm/prompts/checklistTemplateBuilder');
 const llm = require('../../llm');
 const axios = require('axios');
@@ -32,7 +32,7 @@ async function urlToGeminiPart(url, mimeType) {
 }
 
 async function getChatMessages(templateId) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT id, role, content, attachments, created_at FROM checklist_template_chat_messages WHERE template_id = $1 ORDER BY created_at ASC`,
         [templateId]
     );
@@ -40,7 +40,7 @@ async function getChatMessages(templateId) {
 }
 
 async function addChatMessage(templateId, role, content, attachments = null) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `INSERT INTO checklist_template_chat_messages (template_id, role, content, attachments) VALUES ($1, $2, $3, $4) RETURNING id, role, content, attachments, created_at`,
         [templateId, role, content, attachments ? JSON.stringify(attachments) : null]
     );
@@ -48,7 +48,7 @@ async function addChatMessage(templateId, role, content, attachments = null) {
 }
 
 async function clearChatMessages(templateId) {
-    await cenos_pool.query(`DELETE FROM checklist_template_chat_messages WHERE template_id = $1`, [templateId]);
+    await sinergia_pool.query(`DELETE FROM checklist_template_chat_messages WHERE template_id = $1`, [templateId]);
 }
 
 async function sendChatMessage(templateId, userMessage, currentTemplateStructure, attachments = null) {
@@ -193,7 +193,7 @@ async function applyTemplateStructure(templateId, structure) {
         sections
     };
 
-    await cenos_pool.query(
+    await sinergia_pool.query(
         `UPDATE checklist_templates SET title = $1, estado = $2, data = $3, updated_at = NOW() WHERE id = $4`,
         [structure.title, structure.estado || null, data, templateId]
     );

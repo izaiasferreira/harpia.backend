@@ -1,7 +1,8 @@
 /**
- * Middleware para captura e validação da assinatura do dispositivo (gedai-device-id).
+ * Middleware para captura e validação da assinatura do dispositivo (sinergia-device-id).
  * 
  * MODO DE TRANSIÇÃO / COMPATIBILIDADE:
+ * - Prefere o header `sinergia-device-id`; aceita `gedai-device-id` como legado.
  * - STRICT_ENFORCE = false: (Padrão Atual) Extrai o deviceId quando enviado, mas PERMITE a requisição continuar sem rejeitar.
  * - STRICT_ENFORCE = true: Rejeita requisições sem o header com HTTP 400 (ERR_SEC_101).
  * 
@@ -14,7 +15,7 @@ module.exports = (req, res, next) => {
     // Ignorar validação para requisições de preflight do CORS
     if (req.method === 'OPTIONS') return next();
 
-    const deviceId = req.headers['gedai-device-id'];
+    const deviceId = req.headers['sinergia-device-id'] || req.headers['gedai-device-id'];
 
     if (deviceId && typeof deviceId === 'string' && deviceId.trim() !== '') {
         req.deviceId = deviceId.trim();

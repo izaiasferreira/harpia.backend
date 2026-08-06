@@ -170,7 +170,7 @@ async function get_users_agents_admin({ user, ...params }) {
     // filter.params contém os valores
     
     let query = `SELECT * FROM colaboradores ${filter.whereClause}`;
-    const { rows } = await cenos_pool.query(query, filter.params);
+    const { rows } = await sinergia_pool.query(query, filter.params);
     
     return rows;
 }

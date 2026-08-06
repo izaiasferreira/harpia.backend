@@ -1,4 +1,4 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 
 async function getManagerDashboardStats({ matricula, mes, ano, type }) {
     const periodStr = `${ano}-${String(mes).padStart(2, '0')}`;
@@ -25,7 +25,7 @@ async function getManagerDashboardStats({ matricula, mes, ano, type }) {
              AND target_agent_id IN (SELECT id FROM subordinates)) as completed_subordinates
     `;
     
-    const { rows } = await cenos_pool.query(query, [matricula, periodStr]);
+    const { rows } = await sinergia_pool.query(query, [matricula, periodStr]);
     return {
         total_subordinates: parseInt(rows[0].total_subordinates || '0'),
         completed_subordinates: parseInt(rows[0].completed_subordinates || '0')
@@ -59,7 +59,7 @@ async function getManagerDashboardPending({ matricula, mes, ano }) {
         ORDER BY s.nome ASC
     `;
     
-    const { rows } = await cenos_pool.query(query, [matricula, periodStr]);
+    const { rows } = await sinergia_pool.query(query, [matricula, periodStr]);
     return rows;
 }
 
@@ -86,7 +86,7 @@ async function getManagerDashboardHistory({ matricula, page = 1, limit = 50 }) {
         AND target_agent_id IN (SELECT id FROM subordinates WHERE id != $1)
     `;
     
-    const { rows: countRows } = await cenos_pool.query(countQuery, [matricula]);
+    const { rows: countRows } = await sinergia_pool.query(countQuery, [matricula]);
     const total = parseInt(countRows[0].total || '0');
 
     // Data query
@@ -114,7 +114,7 @@ async function getManagerDashboardHistory({ matricula, page = 1, limit = 50 }) {
         LIMIT $2 OFFSET $3
     `;
     
-    const { rows } = await cenos_pool.query(dataQuery, [matricula, limit, offset]);
+    const { rows } = await sinergia_pool.query(dataQuery, [matricula, limit, offset]);
     
     return { data: rows, total, page, limit };
 }

@@ -1,21 +1,21 @@
-const { cenos_pool } = require('../../db');
+const { sinergia_pool } = require('../../db');
 const { userIsAdmin, getColaboradoresFilter, checkAgentPermission } = require('./admin');
 
 async function getAgentSpeedLimit(agentId) {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT speed_limit_kmh FROM tracking_agent_config WHERE agent_id = $1`,
         [agentId]
     );
     if (rows.length > 0) return Number(rows[0].speed_limit_kmh);
 
-    const { rows: global } = await cenos_pool.query(
+    const { rows: global } = await sinergia_pool.query(
         `SELECT value FROM tracking_global_config WHERE key = 'default_speed_limit_kmh'`
     );
     return global.length > 0 ? Number(global[0].value) : 81;
 }
 
 async function upsertAgentSpeedLimit(agentId, speedLimitKmh, updatedBy) {
-    await cenos_pool.query(`
+    await sinergia_pool.query(`
         INSERT INTO tracking_agent_config (agent_id, speed_limit_kmh, updated_at, updated_by)
         VALUES ($1, $2, NOW(), $3)
         ON CONFLICT (agent_id) DO UPDATE SET
@@ -26,14 +26,14 @@ async function upsertAgentSpeedLimit(agentId, speedLimitKmh, updatedBy) {
 }
 
 async function getGlobalSpeedLimit() {
-    const { rows } = await cenos_pool.query(
+    const { rows } = await sinergia_pool.query(
         `SELECT value FROM tracking_global_config WHERE key = 'default_speed_limit_kmh'`
     );
     return rows.length > 0 ? Number(rows[0].value) : 81;
 }
 
 async function upsertGlobalSpeedLimit(speedLimitKmh) {
-    await cenos_pool.query(`
+    await sinergia_pool.query(`
         INSERT INTO tracking_global_config (key, value, updated_at)
         VALUES ('default_speed_limit_kmh', $1, NOW())
         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
@@ -61,13 +61,13 @@ async function getAgentsLastPositionUnified(user = null) {
     }
 
     query += ` ORDER BY c."ID"`;
-    const { rows: allAgents } = await cenos_pool.query(query, params);
+    const { rows: allAgents } = await sinergia_pool.query(query, params);
 
     if (allAgents.length === 0) return [];
 
     // Segundo: buscar último ponto de tracking para cada agente
     const agentIds = allAgents.map(a => a.agent_id);
-    const { rows: lastPoints } = await cenos_pool.query(`
+    const { rows: lastPoints } = await sinergia_pool.query(`
         SELECT a.agent_id, p.latitude, p.longitude, p.speed, p.accuracy,
                p.battery_level, p.is_charging, p.network_type, p.gps_enabled,
                p.device_model, p.device_platform, p.os_version, p.recorded_at
@@ -90,7 +90,7 @@ async function getAgentsLastPositionUnified(user = null) {
     // Enriquecer com dados do colaborador
     const colLookup = async (ids) => {
         if (ids.length === 0) return {};
-        const { rows: cols } = await cenos_pool.query(
+        const { rows: cols } = await sinergia_pool.query(
             `SELECT "ID", "Nome", "seccional", "regional", "GESTOR IMEDIATO", "Cargo" FROM colaboradores WHERE "ID" = ANY($1)`,
             [ids]
         );
@@ -171,7 +171,7 @@ async function getAgentTrailUnified(agentId, dateFrom, dateTo) {
 
     query += ' ORDER BY recorded_at ASC LIMIT 10000';
 
-    const { rows } = await cenos_pool.query(query, params);
+    const { rows } = await sinergia_pool.query(query, params);
     return rows;
 }
 
@@ -215,7 +215,7 @@ async function getSpeedViolationsFromUnified(filters = {}, user = null) {
 
     query += ' ORDER BY tsp.recorded_at DESC LIMIT 500';
 
-    const { rows } = await cenos_pool.query(query, params);
+    const { rows } = await sinergia_pool.query(query, params);
 
     let result = rows;
 
