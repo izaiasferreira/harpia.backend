@@ -46,40 +46,6 @@ describe('Accidents', () => {
         }
     });
 
-    describe('POST /agent/accident', () => {
-        test('deve criar acidente com dados válidos', async () => {
-            const res = await request(app)
-                .post('/agent/accident')
-                .set('X-Telegram-Init-Data', AGENT_TOKEN)
-                .send({ tipo: 'Teste de acidente' });
-
-            expect(res.status).toBe(201);
-            expect(res.body).toHaveProperty('id');
-            expect(res.body.tipo).toBe('Teste de acidente');
-            expect(res.body.autor).toBe(AGENT_ID);
-        });
-
-        test('deve rejeitar sem tipo', async () => {
-            const res = await request(app)
-                .post('/agent/accident')
-                .set('X-Telegram-Init-Data', AGENT_TOKEN)
-                .send({});
-
-            expect(res.status).toBe(400);
-        });
-    });
-
-    describe('GET /agent/accident', () => {
-        test('deve listar acidentes do agente', async () => {
-            const res = await request(app)
-                .get('/agent/accident')
-                .set('X-Telegram-Init-Data', AGENT_TOKEN);
-
-            expect(res.status).toBe(200);
-            expect(Array.isArray(res.body)).toBe(true);
-        });
-    });
-
     describe('Admin endpoints', () => {
         let accidentId;
 

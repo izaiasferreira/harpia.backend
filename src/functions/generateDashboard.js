@@ -25,27 +25,14 @@ function generateDashboard({ state, id, stats }) {
 
     let widgets = [
         {
-            id: 'alert_agent_performance',
-            type: 'alertCard',
-            size: { colSpan: 3, rowSpan: 1 },
-            data: {
-                title: "DESEMPENHO DA SEMANA",
-                message: (stats.percent_cnl && stats.percent_cnl > 10)
-                    ? `Atenção: Seu índice de CNL (${stats.percent_cnl.toFixed(1)}%) está acima da semana anterior. Verifique suas pendências.`
-                    : `Seu índice de CNL (${(stats.percent_cnl || 0).toFixed(1)}%) está controlado em relação à semana anterior. Continue assim!`,
-                severity: (stats.percent_cnl && stats.percent_cnl > 10) ? "warning" : "info"
-            },
-        },
-        {
             id: 'stat_leituras',
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Lidas',
+                title: 'Leituras Realizadas',
                 value: String(stats.quant_leituras),
-                icon: 'FileCheck',
-                variant: 'mint',
-                color: 'text-emerald-600 bg-emerald-500/15 dark:text-emerald-400 dark:bg-emerald-500/20'
+                icon: 'BookCheck',
+                color: 'text-emerald-500 bg-emerald-50/10'
             },
             action: { type: 'link', url: '/services?filter=all' }
         },
@@ -54,11 +41,10 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Pendentes',
+                title: 'Leituras Pendentes',
                 value: String(stats.pending.length),
-                icon: 'Clock',
-                variant: 'rose',
-                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
+                icon: 'AlertTriangle',
+                color: 'text-red-500 bg-red-50/10'
             },
             action: { type: 'link', url: '/justify-pending' }
         },
@@ -67,15 +53,22 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Perdas',
+                title: 'Perdas Geradas',
                 value: `${stats.perdas} Kwh`,
-                icon: 'Flame',
-                variant: 'amber',
-                color: 'text-amber-600 bg-amber-500/15 dark:text-amber-400 dark:bg-amber-500/20'
+                icon: 'Zap',
+                color: 'text-yellow-500 bg-yellow-50/10'
             },
             action: { type: 'link', url: '/perdas' }
         },
-        
+        // {
+        //     id: 'banner_promo',
+        //     type: 'bannerCarousel',
+        //     size: { colSpan: 3, rowSpan: 1 },
+        //     data: {
+        //         autoSlideInterval: 5000,
+        //         banners: banners
+        //     },
+        // },
         {
             id: 'chart_producao_hora',
             type: 'chartCard',
@@ -91,11 +84,10 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Tempo Total',
+                title: 'Tempo Total de Trabalho',
                 value: stats.total_time_fmt,
-                icon: 'Timer',
-                variant: 'sky',
-                color: 'text-blue-600 bg-blue-500/15 dark:text-blue-400 dark:bg-blue-500/20'
+                icon: 'Clock',
+                color: 'text-blue-500 bg-blue-50/10'
             },
             action: { type: 'link', url: '/services?filter=all' }
         },
@@ -104,11 +96,10 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Pausa',
+                title: 'Tempo em Pausa',
                 value: stats.pause_time_fmt,
-                icon: 'PauseCircle',
-                variant: 'sky',
-                color: 'text-blue-600 bg-blue-500/15 dark:text-blue-400 dark:bg-blue-500/20'
+                icon: 'CirclePause',
+                color: 'text-blue-500 bg-blue-50/10'
             }
         },
         {
@@ -116,11 +107,10 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Efetivo',
+                title: 'Tempo Efetivo',
                 value: stats.work_time_fmt,
-                icon: 'Briefcase',
-                variant: 'sky',
-                color: 'text-blue-600 bg-blue-500/15 dark:text-blue-400 dark:bg-blue-500/20'
+                icon: 'ClockCheck',
+                color: 'text-blue-500 bg-blue-50/10'
             }
         },
         {
@@ -128,11 +118,10 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 2, rowSpan: 1 },
             data: {
-                title: 'CNL Total',
+                title: 'Quantidade de CNL',
                 value: String(stats.cnl),
-                icon: 'FileX',
-                variant: 'rose',
-                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
+                icon: 'UserX',
+                color: 'text-red-500 bg-red-50/10'
             },
             action: { type: 'link', url: '/services?filter=cnl' }
         },
@@ -141,11 +130,10 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'CNL %',
+                title: 'Percentual de CNL',
                 value: `${stats.percent_cnl.toFixed(1)}%`,
-                icon: 'Percent',
-                variant: 'rose',
-                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
+                icon: 'TrendingUp',
+                color: 'text-red-500 bg-red-50/10'
             },
             action: { type: 'link', url: '/services?filter=cnl' }
         },
@@ -170,12 +158,11 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'C12 Fora Hora',
+                title: 'C12 Fora de Horário',
                 value: String(stats.quant_c12_out_hour),
                 subtitle: 'Antes das 08:00',
-                icon: 'AlarmClock',
-                variant: 'purple',
-                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
+                icon: 'Moon',
+                color: 'text-red-500 bg-red-50/10'
             },
             action: { type: 'link', url: '/services?filter=c12_out_time' }
         },
@@ -184,11 +171,10 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 2, rowSpan: 1 },
             data: {
-                title: 'C12 Total',
+                title: 'Total de C12',
                 value: String(stats.quant_c12),
-                icon: 'Building',
-                variant: 'purple',
-                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
+                icon: 'House',
+                color: 'text-red-500 bg-red-50/10'
             },
             action: { type: 'link', url: '/services?filter=c12' }
         },
@@ -197,11 +183,10 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'C12 Nova',
+                title: 'C12 em Ligação Nova',
                 value: String(stats.licacao_nova_c12),
-                icon: 'PlusCircle',
-                variant: 'purple',
-                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
+                icon: 'HousePlus',
+                color: 'text-red-500 bg-red-50/10'
             },
             action: { type: 'link', url: '/services?filter=c12_ligacao_nova' }
         },
@@ -212,9 +197,8 @@ function generateDashboard({ state, id, stats }) {
             data: {
                 title: 'C12 Rápido',
                 value: String(stats.fast_c12),
-                icon: 'FastForward',
-                variant: 'purple',
-                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
+                icon: 'UserPlus',
+                color: 'text-red-500 bg-red-50/10'
             },
             action: { type: 'link', url: '/services?filter=fast_c12' }
         },
@@ -225,9 +209,8 @@ function generateDashboard({ state, id, stats }) {
             data: {
                 title: 'C12 Entrante',
                 value: String(stats.first_c12),
-                icon: 'Inbox',
-                variant: 'purple',
-                color: 'text-red-600 bg-red-500/15 dark:text-red-400 dark:bg-red-500/20'
+                icon: 'SearchAlert',
+                color: 'text-red-500 bg-red-50/10'
             },
             action: { type: 'link', url: '/services?filter=first_c12' }
         },
@@ -251,29 +234,28 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Total Mês',
+                title: 'Total de leituras',
                 value: String(stats.month_total_leituras),
-                icon: 'CalendarCheck',
-                variant: 'mint',
-                color: 'text-emerald-600 bg-emerald-500/15 dark:text-emerald-400 dark:bg-emerald-500/20'
+                icon: 'Check',
+                color: 'text-emerald-500 bg-emerald-50/10'
             },
             action: { type: 'link', url: '/services?filter=all' }
         },
 
     ];
 
-    if (stats.pending_justifies.length > 0) {
-        widgets.unshift({
-            id: 'alert_2',
-            type: 'alertCard',
-            size: { colSpan: 3, rowSpan: 1 },
-            data: {
-                title: "ATENÇÃO!",
-                message: "Você possui pendências a justificar. Por favor, acesse o menu lateral e clique em 'Justificar Pendências'.",
-                severity: "warning"
-            },
-        });
-    }
+    // if (stats.pending_justifies.length > 0) {
+    //     widgets.unshift({
+    //         id: 'alert_2',
+    //         type: 'alertCard',
+    //         size: { colSpan: 3, rowSpan: 1 },
+    //         data: {
+    //             title: "ATENÇÃO!",
+    //             message: "Você possui pendências a justificar. Por favor, acesse o menu lateral e clique em 'Justificar Pendências'.",
+    //             severity: "warning"
+    //         },
+    //     });
+    // }
 
     return {
         layout: {
@@ -375,7 +357,132 @@ async function generateDashboardAdmin({ user, stats }) {
     };
 }
 
+async function generateAdminDashboard({ user, stats }) {
+    const widgets = [
+        {
+            id: 'total-users',
+            type: 'statCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                title: 'Usuários Cadastrados',
+                value: String(stats.totalUsers),
+                subtitle: 'Colaboradores visíveis',
+                icon: 'Users',
+                color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+            },
+            action: { type: 'link', url: '/control/agents' },
+        },
+        {
+            id: 'today-logins',
+            type: 'statCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                title: 'Agentes Logados Hoje',
+                value: `${stats.todayLogins} de ${stats.totalUsers}`,
+                subtitle: 'Heartbeats registrados no dia',
+                icon: 'LogIn',
+                color: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
+            },
+            action: { type: 'link', url: '/control/agents' },
+        },
+        {
+            id: 'inventory-agents',
+            type: 'statCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                title: 'Agentes com Inventário',
+                value: `${stats.agentsWithInventory} de ${stats.totalUsers}`,
+                subtitle: 'Possuem equipamento associado',
+                icon: 'Package',
+                color: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
+            },
+            action: { type: 'link', url: '/control/inventory' },
+        },
+        {
+            id: 'chart-login-status',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 3 },
+            data: {
+                chartType: 'donut',
+                title: 'Status de Login',
+                dataset: [
+                    { label: 'Online', value: stats.loginStatus?.online || 0 },
+                    { label: 'Offline', value: stats.loginStatus?.offline || 0 },
+                    { label: 'Pendente', value: stats.loginStatus?.pending || 0 },
+                    { label: 'Nunca Gerado PIN', value: stats.loginStatus?.none || 0 },
+                ],
+            },
+        },
+        {
+            id: 'chart-reports-situacao',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                chartType: 'bar',
+                title: 'Agentes por Situação',
+                dataset: stats.bySituacao || [],
+            },
+        },
+        {
+            id: 'chart-reports-status',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                chartType: 'bar',
+                title: 'Agentes por Status',
+                dataset: stats.byStatus || [],
+            },
+        },
+        {
+            id: 'chart-reports-state',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                chartType: 'bar',
+                title: 'Agentes por Estado',
+                dataset: stats.byEstado || [],
+            },
+        },
+        {
+            id: 'chart-reports-regional',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                chartType: 'bar',
+                title: 'Agentes por Regional',
+                dataset: stats.byRegional || [],
+            },
+        },
+        {
+            id: 'chart-reports-processo',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                chartType: 'bar',
+                title: 'Agentes por Processo',
+                dataset: stats.byProcesso || [],
+            },
+        },
+        {
+            id: 'chart-inventory-items',
+            type: 'chartCard',
+            size: { colSpan: 1, rowSpan: 1 },
+            data: {
+                chartType: 'bar',
+                title: 'Itens de Inventário por Tipo',
+                dataset: stats.inventoryByType || [],
+            },
+        },
+    ];
+
+    return {
+        layout: { columns: 3, gap: 16, baseRowHeight: 165 },
+        widgets
+    };
+}
+
 module.exports = {
     generateDashboard,
-    generateDashboardAdmin
+    generateDashboardAdmin,
+    generateAdminDashboard
 };

@@ -14,18 +14,23 @@ async function listTemplatesAdmin() {
   return rows;
 }
 
-async function listTemplatesForAgent(agentEstado) {
+async function listTemplatesForAgent(agentEstado, agentProfile) {
   const { rows } = await cenos_pool.query(
-    `SELECT id, title, data FROM checklist_templates
-     WHERE is_active = true AND (estado IS NULL OR UPPER(estado) = UPPER($1))
+    `SELECT id, title, data, is_gestor FROM checklist_templates
+     WHERE is_active = true
+       AND COALESCE(is_deleted, false) = false
+       AND (estado IS NULL OR UPPER(estado) = UPPER($1))
      ORDER BY created_at DESC`,
     [agentEstado]
   );
-  return rows;
+  return rows.filter(t => {
+    if (t.is_gestor && !agentProfile?.is_gestor) return false;
+    return true;
+  });
 }
 
 async function listTemplatesForAgentWithProfile(agentEstado, agentProfile) {
-  const templates = await listTemplatesForAgent(agentEstado);
+  const templates = await listTemplatesForAgent(agentEstado, agentProfile);
   return templates.filter(t => {
     const f = t.data?.filters;
     if (!f) return true;
@@ -99,16 +104,16 @@ async function getTemplateById(id, agentId = null) {
   return template;
 }
 
-async function createTemplate({ title, description, created_by, estado, data }) {
+async function createTemplate({ title, description, created_by, estado, data, is_gestor = false }) {
   const { rows } = await cenos_pool.query(
-    `INSERT INTO checklist_templates (title, created_by, estado, data)
-     VALUES ($1, $2, $3, $4) RETURNING *`,
-    [title, created_by, estado || null, { description, sections: data?.sections || [], filters: data?.filters || null }]
+    `INSERT INTO checklist_templates (title, created_by, estado, data, is_gestor)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [title, created_by, estado || null, { description, sections: data?.sections || [], filters: data?.filters || null }, is_gestor]
   );
   return rows[0];
 }
 
-async function updateTemplate(id, { title, description, is_active, estado, data }) {
+async function updateTemplate(id, { title, description, is_active, estado, data, is_gestor }) {
   const fields = [];
   const values = [id];
   let idx = 2;
@@ -117,6 +122,7 @@ async function updateTemplate(id, { title, description, is_active, estado, data 
   if (is_active !== undefined) { fields.push(`is_active = $${idx++}`); values.push(is_active); }
   if (estado !== undefined) { fields.push(`estado = $${idx++}`); values.push(estado); }
   if (data !== undefined) { fields.push(`data = $${idx++}`); values.push(data); }
+  if (is_gestor !== undefined) { fields.push(`is_gestor = $${idx++}`); values.push(is_gestor); }
 
   if (fields.length === 0) return null;
 
@@ -169,9 +175,18 @@ async function syncTemplate(id, templateData) {
     sections: templateData.sections || [],
     filters: templateData.filters || null
   };
+  
+  let setQuery = 'title = $2, estado = $3, data = $4, updated_at = NOW()';
+  const values = [id, templateData.title, templateData.estado || null, data];
+  
+  if (templateData.is_gestor !== undefined) {
+    setQuery += `, is_gestor = $5`;
+    values.push(templateData.is_gestor);
+  }
+  
   await cenos_pool.query(
-    `UPDATE checklist_templates SET title = $2, estado = $3, data = $4, updated_at = NOW() WHERE id = $1`,
-    [id, templateData.title, templateData.estado || null, data]
+    `UPDATE checklist_templates SET ${setQuery} WHERE id = $1`,
+    values
   );
   return true;
 }
@@ -449,7 +464,8 @@ async function saveChecklistSubmission(agentId, data) {
     latitude = null,
     longitude = null,
     coordinates = null,
-    template_title
+    template_title,
+    target_agent_id = null
   } = data;
 
   let signature_url = data.signature_url;
@@ -516,9 +532,10 @@ async function saveChecklistSubmission(agentId, data) {
       if (tRows.length > 0) {
         const sections = tRows[0].data?.sections || [];
         for (const ans of answers) {
-          if (ans.is_compliant === false && ans.question_uuid) {
+          const qUuid = ans.question_uuid || ans.question_id;
+          if (ans.is_compliant === false && qUuid) {
             for (const sec of sections) {
-              const found = (sec.questions || []).find(q => q.uuid === ans.question_uuid);
+              const found = (sec.questions || []).find(q => String(q.uuid) === String(qUuid));
               if (found && found.severity === 'critical') {
                 hasCriticalNonCompliant = true;
                 break;
@@ -529,9 +546,10 @@ async function saveChecklistSubmission(agentId, data) {
         }
         // Validate observation when required
         for (const ans of answers) {
-          if (ans.is_compliant === false && ans.question_uuid) {
+          const qUuid = ans.question_uuid || ans.question_id;
+          if (ans.is_compliant === false && qUuid) {
             for (const sec of sections) {
-              const found = (sec.questions || []).find(q => q.uuid === ans.question_uuid);
+              const found = (sec.questions || []).find(q => String(q.uuid) === String(qUuid));
               if (found && found.requires_observation_if_nc && found.observation_required && (!ans.observation || !ans.observation.trim())) {
                 throw { status: 400, message: `Observação obrigatória para a pergunta: ${found.label}` };
               }
@@ -582,13 +600,13 @@ async function saveChecklistSubmission(agentId, data) {
       await client.query(
         `INSERT INTO checklists (id, template_id, agent_id, type, parent_checklist_id, date, status,
                                  signature_url, selfie_url, has_critical_non_compliant, data,
-                                 submitted_at, synced_at, local_id)
+                                 submitted_at, synced_at, local_id, target_agent_id)
          VALUES ($1, $2, $3, $4, $5, $6, 'submitted',
                  $7, $8, $9, $10,
-                 $11, $11, $12)`,
+                 $11, $11, $12, $13)`,
         [checklistId, template_id, agentId, type, parent_checklist_id, date,
           signature_url, selfie_url, hasCriticalNonCompliant, complianceData,
-          now, local_id]
+          now, local_id, target_agent_id]
       );
     }
 
@@ -624,7 +642,7 @@ async function deleteChecklist(id) {
 async function getRequiredTemplatesForAgent(agentId) {
   const { rows: profileRows } = await cenos_pool.query(
     `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo,
-            col.estado, col.situacao
+            col.estado, col.situacao, col.is_gestor
      FROM login l
      LEFT JOIN colaboradores col ON l.id = col."ID"
      WHERE l.id = $1`,
@@ -635,12 +653,17 @@ async function getRequiredTemplatesForAgent(agentId) {
 
   const { rows: templates } = await cenos_pool.query(
     `SELECT id, title, data FROM checklist_templates
-     WHERE is_active = true AND (estado IS NULL OR UPPER(estado) = UPPER($1))
+     WHERE is_active = true
+       AND COALESCE(is_deleted, false) = false
+       -- Checklists do gestor (is_gestor=true) NUNCA são obrigatórios — apenas ficam disponíveis em /checklists
+       AND COALESCE(is_gestor, false) = false
+       AND (estado IS NULL OR UPPER(estado) = UPPER($1))
      ORDER BY created_at DESC`,
     [profile.estado || null]
   );
 
   return templates.filter(t => {
+
     const f = t.data?.filters;
     if (!f) return true;
     const matchCargo = !f.cargo?.length || f.cargo.some(c => (profile.cargo || '').toUpperCase() === c.toUpperCase());
@@ -706,4 +729,66 @@ module.exports = {
   deleteChecklist,
   getRequiredTemplatesForAgent,
   getAgentTemplatesStatus,
+  listTemplatesForGestor,
+  listTemplatesUnified,
+  listSubordinatesPendingMonth,
+  isSubordinateOf,
 };
+
+async function listTemplatesForGestor(agentEstado, agentProfile) {
+  const { rows } = await cenos_pool.query(
+    `SELECT id, title, data FROM checklist_templates
+     WHERE is_active = true AND is_gestor = true AND COALESCE(is_deleted, false) = false
+       AND (estado IS NULL OR UPPER(estado) = UPPER($1))
+     ORDER BY created_at DESC`,
+    [agentEstado]
+  );
+  return rows.filter(t => {
+    const f = t.data?.filters;
+    if (!f) return true;
+    const matchCargo = !f.cargo?.length || f.cargo.some(c => (agentProfile.cargo || '').toUpperCase() === c.toUpperCase());
+    const matchRegional = !f.regional?.length || f.regional.some(r => (agentProfile.regional || '').toUpperCase() === r.toUpperCase());
+    const matchSeccional = !f.seccional?.length || f.seccional.some(s => (agentProfile.seccional || '').toUpperCase() === s.toUpperCase());
+    const matchProcesso = !f.processo?.length || f.processo.some(p => (agentProfile.processo || '').toUpperCase() === p.toUpperCase());
+    return matchCargo && matchRegional && matchSeccional && matchProcesso;
+  });
+}
+
+async function listTemplatesUnified(agentEstado, isGestor, agentProfile) {
+  const agentTemplates = (await listTemplatesForAgentWithProfile(agentEstado, agentProfile))
+    .map(t => ({ ...t, kind: 'agent' }));
+  if (!isGestor) return agentTemplates;
+
+  const gestorTemplates = (await listTemplatesForGestor(agentEstado, agentProfile))
+    .map(t => ({ ...t, kind: 'gestor' }));
+  return [...agentTemplates, ...gestorTemplates];
+}
+
+async function listSubordinatesPendingMonth(gestorId, gestorNome, monthStart, monthEnd) {
+  const { rows } = await cenos_pool.query(
+    `SELECT c."ID" as id, c."Nome" as nome, c."MAT" as matricula, c.estado
+     FROM colaboradores c
+     WHERE UPPER(TRIM(c."GESTOR IMEDIATO")) = UPPER(TRIM($1))
+       AND c.status = true
+       AND NOT EXISTS (
+         SELECT 1 FROM checklists ch
+         WHERE ch.agent_id = $2
+           AND ch.target_agent_id = c."ID"
+           AND ch.date >= $3 AND ch.date < $4
+       )
+     ORDER BY c."Nome" ASC`,
+    [gestorNome, gestorId, monthStart, monthEnd]
+  );
+  return rows;
+}
+
+async function isSubordinateOf(gestorId, gestorNome, targetAgentId) {
+  const { rows } = await cenos_pool.query(
+    `SELECT 1 FROM colaboradores
+     WHERE UPPER("ID") = UPPER($1)
+       AND UPPER(TRIM("GESTOR IMEDIATO")) = UPPER(TRIM($2))
+       AND status = true`,
+    [targetAgentId, gestorNome]
+  );
+  return rows.length > 0;
+}

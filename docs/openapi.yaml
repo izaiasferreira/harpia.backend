@@ -1,417 +1,1423 @@
 openapi: "3.0.3"
 info:
-  title: Gedai API
+  title: Gedai External API
   description: |
-    API do ecossistema Gedai para gestão de agentes de campo (leituristas)
-    das concessionárias de energia do Piauí (PI) e Maranhão (MA).
+    API Externa Unificada do ecossistema Gedai para consultas operacionais, reportes de segurança,
+    infrações de velocidade, checklists, rastreamento ao vivo e integrações com BI.
 
-    ## Autenticação
+    ## Autenticação via API Key
 
-    A API suporta 3 métodos de autenticação:
+    Todos os endpoints desta documentação exigem um token de API ativo (gerado no painel administrativo `/control/api-keys`).
+    Cada token possui o prefixo `gedai_` (exemplo: `gedai_a1b2c3d4e5f67890123456789abcdef0`).
 
-    1. **JWT Bearer** — Painel administrativo (`Authorization: Bearer <token>`)
-    2. **Telegram TMA** — App do agente (`X-Telegram-Init-Data`)
-    3. **API Token (DB)** — Consultas externas/BI via token gerenciável no admin
-
-    Consulte a documentação detalhada em `docs/` para cada módulo.
+    O token deve ser enviado no formato:
+    1. **Header HTTP**: `Authorization: Bearer gedai_<token>`
   version: "2.0.0"
-  contact:
-    name: Gedai Suporte
-    url: https://cenos.com.br
 servers:
   - url: http://localhost:3040
-    description: Desenvolvimento
-tags:
-  - name: Health
-    description: Endpoints de verificação de saúde
-  - name: Público
-    description: Rotas públicas (rate limit 60/min)
-  - name: Agente
-    description: Rotas do app do agente de campo
-  - name: Admin
-    description: Rotas do painel administrativo
-  - name: Consultas
-    description: Consultas gerais com token simples
-  - name: Tracking
-    description: Monitoramento GPS e detecção de quedas
-  - name: Service Notes
-    description: Notas de Serviço
-  - name: Chat
-    description: Chat de suporte (socket.io + REST)
-  - name: Formulários
-    description: Formulários dinâmicos
-  - name: Treinamentos
-    description: CenEduc e treinamentos interativos
-  - name: Badges
-    description: Sistema de gamificação
-  - name: Notificações
-    description: Push, overlay e notificações persistentes
-  - name: Config
-    description: Configurações do sistema (etapas, feriados)
-  - name: App Update
-    description: Auto-update Android
-paths:
-  # ─── HEALTH ────────────────────────────────────────────────────────────
-  /health:
-    get:
-      tags: [Health]
-      summary: Health check
-      responses:
-        "200":
-          description: Servidor OK
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ok
-                  timestamp:
-                    type: string
-                    example: 10/05/2026, 15:00:00
+    description: Servidor de Desenvolvimento
+  - url: https://backgedai.eqtl.ceneged.com
+    description: Servidor Oficial de Produção
 
-  # ─── PÚBLICO ──────────────────────────────────────────────────────────
-  /public/health:
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Reportes de Segurança
+    description: Consulta, criação, atualização e exclusão de riscos e reportes de segurança
+  - name: Acidentes
+    description: Consulta, criação, atualização e exclusão de acidentes operacionais
+  - name: Anotações de Serviço
+    description: Consulta, criação, atualização e exclusão de anotações de serviço, remanejamentos e coordenadas
+  - name: Limites de Velocidade
+    description: Ocorrências de excesso de velocidade registradas pelos dispositivos móveis
+  - name: Rastreamento & Heartbeats
+    description: Sinais ao vivo e posições recentes dos agentes de campo
+  - name: Checklists de Segurança
+    description: Submissões, alertas críticos, não conformidades e resumos estatísticos de checklists
+  - name: Agentes
+    description: Cadastro e status operacional dos colaboradores
+  - name: Consultas Operacionais & BI
+    description: Relatórios de pendências, pontualidade, leituras, CNL, C12, C16, E02, perdas e serviços
+  - name: Integrações & Alertas
+    description: Justificativas operacionais, recepção de webhooks do Telegram e disparo externo de notificações push
+
+paths:
+  # ─── 1. REPORTES DE SEGURANÇA ──────────────────────────────────────────────
+  /api/v1/security-reports:
     get:
-      tags: [Público]
-      summary: Status do servidor, pools e Redis
-      responses:
-        "200":
-          description: Status detalhado
-  /public/calendar:
-    get:
-      tags: [Público]
-      summary: Calendário de eventos por estado/mês
+      tags: [Reportes de Segurança]
+      summary: Consulta reportes de segurança (com busca por raio / perímetro)
+      description: |
+        Retorna a lista paginada de reportes de segurança cadastrados pelos agentes.
+        Permite busca por perímetro enviando `latitude`, `longitude` e `radius_km` (ou `radius_m`).
+        Retorna os pontos ordenados por distância com os campos `distance_km` e `distance_m`.
       parameters:
-        - name: state
+        - name: estado
           in: query
           schema:
             type: string
-            enum: [pi, ma]
-          description: Estado
-        - name: month
+            enum: [PI, MA]
+          description: Estado do colaborador
+        - name: tipo
           in: query
           schema:
             type: string
-          description: Mês (YYYY-MM)
-      responses:
-        "200":
-          description: Calendário
-  /public/feriados:
-    get:
-      tags: [Público]
-      summary: Feriados do estado
-      parameters:
-        - name: state
+          description: Categoria/motivo do risco
+        - name: date_from
           in: query
           schema:
             type: string
-            enum: [pi, ma]
-          description: Estado
-      responses:
-        "200":
-          description: Lista de feriados
-          content:
-        application/json:
-              schema:
-                type: array
-                items:
-                  type: string
-                  example: 03/04/2026
-  /public/metabase_geral:
-    get:
-      tags: [Público]
-      summary: Redirect para dashboard Metabase
-      responses:
-        "302":
-          description: Redirect para Metabase
-  /public/generate_token:
-    get:
-      tags: [Público]
-      summary: Gera token de acesso temporário
-      parameters:
-        - name: token
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: id
+          description: Data inicial (YYYY-MM-DD)
+        - name: date_to
           in: query
           schema:
             type: string
-          description: Telegram ID
-      responses:
-        "200":
-          description: Token gerado
-  /public/training/{id}:
-    get:
-      tags: [Público]
-      summary: Visualização pública de treinamento
-      parameters:
-        - name: id
-          in: path
-          required: true
+          description: Data final (YYYY-MM-DD)
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+          description: Matrícula ou nome do agente autor
+        - name: regional
+          in: query
+          schema:
+            type: string
+          description: Nome da regional
+        - name: seccional
+          in: query
+          schema:
+            type: string
+          description: Nome da seccional
+        - name: latitude
+          in: query
+          schema:
+            type: number
+          description: Latitude central para busca em raio
+        - name: longitude
+          in: query
+          schema:
+            type: number
+          description: Longitude central para busca em raio
+        - name: radius_km
+          in: query
+          schema:
+            type: number
+          description: Raio máximo em Quilômetros
+        - name: radius_m
+          in: query
+          schema:
+            type: number
+          description: Raio máximo em Metros
+        - name: page
+          in: query
           schema:
             type: integer
-      responses:
-        "200":
-          description: Projeto de treinamento
-        "404":
-          description: Não encontrado
-  /public/form/{id}:
-    get:
-      tags: [Público]
-      summary: Estrutura pública de formulário
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Estrutura do formulário
-  /public/form/{id}/check:
-    get:
-      tags: [Público]
-      summary: Verifica se respondente já respondeu
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: respondentId
+            default: 1
+        - name: limit
           in: query
-          required: true
           schema:
-            type: string
+            type: integer
+            default: 20
       responses:
         "200":
-          description: Status da verificação
-  /public/form/submit/{id}:
+          description: Lista de reportes de segurança
     post:
-      tags: [Público]
-      summary: Submete resposta de formulário
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
+      tags: [Reportes de Segurança]
+      summary: Cria um novo reporte de segurança
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [autor, motivo]
               properties:
-                answers:
-                  type: object
-                metadata:
-                  type: object
+                autor:
+                  type: string
+                  example: AG102030
+                motivo:
+                  type: string
+                  example: Buraco na via
+                observacao:
+                  type: string
+                foto:
+                  type: string
+                latitude:
+                  type: string
+                longitude:
+                  type: string
+                estado:
+                  type: string
+                  example: PI
+                regional:
+                  type: string
+                seccional:
+                  type: string
       responses:
         "201":
-          description: Resposta registrada
-  /public/form/upload:
-    post:
-      tags: [Público]
-      summary: Upload de arquivo para formulário
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-      responses:
-        "200":
-          description: URL do arquivo
-  /public/app_login:
-    post:
-      tags: [Público]
-      summary: Login app nativo (matrícula + PIN)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                matricula:
-                  type: string
-                pin:
-                  type: string
-      responses:
-        "200":
-          description: Token de acesso
-  /public/telegram-webhook:
-    post:
-      tags: [Público]
-      summary: Webhook inbound Telegram
-      security:
-        - ApiTokenAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-      responses:
-        "200":
-          description: Webhook processado
-  /public/notify:
-    post:
-      tags: [Público]
-      summary: Notificação pública para agentes
-      security:
-        - ApiTokenAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PublicNotifyRequest"
-      responses:
-        "200":
-          description: Notificação enviada
-          content:
-        application/json:
-              schema:
-                $ref: "#/components/schemas/PublicNotifyResponse"
+          description: Reporte criado com sucesso
 
-  # ─── CONSULTAS (API TOKEN) ────────────────────────────────────────────
-  /api/last_update:
+  /api/v1/security-reports/{id}:
     get:
-      tags: [Consultas]
-      summary: Data da última sincronização
-      security:
-        - ApiTokenAuth: []
+      tags: [Reportes de Segurança]
+      summary: Obtém um reporte de segurança pelo ID
       parameters:
-        - $ref: "#/components/parameters/TokenParam"
-      responses:
-        "200":
-          description: Timestamp da última atualização
-  /api/pendencias:
-    get:
-      tags: [Consultas]
-      summary: Pendências consolidadas
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: Relatório de pendências
-  /api/pendencias_json:
-    get:
-      tags: [Consultas]
-      summary: Pendências em JSON cru
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: JSON de pendências
-  /api/pontualidade:
-    get:
-      tags: [Consultas]
-      summary: Índices de pontualidade
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: Relatório de pontualidade
-  /api/perdas:
-    get:
-      tags: [Consultas]
-      summary: Relatório de perdas e fraudes
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: Relatório de perdas
-  /api/c12_json:
-    get:
-      tags: [Consultas]
-      summary: Metas C12
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: JSON C12
-  /api/cnl:
-    get:
-      tags: [Consultas]
-      summary: Leituras CNL
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: Relatório CNL
-  /api/agent_telegram_id:
-    get:
-      tags: [Consultas]
-      summary: Telegram ID do agente
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
         - name: id
-          in: query
+          in: path
           required: true
           schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalhes do reporte de segurança
+        "404":
+          description: Não encontrado
+    put:
+      tags: [Reportes de Segurança]
+      summary: Atualiza um reporte de segurança
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                motivo:
+                  type: string
+                observacao:
+                  type: string
+                foto:
+                  type: string
+                latitude:
+                  type: string
+                longitude:
+                  type: string
+                estado:
+                  type: string
+                regional:
+                  type: string
+                seccional:
+                  type: string
+                resolvido:
+                  type: boolean
+                descricao_solucao:
+                  type: string
+                resolvido_por:
+                  type: string
+                resolvido_por_nome:
+                  type: string
+      responses:
+        "200":
+          description: Reporte atualizado com sucesso
+        "404":
+          description: Não encontrado
+    delete:
+      tags: [Reportes de Segurança]
+      summary: Exclui um reporte de segurança
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reporte excluído com sucesso
+        "404":
+          description: Não encontrado
+
+  # ─── 1.1 ACIDENTES DE SEGURANÇA ─────────────────────────────────────────────
+  /api/v1/accidents:
+    get:
+      tags: [Acidentes]
+      summary: Consulta acidentes de segurança
+      parameters:
+        - name: estado
+          in: query
+          schema:
+            type: string
+        - name: tipo
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+        - name: date_to
+          in: query
+          schema:
+            type: string
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+        - name: regional
+          in: query
+          schema:
+            type: string
+        - name: seccional
+          in: query
+          schema:
+            type: string
+        - name: resolvido
+          in: query
+          schema:
+            type: boolean
+        - name: latitude
+          in: query
+          schema:
+            type: number
+        - name: longitude
+          in: query
+          schema:
+            type: number
+        - name: radius_km
+          in: query
+          schema:
+            type: number
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Lista de acidentes
+    post:
+      tags: [Acidentes]
+      summary: Cria um novo registro de acidente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [autor, tipo]
+              properties:
+                autor:
+                  type: string
+                  example: AG102030
+                tipo:
+                  type: string
+                  example: Acidente de trânsito
+                descricao:
+                  type: string
+                latitude:
+                  type: string
+                longitude:
+                  type: string
+                estado:
+                  type: string
+                regional:
+                  type: string
+                seccional:
+                  type: string
+      responses:
+        "201":
+          description: Acidente registrado com sucesso
+
+  /api/v1/accidents/{id}:
+    get:
+      tags: [Acidentes]
+      summary: Obtém um acidente pelo ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalhes do acidente
+        "404":
+          description: Não encontrado
+    put:
+      tags: [Acidentes]
+      summary: Atualiza um registro de acidente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tipo:
+                  type: string
+                descricao:
+                  type: string
+                latitude:
+                  type: string
+                longitude:
+                  type: string
+                estado:
+                  type: string
+                regional:
+                  type: string
+                seccional:
+                  type: string
+                resolvido:
+                  type: boolean
+                descricao_solucao:
+                  type: string
+                resolvido_por:
+                  type: string
+                resolvido_por_nome:
+                  type: string
+      responses:
+        "200":
+          description: Acidente atualizado com sucesso
+        "404":
+          description: Não encontrado
+    delete:
+      tags: [Acidentes]
+      summary: Exclui um registro de acidente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Acidente excluído com sucesso
+        "404":
+          description: Não encontrado
+
+  # ─── 1.2 ANOTAÇÕES DE SERVIÇO ──────────────────────────────────────────────
+  /api/v1/service-annotations:
+    get:
+      tags: [Anotações de Serviço]
+      summary: Consulta anotações de serviço
+      parameters:
+        - name: estado
+          in: query
+          schema:
+            type: string
+        - name: tipo
+          in: query
+          schema:
+            type: string
+        - name: identificacao_tipo
+          in: query
+          schema:
+            type: string
+        - name: identificacao_valor
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+        - name: date_to
+          in: query
+          schema:
+            type: string
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+        - name: regional
+          in: query
+          schema:
+            type: string
+        - name: seccional
+          in: query
+          schema:
+            type: string
+        - name: resolvido
+          in: query
+          schema:
+            type: boolean
+        - name: arquivada
+          in: query
+          schema:
+            type: boolean
+        - name: latitude
+          in: query
+          schema:
+            type: number
+        - name: longitude
+          in: query
+          schema:
+            type: number
+        - name: radius_km
+          in: query
+          schema:
+            type: number
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Lista de anotações de serviço
+    post:
+      tags: [Anotações de Serviço]
+      summary: Cria uma nova anotação de serviço
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [autor, tipo, descricao]
+              properties:
+                autor:
+                  type: string
+                  example: AG102030
+                tipo:
+                  type: string
+                  enum: [Remanejamento, Anotação, Coordenada]
+                  example: Anotação
+                identificacao_tipo:
+                  type: string
+                  enum: [Medidor, Instalação, Unidade Consumidora]
+                identificacao_valor:
+                  type: string
+                descricao:
+                  type: string
+                  example: Trocar medidor da unidade
+                latitude:
+                  type: string
+                longitude:
+                  type: string
+                foto:
+                  type: string
+                estado:
+                  type: string
+                regional:
+                  type: string
+                seccional:
+                  type: string
+                expires_at:
+                  type: string
+      responses:
+        "201":
+          description: Anotação criada com sucesso
+
+  /api/v1/service-annotations/{id}:
+    get:
+      tags: [Anotações de Serviço]
+      summary: Obtém uma anotação de serviço pelo ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalhes da anotação de serviço
+        "404":
+          description: Não encontrada
+    put:
+      tags: [Anotações de Serviço]
+      summary: Atualiza uma anotação de serviço
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tipo:
+                  type: string
+                identificacao_tipo:
+                  type: string
+                identificacao_valor:
+                  type: string
+                descricao:
+                  type: string
+                latitude:
+                  type: string
+                longitude:
+                  type: string
+                foto:
+                  type: string
+                estado:
+                  type: string
+                regional:
+                  type: string
+                seccional:
+                  type: string
+                expires_at:
+                  type: string
+                arquivada:
+                  type: boolean
+                resolvido:
+                  type: boolean
+                descricao_solucao:
+                  type: string
+                resolvido_por:
+                  type: string
+                resolvido_por_nome:
+                  type: string
+      responses:
+        "200":
+          description: Anotação atualizada com sucesso
+        "404":
+          description: Não encontrada
+    delete:
+      tags: [Anotações de Serviço]
+      summary: Exclui uma anotação de serviço
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Anotação excluída com sucesso
+        "404":
+          description: Não encontrada
+
+  # ─── 2. LIMITES DE VELOCIDADE ──────────────────────────────────────────────
+  /api/v1/speed-violations:
+    get:
+      tags: [Limites de Velocidade]
+      summary: Consulta infrações de excesso de velocidade
+      description: Retorna ocorrências de excesso de velocidade por período, agente ou raio geográfico.
+      parameters:
+        - name: estado
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+        - name: date_to
+          in: query
+          schema:
+            type: string
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+        - name: regional
+          in: query
+          schema:
+            type: string
+        - name: seccional
+          in: query
+          schema:
+            type: string
+        - name: latitude
+          in: query
+          schema:
+            type: number
+        - name: longitude
+          in: query
+          schema:
+            type: number
+        - name: min_speed
+          in: query
+          schema:
+            type: number
+        - name: max_speed
+          in: query
+          schema:
+            type: number
+        - name: radius_km
+          in: query
+          schema:
+            type: number
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Lista de infrações de velocidade
+
+  # ─── 3. HEARTBEATS / RASTREAMENTO VIVO ─────────────────────────────────────
+  /api/v1/heartbeats:
+    get:
+      tags: [Rastreamento & Heartbeats]
+      summary: Consulta posições ativas dos agentes em tempo real
+      description: |
+        Retorna as posições dos agentes. Suporta 3 modos:
+        - MODO ÚLTIMA POSIÇÃO: retorna apenas 1 ponto (o mais recente) por agente (use `latest_only=true`, `inactive_period` ou `active_period` ou não passe período).
+        - MODO HISTÓRICO: Retorna a trilha de coordenadas no período (vários pontos). (passe `period` ou `date`).
+      parameters:
+        - name: estado
+          in: query
+          schema:
+            type: string
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [now, 1h, 5h, 12h, 24h, all]
+            description: Retorna todo o histórico de pontos dentro do período.
+        - name: active_period
+          in: query
+          schema:
+            type: string
+            enum: [1h, 5h, 12h, 24h]
+            description: Filtra apenas a última posição dos agentes que transmitiram no período informado (Ativos).
+        - name: inactive_period
+          in: query
+          schema:
+            type: string
+            enum: [1h, 5h, 12h, 24h]
+            description: Filtra apenas a última posição dos agentes que NÃO transmitem há pelo menos o tempo informado (Inativos).
+        - name: latest_only
+          in: query
+          schema:
+            type: boolean
+            description: Retornar apenas a última posição conhecida de cada agente em vez do histórico completo.
+        - name: date
+          in: query
+          schema:
+            type: string
+            description: Data histórica (YYYY-MM-DD)
+        - name: regional
+          in: query
+          schema:
+            type: string
+        - name: seccional
+          in: query
+          schema:
             type: string
       responses:
         "200":
-          description: Telegram ID
-  /api/justification_codes:
-    post:
-      tags: [Consultas]
-      summary: Códigos de justificativa
-      security:
-        - ApiTokenAuth: []
+          description: Lista de posições dos agentes
+
+  # ─── 4. CHECKLISTS DE SEGURANÇA ────────────────────────────────────────────
+  /api/v1/checklists:
+    get:
+      tags: [Checklists de Segurança]
+      summary: Lista submissões de checklists de segurança
       parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: estado
+          in: query
+          schema:
+            type: string
+        - name: regional_id
+          in: query
+          schema:
+            type: string
+        - name: sectional_id
+          in: query
+          schema:
+            type: string
+        - name: agent_name
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+        - name: date_to
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [official, supplementary]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [submitted, pending]
+      responses:
+        "200":
+          description: Lista de checklists
+
+  /api/v1/checklists/alerts:
+    get:
+      tags: [Checklists de Segurança]
+      summary: Lista checklists com Alertas Críticos de Segurança
+      description: Retorna exclusivamente checklists com não conformidades críticas.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: estado
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+        - name: date_to
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lista de alertas críticos
+
+  /api/v1/checklists/non-conformities:
+    get:
+      tags: [Checklists de Segurança]
+      summary: Detalhamento de Não Conformidades (Questões Reprovadas)
+      description: Retorna todas as perguntas reprovadas nos checklists com fotos e observações.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: estado
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+        - name: date_to
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Detalhamento de não conformidades
+
+  /api/v1/checklists/summary:
+    get:
+      tags: [Checklists de Segurança]
+      summary: Resumo Estatístico dos Checklists
+      description: Retorna métricas consolidadas (total enviado, pendentes, taxa % de conformidade e divisão por regional).
+      parameters:
+        - name: date_from
+          in: query
+          schema:
+            type: string
+        - name: date_to
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resumo estatístico
+
+  # ─── 5. AGENTES ────────────────────────────────────────────────────────────
+  /api/v1/agents:
+    get:
+      tags: [Agentes]
+      summary: Consulta cadastro e status operacional dos colaboradores
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: estado
+          in: query
+          schema:
+            type: string
+        - name: regional
+          in: query
+          schema:
+            type: string
+        - name: seccional
+          in: query
+          schema:
+            type: string
+        - name: processo
+          in: query
+          schema:
+            type: string
+        - name: cargo
+          in: query
+          schema:
+            type: string
+        - name: gestor
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: boolean
+        - name: situacao
+          in: query
+          schema:
+            type: string
+        - name: login_status
+          in: query
+          schema:
+            type: string
+            enum: [online, offline, pending, none]
+      responses:
+        "200":
+          description: Lista de colaboradores cadastrados
+
+  # ─── 6. CONSULTAS OPERACIONAIS & BI ───────────────────────────────────────
+  /api/v1/last_update:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Data/hora da última sincronização por estado
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+      responses:
+        "200":
+          description: Última atualização
+
+  /api/v1/pendencias:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Resumo de pendências operacionais por estado e regional
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+      responses:
+        "200":
+          description: Resumo de pendências
+
+  /api/v1/pendencias_json:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Dados de pendências em formato JSON
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+      responses:
+        "200":
+          description: Dados de pendências em JSON
+
+  /api/v1/pontualidade:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Indicadores de pontualidade da equipe
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+      responses:
+        "200":
+          description: Indicadores de pontualidade
+
+  /api/v1/pontualidade_json:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Relatório detalhado de pontualidade em JSON
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+      responses:
+        "200":
+          description: Pontualidade em JSON
+
+  /api/v1/cnl:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Serviços da classe CNL (Corte e Religação)
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+        - name: dateinit
+          in: query
+          schema:
+            type: string
+        - name: dateend
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Serviços CNL
+
+  /api/v1/cnl_to_lido_json:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Serviços de CNL convertidos em leitura
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+        - name: dateinit
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: CNL convertidos em leitura
+
+  /api/v1/first_cnl_json:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Primeiro serviço CNL do dia
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+        - name: dateinit
+          in: query
+          schema:
+            type: string
+        - name: dateend
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Primeiro CNL do dia
+
+  /api/v1/c12_json:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Dados da classe C12 (Inspeção e Medição) em JSON
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+        - name: dateinit
+          in: query
+          schema:
+            type: string
+        - name: dateend
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Relatório C12 em JSON
+
+  /api/v1/c12_to_lido_json:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Serviços C12 lidos em JSON
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+        - name: dateinit
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: C12 lidos em JSON
+
+  /api/v1/first_c12_json:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Primeiro serviço C12 executado
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+        - name: dateinit
+          in: query
+          schema:
+            type: string
+        - name: dateend
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Primeiro C12 executado
+
+  /api/v1/fast_c12_json:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Atendimentos rápidos C12
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+        - name: dateinit
+          in: query
+          schema:
+            type: string
+        - name: dateend
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Atendimentos rápidos C12
+
+  /api/v1/licacao_nova_c12_json:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Ligações novas C12
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+        - name: dateinit
+          in: query
+          schema:
+            type: string
+        - name: dateend
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ligações novas C12
+
+  /api/v1/e02_json:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Relatório de emergência/manutenção E02 em JSON
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+        - name: dateinit
+          in: query
+          schema:
+            type: string
+        - name: dateend
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Relatório E02 em JSON
+
+  /api/v1/c16_json:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Relatório de serviços C16 em JSON
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+        - name: dateinit
+          in: query
+          schema:
+            type: string
+        - name: dateend
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Relatório C16 em JSON
+
+  /api/v1/perdas:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Resumo de perdas de energia
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+        - name: dateinit
+          in: query
+          schema:
+            type: string
+        - name: dateend
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resumo de perdas
+
+  /api/v1/perdas_json:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Dados de perdas de energia em JSON
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: regional
+          in: query
+          schema:
+            type: string
+            default: all
+        - name: dateinit
+          in: query
+          schema:
+            type: string
+        - name: dateend
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Dados de perdas em JSON
+
+  /api/v1/not_start_services:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Serviços pendentes de início por regional
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+      responses:
+        "200":
+          description: Serviços não iniciados
+
+  /api/v1/completed_services:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Lista de serviços concluídos hoje
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+      responses:
+        "200":
+          description: Lista de serviços concluídos
+
+  /api/v1/incompleted_services:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Lista de serviços incompletos/pendentes hoje
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+      responses:
+        "200":
+          description: Lista de serviços pendentes
+
+  /api/v1/agent_telegram_id:
+    get:
+      tags: [Consultas Operacionais & BI]
+      summary: Consulta de Telegram ID associado à matrícula do agente
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
+        - name: id
+          in: query
+          schema:
+            type: string
+          description: Matrícula do colaborador
+      responses:
+        "200":
+          description: Telegram ID do agente
+
+  /api/v1/justification_codes:
+    post:
+      tags: [Consultas Operacionais & BI]
+      summary: Envio/atualização de códigos de justificativa
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            default: pi
         - name: id
           in: query
           schema:
             type: string
       responses:
         "200":
-          description: Códigos de justificativa
-  /api/justify_pending:
+          description: Resultado da atualização
+
+  # ─── 7. INTEGRAÇÕES & ALERTAS ──────────────────────────────────────────────
+  /api/v1/justify_pending:
     post:
-      tags: [Consultas]
-      summary: Justificativa pendente em lote
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
+      tags: [Integrações & Alertas]
+      summary: Pré-cadastro de justificativa de pendência operacional
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required: [autor, estado, quantidade]
               properties:
                 autor:
                   type: string
@@ -419,4845 +1425,76 @@ paths:
                   type: string
                 quantidade:
                   type: integer
-      responses:
-        "201":
-          description: Justificativa criada
-
-  # ─── AGENTE ───────────────────────────────────────────────────────────
-  /agent/agent_data:
-    get:
-      tags: [Agente]
-      summary: Dados da sessão do agente
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Dados do agente
-  /agent/profile:
-    get:
-      tags: [Agente]
-      summary: Perfil completo do agente
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Perfil com badges, metas, estatísticas
-          content:
-        application/json:
-              schema:
-                $ref: "#/components/schemas/AgentProfile"
-  /agent/ceneduc:
-    get:
-      tags: [Agente, Treinamentos]
-      summary: CenEduc do agente
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Cards CenEduc montados com covers e trilhas
-  /agent/training/{id}/complete:
-    post:
-      tags: [Agente, Treinamentos]
-      summary: Completar treinamento interativo
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Treinamento concluído, badge concedida
-  /agent/ceneduc/complete/{id}:
-    post:
-      tags: [Agente, Treinamentos]
-      summary: Completar card CenEduc + badge
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Card completado, badge concedida
-  /agent/notifications:
-    get:
-      tags: [Agente, Notificações]
-      summary: Notificações do agente
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-        - name: limit
-          in: query
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Lista paginada de notificações
-  /agent/notifications/read:
-    post:
-      tags: [Agente, Notificações]
-      summary: Marcar notificações como lidas
-      security:
-        - TelegramAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                ids:
-                  type: array
-                  items:
-                    type: integer
-      responses:
-        "200":
-          description: Notificações marcadas
-  /agent/fcm-token:
-    post:
-      tags: [Agente, Notificações]
-      summary: Registrar token FCM
-      security:
-        - TelegramAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                token:
+                tipo:
                   type: string
-      responses:
-        "200":
-          description: Token registrado
-  /agent/tracking/sync:
-    post:
-      tags: [Agente, Tracking]
-      summary: Sincronizar dados de tracking
-      security:
-        - TelegramAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/TrackingSyncRequest"
-      responses:
-        "200":
-          description: Tracking sincronizado
-
-  # ─── SERVICE NOTES (AGENTE) ──────────────────────────────────────────
-  /agent/service-notes/groups:
-    get:
-      tags: [Agente, Service Notes]
-      summary: Lista grupos de serviço visíveis/creatable
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Lista de grupos
-  /agent/service-notes/groups/visible:
-    get:
-      tags: [Agente, Service Notes]
-      summary: Lista grupos públicos visíveis
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Grupos públicos
-  /agent/service-notes/groups/{groupId}/notes:
-    get:
-      tags: [Agente, Service Notes]
-      summary: Todas as notas de grupo público
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Notas do grupo
-  /agent/service-notes/assigned:
-    get:
-      tags: [Agente, Service Notes]
-      summary: Notas atribuídas ao agente
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Notas atribuídas
-  /agent/service-notes/{id}:
-    get:
-      tags: [Agente, Service Notes]
-      summary: Detalhes de uma nota
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Nota com completion_config do grupo
-  /agent/service-notes:
-    post:
-      tags: [Agente, Service Notes]
-      summary: Criar nota (PENDENTE) em grupo permitido
-      security:
-        - TelegramAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                group_id:
-                  type: integer
-                title:
+                unidade_leitura:
                   type: string
-                description:
-                  type: string
-                latitude:
-                  type: number
-                longitude:
-                  type: number
-      responses:
-        "201":
-          description: Nota criada
-  /agent/service-notes/self-register:
-    post:
-      tags: [Agente, Service Notes]
-      summary: Auto-registro de serviço (cria + conclui)
-      security:
-        - TelegramAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                group_id:
-                  type: integer
-                completionData:
-                  type: object
-      responses:
-        "201":
-          description: Nota criada e concluída
-  /agent/service-notes/{id}/complete:
-    post:
-      tags: [Agente, Service Notes]
-      summary: Concluir nota de serviço
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                completionData:
-                  type: object
-      responses:
-        "200":
-          description: Nota concluída
-
-  # ─── ADMIN ────────────────────────────────────────────────────────────
-  /admin/user/login:
-    post:
-      tags: [Admin]
-      summary: Login administrativo
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                  format: email
-                senha:
-                  type: string
-      responses:
-        "200":
-          description: Token JWT + dados do usuário
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  token:
-                    type: string
-                  user:
-                    $ref: "#/components/schemas/AdminUser"
-  /admin/users_agents:
-    get:
-      tags: [Admin]
-      summary: Lista agentes de campo
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: search
-          in: query
-          schema:
-            type: string
-        - name: estado
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: regional
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: seccional
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: gestor
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Lista de agentes
-    post:
-      tags: [Admin]
-      summary: Cadastra agente de campo
-      security:
-        - JwtAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                matricula:
-                  type: string
-                nome:
-                  type: string
-                cargo:
-                  type: string
-                estado:
-                  type: string
-                regional:
-                  type: string
-                seccional:
-                  type: string
-      responses:
-        "201":
-          description: Agente cadastrado
-
-  # ─── ADMIN: MÓDULO CONFIG ────────────────────────────────────────────
-  /admin/config/etapas:
-    get:
-      tags: [Admin, Config]
-      summary: Lista etapas de leitura
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: state
-          in: query
-          schema:
-            type: string
-            enum: [pi, ma]
-      responses:
-        "200":
-          description: Etapas do estado
-          content:
-        application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    etapa:
-                      type: string
-                    data:
-                      type: string
-    put:
-      tags: [Admin, Config]
-      summary: Atualiza data de etapa
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: state
-          in: query
-          schema:
-            type: string
-            enum: [pi, ma]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                etapa:
-                  type: string
-                data:
-                  type: string
-      responses:
-        "200":
-          description: Etapa atualizada
-  /admin/config/feriados:
-    get:
-      tags: [Admin, Config]
-      summary: Lista feriados
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: state
-          in: query
-          schema:
-            type: string
-            enum: [pi, ma]
-      responses:
-        "200":
-          description: Feriados do estado
-    post:
-      tags: [Admin, Config]
-      summary: Adiciona feriado
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: state
-          in: query
-          schema:
-            type: string
-            enum: [pi, ma]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                date:
-                  type: string
-                description:
-                  type: string
-      responses:
-        "201":
-          description: Feriado criado
-  /admin/config/feriados/{id}:
-    delete:
-      tags: [Admin, Config]
-      summary: Remove feriado
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: state
-          in: query
-          schema:
-            type: string
-            enum: [pi, ma]
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Feriado removido
-
-  # ─── ADMIN: SECURITY REPORTS ─────────────────────────────────────────
-  /admin/security_reports:
-    get:
-      tags: [Admin]
-      summary: Lista relatórios de segurança
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-        - name: limit
-          in: query
-          schema:
-            type: integer
-      parameters:
-        - name: estado
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: search
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Relatórios paginados
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/SecurityReport"
-                  total:
-                    type: integer
-                  page:
-                    type: integer
-                  totalPages:
-                    type: integer
-    post:
-      tags: [Admin]
-      summary: Cria relatório de segurança
-      security:
-        - JwtAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                autor:
-                  type: string
-                motivo:
-                  type: string
-                observacao:
-                  type: string
-                latitude:
-                  type: number
-                longitude:
-                  type: number
-                estado:
-                  type: string
-      responses:
-        "201":
-          description: Relatório criado
-  /admin/security_reports/{id}:
-    delete:
-      tags: [Admin]
-      summary: Remove relatório de segurança
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Relatório removido
-
-  # ─── ADMIN: BADGES ───────────────────────────────────────────────────
-  /admin/badge:
-    get:
-      tags: [Admin, Badges]
-      summary: Lista badges
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Lista de badges
-    post:
-      tags: [Admin, Badges]
-      summary: Cria badge
-      security:
-        - JwtAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                description:
-                  type: string
-                image_url:
-                  type: string
-      responses:
-        "201":
-          description: Badge criada
-  /admin/badge/{id}:
-    get:
-      tags: [Admin, Badges]
-      summary: Detalhes da badge
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Badge
-    put:
-      tags: [Admin, Badges]
-      summary: Atualiza badge
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                description:
-                  type: string
-                image_url:
-                  type: string
-      responses:
-        "200":
-          description: Badge atualizada
-    delete:
-      tags: [Admin, Badges]
-      summary: Remove badge
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Badge removida
-
-  # ─── ADMIN: USER BADGES ──────────────────────────────────────────────
-  /admin/user-badges/{id}:
-    get:
-      tags: [Admin, Badges]
-      summary: Badges do agente
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: state
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Badges do agente
-  /admin/user-badges/{id}/add:
-    post:
-      tags: [Admin, Badges]
-      summary: Atribui badge ao agente
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                badgeId:
-                  type: integer
-      responses:
-        "200":
-          description: Badge atribuída
-  /admin/user-badges/{id}/remove:
-    post:
-      tags: [Admin, Badges]
-      summary: Revoga badge do agente
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                badgeId:
-                  type: integer
-      responses:
-        "200":
-          description: Badge revogada
-
-  # ─── ADMIN: CENEDUC ──────────────────────────────────────────────────
-  /admin/ceneduc:
-    get:
-      tags: [Admin, Treinamentos]
-      summary: Lista cards CenEduc
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: state
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Cards CenEduc
-    post:
-      tags: [Admin, Treinamentos]
-      summary: Cria card CenEduc
-      security:
-        - JwtAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CeneducCardCreate"
-      responses:
-        "201":
-          description: Card criado
-  /admin/ceneduc/{id}:
-    get:
-      tags: [Admin, Treinamentos]
-      summary: Detalhes do card
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Card
-    put:
-      tags: [Admin, Treinamentos]
-      summary: Atualiza card
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CeneducCardCreate"
-      responses:
-        "200":
-          description: Card atualizado
-    delete:
-      tags: [Admin, Treinamentos]
-      summary: Remove card
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Card removido
-
-  # ─── ADMIN: TRAINING ─────────────────────────────────────────────────
-  /admin/training:
-    get:
-      tags: [Admin, Treinamentos]
-      summary: Lista treinamentos
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-        - name: limit
-          in: query
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Lista paginada
-    post:
-      tags: [Admin, Treinamentos]
-      summary: Cria treinamento
-      security:
-        - JwtAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
-                badge_id:
-                  type: integer
-      responses:
-        "201":
-          description: Treinamento criado
-  /admin/training/{id}:
-    get:
-      tags: [Admin, Treinamentos]
-      summary: Detalhes do treinamento
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Treinamento com flow_data
-    put:
-      tags: [Admin, Treinamentos]
-      summary: Atualiza metadados
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
-                badge_id:
-                  type: integer
-      responses:
-        "200":
-          description: Treinamento atualizado
-    delete:
-      tags: [Admin, Treinamentos]
-      summary: Remove treinamento
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Treinamento removido
-  /admin/training/{id}/flow:
-    put:
-      tags: [Admin, Treinamentos]
-      summary: Salva flow_data (grafo)
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                flow_data:
-                  type: object
-      responses:
-        "200":
-          description: Flow salvo
-  /admin/training/{id}/complete:
-    post:
-      tags: [Admin, Treinamentos]
-      summary: Conclusão manual + badge
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                agent_id:
-                  type: string
-      responses:
-        "200":
-          description: Treinamento concluído
-
-  # ─── ADMIN: SERVICE NOTES ────────────────────────────────────────────
-  /admin/service-notes/groups:
-    get:
-      tags: [Admin, Service Notes]
-      summary: Lista grupos de serviço
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Lista de grupos
-          content:
-        application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ServiceGroup"
-    post:
-      tags: [Admin, Service Notes]
-      summary: Cria grupo de serviço
-      security:
-        - JwtAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ServiceGroupCreate"
-      responses:
-        "201":
-          description: Grupo criado
-  /admin/service-notes/groups/{id}:
-    get:
-      tags: [Admin, Service Notes]
-      summary: Detalhes do grupo
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Grupo
-    put:
-      tags: [Admin, Service Notes]
-      summary: Atualiza grupo
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ServiceGroupCreate"
-      responses:
-        "200":
-          description: Grupo atualizado
-    delete:
-      tags: [Admin, Service Notes]
-      summary: Remove grupo
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Grupo removido
-  /admin/service-notes/groups/{id}/categories:
-    get:
-      tags: [Admin, Service Notes]
-      summary: Categorias do grupo
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Categorias
-    post:
-      tags: [Admin, Service Notes]
-      summary: Cria categoria
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                color:
-                  type: string
-      responses:
-        "201":
-          description: Categoria criada
-  /admin/service-notes/categories/{id}:
-    delete:
-      tags: [Admin, Service Notes]
-      summary: Remove categoria
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Categoria removida
-  /admin/service-notes:
-    get:
-      tags: [Admin, Service Notes]
-      summary: Lista notas com filtros
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: groupId
-          in: query
-          schema:
-            type: integer
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [PENDENTE, CONCLUIDO]
-      parameters:
-        - name: assignedTo
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: archived
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: categoryId
-          in: query
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Notas filtradas
-    post:
-      tags: [Admin, Service Notes]
-      summary: Cria nota
-      security:
-        - JwtAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                group_id:
-                  type: integer
-                title:
-                  type: string
-                description:
-                  type: string
-                latitude:
-                  type: number
-                longitude:
-                  type: number
-                address:
-                  type: string
-                marker_category_id:
-                  type: integer
-      responses:
-        "201":
-          description: Nota criada
-  /admin/service-notes/{id}:
-    get:
-      tags: [Admin, Service Notes]
-      summary: Detalhes da nota
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Nota com completion_config
-    put:
-      tags: [Admin, Service Notes]
-      summary: Atualiza nota
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Nota atualizada
-    delete:
-      tags: [Admin, Service Notes]
-      summary: Remove nota
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Nota removida
-  /admin/service-notes/{id}/assign:
-    put:
-      tags: [Admin, Service Notes]
-      summary: Atribui/desatribui agente
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                userId:
-                  type: string
-                  nullable: true
-      responses:
-        "200":
-          description: Nota atribuída/desatribuída
-  /admin/service-notes/bulk-assign:
-    post:
-      tags: [Admin, Service Notes]
-      summary: Atribuição em lote
-      security:
-        - JwtAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                serviceIds:
-                  type: array
-                  items:
-                    type: integer
-                userId:
-                  type: string
-                  nullable: true
-      responses:
-        "200":
-          description: Lote processado
-  /admin/service-notes/bulk-category:
-    post:
-      tags: [Admin, Service Notes]
-      summary: Altera categoria em lote
-      security:
-        - JwtAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                serviceIds:
-                  type: array
-                  items:
-                    type: integer
-                markerCategoryId:
-                  type: integer
-                  nullable: true
-      responses:
-        "200":
-          description: Categorias alteradas
-  /admin/service-notes/bulk-delete:
-    post:
-      tags: [Admin, Service Notes]
-      summary: Exclusão em lote
-      security:
-        - JwtAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                serviceIds:
-                  type: array
-                  items:
-                    type: integer
-      responses:
-        "200":
-          description: Notas excluídas
-  /admin/service-notes/bulk-archive:
-    post:
-      tags: [Admin, Service Notes]
-      summary: Arquivamento em lote
-      security:
-        - JwtAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                serviceIds:
-                  type: array
-                  items:
-                    type: integer
-      responses:
-        "200":
-          description: Notas arquivadas
-  /admin/service-notes/bulk-unarchive:
-    post:
-      tags: [Admin, Service Notes]
-      summary: Restaura arquivamento em lote
-      security:
-        - JwtAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                serviceIds:
-                  type: array
-                  items:
-                    type: integer
-      responses:
-        "200":
-          description: Notas restauradas
-  /admin/service-notes/bulk-move:
-    post:
-      tags: [Admin, Service Notes]
-      summary: Move notas entre grupos
-      security:
-        - JwtAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                serviceIds:
-                  type: array
-                  items:
-                    type: integer
-                targetGroupId:
-                  type: integer
-      responses:
-        "200":
-          description: Notas movidas
-  /admin/service-notes/{id}/complete:
-    put:
-      tags: [Admin, Service Notes]
-      summary: Conclusão manual (admin)
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                completionData:
-                  type: object
-      responses:
-        "200":
-          description: Nota concluída
-  /admin/service-notes/{id}/restore:
-    post:
-      tags: [Admin, Service Notes]
-      summary: Restaura nota para PENDENTE
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Nota restaurada
-  /admin/service-notes/bulk-restore:
-    post:
-      tags: [Admin, Service Notes]
-      summary: Restaura múltiplas notas
-      security:
-        - JwtAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                serviceIds:
-                  type: array
-                  items:
-                    type: integer
-      responses:
-        "200":
-          description: Notas restauradas
-  /admin/service-notes/import:
-    post:
-      tags: [Admin, Service Notes]
-      summary: Importa notas (XLSX ou JSON)
-      security:
-        - JwtAuth: []
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                groupId:
-                  type: integer
-                file:
-                  type: string
-                  format: binary
-                notes:
-                  type: array
-                  items:
-                    type: object
-      responses:
-        "200":
-          description: Notas importadas
-
-  # ─── ADMIN: MESSAGES ─────────────────────────────────────────────────
-  /admin/messages/send:
-    post:
-      tags: [Admin, Notificações]
-      summary: Envio multicanal (Telegram + Push + Chat)
-      security:
-        - JwtAuth: []
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                agent_ids:
-                  type: string
-                text:
-                  type: string
-                title:
-                  type: string
-                channels:
-                  type: string
-                file:
-                  type: string
-                  format: binary
-                critical:
-                  type: string
-                alertType:
-                  type: string
-                alertIcon:
-                  type: string
-      responses:
-        "200":
-          description: Mensagem enviada
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  telegram:
-                    type: object
-                  push:
-                    type: object
-                  chat:
-                    type: array
-  /admin/messages/notifications/{agentId}:
-    get:
-      tags: [Admin, Notificações]
-      summary: Histórico de notificações do agente
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: agentId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: page
-          in: query
-          schema:
-            type: integer
-      parameters:
-        - name: limit
-          in: query
-          schema:
-            type: integer
-      parameters:
-        - name: search
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: from
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: to
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Notificações do agente
-
-  # ─── ADMIN: CHAT ─────────────────────────────────────────────────────
-  /admin/chat/rooms:
-    get:
-      tags: [Admin, Chat]
-      summary: Lista salas de chat
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Salas com última mensagem e unread
-    post:
-      tags: [Admin, Chat]
-      summary: Cria sala para agente
-      security:
-        - JwtAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                agent_id:
-                  type: string
-      responses:
-        "200":
-          description: Sala criada
-  /admin/chat/rooms/unread-count:
-    get:
-      tags: [Admin, Chat]
-      summary: Total de salas não lidas
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Contagem de não lidas
-  /admin/chat/rooms/{roomId}/messages:
-    get:
-      tags: [Admin, Chat]
-      summary: Mensagens da sala
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: roomId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Histórico de mensagens
-  /admin/chat/rooms/{roomId}/read:
-    post:
-      tags: [Admin, Chat]
-      summary: Marcar sala como lida
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: roomId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Mensagens marcadas como lidas
-
-  # ─── ADMIN: TRACKING ─────────────────────────────────────────────────
-  /admin/tracking/agents:
-    get:
-      tags: [Admin, Tracking]
-      summary: Última posição de todos agentes
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Lista de agentes com posição
-  /admin/tracking/agent/{id}/trail:
-    get:
-      tags: [Admin, Tracking]
-      summary: Trilha histórica do agente
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: from
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: to
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Coordenadas da trilha
-  /admin/tracking/speed_violations:
-    get:
-      tags: [Admin, Tracking]
-      summary: Violações de velocidade
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Lista de violações
-  /admin/tracking/fall_incidents:
-    get:
-      tags: [Admin, Tracking]
-      summary: Incidentes de queda
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Incidentes detectados
-  /admin/tracking/fall_incidents/{id}:
-    put:
-      tags: [Admin, Tracking]
-      summary: Atualiza status do incidente
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                status:
-                  type: string
-                notes:
-                  type: string
-      responses:
-        "200":
-          description: Incidente atualizado
-
-  # ─── ADMIN: FORMS ────────────────────────────────────────────────────
-  /admin/forms:
-    get:
-      tags: [Admin, Formulários]
-      summary: Lista formulários
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Lista paginada
-    post:
-      tags: [Admin, Formulários]
-      summary: Cria formulário
-      security:
-        - JwtAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                description:
-                  type: string
-                coverUrl:
-                  type: string
-                settings:
-                  type: object
-                structure:
-                  type: array
-                badge_id:
-                  type: integer
-      responses:
-        "201":
-          description: Formulário criado
-  /admin/forms/{id}:
-    get:
-      tags: [Admin, Formulários]
-      summary: Detalhes do formulário
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Formulário com structure
-    put:
-      tags: [Admin, Formulários]
-      summary: Atualiza formulário
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Formulário atualizado
-    delete:
-      tags: [Admin, Formulários]
-      summary: Remove formulário
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Formulário removido
-  /admin/forms/{id}/responses:
-    get:
-      tags: [Admin, Formulários]
-      summary: Respostas do formulário
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Respostas paginadas
-  /admin/forms/responses/{id}:
-    delete:
-      tags: [Admin, Formulários]
-      summary: Exclui resposta
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Resposta excluída
-  /admin/forms/{id}/stats:
-    get:
-      tags: [Admin, Formulários]
-      summary: Estatísticas do formulário
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Estatísticas agregadas
-  /admin/forms/{id}/export:
-    get:
-      tags: [Admin, Formulários]
-      summary: Exportar CSV
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Arquivo CSV
-  /admin/forms/{id}/chat:
-    get:
-      tags: [Admin, Formulários]
-      summary: Histórico do assistente IA
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Mensagens do chat IA
-    post:
-      tags: [Admin, Formulários]
-      summary: Envia mensagem ao assistente IA
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                message:
-                  type: string
-                currentStructure:
-                  type: object
-                attachments:
-                  type: array
-      responses:
-        "200":
-          description: Resposta do assistente + parsedStructure
-    delete:
-      tags: [Admin, Formulários]
-      summary: Limpa histórico do chat IA
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Histórico limpo
-
-  # ─── ADMIN: INVENTORY ────────────────────────────────────────────────
-  /admin/inventory:
-    get:
-      tags: [Admin]
-      summary: Lista inventários
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-        - name: limit
-          in: query
-          schema:
-            type: integer
-      parameters:
-        - name: estado
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: search
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Inventários com dados do agente
-    post:
-      tags: [Admin]
-      summary: Cadastra/sobrescreve inventário
-      security:
-        - JwtAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                agente:
-                  type: string
-                pda_imei_1:
-                  type: string
-                pda_numero_serie:
-                  type: string
-                pda_marca:
-                  type: string
-                pda_modelo:
-                  type: string
-                impressora_numero_serie:
-                  type: string
-                maquininha_numero_serie:
-                  type: string
-                estado:
-                  type: string
-      responses:
-        "200":
-          description: Inventário salvo
-
-  # ─── ADMIN: BRANCH ───────────────────────────────────────────────────
-  /admin/branch:
-    get:
-      tags: [Admin]
-      summary: Lista filiais
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Filiais
-    post:
-      tags: [Admin]
-      summary: Cria filial
-      security:
-        - JwtAuth: []
-      responses:
-        "201":
-          description: Filial criada
-
-  # ─── ADMIN: PERMISSION ───────────────────────────────────────────────
-  /admin/permission:
-    get:
-      tags: [Admin]
-      summary: Lista perfis de permissão
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Perfis
-    post:
-      tags: [Admin]
-      summary: Cria perfil de permissão
-      security:
-        - JwtAuth: []
-      responses:
-        "201":
-          description: Perfil criado
-
-  # ─── ADMIN: MESSAGE TEMPLATES ────────────────────────────────────────
-  /admin/message_templates:
-    get:
-      tags: [Admin]
-      summary: Lista templates
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Templates
-    post:
-      tags: [Admin]
-      summary: Cria template
-      security:
-        - JwtAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                text:
-                  type: string
-                file:
-                  type: string
-                web_app_button_text:
-                  type: string
-                web_app_button_url:
-                  type: string
-      responses:
-        "201":
-          description: Template criado
-  /admin/message_templates/{id}:
-    put:
-      tags: [Admin]
-      summary: Atualiza template
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Template atualizado
-    delete:
-      tags: [Admin]
-      summary: Remove template
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Template removido
-
-  # ─── ADMIN: SERVICES ─────────────────────────────────────────────────
-  /admin/services:
-    get:
-      tags: [Admin]
-      summary: Consulta de serviços
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: date
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: search
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Serviços paginados
-
-  # ─── ADMIN: REVALIDATE ───────────────────────────────────────────────
-  /admin/revalidate/files_for_revalidate:
-    get:
-      tags: [Admin]
-      summary: Fotos pendentes de revalidação
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Fotos para revalidar
-  /admin/revalidate/files_for_view:
-    get:
-      tags: [Admin]
-      summary: Fotos com filtros
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: date
-          in: query
-          schema:
-            type: string
-        - name: regional
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: seccional
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: agent
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: validation
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Fotos com status
-  /admin/revalidate/revalidate_file:
-    post:
-      tags: [Admin]
-      summary: Salva revalidação
-      security:
-        - JwtAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
                 instalacao:
                   type: string
-                data:
-                  type: string
-                validation:
-                  type: string
-      responses:
-        "200":
-          description: Revalidação salva
-  /admin/revalidate/filter_options:
-    get:
-      tags: [Admin]
-      summary: Opções de filtro
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Datas, regionais, agentes
-
-  # ─── ADMIN: APP PINS ────────────────────────────────────────────────
-  /admin/agent/generate_app_pin:
-    post:
-      tags: [Admin]
-      summary: Gera PIN de acesso ao app
-      security:
-        - JwtAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                agent_id:
-                  type: string
-      responses:
-        "200":
-          description: PIN gerado
-
-  # ─── APP UPDATE ──────────────────────────────────────────────────────
-  /api/app/update/check:
-    get:
-      tags: [App Update]
-      summary: Verifica nova versão
-      parameters:
-        - name: currentVersionCode
-          in: query
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Informações da atualização
-  /api/app/update/versions:
-    get:
-      tags: [App Update]
-      summary: Manifesto completo de versões
-      responses:
-        "200":
-          description: Latest + history
-  /api/app/update/bucket-files:
-    get:
-      tags: [App Update]
-      summary: Arquivos APK no bucket
-      responses:
-        "200":
-          description: Lista de APKs
-
-  # ─── AGENTE: PROFILE ─────────────────────────────────────────────────
-
-  # ─── AGENTE: PROFILE ─────────────────────────────────────────────────
-  /agent/profile/upload:
-    post:
-      tags: [Agente]
-      summary: Upload de foto do perfil
-      security:
-        - TelegramAuth: []
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-      responses:
-        "200":
-          description: URL da foto atualizada
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  url:
-                    type: string
-                    example: https://cdn.cenos.com.br/agents/12345.jpg
-        "400":
-          description: Arquivo inválido
-
-  # ─── AGENTE: BADGE ───────────────────────────────────────────────────
-  /agent/badge:
-    get:
-      tags: [Agente, Badges]
-      summary: Detalhes de uma badge por número
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: badge
-          in: query
-          required: true
-          schema:
-            type: integer
-          description: Número da badge
-      responses:
-        "200":
-          description: Dados da badge
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                    example: 1
-                  title:
-                    type: string
-                    example: Leiturista Top
-                  description:
-                    type: string
-                    example: Completou 100 leituras no mês
-                  image_url:
-                    type: string
-                    example: https://cdn.cenos.com.br/badges/1.png
-                  earned_at:
-                    type: string
-                    example: 10/05/2026
-        "404":
-          description: Badge não encontrada
-
-  # ─── AGENTE ──────────────────────────────────────────────────────────
-  /agent/agent_dashboard:
-    get:
-      tags: [Agente]
-      summary: Dashboard consolidado do agente
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Dados do dashboard (metas, estatísticas, alertas)
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  total_services:
-                    type: integer
-                    example: 45
-                  completed:
-                    type: integer
-                    example: 38
-                  pending:
-                    type: integer
-                    example: 7
-                  completion_rate:
-                    type: number
-                    example: 84.4
-                  points:
-                    type: integer
-                    example: 1250
-  /agent/agent_services:
-    get:
-      tags: [Agente]
-      summary: Serviços do agente com filtros
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            example: 1
-        - name: date
-          in: query
-          schema:
-            type: string
-            example: 10/05/2026
-      parameters:
-        - name: filter
-          in: query
-          schema:
-            type: string
-            enum: [all, pending, completed]
-      responses:
-        "200":
-          description: Lista paginada de serviços
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                  total:
-                    type: integer
-                  page:
-                    type: integer
-                  totalPages:
-                    type: integer
-  /agent/search_in:
-    post:
-      tags: [Agente]
-      summary: Pesquisar instalação
-      security:
-        - TelegramAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                search:
-                  type: string
-                  example: 12345678
-      responses:
-        "200":
-          description: Resultado da pesquisa
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  instalacao:
-                    type: string
-                    example: 12345678
-                  cliente:
-                    type: string
-                    example: João Silva
-                  endereco:
-                    type: string
-                  rota:
-                    type: string
-        "404":
-          description: Instalação não encontrada
-  /agent/instalation_details:
-    get:
-      tags: [Agente]
-      summary: Detalhes de uma instalação
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: instalacao
-          in: query
-          required: true
-          schema:
-            type: string
-          description: Código da instalação
-      responses:
-        "200":
-          description: Detalhes da instalação
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  instalacao:
-                    type: string
-                    example: 12345678
-                  cliente:
-                    type: string
-                  endereco:
-                    type: string
-                  rota:
-                    type: string
-                  medidor:
-                    type: string
-                  ultima_leitura:
-                    type: string
-        "404":
-          description: Instalação não encontrada
-  /agent/predicted:
-    get:
-      tags: [Agente]
-      summary: Leituras previstas do agente
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [pendente, realizado]
-        - name: page
-          in: query
-          schema:
-            type: integer
-            example: 1
-      parameters:
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            example: 20
-      responses:
-        "200":
-          description: Lista de leituras previstas
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        instalacao:
-                          type: string
-                        cliente:
-                          type: string
-                        data_prevista:
-                          type: string
-                        status:
-                          type: string
-                  total:
-                    type: integer
-                  page:
-                    type: integer
-                  totalPages:
-                    type: integer
-  /agent/last_update_agent:
-    get:
-      tags: [Agente]
-      summary: Data da última atualização dos dados do agente
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Timestamp da última atualização
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  last_update:
-                    type: string
-                    example: 10/05/2026, 14:30:00
-  /agent/custom_links:
-    get:
-      tags: [Agente]
-      summary: Links personalizados do agente
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Lista de links
-          content:
-        application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    title:
-                      type: string
-                      example: Suporte
-                    url:
-                      type: string
-                      example: https://t.me/cenos_suporte
-                    icon:
-                      type: string
-
-  # ─── AGENTE: JUSTIFICATIVAS ──────────────────────────────────────────
-  /agent/get_justify:
-    get:
-      tags: [Agente, Justificativas]
-      summary: Obter justificativa por instalação
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: instalacao
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: tipo
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: data_leit_prev
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Justificativa encontrada
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                  instalacao:
-                    type: string
-                  tipo:
-                    type: string
-                  motivo:
-                    type: string
-                  data_prevista:
-                    type: string
-        "404":
-          description: Justificativa não encontrada
-  /agent/create_justify:
-    post:
-      tags: [Agente, Justificativas]
-      summary: Criar justificativa
-      security:
-        - TelegramAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                instalacao:
-                  type: string
-                  example: "12345678"
-                tipo:
-                  type: string
-                  example: "falta_leitura"
-                motivo:
-                  type: string
-                  example: "Cachorro bravo no local"
-                data_prevista:
-                  type: string
-                  example: "12/05/2026"
-      responses:
-        "201":
-          description: Justificativa criada
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                  message:
-                    type: string
-                    example: Justificativa registrada
-        "400":
-          description: Dados inválidos
-  /agent/update_justify:
-    put:
-      tags: [Agente, Justificativas]
-      summary: Atualizar justificativa
-      security:
-        - TelegramAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                id:
-                  type: integer
-                  example: 1
-                tipo:
-                  type: string
-                motivo:
-                  type: string
-                data_prevista:
-                  type: string
-      responses:
-        "200":
-          description: Justificativa atualizada
-        "400":
-          description: Dados inválidos
-        "404":
-          description: Justificativa não encontrada
-  /agent/delete_justify/{id}:
-    delete:
-      tags: [Agente, Justificativas]
-      summary: Deletar justificativa
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Justificativa removida
-        "404":
-          description: Justificativa não encontrada
-
-  # ─── AGENTE: JUSTIFY PENDING ─────────────────────────────────────────
-  /agent/justify_pending:
-    get:
-      tags: [Agente, Justificativas]
-      summary: Lista justificativas pendentes do agente
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [pendente, aprovado, rejeitado]
-        - name: page
-          in: query
-          schema:
-            type: integer
-            example: 1
-      parameters:
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            example: 20
-      responses:
-        "200":
-          description: Lista paginada de justificativas pendentes
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                  total:
-                    type: integer
-                  page:
-                    type: integer
-                  totalPages:
-                    type: integer
-  /agent/justify_pending/{id}:
-    get:
-      tags: [Agente, Justificativas]
-      summary: Detalhes de justificativa pendente
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Justificativa pendente
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                  instalacao:
-                    type: string
-                  motivo:
-                    type: string
-                  status:
-                    type: string
-                  created_at:
-                    type: string
-        "404":
-          description: Não encontrada
-  /agent/justify_pending/{id}/respond:
-    put:
-      tags: [Agente, Justificativas]
-      summary: Responder justificativa pendente
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                resposta:
-                  type: string
-                  example: "Falta leitura justificada"
-      responses:
-        "200":
-          description: Resposta registrada
-        "404":
-          description: Justificativa não encontrada
-
-  # ─── AGENTE: DAILY REPORT ────────────────────────────────────────────
-  /agent/daily_report:
-    post:
-      tags: [Agente]
-      summary: Enviar relatório diário
-      security:
-        - TelegramAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                data:
-                  type: string
-                  example: 10/05/2026
-                observacoes:
-                  type: string
-                  example: "Dia tranquilo, todas as leituras concluídas"
-                total_servicos:
-                  type: integer
-                  example: 25
-                concluidos:
-                  type: integer
-                  example: 23
-                pendentes:
-                  type: integer
-                  example: 2
-      responses:
-        "201":
-          description: Relatório registrado
-    get:
-      tags: [Agente]
-      summary: Listar relatórios diários
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: data
-          in: query
-          schema:
-            type: string
-            example: 10/05/2026
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            example: 10
-      responses:
-        "200":
-          description: Relatórios diários
-          content:
-        application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                    data:
-                      type: string
-                    observacoes:
-                      type: string
-                    total_servicos:
-                      type: integer
-                    concluidos:
-                      type: integer
-                    pendentes:
-                      type: integer
-                    created_at:
-                      type: string
-  /agent/daily_report/check_today:
-    get:
-      tags: [Agente]
-      summary: Verifica se já enviou relatório hoje
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Status do relatório de hoje
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  enviado:
-                    type: boolean
-                    example: false
-                  relatorio:
-                    type: object
-
-  # ─── AGENTE: INVENTORY ───────────────────────────────────────────────
-  /agent/inventory:
-    get:
-      tags: [Agente, Inventário]
-      summary: Ver inventário do agente
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Dados do inventário
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  pda_imei_1:
-                    type: string
-                  pda_numero_serie:
-                    type: string
-                  pda_marca:
-                    type: string
-                  pda_modelo:
-                    type: string
-                  impressora_numero_serie:
-                    type: string
-                  maquininha_numero_serie:
-                    type: string
-        "404":
-          description: Inventário não encontrado
-    post:
-      tags: [Agente, Inventário]
-      summary: Cadastrar/atualizar inventário do agente
-      security:
-        - TelegramAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                pda_imei_1:
-                  type: string
-                  example: "356938123456789"
-                pda_numero_serie:
-                  type: string
-                  example: "SN12345ABC"
-                pda_marca:
-                  type: string
-                  example: "Samsung"
-                pda_modelo:
-                  type: string
-                  example: "Galaxy XCover6"
-                impressora_numero_serie:
-                  type: string
-                  example: "PRT98765"
-                maquininha_numero_serie:
-                  type: string
-                  example: "MQ54321"
-      responses:
-        "200":
-          description: Inventário salvo
-        "400":
-          description: Dados inválidos
-
-  # ─── AGENTE: SECURITY CHECK ──────────────────────────────────────────
-  /agent/security_check:
-    post:
-      tags: [Agente]
-      summary: Enviar check-in de segurança
-      security:
-        - TelegramAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                latitude:
-                  type: number
-                  example: -5.08921
-                longitude:
-                  type: number
-                  example: -42.80167
-                status:
-                  type: string
-                  example: seguro
-                observacao:
-                  type: string
-                  example: "Tudo normal"
-      responses:
-        "201":
-          description: Check-in registrado
-    get:
-      tags: [Agente]
-      summary: Histórico de check-ins de segurança
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Lista de check-ins
-          content:
-        application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                    latitude:
-                      type: number
-                    longitude:
-                      type: number
-                    status:
-                      type: string
-                    created_at:
-                      type: string
-  /agent/security_check/check_today:
-    get:
-      tags: [Agente]
-      summary: Verifica check-in de segurança de hoje
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Status do check-in de hoje
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  realizado:
-                    type: boolean
-                    example: true
-                  check:
-                    type: object
-
-  # ─── AGENTE: SECURITY REPORT ─────────────────────────────────────────
-  /agent/security_report:
-    post:
-      tags: [Agente]
-      summary: Enviar relatório de segurança
-      security:
-        - TelegramAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                motivo:
-                  type: string
-                  example: "Assalto na região"
-                observacao:
-                  type: string
-                  example: "Presença de suspeitos na rota"
-                latitude:
-                  type: number
-                  example: -5.08921
-                longitude:
-                  type: number
-                  example: -42.80167
-      responses:
-        "201":
-          description: Relatório de segurança registrado
-    get:
-      tags: [Agente]
-      summary: Listar relatórios de segurança do agente
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Relatórios de segurança
-          content:
-        application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-
-  # ─── AGENTE: UPLOAD ──────────────────────────────────────────────────
-  /agent/upload_agent:
-    post:
-      tags: [Agente]
-      summary: Upload de arquivo específico do agente
-      security:
-        - TelegramAuth: []
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                tipo:
-                  type: string
-                  example: documento
-      responses:
-        "200":
-          description: URL do arquivo
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  url:
-                    type: string
-
-  # ─── AGENTE: CENEDUC ─────────────────────────────────────────────────
-  /agent/ceneduc/check/{id}:
-    get:
-      tags: [Agente, Treinamentos]
-      summary: Verificar status de conclusão de card CenEduc
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Status do card
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  completed:
-                    type: boolean
-                    example: true
-                  badge_earned:
-                    type: boolean
-                    example: false
-                  completed_at:
-                    type: string
-        "404":
-          description: Card não encontrado
-
-  # ─── AGENTE: SERVICE NOTES (NOVOS) ──────────────────────────────────
-  /agent/service-notes/groups/visible-with-counts:
-    get:
-      tags: [Agente, Service Notes]
-      summary: Grupos públicos com contagem de notas
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Grupos com contagem
-          content:
-        application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                    name:
-                      type: string
-                    description:
-                      type: string
-                    note_count:
-                      type: integer
-                      example: 5
-  /agent/service-notes/groups/creatable:
-    get:
-      tags: [Agente, Service Notes]
-      summary: Grupos onde o agente pode criar notas
-      security:
-        - TelegramAuth: []
-      responses:
-        "200":
-          description: Grupos com permissão de criação
-          content:
-        application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ServiceGroup"
-  /agent/service-notes/groups/{groupId}/categories:
-    get:
-      tags: [Agente, Service Notes]
-      summary: Categorias disponíveis de um grupo
-      security:
-        - TelegramAuth: []
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Categorias do grupo
-          content:
-        application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                    name:
-                      type: string
-                    color:
-                      type: string
-  /agent/service-notes/create:
-    post:
-      tags: [Agente, Service Notes]
-      summary: Criar nota de serviço (com categoria)
-      security:
-        - TelegramAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                group_id:
-                  type: integer
-                  example: 1
-                title:
-                  type: string
-                  example: "Vazamento de água"
-                description:
-                  type: string
-                  example: "Hidrômetro com vazamento na Rua A"
-                latitude:
-                  type: number
-                  example: -5.08921
-                longitude:
-                  type: number
-                  example: -42.80167
-                marker_category_id:
-                  type: integer
-                  example: 2
-      responses:
-        "201":
-          description: Nota criada
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                  message:
-                    type: string
-                    example: Nota de serviço criada
-
-  # ─── ADMIN: DASHBOARD ────────────────────────────────────────────────
-  /admin/dashboard:
-    get:
-      tags: [Admin]
-      summary: Dashboard administrativo
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Métricas do dashboard
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  total_agents:
-                    type: integer
-                    example: 150
-                  active_agents:
-                    type: integer
-                    example: 120
-                  total_services_today:
-                    type: integer
-                    example: 3400
-                  completed_today:
-                    type: integer
-                    example: 2800
-                  pending_today:
-                    type: integer
-                    example: 600
-                  completion_rate:
-                    type: number
-                    example: 82.35
-                  perdas_count:
-                    type: integer
-                    example: 45
-  /admin/perdas:
-    get:
-      tags: [Admin]
-      summary: Relatório de perdas e fraudes
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: state
-          in: query
-          schema:
-            type: string
-            enum: [pi, ma]
-        - name: page
-          in: query
-          schema:
-            type: integer
-      parameters:
-        - name: limit
-          in: query
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Relatório de perdas
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                  total:
-                    type: integer
-                  page:
-                    type: integer
-                  totalPages:
-                    type: integer
-
-  # ─── ADMIN: USERS AGENTS ─────────────────────────────────────────────
-  /admin/users_agents/{id}:
-    get:
-      tags: [Admin]
-      summary: Detalhes de um agente de campo
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Dados do agente
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  matricula:
-                    type: string
-                  nome:
-                    type: string
-                  cargo:
-                    type: string
-                  estado:
-                    type: string
-                  regional:
-                    type: string
-                  seccional:
-                    type: string
-                  telegram_id:
-                    type: string
-                  status:
-                    type: string
-        "404":
-          description: Agente não encontrado
-    put:
-      tags: [Admin]
-      summary: Atualizar agente de campo
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                nome:
-                  type: string
-                cargo:
-                  type: string
-                estado:
-                  type: string
-                regional:
-                  type: string
-                seccional:
-                  type: string
-                status:
-                  type: string
-      responses:
-        "200":
-          description: Agente atualizado
-        "400":
-          description: Dados inválidos
-        "404":
-          description: Agente não encontrado
-    delete:
-      tags: [Admin]
-      summary: Remover agente de campo
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Agente removido
-        "404":
-          description: Agente não encontrado
-  /admin/users_agents/options:
-    get:
-      tags: [Admin]
-      summary: Opções de filtro para agentes
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Listas de regionais, seccionais, cargos
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  regionais:
-                    type: array
-                    items:
-                      type: string
-                  seccionais:
-                    type: array
-                    items:
-                      type: string
-                  cargos:
-                    type: array
-                    items:
-                      type: string
-  /admin/users_agents/profile:
-    get:
-      tags: [Admin]
-      summary: Perfil do agente logado (admin)
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Perfil do admin
-  /admin/users_agents/services:
-    get:
-      tags: [Admin]
-      summary: Serviços consolidados dos agentes
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: date
-          in: query
-          schema:
-            type: string
-        - name: estado
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Serviços dos agentes
-
-  # ─── ADMIN: SEARCH ──────────────────────────────────────────────────
-  /admin/search_in:
-    post:
-      tags: [Admin]
-      summary: Pesquisar instalação (admin)
-      security:
-        - JwtAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                search:
-                  type: string
-                  example: "12345678"
-      responses:
-        "200":
-          description: Resultado da pesquisa
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  instalacao:
-                    type: string
-                  cliente:
-                    type: string
-                  endereco:
-                    type: string
-                  rota:
-                    type: string
-                  historico:
-                    type: array
-        "404":
-          description: Instalação não encontrada
-  /admin/search_in/{id}:
-    put:
-      tags: [Admin]
-      summary: Atualizar dados de instalação pesquisada
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                campo:
-                  type: string
-                valor:
-                  type: string
-      responses:
-        "200":
-          description: Instalação atualizada
-        "404":
-          description: Não encontrada
-
-  # ─── ADMIN: MODULES ─────────────────────────────────────────────────
-  /admin/available_modules:
-    get:
-      tags: [Admin]
-      summary: Módulos disponíveis no sistema
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Lista de módulos
-          content:
-        application/json:
-              schema:
-                type: array
-                items:
-                  type: string
-                  example: dashboard
-
-  # ─── ADMIN: JUSTIFY ──────────────────────────────────────────────────
-  /admin/justify:
-    get:
-      tags: [Admin, Justificativas]
-      summary: Lista justificativas
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-        - name: limit
-          in: query
-          schema:
-            type: integer
-      parameters:
-        - name: estado
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Justificativas paginadas
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                  total:
-                    type: integer
-                  page:
-                    type: integer
-                  totalPages:
-                    type: integer
-    post:
-      tags: [Admin, Justificativas]
-      summary: Criar justificativa
-      security:
-        - JwtAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                instalacao:
-                  type: string
-                tipo:
-                  type: string
-                motivo:
-                  type: string
-                data_prevista:
-                  type: string
-                agente:
+                foto:
                   type: string
       responses:
         "201":
-          description: Justificativa criada
-  /admin/justify/{id}:
-    put:
-      tags: [Admin, Justificativas]
-      summary: Atualizar justificativa
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                tipo:
-                  type: string
-                motivo:
-                  type: string
-                data_prevista:
-                  type: string
-      responses:
-        "200":
-          description: Justificativa atualizada
-        "404":
-          description: Não encontrada
-    delete:
-      tags: [Admin, Justificativas]
-      summary: Remover justificativa
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Justificativa removida
-        "404":
-          description: Não encontrada
-  /admin/justify/types:
-    get:
-      tags: [Admin, Justificativas]
-      summary: Tipos de justificativa disponíveis
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Lista de tipos
-          content:
-        application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                    nome:
-                      type: string
+          description: Justificativa registrada
 
-  # ─── ADMIN: JUSTIFY PENDING ──────────────────────────────────────────
-  /admin/justify_pending:
-    get:
-      tags: [Admin, Justificativas]
-      summary: Lista justificativas pendentes
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-        - name: limit
-          in: query
-          schema:
-            type: integer
-      parameters:
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [pendente, aprovado, rejeitado]
-      parameters:
-        - name: estado
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Justificativas pendentes paginadas
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                  total:
-                    type: integer
-                  page:
-                    type: integer
-                  totalPages:
-                    type: integer
+  /api/v1/telegram-webhook:
     post:
-      tags: [Admin, Justificativas]
-      summary: Criar justificativa pendente
-      security:
-        - JwtAuth: []
+      tags: [Integrações & Alertas]
+      summary: Webhook de recepção de eventos do Telegram Bot
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              properties:
-                instalacao:
-                  type: string
-                motivo:
-                  type: string
-                tipo:
-                  type: string
-                agente:
-                  type: string
-      responses:
-        "201":
-          description: Justificativa pendente criada
-  /admin/justify_pending/{id}:
-    put:
-      tags: [Admin, Justificativas]
-      summary: Atualizar justificativa pendente
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                status:
-                  type: string
-                  enum: [aprovado, rejeitado]
-                resposta:
-                  type: string
       responses:
         "200":
-          description: Justificativa atualizada
-        "404":
-          description: Não encontrada
-    delete:
-      tags: [Admin, Justificativas]
-      summary: Remover justificativa pendente
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Justificativa removida
-        "404":
-          description: Não encontrada
+          description: Webhook processado
 
-  # ─── ADMIN: DAILY REPORT ─────────────────────────────────────────────
-  /admin/daily_report:
-    get:
-      tags: [Admin]
-      summary: Lista relatórios diários
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: data
-          in: query
-          schema:
-            type: string
-        - name: estado
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-      parameters:
-        - name: limit
-          in: query
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Relatórios diários paginados
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                  total:
-                    type: integer
-                  page:
-                    type: integer
-                  totalPages:
-                    type: integer
+  /api/v1/notify:
     post:
-      tags: [Admin]
-      summary: Criar relatório diário
-      security:
-        - JwtAuth: []
+      tags: [Integrações & Alertas]
+      summary: Disparo externo de notificações push e mensagens para colaboradores
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [sender, to, body]
               properties:
-                agente:
+                sender:
                   type: string
-                data:
-                  type: string
-                observacoes:
-                  type: string
-                total_servicos:
-                  type: integer
-                concluidos:
-                  type: integer
-                pendentes:
-                  type: integer
-      responses:
-        "201":
-          description: Relatório diário criado
-  /admin/daily_report/{id}:
-    put:
-      tags: [Admin]
-      summary: Atualizar relatório diário
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                observacoes:
-                  type: string
-                total_servicos:
-                  type: integer
-                concluidos:
-                  type: integer
-                pendentes:
-                  type: integer
-      responses:
-        "200":
-          description: Relatório atualizado
-        "404":
-          description: Não encontrado
-    delete:
-      tags: [Admin]
-      summary: Remover relatório diário
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Relatório removido
-        "404":
-          description: Não encontrado
-
-  # ─── ADMIN: INVENTORY ────────────────────────────────────────────────
-  /admin/inventory/{id}:
-    put:
-      tags: [Admin, Inventário]
-      summary: Atualizar inventário de agente
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                pda_imei_1:
-                  type: string
-                pda_numero_serie:
-                  type: string
-                pda_marca:
-                  type: string
-                pda_modelo:
-                  type: string
-                impressora_numero_serie:
-                  type: string
-                maquininha_numero_serie:
-                  type: string
-      responses:
-        "200":
-          description: Inventário atualizado
-        "404":
-          description: Não encontrado
-    delete:
-      tags: [Admin, Inventário]
-      summary: Remover inventário
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Inventário removido
-        "404":
-          description: Não encontrado
-
-  # ─── ADMIN: USER MANAGEMENT ──────────────────────────────────────────
-  /admin/user/register:
-    post:
-      tags: [Admin]
-      summary: Registrar novo usuário admin
-      security:
-        - JwtAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                  format: email
-                  example: admin@cenos.com.br
-                senha:
-                  type: string
-                  example: "123456"
-                nome:
-                  type: string
-                  example: "Admin Master"
-                role:
-                  type: string
-                  example: admin
-                estado:
-                  type: string
-                  example: pi
-      responses:
-        "201":
-          description: Usuário registrado
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                  message:
-                    type: string
-                    example: Usuário criado com sucesso
-        "400":
-          description: Dados inválidos
-  /admin/user/me:
-    get:
-      tags: [Admin]
-      summary: Dados do usuário logado
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Perfil do usuário atual
-          content:
-        application/json:
-              schema:
-                $ref: "#/components/schemas/AdminUser"
-  /admin/user/users:
-    get:
-      tags: [Admin]
-      summary: Lista usuários do sistema
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-        - name: limit
-          in: query
-          schema:
-            type: integer
-      parameters:
-        - name: search
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Usuários paginados
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/AdminUser"
-                  total:
-                    type: integer
-                  page:
-                    type: integer
-                  totalPages:
-                    type: integer
-  /admin/user/users/{id}:
-    get:
-      tags: [Admin]
-      summary: Detalhes de um usuário
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Dados do usuário
-          content:
-        application/json:
-              schema:
-                $ref: "#/components/schemas/AdminUser"
-        "404":
-          description: Usuário não encontrado
-    put:
-      tags: [Admin]
-      summary: Atualizar dados do usuário
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                  format: email
-                nome:
-                  type: string
-                role:
-                  type: string
-                estado:
-                  type: string
-      responses:
-        "200":
-          description: Usuário atualizado
-        "404":
-          description: Não encontrado
-    delete:
-      tags: [Admin]
-      summary: Remover usuário
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Usuário removido
-        "404":
-          description: Não encontrado
-  /admin/user/users/{id}/password:
-    put:
-      tags: [Admin]
-      summary: Alterar senha do usuário
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                senha:
-                  type: string
-                  example: "nova_senha_123"
-      responses:
-        "200":
-          description: Senha alterada
-        "404":
-          description: Usuário não encontrado
-  /admin/user/users/{id}/permissions:
-    put:
-      tags: [Admin]
-      summary: Atualizar permissões do usuário
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                permissions:
+                  example: SistemaBI
+                to:
                   type: array
                   items:
                     type: string
-                  example: ["dashboard", "users", "config"]
-      responses:
-        "200":
-          description: Permissões atualizadas
-        "404":
-          description: Usuário não encontrado
-
-  # ─── ADMIN: NOTIFICATIONS ────────────────────────────────────────────
-  /admin/notifications/send:
-    post:
-      tags: [Admin, Notificações]
-      summary: Enviar notificação para agente específico
-      security:
-        - JwtAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                agent_id:
-                  type: string
-                  example: "12345"
+                  example: ["AG102030"]
                 title:
                   type: string
-                  example: "Nova meta"
+                  example: Alerta Urgente
                 body:
                   type: string
-                  example: "Você foi designado para nova rota"
+                  example: Favor verificar o serviço pendente na unidade L-04
                 type:
                   type: string
-                  enum: [success, warn, danger, info]
-      responses:
-        "200":
-          description: Notificação enviada
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  id:
-                    type: integer
-  /admin/notifications/broadcast:
-    post:
-      tags: [Admin, Notificações]
-      summary: Enviar notificação para todos agentes
-      security:
-        - JwtAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                  example: "Aviso geral"
-                body:
-                  type: string
-                  example: "Manutenção programada domingo"
-                type:
-                  type: string
-                  enum: [success, warn, danger, info]
-                estado:
-                  type: string
-                  enum: [pi, ma]
-      responses:
-        "200":
-          description: Broadcast enviado
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  total:
-                    type: integer
-                    example: 150
-
-  # ─── ADMIN: APP PINS ────────────────────────────────────────────────
-  /admin/agent/app_pins:
-    get:
-      tags: [Admin]
-      summary: Lista PINs de acesso gerados
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-        - name: limit
-          in: query
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: PINs gerados
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id:
-                          type: integer
-                        agent_id:
-                          type: string
-                        pin:
-                          type: string
-                        created_at:
-                          type: string
-                        used:
-                          type: boolean
-                  total:
-                    type: integer
-  /admin/agent/app_pins/{id}:
-    delete:
-      tags: [Admin]
-      summary: Remover PIN de acesso
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: PIN removido
-        "404":
-          description: Não encontrado
-
-  # ─── ADMIN: BRANCH ───────────────────────────────────────────────────
-  /admin/branch/{id}:
-    get:
-      tags: [Admin]
-      summary: Detalhes de filial
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Dados da filial
-          content:
-        application/json:
-              schema:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                  nome:
+                  enum: [success, warning, error, info]
+                  default: success
+                method:
+                  type: array
+                  items:
                     type: string
-                  estado:
-                    type: string
-                  regional:
-                    type: string
-                  seccional:
-                    type: string
-        "404":
-          description: Filial não encontrada
-    delete:
-      tags: [Admin]
-      summary: Remover filial
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
+                    enum: [push, chat]
+                  example: ["push", "chat"]
       responses:
         "200":
-          description: Filial removida
-        "404":
-          description: Não encontrada
-
-  # ─── ADMIN: PERMISSION ───────────────────────────────────────────────
-  /admin/permission/{id}:
-    get:
-      tags: [Admin]
-      summary: Detalhes de perfil de permissão
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Perfil de permissão
-        "404":
-          description: Não encontrado
-    delete:
-      tags: [Admin]
-      summary: Remover perfil de permissão
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Perfil removido
-        "404":
-          description: Não encontrado
-
-  /api/pontualidade_json:
-    get:
-      tags: [Consultas]
-      summary: Pontualidade em JSON cru
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: JSON de pontualidade
-  /api/cnl_to_lido_json:
-    get:
-      tags: [Consultas]
-      summary: CNL convertido para lido em JSON
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: JSON CNL to lido
-  /api/first_cnl_json:
-    get:
-      tags: [Consultas]
-      summary: Primeira leitura CNL em JSON
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: JSON first CNL
-  /api/c12_to_lido_json:
-    get:
-      tags: [Consultas]
-      summary: C12 convertido para lido em JSON
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: JSON C12 to lido
-  /api/first_c12_json:
-    get:
-      tags: [Consultas]
-      summary: Primeira leitura C12 em JSON
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: JSON first C12
-  /api/fast_c12_json:
-    get:
-      tags: [Consultas]
-      summary: C12 rápido em JSON
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: JSON fast C12
-  /api/licacao_nova_c12_json:
-    get:
-      tags: [Consultas]
-      summary: Ligação nova C12 em JSON
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: JSON ligação nova C12
-  /api/e02_json:
-    get:
-      tags: [Consultas]
-      summary: Relatório E02 em JSON
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: JSON E02
-  /api/c16_json:
-    get:
-      tags: [Consultas]
-      summary: Relatório C16 em JSON
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: JSON C16
-  /api/perdas_json:
-    get:
-      tags: [Consultas]
-      summary: Perdas em JSON cru
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: JSON de perdas
-  /api/not_start_services:
-    get:
-      tags: [Consultas]
-      summary: Serviços não iniciados
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: Lista de serviços não iniciados
-  /api/completed_services:
-    get:
-      tags: [Consultas]
-      summary: Serviços concluídos
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: Lista de serviços concluídos
-  /api/incompleted_services:
-    get:
-      tags: [Consultas]
-      summary: Serviços incompletos
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - $ref: "#/components/parameters/StateParam"
-      responses:
-        "200":
-          description: Lista de serviços incompletos
-  /api/logs/data:
-    get:
-      tags: [Consultas]
-      summary: Dados de logs do sistema
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-        - name: page
-          in: query
-          schema:
-            type: integer
-        - name: limit
-          in: query
-          schema:
-            type: integer
-      parameters:
-        - name: from
-          in: query
-          schema:
-            type: string
-      parameters:
-        - name: to
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Logs do sistema
-  /api/logs/clear:
-    delete:
-      tags: [Consultas]
-      summary: Limpar logs do sistema
-      security:
-        - ApiTokenAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TokenParam"
-      responses:
-        "200":
-          description: Logs limpos
-
-  # ─── ADMIN / API TOKENS ────────────────────────────────────────────────
-  /admin/api-tokens:
-    get:
-      tags: [Admin]
-      summary: Listar tokens de API
-      security:
-        - JwtAuth: []
-      responses:
-        "200":
-          description: Lista de tokens
-    post:
-      tags: [Admin]
-      summary: Criar novo token de API
-      security:
-        - JwtAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                label:
-                  type: string
-                expiresAt:
-                  type: string
-                  format: date-time
-      responses:
-        "201":
-          description: Token criado (raw_token retornado apenas aqui)
-  /admin/api-tokens/{id}/revoke:
-    post:
-      tags: [Admin]
-      summary: Revogar token de API
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Token revogado
-  /admin/api-tokens/{id}/unrevoke:
-    post:
-      tags: [Admin]
-      summary: Reativar token revogado
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Token reativado
-  /admin/api-tokens/{id}:
-    delete:
-      tags: [Admin]
-      summary: Excluir token permanentemente
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Token excluído
-  /admin/api-tokens/{id}/usage:
-    get:
-      tags: [Admin]
-      summary: Logs de uso de um token
-      security:
-        - JwtAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
-      parameters:
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 50
-      responses:
-        "200":
-          description: Logs de uso paginados
+          description: Notificações enviadas
 
 components:
-  parameters:
-    TokenParam:
-      name: token
-      in: query
-      required: false
-      schema:
-        type: string
-      description: |
-        [DEPRECATED] Prefira usar o header `X-API-Token` ou `Authorization: Bearer`.
-        Token de API gerenciável (prefixo `cenos_`).
-    StateParam:
-      name: state
-      in: query
-      schema:
-        type: string
-        enum: [pi, ma]
-      description: Estado federativo
-
   securitySchemes:
-    JwtAuth:
+    BearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT
-      description: |
-        Autenticação administrativa via JWT.
-        Header: `Authorization: Bearer <token>`
-        O token é obtido via `POST /admin/user/login`.
-    TelegramAuth:
-      type: apiKey
-      in: header
-      name: X-Telegram-Init-Data
-      description: |
-        Autenticação do agente via Telegram Mini App.
-        Header: `X-Telegram-Init-Data: <initData>`
-        O initData é validado via Telegram TMA.
-    ApiTokenAuth:
-      type: apiKey
-      in: header
-      name: X-API-Token
-      description: |
-        Token gerenciável via painel admin (/admin/api-tokens).
-        Header: `X-API-Token: cenos_<hash>`
-        Alternativo: `Authorization: Bearer cenos_<hash>`
-
-  schemas:
-    AdminUser:
-      type: object
-      properties:
-        id:
-          type: integer
-        email:
-          type: string
-        nome:
-          type: string
-        role:
-          type: string
-        estado:
-          type: string
-
-    AgentProfile:
-      type: object
-      properties:
-        user:
-          type: object
-          properties:
-            name:
-              type: string
-            role:
-              type: string
-            location:
-              type: string
-            photo:
-              type: string
-            stats:
-              type: object
-              properties:
-                level:
-                  type: number
-                completionRate:
-                  type: number
-                fastResponses:
-                  type: integer
-                points:
-                  type: integer
-        goals:
-          type: array
-          items:
-            type: object
-        badges:
-          type: array
-          items:
-            type: integer
-
-    TrackingSyncRequest:
-      type: object
-      properties:
-        points:
-          type: array
-          items:
-            type: object
-            properties:
-              lat:
-                type: number
-              lng:
-                type: number
-              speed:
-                type: number
-              accuracy:
-                type: number
-              timestamp:
-                type: integer
-        violations:
-          type: array
-          items:
-            type: object
-        incidents:
-          type: array
-          items:
-            type: object
-        alerts:
-          type: array
-          items:
-            type: object
-
-    SecurityReport:
-      type: object
-      properties:
-        id:
-          type: integer
-        autor:
-          type: string
-        motivo:
-          type: string
-        observacao:
-          type: string
-        latitude:
-          type: number
-        longitude:
-          type: number
-        estado:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-        nome:
-          type: string
-        matricula:
-          type: string
-
-    ServiceGroup:
-      type: object
-      properties:
-        id:
-          type: integer
-        name:
-          type: string
-        description:
-          type: string
-        completion_config:
-          type: object
-        allow_all_agents:
-          type: boolean
-        allowed_agents:
-          type: array
-          items:
-            type: string
-        allow_agent_creation:
-          type: boolean
-        created_at:
-          type: string
-          format: date-time
-
-    ServiceGroupCreate:
-      type: object
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        completion_config:
-          type: object
-        allow_all_agents:
-          type: boolean
-        allowed_agents:
-          type: array
-          items:
-            type: string
-        allow_agent_creation:
-          type: boolean
-
-    CeneducCardCreate:
-      type: object
-      properties:
-        card_type:
-          type: string
-          enum: [cover, train_item]
-        section:
-          type: string
-          enum: [slider, banner]
-        group_title:
-          type: string
-        state:
-          type: string
-        sort_order:
-          type: integer
-        badge_id:
-          type: integer
-          nullable: true
-        data:
-          type: object
-          properties:
-            title:
-              type: string
-            image:
-              type: string
-            description:
-              type: string
-            link:
-              type: string
-            resource_type:
-              type: string
-            resource_id:
-              type: integer
-
-    PublicNotifyRequest:
-      type: object
-      properties:
-        sender:
-          type: string
-        to:
-          type: string
-        title:
-          type: string
-        body:
-          type: string
-        type:
-          type: string
-          enum: [success, warn, danger, info]
-        method:
-          type: array
-          items:
-            type: string
-            enum: [telegram, push, priority, internal]
-
-    PublicNotifyResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        id:
-          type: integer
-        results:
-          type: object
-
-
+      bearerFormat: gedai_<hash>
+      description: Token no header Authorization (ex. Bearer gedai_a1b2c3d4e5f67890123456789abcdef0)

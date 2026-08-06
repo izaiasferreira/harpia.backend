@@ -107,6 +107,9 @@ app.use('/admin/security_reports', adminSecurityReportsValidationRouter)
 const adminSecurityAccidentsRouter = require('./routes/adminSecurityAccidents')
 app.use('/admin/security_reports/accidents', adminSecurityAccidentsRouter)
 
+const adminServiceAnnotationsRouter = require('./routes/adminServiceAnnotations')
+app.use('/admin/service_annotations', adminServiceAnnotationsRouter)
+
 const adminCrashDetectionRouter = require('./routes/adminCrashDetection')
 app.use('/admin/crash-detection', adminCrashDetectionRouter)
 
@@ -165,6 +168,8 @@ const adminNonconformityResolutionsRouter = require('./routes/adminNonconformity
 app.use('/admin/dashboard', adminNonconformityResolutionsRouter)
 const agentChecklistsRouter = require('./routes/agentChecklists')
 app.use('/agent/checklists', agentChecklistsRouter)
+const managerDashboardRouter = require('./routes/managerDashboard')
+app.use('/manager/dashboard', managerDashboardRouter)
 
 const adminExcelChecklistDashboardRouter = require('./routes/adminExcelChecklistDashboard')
 app.use('/admin/excel-checklist', adminExcelChecklistDashboardRouter)
@@ -184,9 +189,6 @@ app.use('/admin/messages', adminMessagesRouter)
 const adminSecurityReportConfigsRouter = require('./routes/adminSecurityReportConfigs')
 app.use('/admin/security_reports/configs', adminSecurityReportConfigsRouter)
 
-const agentSecurityReportConfigRouter = require('./routes/agentSecurityReportConfig')
-app.use('/agent/security_report', agentSecurityReportConfigRouter)
-
 const agentSecurityReportsRouter = require('./routes/agentSecurityReports')
 app.use('/agent/v2', agentSecurityReportsRouter)
 
@@ -205,6 +207,12 @@ const adminApiTokensRouter = require('./routes/adminApiTokens')
 app.use('/admin/api-tokens', adminApiTokensRouter)
 app.use('/admin/tracking/share', adminTrackingShareRouter)
 app.use('/public/tracking', publicTrackingRouter)
+
+const externalApiRouter = require('./routes/externalApi');
+app.use('/api/v1', externalApiRouter);
+app.use('/api/external', externalApiRouter);
+app.use('/api', externalApiRouter);
+app.use('/public', externalApiRouter);
 
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');

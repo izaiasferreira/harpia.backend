@@ -9,6 +9,7 @@ const {
   createSecurityReportConfig,
   updateSecurityReportConfig,
   deleteSecurityReportConfig,
+  getMergedSecurityReportConfigs,
 } = require('../functions/database/securityReportConfigs');
 
 router.get('/', verifyToken(), verifyModule('manage_security_reports_config'), async (req, res) => {
@@ -17,6 +18,21 @@ router.get('/', verifyToken(), verifyModule('manage_security_reports_config'), a
     res.json(configs);
   } catch (err) {
     console.error('[SECURITY_REPORT_CONFIG] Erro ao listar:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/merged', verifyToken(), verifyModule(['create_security_report', 'create_security_accident']), async (req, res) => {
+  try {
+    const { estado, regional, seccional } = req.query;
+    const config = await getMergedSecurityReportConfigs({
+      estado: estado || null,
+      regional: regional || null,
+      seccional: seccional || null,
+    });
+    res.json(config);
+  } catch (err) {
+    console.error('[SECURITY_REPORT_CONFIG] Erro ao buscar config mergeada:', err);
     res.status(500).json({ error: err.message });
   }
 });

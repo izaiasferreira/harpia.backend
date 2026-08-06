@@ -68,15 +68,20 @@ async function getAgentsLastPositionUnified(user = null) {
     // Segundo: buscar último ponto de tracking para cada agente
     const agentIds = allAgents.map(a => a.agent_id);
     const { rows: lastPoints } = await cenos_pool.query(`
-        SELECT DISTINCT ON (agent_id)
-            agent_id,
-            latitude, longitude, speed, accuracy,
-            battery_level, is_charging, network_type, gps_enabled,
-            device_model, device_platform, os_version,
-            recorded_at
-        FROM tracking_session_points
-        WHERE agent_id = ANY($1)
-        ORDER BY agent_id, recorded_at DESC
+        SELECT a.agent_id, p.latitude, p.longitude, p.speed, p.accuracy,
+               p.battery_level, p.is_charging, p.network_type, p.gps_enabled,
+               p.device_model, p.device_platform, p.os_version, p.recorded_at
+        FROM unnest($1::varchar[]) AS a(agent_id)
+        LEFT JOIN LATERAL (
+            SELECT agent_id,
+                   latitude, longitude, speed, accuracy,
+                   battery_level, is_charging, network_type, gps_enabled,
+                   device_model, device_platform, os_version, recorded_at
+            FROM tracking_session_points tsp
+            WHERE tsp.agent_id = a.agent_id
+            ORDER BY tsp.recorded_at DESC
+            LIMIT 1
+        ) p ON TRUE
     `, [agentIds]);
 
     const lastPointsMap = {};

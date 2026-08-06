@@ -191,7 +191,24 @@ Remove um usuário administrativo do sistema.
 ---
 
 ### `GET /admin/users_agents`
-Lista os colaboradores de campo (técnicos) cadastrados no sistema. Suporta filtros por seccional, regional, gestor, estado e busca textual.
+Lista os colaboradores de campo (técnicos) cadastrados no sistema. Suporta filtros por cargo, seccional, regional, gestor, estado e busca textual.
+
+**Query Params (opcionais):**
+Todos os filtros aceitam **múltiplos valores**: basta separar por vírgula (ex.: `estado=pi,ma` ou `regional=NORTE,SUL`) — o backend monta uma cláusula `= ANY(...)`. O valor especial `__VAZIO__` pode ser combinado com outros valores para incluir registros sem preenchimento.
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `page` | number | Página (default `1`) |
+| `limit` | number | Limite por página (default `50`) |
+| `search` | string | Busca por nome/matrícula (múltiplos separados por vírgula) |
+| `estado` | string | Filtra por estado(s) (`pi`, `ma`) |
+| `regional` | string | Filtra por regional(is) (`__VAZIO__` para vazio) |
+| `seccional` | string | Filtra por seccional(is) (`__VAZIO__` para vazio) |
+| `gestor` | string | Filtra por gestor(es) (`__VAZIO__` para vazio) |
+| `cargo` | string | Filtra por cargo(s) (`__VAZIO__` para vazio) |
+| `status` | string | `true` (ativo) e/ou `false` (inativo) — multi via `status=true,false` |
+| `situacao` | string | `active`, `vocation`, `inactive`, `away` |
+| `login_status` | string | `online`, `offline`, `pending`, `none` |
 
 **Resposta 200 (JSON):**
 Retorna uma lista de agentes enriquecida com campos de login e inventário:
@@ -213,12 +230,16 @@ Retorna uma lista de agentes enriquecida com campos de login e inventário:
 ```
 
 * **Mapeamento Adicional:** Cada registro inclui a propriedade computada `has_inventory` (boolean), que sinaliza de forma reativa se aquele agente possui um inventário ativo cadastrado no sistema.
-* **Exportação CSV:** O botão de exportação da listagem em massa gera um arquivo delimitado por ponto e vírgula (`;`) contendo o BOM (`\uFEFF`) e as colunas adicionais **"TEM TELEGRAM"** e **"TEM INVENTÁRIO"**.
+* **Exportação CSV:** O botão de exportação da listagem em massa gera um arquivo delimitado por ponto e vírgula (`;`) contendo o BOM (`\uFEFF`), a coluna **"STATUS LOGIN"** (Online, Offline, Pendente, Nunca Gerado PIN) e a coluna **"TEM INVENTÁRIO"**.
 
 ---
 
 ### `POST /admin/users_agents`
 Cadastra um novo colaborador de campo.
+
+No momento da gravação, os dados são normalizados:
+- `id` e `matricula`: removidos espaços e caracteres especiais (apenas alfanuméricos), sempre em **MAIÚSCULO**
+- `nome`: sempre em **MAIÚSCULO**, com espaços duplicados colapsados
 
 **Body:**
 ```json
@@ -228,9 +249,11 @@ Cadastra um novo colaborador de campo.
   "cargo": "LEITURISTA A PÉ",
   "estado": "pi",
   "regional": "METROPOLITANA",
-  "seccional": "UAC TERESINA"
+  "seccional": "UAC TERESINA",
+  "is_gestor": false
 }
 ```
+> Ex.: `id = " a81117929 "` é gravado como `A81117929`; `nome = "joão silva"` como `JOÃO SILVA`.
 
 ---
 
@@ -242,15 +265,48 @@ Retorna detalhes de um agente de campo específico.
 ### `PUT /admin/users_agents/:id`
 Atualiza dados de um agente de campo.
 
+Aplica a mesma normalização do cadastro (`id`/`matricula` alfanuméricos em maiúsculo; `nome` em maiúsculo). A busca do registro é case/trim-insensitive (`TRIM(UPPER("ID")) = TRIM(UPPER($1))`).
+O campo booleano `is_gestor` também pode ser atualizado por este endpoint.
+
 ---
 
 ### `DELETE /admin/users_agents/:id`
 Remove um agente de campo do sistema.
 
+**Query Params:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `deleteLogin` | string | não | `true` para remover também o registro na tabela `login` |
+
+A remoção é case-insensitive no ID (usa `TRIM(UPPER("ID")) = TRIM(UPPER($1))`), compatível com IDs armazenados em minúsculo.
+
+**Response 200:** `{ "message": "Usuário deletado com sucesso" }`
+
+**Erros:**
+- `404` — `{ "error": "Usuário não encontrado" }`
+- `403` — `{ "error": "Você não tem permissão para deletar agentes no estado X" }`
+
 ---
 
 ### `GET /admin/users_agents/options`
-Retorna listas de valores para filtros (regionais, seccionais, estados).
+Retorna listas de valores para filtros (regionais, seccionais, gestores, cargos, processos, estados, status, situacao, login_status). Aceita `estado`, `regional` e `seccional` como query params (também multi-valor separado por vírgula) para refinar as listas. Quando `estado` não é informado, as listas cobrem **todos os estados** que o usuário tem acesso (sem fallback para o estado do admin).
+
+**Response 200:**
+```json
+{
+  "gestores": ["G1", "G2"],
+  "cargos": ["AGENTE A", "AGENTE B"],
+  "regionais": ["NORTE", "SUL"],
+  "seccionais": ["S1", "S2"],
+  "processos": ["LEITURA", "COBRANÇA", "NEGOCIAÇÃO"],
+  "estados": ["pi", "ma"],
+  "status": ["true", "false"],
+  "situacao": ["active", "vocation", "inactive", "away"],
+  "login_status": ["online", "offline", "pending", "none"]
+}
+```
+
+`status` e `situacao` são derivados dos valores distintos presentes em `colaboradores` (respeitando o escopo de estado/regional/seccional). `login_status` é o conjunto canônico do algoritmo de login/logout (não é coluna do banco).
 
 ---
 
@@ -274,9 +330,37 @@ Retorna a lista de todos os módulos do sistema disponíveis para atribuição d
 Painel central com métricas em tempo real do desempenho dos agentes de campo.
 
 ### `GET /admin/dashboard`
-Retorna dados consolidados do dashboard administrativo com indicadores de leituras, pontualidade, CNL e produtividade.
+Retorna o layout SDUI (server-driven UI) do dashboard administrativo com indicadores calculados conforme a permissão do usuário (função unificada `get_users_agents_admin_paginated`).
 
-**Módulo Requerido:** `dashboard`
+**Módulo Requerido:** autenticação JWT
+
+**Query Params (opcionais, espelham os filtros de `/control/agents`):**
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `estado` | string | Filtra por estado (`pi`, `ma`) |
+| `regional` | string | Filtra por regional (`__VAZIO__` para vazio) |
+| `seccional` | string | Filtra por seccional (`__VAZIO__` para vazio) |
+| `gestor` | string | Filtra por gestor (`__VAZIO__` para vazio) |
+
+**Indicadores retornados (widgets SDUI):**
+- Usuários Cadastrados (todos os colaboradores visíveis)
+- Agentes Logados Hoje (`x de y` — heartbeats do dia em `agent_heartbeats`)
+- Agentes com Inventário (`x de y` — agentes com equipamento associado ativo em `equipment_assignments`)
+- Status de Login (donut: Online / Offline / Pendente / Nunca Gerado PIN — mesmo método de `/control/agents`)
+- Itens de Inventário por Tipo (bar: PDA / Impressora / Maquineta)
+- Agentes por Estado (bar)
+- Agentes por Regional (bar)
+- Agentes por Processo (bar)
+- Agentes por Status (bar: Ativo / Inativo)
+- Agentes por Situação (bar: Ativo / Férias / Desligado / Afastado)
+
+**Response 200**
+```json
+{
+  "layout": { "columns": 3, "gap": 16, "baseRowHeight": 165 },
+  "widgets": []
+}
+```
 
 ---
 
@@ -578,6 +662,8 @@ Exclui uma infração de velocidade. Requer role `COMPANY_ADMIN`.
 
 ### `POST /admin/agent/generate_app_pin`
 Gera o código PIN de 6 dígitos numéricos, válido por 24 horas, para que um colaborador de campo acesse o aplicativo standalone (fora do Telegram Mini App).
+
+A busca do agente é case/trim-insensitive (`TRIM(UPPER(c."ID")) = $1`) e o `agent_id` informado é normalizado (espaços/caracteres especiais removidos, MAIÚSCULO), então IDs com espaços armazenados no banco (ex.: `" A81117929"`) são encontrados corretamente.
 
 **Body:**
 ```json
@@ -2606,7 +2692,186 @@ Adiciona uma evidência a um relatório existente.
 
 ---
 
-## 23. Tokens de API (Admin)
+### `GET /admin/security_reports/configs/merged`
+
+Retorna os tipos de perigo e acidente mergeados das configs ativas (`security_report_configs`), filtrados por estado/regional/seccional. É a mesma fonte que o agente consome via `GET /agent/v2/config`.
+
+**Módulos Requeridos:** `create_security_report` **ou** `create_security_accident`
+
+**Query Params:**
+| Parâmetro | Tipo | Obrigatório | Descrição |
+|-----------|------|-------------|-----------|
+| `estado` | string | não | UF (`pi`, `ma`). Se ausente, considera todas as configs ativas |
+| `regional` | string | não | Filtra configs que possuem essa regional |
+| `seccional` | string | não | Filtra configs que possuem essa seccional |
+
+**Resposta 200:**
+```json
+{
+  "perigos": [ { "valor": "Cão bravo", "cor": "#ef4444", "ordem": 1 } ],
+  "tipos_acidente": [ { "valor": "Queda de Moto", "ordem": 1 } ]
+}
+```
+
+**Nota:** Configs com filtro de `cargo` não são excluídas (o admin cria por área, sem cargo associado).
+
+---
+
+## 23. Anotações de Serviço (Service Annotations)
+
+Gestão das anotações de serviço registradas pelos agentes (via `/agent/v2/annotation`) ou pelos administradores. Expõe listagem com filtros, criação, importação em massa (XLSX), resolução, reabertura e exclusão.
+
+**Módulos Requeridos:** `service_annotations` (ver), `create_service_annotation` (criar/importar), `resolve_service_annotation` (resolver/reabrir), `delete_service_annotation` (excluir).
+
+> **Expiração (`expires_at`):** anotações criadas por agentes são sempre ilimitadas (`expires_at = NULL`). Apenas administradores podem definir uma data de expiração. Anotações expiradas **não aparecem mais** para os agentes em `GET /agent/security_report`, mas permanecem visíveis na listagem do admin.
+
+> **Arquivamento (`arquivada`):** o admin pode arquivar/desarquivar anotações. Anotações arquivadas **não aparecem mais** para os agentes em `GET /agent/security_report` (reversível via desarquivamento), mas permanecem visíveis na listagem do admin.
+
+### `GET /admin/service_annotations`
+
+Lista paginada de anotações de serviço com filtros.
+
+**Módulo Requerido:** `service_annotations`
+
+**Query Params:**
+| Parâmetro | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `estado` | string | — | UF (`pi`, `ma`) |
+| `status` | string | — | `pendente`, `tratado` ou `arquivada` (filtros `pendente`/`tratado` excluem arquivadas) |
+| `search` | string | — | Busca por tipo, identificação, descrição ou solução |
+| `page` | number | 1 | Página atual |
+| `limit` | number | 50 | Itens por página |
+
+**Resposta 200:**
+```json
+{
+  "annotations": [
+    {
+      "id": 1,
+      "autor": "login_do_agente",
+      "tipo": "Remanejamento",
+      "identificacao_tipo": "Medidor",
+      "identificacao_valor": "12345",
+      "descricao": "Trocar medidor",
+      "latitude": null,
+      "longitude": null,
+      "estado": "pi",
+      "seccional": null,
+      "regional": null,
+      "foto": null,
+      "expires_at": null,
+      "arquivada": false,
+      "resolvido": false,
+      "descricao_solucao": null,
+      "created_at": "2026-01-01T00:00:00.000Z",
+      "agent_nome": "João da Silva",
+      "agent_estado": "pi"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 50
+}
+```
+
+### `POST /admin/service_annotations`
+
+Cria uma anotação de serviço. Admins podem definir `expires_at` opcional (em branco = nunca expira).
+
+**Módulo Requerido:** `create_service_annotation`
+
+**Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `tipo` | string | **sim** | Tipo da anotação (ex: Remanejamento, Anotação, Coordenada) |
+| `descricao` | string | **sim** | Descrição da anotação |
+| `estado` | string | **sim** | UF (`pi`/`ma`) |
+| `regional` | string | **sim** | Regional |
+| `seccional` | string | **sim** | Seccional |
+| `identificacao_tipo` | string | não | Tipo de identificação (ex: Medidor, Instalação) |
+| `identificacao_valor` | string | não | Valor da identificação |
+| `latitude` | number | não | Latitude |
+| `longitude` | number | não | Longitude |
+| `foto` | string | não | URL da foto |
+| `expires_at` | string | não | Data ISO de expiração. **Em branco = nunca expira** |
+
+**Resposta 200:** Objeto da anotação criada.
+
+### `POST /admin/service_annotations/import`
+
+Importação em massa de anotações a partir de planilha XLSX (multipart/form-data, campo `file`).
+
+**Módulo Requerido:** `create_service_annotation`
+
+**Colunas aceitas:** `TIPO`, `DESCRICAO`, `IDENTIFICACAO_TIPO`, `IDENTIFICACAO_VALOR`, `ESTADO`, `REGIONAL`, `SECCIONAL`, `EXPIRA_EM`, `LATITUDE`, `LONGITUDE`.
+
+- `TIPO` obrigatório ∈ `Remanejamento`, `Anotação`, `Coordenada`
+- `ESTADO` ∈ `PI`, `MA`
+- `IDENTIFICACAO_TIPO` ∈ `Medidor`, `Instalação`, `Unidade Consumidora`
+- `EXPIRA_EM` opcional no formato `AAAA-MM-DD` (em branco = nunca expira)
+
+**Resposta 200:**
+```json
+{
+  "totalProcessed": 3,
+  "successCount": 2,
+  "errorCount": 1,
+  "created": 2,
+  "errors": ["Linha 3: TIPO \"Invalido\" inválido. Use: Remanejamento, Anotação, Coordenada"]
+}
+```
+
+### `GET /admin/service_annotations/:id`
+
+**Módulo Requerido:** `service_annotations`
+
+Obtém uma anotação com suas evidências (`evidencias`).
+
+### `POST /admin/service_annotations/:id/resolve`
+
+Marca a anotação como tratada.
+
+**Módulo Requerido:** `resolve_service_annotation`
+
+**Body:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `descricao_solucao` | string | **sim** | Descrição da solução |
+| `evidencias` | array | não | `[{ nome_arquivo, tipo, caminho }]` |
+
+### `POST /admin/service_annotations/:id/reopen`
+
+Reabre uma anotação tratada (remove evidências e dados de resolução).
+
+**Módulo Requerido:** `resolve_service_annotation`
+
+### `POST /admin/service_annotations/:id/archive`
+
+Arquiva uma anotação — ela deixa de aparecer para os agentes em `GET /agent/security_report`, mas continua visível na listagem do admin.
+
+**Módulo Requerido:** `delete_service_annotation`
+
+**Resposta 200:** Objeto da anotação com `arquivada: true`.
+
+### `POST /admin/service_annotations/:id/unarchive`
+
+Desarquiva uma anotação — ela volta a aparecer para os agentes.
+
+**Módulo Requerido:** `delete_service_annotation`
+
+**Resposta 200:** Objeto da anotação com `arquivada: false`.
+
+### `DELETE /admin/service_annotations/:id`
+
+Exclui permanentemente uma anotação.
+
+**Módulo Requerido:** `delete_service_annotation`
+
+**Resposta 200:** `{ "success": true, "id": 1 }`
+
+---
+
+## 24. Tokens de API (Admin)
 
 Gerencia tokens de API para integração com sistemas externos. Os tokens são armazenados com hash SHA-256 e podem ser revogados individualmente.
 
@@ -2716,5 +2981,57 @@ Retorna os logs de uso de um token específico (paginação).
   "page": 1,
   "limit": 50,
   "totalPages": 1
+}
+---
+
+## 41. Gestor de Checklists (Dashboard)
+
+Endpoints administrativos focados no líder (Gestor) para monitorar seus liderados diretos e indiretos, montados sob `/manager/dashboard/*` utilizando `manager_checklists` em `modules.js`.
+
+### `GET /manager/dashboard/stats`
+Estatísticas gerais do gestor para um determinado mês.
+
+**Query Params:** `mes` e `ano`
+
+**Resposta 200:**
+```json
+{
+  "total_subordinates": 15,
+  "completed_subordinates": 5
+}
+```
+
+### `GET /manager/dashboard/pending`
+Lista de liderados (hierarquia direta e indireta) que ainda não receberam checklist do tipo "gestor" no mês solicitado.
+
+**Query Params:** `mes` e `ano`
+
+**Resposta 200:**
+```json
+[
+  { "id": "UAC123", "nome": "João", "cargo": "Leiturista" }
+]
+```
+
+### `GET /manager/dashboard/history`
+Lista paginada do histórico de checklists de gestão realizados neste ano para os liderados do gestor autenticado.
+
+**Query Params:** `page` e `limit`
+
+**Resposta 200:**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "data_registro": "...",
+      "target_agent_id": "UAC123",
+      "target_agent_nome": "João",
+      "template_title": "Checklist Gestor"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 50
 }
 ```

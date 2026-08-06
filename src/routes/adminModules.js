@@ -10,7 +10,8 @@ const router = express.Router();
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
-const { generateDashboardAdmin } = require('../functions/generateDashboard');
+const { generateAdminDashboard } = require('../functions/generateDashboard');
+const { getAdminDashboardStats } = require('../functions/database/adminDashboardStats');
 const {
     get_inventory_admin,
     update_inventory_admin,
@@ -65,23 +66,23 @@ const { processAgentImport } = require('../functions/database/agentImport');
 router.get('/dashboard', verifyToken(), async (req, res) => {
     try {
         const user = req.user;
-        const [inventory, justify, justify_pending, daily_report, users_agents] = await Promise.all([
-            get_inventory_admin({ user }),
-            get_justify_admin({ user }),
-            get_pending_justifies_admin({ user, status: 'pendente', page: 1, limit: 100000 }),
-            get_daily_reports_admin({ user, page: 1, limit: 100000 }),
-            get_users_agents_admin({ user })
-        ]);
-        const result = await generateDashboardAdmin({
+        const {
+            regional,
+            seccional,
+            gestor,
+            estado
+        } = req.query;
+
+        const stats = await getAdminDashboardStats({
             user,
-            stats: {
-                inventory,
-                justify,
-                justify_pending,
-                daily_report,
-                users_agents: users_agents?.filter(a => a.telegram_id != null && a.telegram_id !== "")
+            filters: {
+                regional,
+                seccional,
+                gestor,
+                estado
             }
-        })
+        });
+        const result = await generateAdminDashboard({ user, stats });
         res.json(result);
     } catch (error) {
         console.log(error)
@@ -91,9 +92,9 @@ router.get('/dashboard', verifyToken(), async (req, res) => {
 
 router.get('/users_agents', verifyToken(), verifyModule('users_agents'), async (req, res) => {
     try {
-        const { page, limit, search, regional, seccional, gestor, estado, status, situacao, login_status } = req.query;
+        const { page, limit, search, regional, seccional, gestor, cargo, estado, status, situacao, login_status } = req.query;
         const user = req.user;
-        const result = await get_users_agents_admin_paginated({ user, page, limit, search, regional, seccional, gestor, estado, status, situacao, login_status });
+        const result = await get_users_agents_admin_paginated({ user, page, limit, search, regional, seccional, gestor, cargo, estado, status, situacao, login_status });
         res.json(result);
     } catch (error) {
         console.log(error)
@@ -326,17 +327,16 @@ router.get('/perdas', verifyToken(), verifyModule('perdas'), async (req, res) =>
 router.get('/users_agents/options', verifyToken(), verifyModule(['users_agents', 'checklists', 'permissions']), async (req, res) => {
     try {
         const { estado, regional, seccional } = req.query;
-        console.log(estado)
-        
+
         const result = await get_user_agent_options({
-            estado: estado !== undefined ? estado : req.user.estado,
+            estado,
             regional,
             seccional,
             user: req.user
         });
         res.json(result);
     } catch (error) {
-        console.log(error)
+        console.error(error)
         res.status(500).json({ error: error.message });
     }
 });
@@ -384,9 +384,9 @@ router.post('/users_agents/import', verifyToken(), verifyModule('create_user_age
 
 router.post('/users_agents', verifyToken(), verifyModule('create_user_agent'), validate(agentCreateSchema), async (req, res) => {
     try {
-        const { id, matricula, nome, estado, gestor, cargo, seccional, regional, status, situacao, processo } = req.body;
+        const { id, matricula, nome, estado, gestor, cargo, seccional, regional, status, situacao, processo, is_gestor } = req.body;
         const user = req.user;
-        const result = await create_user_agent_admin({ id, matricula, nome, estado, gestor, cargo, seccional, regional, status, situacao, processo, user });
+        const result = await create_user_agent_admin({ id, matricula, nome, estado, gestor, cargo, seccional, regional, status, situacao, processo, is_gestor, user });
         res.json(result);
     } catch (error) {
         console.log(error)
@@ -397,7 +397,7 @@ router.post('/users_agents', verifyToken(), verifyModule('create_user_agent'), v
 router.put('/users_agents/:id', verifyToken(), verifyModule('update_user_agent'), validate(agentUpdateSchema), async (req, res) => {
     try {
         const { id } = req.params;
-        const { nome, gestor, cargo, seccional, regional, estado, status, situacao, matricula, processo } = req.body;
+        const { nome, gestor, cargo, seccional, regional, estado, status, situacao, matricula, processo, is_gestor } = req.body;
         const user = req.user;
 
         if (estado !== undefined || status !== undefined || situacao !== undefined) {
@@ -419,7 +419,7 @@ router.put('/users_agents/:id', verifyToken(), verifyModule('update_user_agent')
         }
 
         const isAdmin = user.role.toLowerCase().includes('admin');
-        const updateData = { id, nome, gestor, cargo, seccional, regional, estado, status, situacao, processo, user };
+        const updateData = { id, nome, gestor, cargo, seccional, regional, estado, status, situacao, processo, is_gestor, user };
         
         if (isAdmin && matricula !== undefined) {
             updateData.matricula = matricula;
@@ -439,9 +439,13 @@ router.delete('/users_agents/:id', verifyToken(), verifyModule('delete_user_agen
         const { deleteLogin } = req.query;
         const user = req.user;
         const result = await delete_user_agent_admin({ id, user, deleteLogin: deleteLogin === 'true' });
+        if (result.error) {
+            const status = result.error.includes('permissão') ? 403 : 404;
+            return res.status(status).json(result);
+        }
         res.json(result);
     } catch (error) {
-        console.log(error)
+        console.error(error)
         res.status(500).json({ error: error.message });
     }
 });

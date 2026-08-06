@@ -1,0 +1,7 @@
+ALTER TABLE app_pins
+ADD COLUMN IF NOT EXISTS created_by_id VARCHAR(50),
+ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(255);
+
+ALTER TABLE app_logout_pins
+ADD COLUMN IF NOT EXISTS created_by_id VARCHAR(50),
+ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(255);

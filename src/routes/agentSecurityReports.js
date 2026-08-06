@@ -9,7 +9,7 @@ const {
   get_security_reports,
 } = require('../functions/postgresFunctions');
 const { create_accident, get_accidents_by_agent } = require('../functions/database/accidents');
-const { checkAgentHasAccess } = require('../functions/database/securityReportConfigs');
+const { checkAgentHasAccess, getAgentSecurityReportConfig } = require('../functions/database/securityReportConfigs');
 
 async function checkAccessMiddleware(req, res, next) {
   try {
@@ -23,6 +23,16 @@ async function checkAccessMiddleware(req, res, next) {
     res.status(500).json({ error: err.message });
   }
 }
+
+router.get('/config', telegramAuth, async (req, res) => {
+  try {
+    const config = await getAgentSecurityReportConfig(req.colaborador.id);
+    res.json(config);
+  } catch (err) {
+    console.error('[AGENT SECURITY REPORT] Erro ao buscar config:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.post('/security_report', telegramAuth, checkAccessMiddleware, validate(securityReportCreateSchema), async (req, res) => {
   try {
@@ -77,6 +87,70 @@ router.post('/accident', telegramAuth, checkAccessMiddleware, validate(accidentC
     res.status(201).json(result);
   } catch (err) {
     console.error('[AGENT SECURITY REPORT] Erro ao criar acidente:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const { serviceAnnotationCreateSchema } = require('../db/schemas/serviceAnnotations');
+const { create_service_annotation, get_service_annotations_by_agent } = require('../functions/database/serviceAnnotations');
+const { get_security_reports_by_agent } = require('../functions/database/agentes');
+
+// POST /agent/annotation — criar anotação de serviço
+router.post('/annotation', telegramAuth, validate(serviceAnnotationCreateSchema), async (req, res) => {
+  try {
+    const autor = req.colaborador.id;
+    const estado = req.colaborador.estado || 'pi';
+    const { tipo, identificacao_tipo, identificacao_valor, descricao, latitude, longitude, foto } = req.body;
+
+    const result = await create_service_annotation({
+      autor,
+      tipo,
+      identificacao_tipo,
+      identificacao_valor,
+      descricao,
+      latitude,
+      longitude,
+      foto,
+      estado,
+      seccional: req.colaborador.seccional || null,
+      regional: req.colaborador.regional || null,
+    });
+
+    res.status(201).json(result);
+  } catch (err) {
+    console.error('[AGENT ANNOTATION] Erro ao criar anotação:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /agent/annotation — listar anotações do agente
+router.get('/annotation', telegramAuth, async (req, res) => {
+  try {
+    const autor = req.colaborador.id;
+    const annotations = await get_service_annotations_by_agent(autor);
+    res.json(annotations);
+  } catch (err) {
+    console.error('[AGENT ANNOTATION] Erro ao listar anotações:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /agent/my_reports — listar todos os reportes do agente (perigos, acidentes, anotações)
+router.get('/my_reports', telegramAuth, async (req, res) => {
+  try {
+    const autor = req.colaborador.id;
+    const [hazards, accidents, annotations] = await Promise.all([
+      get_security_reports_by_agent(autor),
+      get_accidents_by_agent(autor),
+      get_service_annotations_by_agent(autor)
+    ]);
+    res.json({
+      hazards,
+      accidents,
+      annotations
+    });
+  } catch (err) {
+    console.error('[AGENT MY REPORTS] Erro ao buscar reportes:', err);
     res.status(500).json({ error: err.message });
   }
 });

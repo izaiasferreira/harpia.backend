@@ -6,6 +6,8 @@ const {
     get_security_reports_admin,
     delete_security_report_admin
 } = require('../functions/database/adminSecurityReports');
+const { create_security_report } = require('../functions/database/agentes');
+const { create_accident } = require('../functions/database/accidents');
 
 router.get('/', verifyToken(), verifyModule('security_reports'), async (req, res) => {
     try {
@@ -22,6 +24,42 @@ router.get('/', verifyToken(), verifyModule('security_reports'), async (req, res
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+router.post('/', verifyToken(), verifyModule('create_security_report'), async (req, res) => {
+    try {
+        const { motivo, observacao, latitude, longitude, estado, regional, seccional, foto } = req.body;
+        if (!motivo) return res.status(400).json({ error: 'Motivo do risco é obrigatório' });
+        if (!estado || !regional || !seccional) {
+            return res.status(400).json({ error: 'Estado, regional e seccional são obrigatórios' });
+        }
+        const autor = req.user.nome || req.user.id;
+        const result = await create_security_report({
+            autor, motivo, observacao, latitude, longitude, estado, regional, seccional, foto
+        });
+        res.json(result);
+    } catch (error) {
+        console.error('[ADMIN CREATE SECURITY REPORT]', error);
+        res.status(500).json({ error: error.message || 'Erro ao criar reporte de segurança' });
+    }
+});
+
+router.post('/accidents', verifyToken(), verifyModule('create_security_accident'), async (req, res) => {
+    try {
+        const { tipo, descricao, latitude, longitude, estado, regional, seccional, foto } = req.body;
+        if (!tipo) return res.status(400).json({ error: 'Tipo de acidente é obrigatório' });
+        if (!estado || !regional || !seccional) {
+            return res.status(400).json({ error: 'Estado, regional e seccional são obrigatórios' });
+        }
+        const autor = req.user.nome || req.user.id;
+        const result = await create_accident({
+            autor, tipo, descricao, latitude, longitude, estado, regional, seccional, foto
+        });
+        res.json(result);
+    } catch (error) {
+        console.error('[ADMIN CREATE ACCIDENT]', error);
+        res.status(500).json({ error: error.message || 'Erro ao criar reporte de acidente' });
     }
 });
 

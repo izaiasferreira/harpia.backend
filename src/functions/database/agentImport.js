@@ -1,5 +1,6 @@
 const XLSX = require('xlsx');
 const { cenos_pool } = require('../../db');
+const { normalizeAgentId, normalizeAgentName, normalizeTextUpper } = require('../../utils/agentNormalize');
 
 const getChangedBy = (user) => user?.email || user?.id || user?.nome || 'unknown';
 
@@ -32,14 +33,14 @@ async function processAgentImport(fileBuffer, user) {
       continue;
     }
 
-    const id = String(rawId).trim().toUpperCase();
-    const matricula = row['MATRICULA'] || row['Matrícula'] || row['Matricula'] || '';
-    const nome = row['NOME'] || row['Nome'] || '';
+    const id = normalizeAgentId(rawId);
+    const matricula = normalizeAgentId(row['MATRICULA'] || row['Matrícula'] || row['Matricula'] || '');
+    const nome = normalizeAgentName(row['NOME'] || row['Nome'] || '');
     const estado = (row['ESTADO'] || row['Estado'] || 'pi').toLowerCase();
-    const regional = row['REGIONAL'] || row['Regional'] || '';
-    const seccional = row['SECCIONAL'] || row['Seccional'] || '';
-    const processo = row['PROCESSO'] || row['Processo'] || '';
-    const gestor = row['GESTOR'] || row['Gestor'] || '';
+    const regional = normalizeTextUpper(row['REGIONAL'] || row['Regional'] || '');
+    const seccional = normalizeTextUpper(row['SECCIONAL'] || row['Seccional'] || '');
+    const processo = normalizeTextUpper(row['PROCESSO'] || row['Processo'] || '');
+    const gestor = normalizeTextUpper(row['GESTOR'] || row['Gestor'] || '');
     const cargo = row['CARGO'] || row['Cargo'] || '';
 
     const statusRaw = String(row['STATUS'] || row['Status'] || '').trim().toLowerCase();
@@ -65,7 +66,7 @@ async function processAgentImport(fileBuffer, user) {
     }
 
     try {
-      const existing = await cenos_pool.query(`SELECT "ID", status, situacao FROM colaboradores WHERE "ID" = $1`, [id]);
+      const existing = await cenos_pool.query(`SELECT "ID", status, situacao FROM colaboradores WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))`, [id]);
       const changedBy = getChangedBy(user);
       
       if (existing.rows.length > 0) {
@@ -83,7 +84,7 @@ async function processAgentImport(fileBuffer, user) {
             "MAT" = COALESCE(NULLIF($9, ''), "MAT"),
             status = $10,
             situacao = $11
-          WHERE "ID" = $1
+          WHERE TRIM(UPPER("ID")) = TRIM(UPPER($1))
         `, [id, nome, estado, regional, seccional, processo, gestor, cargo, matricula, status, situacao]);
         
         const auditEntries = [];

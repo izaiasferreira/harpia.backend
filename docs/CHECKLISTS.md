@@ -6,13 +6,15 @@ Cria um novo template de checklist.
 
 ### Body
 
-| Campo | Tipo | Obrigatório | Padrão | Descrição |
-|---|---|---|---|---|
-| title | string | sim | - | Nome do template |
-| description | string | não | - | Descrição opcional |
-| estado | string | não | null | Sigla do estado (ex: SP, RJ). Se null, disponível para todos |
+| Campo       | Tipo    | Obrigatório | Padrão | Descrição                                                                 |
+| ----------- | ------- | ----------- | ------ | ------------------------------------------------------------------------- |
+| title       | string  | sim         | -      | Nome do template                                                          |
+| description | string  | não         | -      | Descrição opcional                                                        |
+| estado      | string  | não         | null   | Sigla do estado (ex: SP, RJ). Se null, disponível para todos              |
+| is_gestor   | boolean | não         | false  | Se true, este template é exclusivo para gestores avaliarem seus liderados |
 
 ### Response 201
+
 ```json
 {
   "id": "uuid",
@@ -37,6 +39,7 @@ Endpoints administrativos montados em `/admin/dashboard/*` com autenticação JW
 Retorna listas de valores únicos para os filtros do dashboard.
 
 #### Response 200
+
 ```json
 {
   "regionais": ["NORTE", "SUL", "LESTE"],
@@ -53,16 +56,18 @@ Retorna listas de valores únicos para os filtros do dashboard.
 Retorna KPIs consolidados do dashboard.
 
 #### Query Params
-| Parâmetro | Tipo | Descrição |
-|---|---|---|
+
+| Parâmetro | Tipo   | Descrição                               |
+| --------- | ------ | --------------------------------------- |
 | date_from | string | Data inicial (YYYY-MM-DD). Padrão: hoje |
-| date_to | string | Data final (YYYY-MM-DD). Padrão: hoje |
-| regional | string | Filtrar por regional |
-| sectional | string | Filtrar por seccional |
-| estado | string | Filtrar por estado |
-| gestor | string | Filtrar por gestor |
+| date_to   | string | Data final (YYYY-MM-DD). Padrão: hoje   |
+| regional  | string | Filtrar por regional                    |
+| sectional | string | Filtrar por seccional                   |
+| estado    | string | Filtrar por estado                      |
+| gestor    | string | Filtrar por gestor                      |
 
 #### Response 200
+
 ```json
 {
   "active_agents": 150,
@@ -71,10 +76,23 @@ Retorna KPIs consolidados do dashboard.
   "non_compliant": 30,
   "compliance_rate": 75,
   "regional_breakdown": [
-    { "regional": "NORTE", "total_agents": 50, "submitted": 40, "pending": 10, "percentage": 20 }
+    {
+      "regional": "NORTE",
+      "total_agents": 50,
+      "submitted": 40,
+      "pending": 10,
+      "percentage": 20
+    }
   ],
   "pending_agents": [
-    { "agent_id": "123", "nome": "João", "regional": "NORTE", "seccional": "UAC01", "estado": "PI", "cargo": "LEITURISTA A PÉ" }
+    {
+      "agent_id": "123",
+      "nome": "João",
+      "regional": "NORTE",
+      "seccional": "UAC01",
+      "estado": "PI",
+      "cargo": "LEITURISTA A PÉ"
+    }
   ]
 }
 ```
@@ -86,9 +104,11 @@ Retorna KPIs consolidados do dashboard.
 Lista itens não conformes agregados (para gráfico de barras).
 
 #### Query Params
+
 Mesmos parâmetros de filtro do `/stats`.
 
 #### Response 200
+
 ```json
 [
   { "label": "Uso de EPIs", "count": 15 },
@@ -103,9 +123,11 @@ Mesmos parâmetros de filtro do `/stats`.
 Lista itens críticos/alerta com severidade.
 
 #### Query Params
+
 Mesmos parâmetros de filtro do `/stats`.
 
 #### Response 200
+
 ```json
 [
   {
@@ -128,22 +150,24 @@ Mesmos parâmetros de filtro do `/stats`.
 Lista paginada de checklists com dados enriquecidos do agente.
 
 #### Query Params
-| Parâmetro | Tipo | Descrição |
-|---|---|---|
-| page | integer | Página (padrão: 1) |
-| limit | integer | Itens por página (padrão: 15) |
-| agent_name | string | Filtrar por nome ou ID do agente |
-| date_from | string | Data inicial |
-| date_to | string | Data final |
-| type | string | `official` ou `supplementary` |
-| severity_alert | string | `true` para apenas críticos |
-| status | string | Status do checklist |
-| regional | string | Filtrar por regional |
-| sectional | string | Filtrar por seccional |
-| estado | string | Filtrar por estado |
-| gestor | string | Filtrar por gestor |
+
+| Parâmetro      | Tipo    | Descrição                        |
+| -------------- | ------- | -------------------------------- |
+| page           | integer | Página (padrão: 1)               |
+| limit          | integer | Itens por página (padrão: 15)    |
+| agent_name     | string  | Filtrar por nome ou ID do agente |
+| date_from      | string  | Data inicial                     |
+| date_to        | string  | Data final                       |
+| type           | string  | `official` ou `supplementary`    |
+| severity_alert | string  | `true` para apenas críticos      |
+| status         | string  | Status do checklist              |
+| regional       | string  | Filtrar por regional             |
+| sectional      | string  | Filtrar por seccional            |
+| estado         | string  | Filtrar por estado               |
+| gestor         | string  | Filtrar por gestor               |
 
 #### Response 200
+
 ```json
 {
   "data": [
@@ -181,24 +205,27 @@ Lista paginada de checklists com dados enriquecidos do agente.
 Lista paginada de agentes com cargo obrigatório que **não** enviaram checklist no período.
 
 Regras:
+
 - Apenas agentes com `situacao = 'active'`
 - Apenas cargos obrigatórios: `LEITURISTA A PÉ`, `NEGOCIADOR MOTOCICLISTA`, `LEITURISTA MOTOCICLISTA`, `COBRADOR MOTOCICLISTA`
 - Exclui agentes que já possuem checklist submetido na data do período
 
 #### Query Params
-| Parâmetro | Tipo | Descrição |
-|---|---|---|
-| page | integer | Página (padrão: 1) |
-| limit | integer | Itens por página (padrão: 20) |
-| agent_name | string | Filtrar por nome do agente (ILIKE) |
-| date_from | string | Data inicial (padrão: hoje) |
-| date_to | string | Data final (padrão: hoje) |
-| regional | string | Filtrar por regional |
-| sectional | string | Filtrar por seccional |
-| estado | string | Filtrar por estado |
-| gestor | string | Filtrar por gestor |
+
+| Parâmetro  | Tipo    | Descrição                          |
+| ---------- | ------- | ---------------------------------- |
+| page       | integer | Página (padrão: 1)                 |
+| limit      | integer | Itens por página (padrão: 20)      |
+| agent_name | string  | Filtrar por nome do agente (ILIKE) |
+| date_from  | string  | Data inicial (padrão: hoje)        |
+| date_to    | string  | Data final (padrão: hoje)          |
+| regional   | string  | Filtrar por regional               |
+| sectional  | string  | Filtrar por seccional              |
+| estado     | string  | Filtrar por estado                 |
+| gestor     | string  | Filtrar por gestor                 |
 
 #### Response 200
+
 ```json
 {
   "data": [
@@ -220,15 +247,17 @@ Regras:
 ```
 
 ---
+
 Atualiza um template existente.
 
 ### Body (todos opcionais)
-| Campo | Tipo | Descrição |
-|---|---|---|
-| title | string | Nome do template |
-| description | string | Descrição |
-| is_active | boolean | Ativar/desativar |
-| estado | string ou null | Sigla do estado. null = todos os estados |
+
+| Campo       | Tipo           | Descrição                                |
+| ----------- | -------------- | ---------------------------------------- |
+| title       | string         | Nome do template                         |
+| description | string         | Descrição                                |
+| is_active   | boolean        | Ativar/desativar                         |
+| estado      | string ou null | Sigla do estado. null = todos os estados |
 
 ---
 
@@ -246,6 +275,7 @@ Lista templates ativos para o agente, filtrados pelo estado do agente.
 Retorna o checklist do dia para o agente, ou indica que o cargo é isento.
 
 ### Response 200 — Com checklist pendente
+
 ```json
 {
   "checklist": {
@@ -258,6 +288,7 @@ Retorna o checklist do dia para o agente, ou indica que o cargo é isento.
 ```
 
 ### Response 200 — Cargo isento (sem checklist)
+
 ```json
 {
   "checklist_required": false
@@ -267,6 +298,7 @@ Retorna o checklist do dia para o agente, ou indica que o cargo é isento.
 ### Fluxo de Isenção (checklist_required)
 
 O campo `checklist_required` é definido com base no cargo do agente:
+
 - **`false`** — o cargo do agente **não exige** preenchimento de checklist diário. O frontend e o nativo ignoram completamente o reminder.
 - **Ausente/`true`** — o cargo exige checklist. O sistema de reminder agressivo (nativo + frontend) é ativado.
 
@@ -299,46 +331,47 @@ Cria uma nova seção em um template.
 
 ### Body
 
-| Campo | Tipo | Obrigatório | Padrão | Descrição |
-|---|---|---|---|---|
-| title | string | sim | - | Nome da seção |
-| order_index | integer | não | 0 | Ordem |
-| section_color | string | não | '#3B82F6' | Cor hexadecimal (ex: #10B981) |
-| section_icon | string | não | 'ShieldCheck' | Nome do ícone Lucide pré-definido |
+| Campo         | Tipo    | Obrigatório | Padrão        | Descrição                         |
+| ------------- | ------- | ----------- | ------------- | --------------------------------- |
+| title         | string  | sim         | -             | Nome da seção                     |
+| order_index   | integer | não         | 0             | Ordem                             |
+| section_color | string  | não         | '#3B82F6'     | Cor hexadecimal (ex: #10B981)     |
+| section_icon  | string  | não         | 'ShieldCheck' | Nome do ícone Lucide pré-definido |
 
 ### Ícones pré-definidos
 
-| Nome | Rótulo |
-|---|---|
-| ShieldCheck | Segurança |
-| Shield | Proteção |
-| Lock | Trancado |
-| Eye | Vigilância |
-| AlertTriangle | Alerta |
-| Flame | Incêndio |
-| Droplets | Água |
-| Zap | Elétrica |
-| Tool | Ferramentas |
-| HardHat | EPI |
-| ClipboardCheck | Checklist |
-| FileText | Documentos |
-| MapPin | Localização |
-| Car | Veículos |
-| Users | Pessoal |
-| Building | Instalações |
-| Door | Portas |
-| Key | Chaves |
-| Camera | Câmeras |
-| Bell | Alarme |
-| Radio | Comunicação |
-| Wind | Ventilação |
-| Thermometer | Temperatura |
-| Package | Materiais |
-| Wifi | Rede |
-| Power | Energia |
-| Heart | Saúde |
+| Nome           | Rótulo      |
+| -------------- | ----------- |
+| ShieldCheck    | Segurança   |
+| Shield         | Proteção    |
+| Lock           | Trancado    |
+| Eye            | Vigilância  |
+| AlertTriangle  | Alerta      |
+| Flame          | Incêndio    |
+| Droplets       | Água        |
+| Zap            | Elétrica    |
+| Tool           | Ferramentas |
+| HardHat        | EPI         |
+| ClipboardCheck | Checklist   |
+| FileText       | Documentos  |
+| MapPin         | Localização |
+| Car            | Veículos    |
+| Users          | Pessoal     |
+| Building       | Instalações |
+| Door           | Portas      |
+| Key            | Chaves      |
+| Camera         | Câmeras     |
+| Bell           | Alarme      |
+| Radio          | Comunicação |
+| Wind           | Ventilação  |
+| Thermometer    | Temperatura |
+| Package        | Materiais   |
+| Wifi           | Rede        |
+| Power          | Energia     |
+| Heart          | Saúde       |
 
 ### Response 201
+
 ```json
 {
   "id": "uuid",
@@ -358,12 +391,13 @@ Cria uma nova seção em um template.
 Atualiza uma seção existente.
 
 ### Body (todos opcionais)
-| Campo | Tipo | Descrição |
-|---|---|---|
-| title | string | Nome da seção |
-| order_index | integer | Ordem |
-| section_color | string | Cor hexadecimal |
-| section_icon | string | Nome do ícone Lucide |
+
+| Campo         | Tipo    | Descrição            |
+| ------------- | ------- | -------------------- |
+| title         | string  | Nome da seção        |
+| order_index   | integer | Ordem                |
+| section_color | string  | Cor hexadecimal      |
+| section_icon  | string  | Nome do ícone Lucide |
 
 ---
 
@@ -373,17 +407,17 @@ Cria uma nova pergunta em uma seção.
 
 ### Body
 
-| Campo | Tipo | Obrigatório | Padrão | Descrição |
-|---|---|---|---|---|
-| label | string | sim | - | Texto da pergunta |
-| template_id | uuid | sim | - | ID do template |
-| required | boolean | não | true | Se é obrigatório |
-| requires_photo | boolean | não | false | Se exige foto |
-| severity | string | não | 'medium' | 'critical', 'alert', 'normal' |
-| exemption_days | integer | não | 0 | Dias de isenção |
-| order_index | integer | não | 0 | Ordem |
-| question_type | string | não | 'binary' | 'binary', 'multiple_choice', 'rating' |
-| options | array/object | não | null | Opções customizadas |
+| Campo          | Tipo         | Obrigatório | Padrão   | Descrição                             |
+| -------------- | ------------ | ----------- | -------- | ------------------------------------- |
+| label          | string       | sim         | -        | Texto da pergunta                     |
+| template_id    | uuid         | sim         | -        | ID do template                        |
+| required       | boolean      | não         | true     | Se é obrigatório                      |
+| requires_photo | boolean      | não         | false    | Se exige foto                         |
+| severity       | string       | não         | 'medium' | 'critical', 'alert', 'normal'         |
+| exemption_days | integer      | não         | 0        | Dias de isenção                       |
+| order_index    | integer      | não         | 0        | Ordem                                 |
+| question_type  | string       | não         | 'binary' | 'binary', 'multiple_choice', 'rating' |
+| options        | array/object | não         | null     | Opções customizadas                   |
 
 ### Tipos de pergunta
 
@@ -391,10 +425,15 @@ Cria uma nova pergunta em uma seção.
 - **`multiple_choice`**: opções customizadas. `options` = array de `{ label, value, is_compliant }`.
 
   Exemplo:
+
   ```json
   [
     { "label": "Bem", "value": "bem", "is_compliant": true },
-    { "label": "Mais ou menos", "value": "mais_ou_menos", "is_compliant": false },
+    {
+      "label": "Mais ou menos",
+      "value": "mais_ou_menos",
+      "is_compliant": false
+    },
     { "label": "Mal", "value": "mal", "is_compliant": false }
   ]
   ```
@@ -402,11 +441,13 @@ Cria uma nova pergunta em uma seção.
 - **`rating`**: avaliação numérica. `options` = `{ min, max, compliant_threshold }`.
 
   Exemplo:
+
   ```json
   { "min": 1, "max": 5, "compliant_threshold": 4 }
   ```
 
 ### Response 201
+
 ```json
 {
   "id": "uuid",
@@ -430,18 +471,20 @@ Cria uma nova pergunta em uma seção.
 Atualiza uma pergunta existente.
 
 ### Body (todos opcionais)
-| Campo | Tipo | Descrição |
-|---|---|---|
-| label | string | Texto da pergunta |
-| required | boolean | Obrigatoriedade |
-| requires_photo | boolean | Exige foto |
-| severity | string | 'critical', 'alert', 'normal' |
-| exemption_days | integer | Dias de isenção |
-| order_index | integer | Ordem |
-| question_type | string | 'binary', 'multiple_choice', 'rating' |
-| options | array/object | Opções customizadas (null para limpar) |
+
+| Campo          | Tipo         | Descrição                              |
+| -------------- | ------------ | -------------------------------------- |
+| label          | string       | Texto da pergunta                      |
+| required       | boolean      | Obrigatoriedade                        |
+| requires_photo | boolean      | Exige foto                             |
+| severity       | string       | 'critical', 'alert', 'normal'          |
+| exemption_days | integer      | Dias de isenção                        |
+| order_index    | integer      | Ordem                                  |
+| question_type  | string       | 'binary', 'multiple_choice', 'rating'  |
+| options        | array/object | Opções customizadas (null para limpar) |
 
 ### Response 200
+
 ```json
 { "id": "uuid", ... }
 ```
@@ -453,30 +496,33 @@ Atualiza uma pergunta existente.
 Envia/submete um checklist pelo aplicativo do agente.
 
 ### Body (Payload Principal)
-| Campo | Tipo | Obrigatório | Descrição |
-|---|---|---|---|
-| template_id | uuid | sim | ID do template do checklist |
-| type | string | não | Tipo do checklist (padrão: `official`) |
-| parent_checklist_id | uuid | não | ID do checklist pai (se aplicável) |
-| date | string | sim | Data de referência (YYYY-MM-DD) |
-| local_id | uuid/string | não | Identificador único local para tratamento de idempotência e sincronização offline |
-| latitude | number | não | Coordenada de latitude |
-| longitude | number | não | Coordenada de longitude |
-| coordinates | string | não | String combinada de coordenadas geográficas |
-| signature_url | string | não | Assinatura digital do agente em base64 (`data:image/png;base64,...`) |
-| selfie_url | string | não | Foto tipo selfie de finalização do agente em base64 com timestamp overlay (`data:image/jpeg;base64,...`) |
-| answers | array | sim | Lista de respostas para cada pergunta (ver objeto abaixo) |
+
+| Campo               | Tipo        | Obrigatório | Descrição                                                                                                |
+| ------------------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------- |
+| template_id         | uuid        | sim         | ID do template do checklist                                                                              |
+| type                | string      | não         | Tipo do checklist (padrão: `official`)                                                                   |
+| parent_checklist_id | uuid        | não         | ID do checklist pai (se aplicável)                                                                       |
+| date                | string      | sim         | Data de referência (YYYY-MM-DD)                                                                          |
+| local_id            | uuid/string | não         | Identificador único local para tratamento de idempotência e sincronização offline                        |
+| latitude            | number      | não         | Coordenada de latitude                                                                                   |
+| longitude           | number      | não         | Coordenada de longitude                                                                                  |
+| coordinates         | string      | não         | String combinada de coordenadas geográficas                                                              |
+| signature_url       | string      | não         | Assinatura digital do agente em base64 (`data:image/png;base64,...`)                                     |
+| selfie_url          | string      | não         | Foto tipo selfie de finalização do agente em base64 com timestamp overlay (`data:image/jpeg;base64,...`) |
+| answers             | array       | sim         | Lista de respostas para cada pergunta (ver objeto abaixo)                                                |
 
 ### Body - Answer
-| Campo | Tipo | Obrigatório | Descrição |
-|---|---|---|---|
-| question_id | uuid | sim | ID da pergunta correspondente |
-| is_compliant | boolean | sim (se não isento) | Se está em conformidade (`true`/`false`) |
-| is_exempt | boolean | não | Se o item foi marcado como isento |
-| photo_url | string | não | Foto da evidência em base64 com timestamp overlay (`data:image/jpeg;base64,...`) |
-| answer_value | string | não | Valor da resposta selecionada (obrigatório para `multiple_choice` e `rating`) |
+
+| Campo        | Tipo    | Obrigatório         | Descrição                                                                        |
+| ------------ | ------- | ------------------- | -------------------------------------------------------------------------------- |
+| question_id  | uuid    | sim                 | ID da pergunta correspondente                                                    |
+| is_compliant | boolean | sim (se não isento) | Se está em conformidade (`true`/`false`)                                         |
+| is_exempt    | boolean | não                 | Se o item foi marcado como isento                                                |
+| photo_url    | string  | não                 | Foto da evidência em base64 com timestamp overlay (`data:image/jpeg;base64,...`) |
+| answer_value | string  | não                 | Valor da resposta selecionada (obrigatório para `multiple_choice` e `rating`)    |
 
 ### Response 201
+
 ```json
 {
   "success": true,
@@ -500,9 +546,11 @@ Envia/submete um checklist pelo aplicativo do agente.
 Sincroniza um checklist que foi salvo localmente em modo offline. Possui o mesmo comportamento de criação do `POST /agent/checklists` porém permitindo a definição explícita do ID gerado localmente pelo dispositivo móvel para correlação imediata de logs e mídias.
 
 ### Body
+
 Mesmo formato do `POST /agent/checklists` mas o ID fornecido na URL é assumido como o identificador definitivo da submissão no banco de dados.
 
 ### Response 200
+
 ```json
 {
   "success": true,
@@ -521,6 +569,7 @@ Mesmo formato do `POST /agent/checklists` mas o ID fornecido na URL é assumido 
 Gera PDF do checklist.
 
 O PDF exibe:
+
 - **binary**: "Conforme" / "Não Conforme"
 - **multiple_choice**: label da opção selecionada
 - **rating**: valor selecionado (ex: "4/5")
@@ -546,7 +595,7 @@ O aplicativo móvel do agente funciona em modelo **offline-first**, garantindo q
 Visando auditorias de segurança mais confiáveis, a captura de fotos no checklist exige o uso de câmera integrada com marcas d'água de data e hora:
 
 1. **Componente de Câmera**: Utiliza o componente unificado `CameraWithTimestamp` que acessa a câmera física do dispositivo.
-2. **Processamento de Imagem (Frontend)**: 
+2. **Processamento de Imagem (Frontend)**:
    - A imagem capturada é processada em um elemento `<canvas>` que desenha um timestamp legível (`DD/MM/AAAA HH:mm:ss`) no canto inferior da foto.
    - A imagem resultante é comprimida e convertida para string `base64` no formato Data URL.
 3. **Upload e Armazenamento (Backend)**:
@@ -593,6 +642,7 @@ Os filtros são armazenados no JSONB `checklist_templates.data` como `section.fi
 ### Admin UI
 
 No editor de template (`SectionEditModal`), o administrador vê 4 multi-selects para configurar os filtros:
+
 - **Cargo**: populado da tabela `colaboradores`
 - **Regional**: populado da tabela `localidades`
 - **Seccional (UAC)**: populado da tabela `localidades`
@@ -609,6 +659,7 @@ Permite que administradores utilizem um chat com inteligência artificial (Gemin
 Recupera o histórico de mensagens do assistente IA para o template especificado.
 
 #### Response 200
+
 ```json
 [
   {
@@ -635,13 +686,15 @@ Recupera o histórico de mensagens do assistente IA para o template especificado
 Envia uma mensagem para o assistente IA, passando a estrutura atual do template para processamento.
 
 #### Body
-| Campo | Tipo | Obrigatório | Descrição |
-|---|---|---|---|
-| message | string | sim (se sem anexos) | Mensagem ou instrução do usuário |
-| currentStructure | object | sim | Estrutura JSON atual do template contendo seções e perguntas |
-| attachments | array | não | Lista de anexos como imagens ou áudios |
+
+| Campo            | Tipo   | Obrigatório         | Descrição                                                    |
+| ---------------- | ------ | ------------------- | ------------------------------------------------------------ |
+| message          | string | sim (se sem anexos) | Mensagem ou instrução do usuário                             |
+| currentStructure | object | sim                 | Estrutura JSON atual do template contendo seções e perguntas |
+| attachments      | array  | não                 | Lista de anexos como imagens ou áudios                       |
 
 #### Response 200
+
 ```json
 {
   "message": {
@@ -680,11 +733,13 @@ Envia uma mensagem para o assistente IA, passando a estrutura atual do template 
 Aplica e sincroniza a estrutura de seções e perguntas proposta pela IA no banco de dados. Efetua inserções, atualizações e deleções de forma relacional transacional.
 
 #### Body
-| Campo | Tipo | Obrigatório | Descrição |
-|---|---|---|---|
-| proposedStructure | object | sim | A estrutura JSON retornada pelo assistente IA em `parsedStructure` |
+
+| Campo             | Tipo   | Obrigatório | Descrição                                                          |
+| ----------------- | ------ | ----------- | ------------------------------------------------------------------ |
+| proposedStructure | object | sim         | A estrutura JSON retornada pelo assistente IA em `parsedStructure` |
 
 #### Response 200
+
 ```json
 {
   "success": true
@@ -698,6 +753,7 @@ Aplica e sincroniza a estrutura de seções e perguntas proposta pela IA no banc
 Limpa todo o histórico de conversação do assistente IA para o template.
 
 #### Response 200
+
 ```json
 {
   "success": true
@@ -725,7 +781,7 @@ GET /agent/checklists/requirements
     ▼
 Frontend (DailyChecklistGuard)
     ├── Se checklist_required === false → libera (exempt)
-    ├── Se all_submitted === true → libera (done)  
+    ├── Se all_submitted === true → libera (done)
     └── Se não → bloqueia com overlay pendente
 ```
 
@@ -744,6 +800,7 @@ Um agente pode ser obrigado a preencher **vários templates**. O `DailyChecklist
 Retorna os templates obrigatórios para o agente hoje, baseado no matching dinâmico.
 
 ### Response 200
+
 ```json
 {
   "checklist_required": true,
@@ -774,6 +831,7 @@ Endpoints que usam **filtros dinâmicos dos templates** em vez de cargos fixos. 
 Lista templates ativos respeitando permissões de estado do admin.
 
 #### Response 200
+
 ```json
 [
   { "id": "uuid", "title": "Checklist Diário", "estado": null },
@@ -789,17 +847,19 @@ KPIs por template. Se `template_id` for informado, retorna apenas dados daquele 
 Se `template_id` não for informado, agrega todos os templates que o admin tem permissão de ver.
 
 #### Query Params
-| Parâmetro | Tipo | Descrição |
-|---|---|---|
-| date_from | string | Data inicial (YYYY-MM-DD) |
-| date_to | string | Data final (YYYY-MM-DD) |
+
+| Parâmetro   | Tipo   | Descrição                       |
+| ----------- | ------ | ------------------------------- |
+| date_from   | string | Data inicial (YYYY-MM-DD)       |
+| date_to     | string | Data final (YYYY-MM-DD)         |
 | template_id | string | Filtrar por template específico |
-| regional | string | Filtrar por regional |
-| sectional | string | Filtrar por seccional |
-| estado | string | Filtrar por estado |
-| gestor | string | Filtrar por gestor |
+| regional    | string | Filtrar por regional            |
+| sectional   | string | Filtrar por seccional           |
+| estado      | string | Filtrar por estado              |
+| gestor      | string | Filtrar por gestor              |
 
 #### Response 200
+
 ```json
 {
   "active_agents": 150,
@@ -832,17 +892,19 @@ Se `template_id` não for informado, agrega todos os templates que o admin tem p
 Lista itens não conformes agregados (para gráfico de barras), baseada nos filtros dos templates e permissões do admin.
 
 #### Query Params
-| Parâmetro | Tipo | Descrição |
-|---|---|---|
-| date_from | string | Data inicial (YYYY-MM-DD) |
-| date_to | string | Data final (YYYY-MM-DD) |
+
+| Parâmetro   | Tipo   | Descrição                       |
+| ----------- | ------ | ------------------------------- |
+| date_from   | string | Data inicial (YYYY-MM-DD)       |
+| date_to     | string | Data final (YYYY-MM-DD)         |
 | template_id | string | Filtrar por template (opcional) |
-| regional | string | Filtrar por regional |
-| sectional | string | Filtrar por seccional |
-| estado | string | Filtrar por estado |
-| gestor | string | Filtrar por gestor |
+| regional    | string | Filtrar por regional            |
+| sectional   | string | Filtrar por seccional           |
+| estado      | string | Filtrar por estado              |
+| gestor      | string | Filtrar por gestor              |
 
 #### Response 200
+
 ```json
 [
   { "label": "Uso de EPIs", "count": 15 },
@@ -857,9 +919,11 @@ Lista itens não conformes agregados (para gráfico de barras), baseada nos filt
 Lista itens críticos/alerta com severidade, baseada nos filtros dos templates.
 
 #### Query Params
+
 Mesmos parâmetros de filtro do `/v2/non-compliant-items`.
 
 #### Response 200
+
 ```json
 [
   {
@@ -882,18 +946,20 @@ Mesmos parâmetros de filtro do `/v2/non-compliant-items`.
 Lista paginada de agentes que não enviaram checklist, baseada nos filtros dos templates e permissões do admin.
 
 #### Query Params
-| Parâmetro | Tipo | Descrição |
-|---|---|---|
-| page | integer | Página (padrão: 1) |
-| limit | integer | Itens por página (padrão: 20) |
-| template_id | string | Filtrar por template (opcional) |
-| agent_name | string | Filtrar por nome (ILIKE) |
-| regional | string | Filtrar por regional |
-| sectional | string | Filtrar por seccional |
-| estado | string | Filtrar por estado |
-| gestor | string | Filtrar por gestor |
+
+| Parâmetro   | Tipo    | Descrição                       |
+| ----------- | ------- | ------------------------------- |
+| page        | integer | Página (padrão: 1)              |
+| limit       | integer | Itens por página (padrão: 20)   |
+| template_id | string  | Filtrar por template (opcional) |
+| agent_name  | string  | Filtrar por nome (ILIKE)        |
+| regional    | string  | Filtrar por regional            |
+| sectional   | string  | Filtrar por seccional           |
+| estado      | string  | Filtrar por estado              |
+| gestor      | string  | Filtrar por gestor              |
 
 #### Response 200
+
 ```json
 {
   "data": [
@@ -924,15 +990,15 @@ Permite que administradores isentem um agente específico de responder o checkli
 
 ### Tabela `agent_exemptions`
 
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id` | UUID | Identificador único |
-| `agent_id` | VARCHAR | ID do agente (FK → `login.id`) |
-| `start_date` | DATE | Data de início da isenção (inclusive) |
-| `end_date` | DATE | Data de fim da isenção (inclusive) |
-| `reason` | TEXT | Motivo (opcional, para auditoria) |
-| `created_by` | INTEGER | ID do admin que criou (FK → `users.id`) |
-| `created_at` | TIMESTAMP | Timestamp de criação |
+| Coluna       | Tipo      | Descrição                               |
+| ------------ | --------- | --------------------------------------- |
+| `id`         | UUID      | Identificador único                     |
+| `agent_id`   | VARCHAR   | ID do agente (FK → `login.id`)          |
+| `start_date` | DATE      | Data de início da isenção (inclusive)   |
+| `end_date`   | DATE      | Data de fim da isenção (inclusive)      |
+| `reason`     | TEXT      | Motivo (opcional, para auditoria)       |
+| `created_by` | INTEGER   | ID do admin que criou (FK → `users.id`) |
+| `created_at` | TIMESTAMP | Timestamp de criação                    |
 
 ---
 
@@ -954,11 +1020,11 @@ if (exempt) {
 
 ### Permissões
 
-| Módulo | Descrição |
-|---|---|
-| `view_agent_exemptions` | Visualizar histórico de isenções de um agente |
-| `create_agent_exemption` | Criar isenções para agentes |
-| `delete_agent_exemption` | Deletar/revogar isenções de agentes |
+| Módulo                   | Descrição                                     |
+| ------------------------ | --------------------------------------------- |
+| `view_agent_exemptions`  | Visualizar histórico de isenções de um agente |
+| `create_agent_exemption` | Criar isenções para agentes                   |
+| `delete_agent_exemption` | Deletar/revogar isenções de agentes           |
 
 ---
 
@@ -969,6 +1035,7 @@ Lista todas as isenções de um agente (históricas e futuras).
 **Permissão:** `view_agent_exemptions`
 
 #### Response 200
+
 ```json
 [
   {
@@ -992,16 +1059,19 @@ Cria uma nova isenção para o agente.
 **Permissão:** `create_agent_exemption`
 
 #### Body
-| Campo | Tipo | Obrigatório | Descrição |
-|---|---|---|---|
-| `start_date` | string (YYYY-MM-DD) | sim | Data de início |
-| `end_date` | string (YYYY-MM-DD) | sim | Data de fim (≥ start_date) |
-| `reason` | string | não | Motivo da isenção |
+
+| Campo        | Tipo                | Obrigatório | Descrição                  |
+| ------------ | ------------------- | ----------- | -------------------------- |
+| `start_date` | string (YYYY-MM-DD) | sim         | Data de início             |
+| `end_date`   | string (YYYY-MM-DD) | sim         | Data de fim (≥ start_date) |
+| `reason`     | string              | não         | Motivo da isenção          |
 
 #### Validações (Zod)
+
 - `end_date` deve ser ≥ `start_date` (erro `400` caso contrário).
 
 #### Response 201
+
 ```json
 {
   "id": "uuid",
@@ -1023,6 +1093,7 @@ Remove uma isenção. A remoção é imediata — se a isenção estava ativa, o
 **Permissão:** `delete_agent_exemption`
 
 #### Response 204
+
 Sem corpo.
 
 ---
@@ -1110,7 +1181,7 @@ Pergunta: "Bota de segurança está em boas condições?"
 
 Todas as datas históricas reportadas:
 - 01/07 (Seg): Não conforme
-- 02/07 (Ter): Não conforme  
+- 02/07 (Ter): Não conforme
 - 03/07 (Qua): Não conforme
 - 07/07 (Seg): Não conforme
 - 08/07 (Ter): Não conforme
@@ -1138,18 +1209,20 @@ Item 3:
 Lista itens críticos/alerta agrupados por colaborador+pergunta.
 
 #### Query Params
-| Parâmetro | Tipo | Descrição |
-|---|---|---|
-| date_from | string | Data inicial (YYYY-MM-DD) |
-| date_to | string | Data final (YYYY-MM-DD) |
-| template_id | string | Filtrar por template (opcional) |
-| regional | string | Filtrar por regional |
-| sectional | string | Filtrar por seccional |
-| estado | string | Filtrar por estado |
-| gestor | string | Filtrar por gestor |
-| export_raw | boolean | `true` para dados brutos (exportação Excel) |
+
+| Parâmetro   | Tipo    | Descrição                                   |
+| ----------- | ------- | ------------------------------------------- |
+| date_from   | string  | Data inicial (YYYY-MM-DD)                   |
+| date_to     | string  | Data final (YYYY-MM-DD)                     |
+| template_id | string  | Filtrar por template (opcional)             |
+| regional    | string  | Filtrar por regional                        |
+| sectional   | string  | Filtrar por seccional                       |
+| estado      | string  | Filtrar por estado                          |
+| gestor      | string  | Filtrar por gestor                          |
+| export_raw  | boolean | `true` para dados brutos (exportação Excel) |
 
 #### Response 200 (Modo Normal)
+
 ```json
 [
   {
@@ -1170,6 +1243,7 @@ Lista itens críticos/alerta agrupados por colaborador+pergunta.
 ```
 
 #### Response 200 (export_raw = true)
+
 Retorna dados brutos sem agrupamento (cada linha = uma ocorrência individual).
 
 ---
@@ -1179,9 +1253,11 @@ Retorna dados brutos sem agrupamento (cada linha = uma ocorrência individual).
 Lista itens não conformes **que não são críticos nem de atenção**, agrupados por colaborador+pergunta.
 
 #### Query Params
+
 Mesmos parâmetros do `/v2/alerts`.
 
 #### Response 200 (Modo Normal)
+
 ```json
 [
   {
@@ -1205,10 +1281,10 @@ Mesmos parâmetros do `/v2/alerts`.
 
 ### Comportamento por Modo
 
-| Modo | `export_raw` | Comportamento |
-|------|-------------|---------------|
-| **Normal** | `false` (padrão) | Agrupa por `agent_id` + `question` + `severity`, divide em streaks. Cada streak = 1 item |
-| **Exportação** | `true` | Retorna linhas individuais para Excel (até 5000 registros) |
+| Modo           | `export_raw`     | Comportamento                                                                            |
+| -------------- | ---------------- | ---------------------------------------------------------------------------------------- |
+| **Normal**     | `false` (padrão) | Agrupa por `agent_id` + `question` + `severity`, divide em streaks. Cada streak = 1 item |
+| **Exportação** | `true`           | Retorna linhas individuais para Excel (até 5000 registros)                               |
 
 ### Cálculo de Dias Consecutivos
 
@@ -1219,8 +1295,8 @@ O cálculo é realizado em JavaScript após a query SQL, considerando **fins de 
  * Conta quantos dias de fim de semana (sáb/dom) existem entre duas datas.
  */
 function weekendDaysBetween(d1Str, d2Str) {
-  const d1 = new Date(d1Str + 'T00:00:00');
-  const d2 = new Date(d2Str + 'T00:00:00');
+  const d1 = new Date(d1Str + "T00:00:00");
+  const d2 = new Date(d2Str + "T00:00:00");
   const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
   let count = 0;
   for (let i = 1; i < diffDays; i++) {
@@ -1243,9 +1319,11 @@ function weekendDaysBetween(d1Str, d2Str) {
  *     Ter→Sex: gap=3, we=2 → 3-2=1 ≤ 1 ✓ consecutivo!
  */
 function isConsecutive(d1Str, d2Str) {
-  const rawDiff = Math.round((new Date(d2Str + 'T00:00:00') - new Date(d1Str + 'T00:00:00')) / 86400000);
+  const rawDiff = Math.round(
+    (new Date(d2Str + "T00:00:00") - new Date(d1Str + "T00:00:00")) / 86400000,
+  );
   const we = weekendDaysBetween(d1Str, d2Str);
-  return (rawDiff - we) <= 1;
+  return rawDiff - we <= 1;
 }
 ```
 
@@ -1294,6 +1372,7 @@ Resultado — 3 itens:
 O sistema retorna **todas as streaks** como itens separados. Se um colaborador teve uma sequência de 5 dias, depois um gap, e depois 2 dias, isso gera **dois itens** distintos nos painéis de Alertas e Não Conformidades.
 
 Isso permite que o admin visualize padrões como:
+
 - "O agente teve 3 ocorrências seguidas, parou, e recomeçou"
 - "O problema persiste há X streaks diferentes ao longo do tempo"
 
@@ -1328,7 +1407,7 @@ interface SecurityAlert {
   regional?: string;
   gestor?: string;
   question: string;
-  severity: 'critical' | 'alert' | 'normal';
+  severity: "critical" | "alert" | "normal";
   date: string;
   submitted_at?: string | null;
   observation?: string | null;
@@ -1347,24 +1426,24 @@ Funcionalidade para marcar streaks de não conformidade como resolvidas, com evi
 
 ### Tabela `checklist_nonconformity_resolutions`
 
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id` | UUID | PK |
-| `agent_id` | VARCHAR | ID do agente |
-| `question_label` | TEXT | Texto da pergunta |
-| `resolved_date` | DATE | Última data da streak resolvida |
-| `resolved_by` | INTEGER | FK → `users.id` |
-| `resolved_at` | TIMESTAMP | Data/hora da resolução |
-| `photo_url` | TEXT | Evidência fotográfica (obrigatório) |
-| `description` | TEXT | Descrição da resolução (obrigatório) |
+| Coluna           | Tipo      | Descrição                            |
+| ---------------- | --------- | ------------------------------------ |
+| `id`             | UUID      | PK                                   |
+| `agent_id`       | VARCHAR   | ID do agente                         |
+| `question_label` | TEXT      | Texto da pergunta                    |
+| `resolved_date`  | DATE      | Última data da streak resolvida      |
+| `resolved_by`    | INTEGER   | FK → `users.id`                      |
+| `resolved_at`    | TIMESTAMP | Data/hora da resolução               |
+| `photo_url`      | TEXT      | Evidência fotográfica (obrigatório)  |
+| `description`    | TEXT      | Descrição da resolução (obrigatório) |
 
 - `UNIQUE(agent_id, question_label, resolved_date)` — uma resolução por streak
 
 ### Módulos/Permissões
 
-| Módulo | Descrição |
-|---|---|
-| `resolve_nonconformity` | Resolver não conformidades |
+| Módulo                    | Descrição                              |
+| ------------------------- | -------------------------------------- |
+| `resolve_nonconformity`   | Resolver não conformidades             |
 | `unresolve_nonconformity` | Desfazer resolução de não conformidade |
 
 ### POST /admin/dashboard/nonconformity-resolve
@@ -1374,15 +1453,17 @@ Resolve uma streak de não conformidade.
 **Permissão:** `resolve_nonconformity`
 
 #### Body
-| Campo | Tipo | Obrigatório | Descrição |
-|---|---|---|---|
-| agent_id | string | sim | ID do agente |
-| question_label | string | sim | Texto da pergunta |
-| resolved_date | string | sim | Última data da streak (YYYY-MM-DD) |
-| photo_url | string | sim | Evidência fotográfica (base64 Data URL) |
-| description | string | sim | Descrição da resolução |
+
+| Campo          | Tipo   | Obrigatório | Descrição                               |
+| -------------- | ------ | ----------- | --------------------------------------- |
+| agent_id       | string | sim         | ID do agente                            |
+| question_label | string | sim         | Texto da pergunta                       |
+| resolved_date  | string | sim         | Última data da streak (YYYY-MM-DD)      |
+| photo_url      | string | sim         | Evidência fotográfica (base64 Data URL) |
+| description    | string | sim         | Descrição da resolução                  |
 
 #### Response 201
+
 ```json
 {
   "id": "uuid",
@@ -1405,6 +1486,7 @@ Remove uma resolução (desfazer).
 **Permissão:** `unresolve_nonconformity`
 
 #### Response 200
+
 ```json
 { "success": true }
 ```
@@ -1440,3 +1522,63 @@ Isso garante que, se o mesmo problema reaparecer após resolução, já é uma n
 5. Item resolvido mostra info da resolução + botão **"Desfazer"**
 6. Desfazer pede confirmação antes de remover
 
+## Checklists de Gestor (Avalia��o de Liderados)
+
+Gestores podem avaliar seus liderados utilizando templates espec�ficos (is_gestor = true).
+
+### GET /agent/checklists/templates-unified
+
+Retorna os templates dispon�veis para o agente, combinando os templates padr�o (baseados no cargo) e os templates de gestor (se o agente for um gestor).
+
+### GET /agent/checklists/manager-checklists/pending
+
+Retorna a lista de liderados do gestor que ainda n�o receberam um checklist no m�s corrente.
+
+**Par�metros (Query):**
+
+- N/A
+
+### POST /agent/checklists/manager-checklists
+
+Submete um checklist de avalia��o de um liderado. O tipo do checklist � gravado como supplementary.
+
+**Body:**
+
+| Campo           | Tipo   | Obrigat�rio | Descri��o                |
+| --------------- | ------ | ----------- | ------------------------ |
+| template_id     | uuid   | sim         | ID do template de gestor |
+| date            | string | sim         | Data da avalia��o        |
+| target_agent_id | string | sim         | ID do liderado avaliado  |
+| answers         | array  | sim         | Respostas do formul�rio  |
+
+---
+
+## Dashboard do Gestor (Admin)
+
+Endpoints dispon�veis em /manager/dashboard/* com autentica��o JWT (m�dulo manager_checklists). Estes endpoints permitem que um gestor ou admin acompanhe o status das avalia��es dos liderados.
+
+### GET /manager/dashboard/stats
+
+Retorna os KPIs de avalia��es de liderados no m�s.
+
+**Query Params:**
+
+- mes (num�rico, ex: 8)
+- no (num�rico, ex: 2026)
+- gestor_id (opcional, padr�o = ID do admin autenticado)
+
+### GET /manager/dashboard/pending
+
+Retorna a lista de liderados do gestor que ainda n�o receberam a avalia��o no m�s especificado.
+
+**Query Params:**
+
+- mes, no, gestor_id
+
+### GET /manager/dashboard/history
+
+Retorna o hist�rico paginado de checklists aplicados aos liderados do gestor.
+
+**Query Params:**
+
+- page, limit, gestor_id

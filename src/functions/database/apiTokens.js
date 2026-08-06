@@ -1,7 +1,7 @@
 const { cenos_pool } = require('../../db');
 const crypto = require('crypto');
 
-const TOKEN_PREFIX = 'cenos_';
+const TOKEN_PREFIX = 'gedai_';
 const IDENTIFIER_LENGTH = 16;
 
 function generateToken() {

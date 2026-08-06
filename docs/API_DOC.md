@@ -96,8 +96,12 @@ Health check simples (sem prefixo).
 | `POST /agent/security_check` | Check-in segurança |
 | `GET /agent/security_check` | Listar checks |
 | `GET /agent/security_check/check_today` | Verificar check de hoje |
-| `POST /agent/security_report` | Relatório de segurança |
-| `GET /agent/security_report` | Listar relatórios |
+| `GET /agent/security_report` | Listar relatórios (perigos + acidentes + anotações não expiradas e não arquivadas) |
+| `POST /agent/v2/security_report` | Relatório de segurança (V2) |
+| `POST /agent/v2/accident` | Registrar acidente (V2) |
+| `POST /agent/v2/annotation` | Registrar anotação (V2) |
+| `GET /agent/v2/config` | Tipos de perigo/acidente disponíveis (V2) |
+| `GET /agent/my_reports` | Listar meus relatórios (V2) |
 | `GET /agent/predicted` | Leitura previstas |
 | `POST /agent/tracking/sync-unified` | Sync de GPS (unificado) |
 | `POST /agent/tracking/alerts/sync` | Sync de alert logs |
@@ -115,6 +119,7 @@ Health check simples (sem prefixo).
 | Seção | Descrição | Módulos |
 |-------|-----------|---------|
 | `/admin/user/*` | Login, CRUD de usuários | `users` |
+| `/admin/dashboard` | Dashboard SDUI (indicadores filtrados por permissão) | — |
 | `/admin/users_agents` | CRUD de agentes de campo | `users` |
 | `/admin/branch/*` | Filiais/regionais | `branch` |
 | `/admin/permission/*` | Perfis de permissão | `permission` |
@@ -135,7 +140,10 @@ Health check simples (sem prefixo).
 | `/admin/training/*` | Treinamentos interativos | `trainings` |
 | `/admin/config/*` | Etapas e feriados | `configs` |
 | `/admin/security_reports/*` | Relatórios de segurança | `security_reports` |
+| `/admin/security_reports/configs/*` | Configs de tipos de perigo/acidente | `manage_security_reports_config` |
+| `/admin/security_reports/configs/merged` | Tipos mergeados por estado/regional/seccional | `create_security_report`/`create_security_accident` |
 | `/admin/notifications/*` | Notificações push/broadcast | `notifications` |
+| `/admin/service_annotations/*` | Anotações de Serviço (importação XLSX, arquivamento) | `service_annotations` |
 
 ### Outras Rotas
 | Prefixo | Descrição |
@@ -162,6 +170,7 @@ Health check simples (sem prefixo).
 | `trainings`, `create_training`, `update_training`, `delete_training` | Treinamentos |
 | `configs` | Configurações |
 | `security_reports`, `create_security_report`, `delete_security_report`, `resolve_security_report` | Segurança |
+| `service_annotations`, `create_service_annotation`, `delete_service_annotation`, `resolve_service_annotation` | Anotações de Serviço |
 | `services_consult` | Consulta de serviços |
 | `message_templates` | Modelos de mensagem |
 | `notifications` | Notificações |

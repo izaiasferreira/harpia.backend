@@ -30,7 +30,7 @@ router.post('/generate', verifyToken(), verifyModule('app_pins'), validate(z.obj
         const pin = String(Math.floor(100000 + Math.random() * 900000));
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-        await createLogoutPin(agent.id, pin, expiresAt);
+        await createLogoutPin(agent.id, pin, expiresAt, req.user);
 
         res.json({
             pin,
