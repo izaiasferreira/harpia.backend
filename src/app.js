@@ -168,6 +168,8 @@ const adminNonconformityResolutionsRouter = require('./routes/adminNonconformity
 app.use('/admin/dashboard', adminNonconformityResolutionsRouter)
 const agentChecklistsRouter = require('./routes/agentChecklists')
 app.use('/agent/checklists', agentChecklistsRouter)
+const managerDashboardRouter = require('./routes/managerDashboard')
+app.use('/manager/dashboard', managerDashboardRouter)
 
 const adminExcelChecklistDashboardRouter = require('./routes/adminExcelChecklistDashboard')
 app.use('/admin/excel-checklist', adminExcelChecklistDashboardRouter)

@@ -11,6 +11,9 @@ const {
   listTemplatesForAgent,
   listTemplatesForAgentWithProfile,
   getAgentTemplatesStatus,
+  listTemplatesUnified,
+  listSubordinatesPendingMonth,
+  isSubordinateOf,
 } = require('../functions/database/checklists');
 const { getUserData } = require('../functions/database/agentes');
 const { isAgentExempt } = require('../functions/database/agentExemptions');
@@ -77,7 +80,7 @@ router.get('/today', telegramAuth, async (req, res) => {
 router.get('/templates', telegramAuth, async (req, res) => {
   try {
     const agentEstado = req.colaborador.estado;
-    const templates = await listTemplatesForAgent(agentEstado);
+    const templates = await listTemplatesForAgent(agentEstado, req.colaborador);
     res.json(templates);
   } catch (err) {
     console.error('[AGENT_CHECKLISTS] Erro /templates:', err);
@@ -91,7 +94,7 @@ router.get('/templates-with-filters', telegramAuth, async (req, res) => {
     const agentId = req.colaborador.id;
     const agentEstado = req.colaborador.estado;
     const { rows } = await cenos_pool.query(
-      `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo
+      `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo, col.is_gestor
        FROM login l
        LEFT JOIN colaboradores col ON l.id = col."ID"
        WHERE l.id = $1`,
@@ -114,8 +117,11 @@ router.get('/requirements', telegramAuth, async (req, res) => {
 
     // Verifica isenção (inclui domingo)
     const exempt = await isAgentExempt(agentId, todayStr);
+
+    console.log('exempt', {exempt, agentId, todayStr})
     if (exempt) {
-      const isSunday = new Date(todayStr + 'T12:00:00Z').getUTCDay() === 0;
+      
+      
       return res.json({
         checklist_required: false,
         exempted: true,
@@ -184,6 +190,103 @@ router.get('/form/:templateId', telegramAuth, async (req, res) => {
 });
 
 // GET /agent/checklists/:id — detalhes de um checklist (apenas se for de hoje ou ontem)
+router.get('/templates-unified', telegramAuth, async (req, res) => {
+  try {
+    const agentId = req.colaborador.id;
+    const agentEstado = req.colaborador.estado;
+    const isGestor = !!req.colaborador.is_gestor;
+
+    // perfil do agente (para o filtro de cargo/regional/seccional/processo)
+    const { rows } = await cenos_pool.query(
+      `SELECT col."Cargo" as cargo, col.regional, col.seccional, col."processo" as processo
+       FROM login l
+       LEFT JOIN colaboradores col ON l.id = col."ID"
+       WHERE l.id = $1`,
+      [agentId]
+    );
+    const agentProfile = rows[0] || {};
+    console.log('[TEMPLATES_UNIFIED] agentProfile:', agentProfile, 'agentId:', agentId);
+    const templates = await listTemplatesUnified(agentEstado, isGestor, agentProfile);
+    res.json(templates);
+  } catch (err) {
+    console.error('[AGENT_CHECKLISTS] Erro GET /templates-unified:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /agent/manager-checklists/pending — liderados sem checklist do gestor no mês
+router.get('/manager-checklists/pending', telegramAuth, async (req, res) => {
+  try {
+    if (!req.colaborador.is_gestor) {
+      return res.status(403).json({ error: 'Acesso restrito a gestores' });
+    }
+
+    const now = new Date();
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const monthEnd = `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2, '0')}-01`;
+    const subordinates = await listSubordinatesPendingMonth(
+      req.colaborador.id,
+      req.colaborador.nome,
+      monthStart,
+      monthEnd
+    );
+    res.json(subordinates);
+  } catch (err) {
+    console.error('[AGENT_CHECKLISTS] Erro GET /manager-checklists/pending:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /agent/manager-checklists — preencher checklist do gestor sobre um liderado
+router.post('/manager-checklists', telegramAuth, async (req, res) => {
+  try {
+    if (!req.colaborador.is_gestor) {
+      return res.status(403).json({ error: 'Acesso restrito a gestores' });
+    }
+    const data = req.body;
+    if (!data.template_id) return res.status(400).json({ error: 'template_id é obrigatório' });
+    if (!data.date) return res.status(400).json({ error: 'date é obrigatório' });
+    if (!data.target_agent_id) return res.status(400).json({ error: 'target_agent_id é obrigatório' });
+
+    // validar que o template é do gestor e que o alvo é um liderado do gestor
+    const template = await getTemplateById(data.template_id);
+    if (!template || !template.is_gestor || !template.is_active) {
+      return res.status(400).json({ error: 'Template de gestor inválido ou inativo' });
+    }
+    const isSubordinate = await isSubordinateOf(
+      req.colaborador.id,
+      req.colaborador.nome,
+      data.target_agent_id
+    );
+    if (!isSubordinate) {
+      return res.status(403).json({ error: 'Alvo não é um liderado seu' });
+    }
+
+    const { rows: existingRows } = await cenos_pool.query(
+      `SELECT 1 FROM checklists 
+       WHERE agent_id = $1 AND target_agent_id = $2 
+         AND template_id = $3
+         AND TO_CHAR(date, 'YYYY-MM') = TO_CHAR($4::date, 'YYYY-MM')
+       LIMIT 1`,
+      [req.colaborador.id, data.target_agent_id, data.template_id, data.date]
+    );
+
+    if (existingRows.length > 0) {
+      return res.status(409).json({ error: 'Este colaborador já possui checklist do gestor neste mês' });
+    }
+
+    const checklist = await saveChecklistSubmission(req.colaborador.id, { ...data, type: 'supplementary' });
+    res.status(201).json({ success: true, checklist });
+  } catch (err) {
+    console.error('[AGENT_CHECKLISTS] Erro POST /manager-checklists:', err);
+    if (err.message && err.message.includes('gestor_target_mes')) {
+      return res.status(409).json({ error: 'Este colaborador já possui checklist do gestor neste mês' });
+    }
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/:id', telegramAuth, async (req, res) => {
   try {
     const checklist = await getChecklistById(req.params.id);
@@ -293,4 +396,6 @@ router.post('/:id/sync', telegramAuth, async (req, res) => {
   }
 });
 
+// GET /agent/checklists/templates-unified — templates elegíveis (agente + gestor)
 module.exports = router;
+

@@ -60,15 +60,15 @@ function generateDashboard({ state, id, stats }) {
             },
             action: { type: 'link', url: '/perdas' }
         },
-        {
-            id: 'banner_promo',
-            type: 'bannerCarousel',
-            size: { colSpan: 3, rowSpan: 1 },
-            data: {
-                autoSlideInterval: 5000,
-                banners: banners
-            },
-        },
+        // {
+        //     id: 'banner_promo',
+        //     type: 'bannerCarousel',
+        //     size: { colSpan: 3, rowSpan: 1 },
+        //     data: {
+        //         autoSlideInterval: 5000,
+        //         banners: banners
+        //     },
+        // },
         {
             id: 'chart_producao_hora',
             type: 'chartCard',
@@ -244,18 +244,18 @@ function generateDashboard({ state, id, stats }) {
 
     ];
 
-    if (stats.pending_justifies.length > 0) {
-        widgets.unshift({
-            id: 'alert_2',
-            type: 'alertCard',
-            size: { colSpan: 3, rowSpan: 1 },
-            data: {
-                title: "ATENÇÃO!",
-                message: "Você possui pendências a justificar. Por favor, acesse o menu lateral e clique em 'Justificar Pendências'.",
-                severity: "warning"
-            },
-        });
-    }
+    // if (stats.pending_justifies.length > 0) {
+    //     widgets.unshift({
+    //         id: 'alert_2',
+    //         type: 'alertCard',
+    //         size: { colSpan: 3, rowSpan: 1 },
+    //         data: {
+    //             title: "ATENÇÃO!",
+    //             message: "Você possui pendências a justificar. Por favor, acesse o menu lateral e clique em 'Justificar Pendências'.",
+    //             severity: "warning"
+    //         },
+    //     });
+    // }
 
     return {
         layout: {

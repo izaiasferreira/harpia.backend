@@ -48,7 +48,8 @@ const agentCreateSchema = z.object({
   regional: z.string().max(255).optional().nullable().transform(val => typeof val === 'string' ? normalizeTextUpper(val) : val),
   status: z.boolean().optional(),
   situacao: z.enum(['active', 'vocation', 'inactive', 'away']).optional(),
-  processo: z.string().max(255).optional().nullable().transform(val => typeof val === 'string' ? normalizeTextUpper(val) : val)
+  processo: z.string().max(255).optional().nullable().transform(val => typeof val === 'string' ? normalizeTextUpper(val) : val),
+  is_gestor: z.boolean().optional()
 });
 
 const agentUpdateSchema = z.object({
@@ -61,7 +62,8 @@ const agentUpdateSchema = z.object({
   estado: z.string().max(2).optional().nullable(),
   status: z.boolean().optional(),
   situacao: z.enum(['active', 'vocation', 'inactive', 'away']).optional(),
-  processo: z.string().max(255).optional().nullable().transform(val => typeof val === 'string' ? (val === '__UNCHANGED__' ? '__UNCHANGED__' : normalizeTextUpper(val)) : val)
+  processo: z.string().max(255).optional().nullable().transform(val => typeof val === 'string' ? (val === '__UNCHANGED__' ? '__UNCHANGED__' : normalizeTextUpper(val)) : val),
+  is_gestor: z.boolean().optional()
 });
 
 module.exports = {

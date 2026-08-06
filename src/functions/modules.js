@@ -95,6 +95,7 @@ const AVAILABLE_MODULES = [
     { id: 'delete_form_response', name: 'Deletar Resposta de Formulário', group: 'Formulários' },
     // Checklists
     { id: 'checklists', name: 'Consultar Checklists de Segurança', group: 'Segurança e Monitoramento' },
+    { id: 'manager_checklists', name: 'Dashboard do Gestor de Checklists', group: 'Segurança e Monitoramento' },
     { id: 'manage_checklist_templates', name: 'Gerenciar Templates de Checklist', group: 'Segurança e Monitoramento' },
     { id: 'delete_checklist_template', name: 'Deletar Template de Checklist', group: 'Segurança e Monitoramento' },
     { id: 'delete_checklist', name: 'Excluir Checklist', group: 'Segurança e Monitoramento' },

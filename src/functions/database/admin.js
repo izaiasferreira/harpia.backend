@@ -945,7 +945,7 @@ async function get_user_agent_options({ estado, regional, seccional, user }) {
     return result;
 }
 
-async function create_user_agent_admin({ id, matricula, nome, estado: inputEstado, gestor, cargo, user, seccional, regional, status = true, situacao = 'active', processo }) {
+async function create_user_agent_admin({ id, matricula, nome, estado: inputEstado, gestor, cargo, user, seccional, regional, status = true, situacao = 'active', processo, is_gestor = false }) {
     const normalizedId = normalizeAgentId(id);
     const normalizedMatricula = normalizeAgentId(matricula);
     const normalizedNome = normalizeAgentName(nome);
@@ -966,8 +966,8 @@ async function create_user_agent_admin({ id, matricula, nome, estado: inputEstad
     }
 
     const query = `
-        INSERT INTO colaboradores ("ID", "MAT", "Nome", "GESTOR IMEDIATO", "Cargo", "seccional", "regional", "estado", "status", "situacao", "processo")
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        INSERT INTO colaboradores ("ID", "MAT", "Nome", "GESTOR IMEDIATO", "Cargo", "seccional", "regional", "estado", "status", "situacao", "processo", "is_gestor")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `;
     const params = [
         normalizedId,
@@ -980,7 +980,8 @@ async function create_user_agent_admin({ id, matricula, nome, estado: inputEstad
         inputEstado.toLowerCase(),
         status !== undefined ? status : true,
         situacao !== undefined ? situacao : 'active',
-        normalizedProcesso
+        normalizedProcesso,
+        is_gestor !== undefined ? is_gestor : false
     ];
 
     try {
@@ -1195,7 +1196,7 @@ async function delete_user_agent_admin({ id, user, deleteLogin = false }) {
     }
 }
 
-async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, regional, estado, status, situacao, processo, matricula, user }) {
+async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, regional, estado, status, situacao, processo, matricula, user, is_gestor }) {
     const normalizedId = normalizeAgentId(id);
     const normalizedNome = nome !== undefined ? normalizeAgentName(nome) : undefined;
     const normalizedMatricula = matricula !== undefined ? (matricula ? normalizeAgentId(matricula) : null) : undefined;
@@ -1218,7 +1219,7 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
     const query = `
         UPDATE colaboradores 
         SET "Nome" = $1, "GESTOR IMEDIATO" = $2, "Cargo" = $3, "seccional" = $4, "regional" = $5,
-            "estado" = COALESCE($6, "estado"), "status" = COALESCE($7, "status"), "situacao" = COALESCE($8, "situacao"), "processo" = CASE WHEN $10 = '__UNCHANGED__' THEN "processo" ELSE $10 END, "MAT" = COALESCE($11, "MAT")
+            "estado" = COALESCE($6, "estado"), "status" = COALESCE($7, "status"), "situacao" = COALESCE($8, "situacao"), "processo" = CASE WHEN $10 = '__UNCHANGED__' THEN "processo" ELSE $10 END, "MAT" = COALESCE($11, "MAT"), "is_gestor" = COALESCE($12, "is_gestor")
         WHERE TRIM(UPPER("ID")) = TRIM(UPPER($9))
     `;
     const params = [
@@ -1232,7 +1233,8 @@ async function update_user_agent_admin({ id, nome, gestor, cargo, seccional, reg
         situacao !== undefined ? situacao : null,
         normalizedId,
         normalizedProcesso !== undefined ? (normalizedProcesso || null) : '__UNCHANGED__',
-        normalizedMatricula
+        normalizedMatricula,
+        is_gestor !== undefined ? is_gestor : null
     ];
 
     try {

@@ -384,9 +384,9 @@ router.post('/users_agents/import', verifyToken(), verifyModule('create_user_age
 
 router.post('/users_agents', verifyToken(), verifyModule('create_user_agent'), validate(agentCreateSchema), async (req, res) => {
     try {
-        const { id, matricula, nome, estado, gestor, cargo, seccional, regional, status, situacao, processo } = req.body;
+        const { id, matricula, nome, estado, gestor, cargo, seccional, regional, status, situacao, processo, is_gestor } = req.body;
         const user = req.user;
-        const result = await create_user_agent_admin({ id, matricula, nome, estado, gestor, cargo, seccional, regional, status, situacao, processo, user });
+        const result = await create_user_agent_admin({ id, matricula, nome, estado, gestor, cargo, seccional, regional, status, situacao, processo, is_gestor, user });
         res.json(result);
     } catch (error) {
         console.log(error)
@@ -397,7 +397,7 @@ router.post('/users_agents', verifyToken(), verifyModule('create_user_agent'), v
 router.put('/users_agents/:id', verifyToken(), verifyModule('update_user_agent'), validate(agentUpdateSchema), async (req, res) => {
     try {
         const { id } = req.params;
-        const { nome, gestor, cargo, seccional, regional, estado, status, situacao, matricula, processo } = req.body;
+        const { nome, gestor, cargo, seccional, regional, estado, status, situacao, matricula, processo, is_gestor } = req.body;
         const user = req.user;
 
         if (estado !== undefined || status !== undefined || situacao !== undefined) {
@@ -419,7 +419,7 @@ router.put('/users_agents/:id', verifyToken(), verifyModule('update_user_agent')
         }
 
         const isAdmin = user.role.toLowerCase().includes('admin');
-        const updateData = { id, nome, gestor, cargo, seccional, regional, estado, status, situacao, processo, user };
+        const updateData = { id, nome, gestor, cargo, seccional, regional, estado, status, situacao, processo, is_gestor, user };
         
         if (isAdmin && matricula !== undefined) {
             updateData.matricula = matricula;

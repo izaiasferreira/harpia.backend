@@ -249,7 +249,8 @@ No momento da gravação, os dados são normalizados:
   "cargo": "LEITURISTA A PÉ",
   "estado": "pi",
   "regional": "METROPOLITANA",
-  "seccional": "UAC TERESINA"
+  "seccional": "UAC TERESINA",
+  "is_gestor": false
 }
 ```
 > Ex.: `id = " a81117929 "` é gravado como `A81117929`; `nome = "joão silva"` como `JOÃO SILVA`.
@@ -265,6 +266,7 @@ Retorna detalhes de um agente de campo específico.
 Atualiza dados de um agente de campo.
 
 Aplica a mesma normalização do cadastro (`id`/`matricula` alfanuméricos em maiúsculo; `nome` em maiúsculo). A busca do registro é case/trim-insensitive (`TRIM(UPPER("ID")) = TRIM(UPPER($1))`).
+O campo booleano `is_gestor` também pode ser atualizado por este endpoint.
 
 ---
 
@@ -2979,5 +2981,57 @@ Retorna os logs de uso de um token específico (paginação).
   "page": 1,
   "limit": 50,
   "totalPages": 1
+}
+---
+
+## 41. Gestor de Checklists (Dashboard)
+
+Endpoints administrativos focados no líder (Gestor) para monitorar seus liderados diretos e indiretos, montados sob `/manager/dashboard/*` utilizando `manager_checklists` em `modules.js`.
+
+### `GET /manager/dashboard/stats`
+Estatísticas gerais do gestor para um determinado mês.
+
+**Query Params:** `mes` e `ano`
+
+**Resposta 200:**
+```json
+{
+  "total_subordinates": 15,
+  "completed_subordinates": 5
+}
+```
+
+### `GET /manager/dashboard/pending`
+Lista de liderados (hierarquia direta e indireta) que ainda não receberam checklist do tipo "gestor" no mês solicitado.
+
+**Query Params:** `mes` e `ano`
+
+**Resposta 200:**
+```json
+[
+  { "id": "UAC123", "nome": "João", "cargo": "Leiturista" }
+]
+```
+
+### `GET /manager/dashboard/history`
+Lista paginada do histórico de checklists de gestão realizados neste ano para os liderados do gestor autenticado.
+
+**Query Params:** `page` e `limit`
+
+**Resposta 200:**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "data_registro": "...",
+      "target_agent_id": "UAC123",
+      "target_agent_nome": "João",
+      "template_title": "Checklist Gestor"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 50
 }
 ```

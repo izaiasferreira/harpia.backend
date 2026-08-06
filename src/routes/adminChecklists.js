@@ -43,7 +43,7 @@ router.get('/templates/:id', verifyToken(), verifyModule('manage_checklist_templ
 
 router.post('/templates', verifyToken(), verifyModule('manage_checklist_templates'), async (req, res) => {
   try {
-    const { title, description, estado, data } = req.body;
+    const { title, description, estado, data, is_gestor } = req.body;
     if (!title || !title.trim()) return res.status(400).json({ error: 'title é obrigatório' });
     const template = await createTemplate({
       title: title.trim(),
@@ -51,6 +51,7 @@ router.post('/templates', verifyToken(), verifyModule('manage_checklist_template
       created_by: req.user.id,
       estado: estado || null,
       data: data || null,
+      is_gestor
     });
     res.status(201).json(template);
   } catch (err) {
@@ -61,8 +62,8 @@ router.post('/templates', verifyToken(), verifyModule('manage_checklist_template
 
 router.put('/templates/:id', verifyToken(), verifyModule('manage_checklist_templates'), async (req, res) => {
   try {
-    const { title, description, is_active, estado, data } = req.body;
-    const template = await updateTemplate(req.params.id, { title, description, is_active, estado, data });
+    const { title, description, is_active, estado, data, is_gestor } = req.body;
+    const template = await updateTemplate(req.params.id, { title, description, is_active, estado, data, is_gestor });
     if (!template) return res.status(404).json({ error: 'Template não encontrado' });
     res.json(template);
   } catch (err) {

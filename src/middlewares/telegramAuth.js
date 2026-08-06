@@ -84,7 +84,7 @@ async function telegramAuth(req, res, next) {
                 
             // Busca em colaboradores (única fonte de dados do agente)
                 let { rows: agentRows } = await cenos_pool.query(
-                    `SELECT "ID" as id, "estado", "seccional", "regional", "Nome" as nome, "MAT" as mat
+                    `SELECT "ID" as id, "estado", "seccional", "regional", "Nome" as nome, "MAT" as mat, "is_gestor"
                      FROM colaboradores
                      WHERE upper("ID") = $1`,
                     [agentIdUpper]
@@ -101,6 +101,7 @@ async function telegramAuth(req, res, next) {
                     regional: agentRows[0].regional ? agentRows[0].regional.toUpperCase() : null,
                     nome: agentRows[0].nome,
                     mat: agentRows[0].mat,
+                    is_gestor: agentRows[0].is_gestor || false,
                     telegramId: String(rows[0].telegram_user_id)
                 };
 
@@ -118,7 +119,7 @@ async function telegramAuth(req, res, next) {
         const telegramIdStr = String(telegramId).trim();
 
         const { rows: collaboratorRows } = await cenos_pool.query(
-            `SELECT l.id, l.estado, c."seccional", c."regional", c."Nome" as nome, c."MAT" as mat
+            `SELECT l.id, l.estado, c."seccional", c."regional", c."Nome" as nome, c."MAT" as mat, c."is_gestor"
              FROM login l
              LEFT JOIN colaboradores c ON l.id = c."ID"
              WHERE l.telegram_id = $1`,
@@ -137,6 +138,7 @@ async function telegramAuth(req, res, next) {
             regional: collaborator.regional ? collaborator.regional.toUpperCase() : null,
             nome: collaborator.nome,
             mat: collaborator.mat,
+            is_gestor: collaborator.is_gestor || false,
             telegramId: telegramIdStr
         };
 
