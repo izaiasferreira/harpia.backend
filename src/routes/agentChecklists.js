@@ -114,6 +114,7 @@ router.get('/requirements', telegramAuth, async (req, res) => {
   try {
     const agentId = req.colaborador.id;
     const todayStr = new Date().toISOString().split('T')[0];
+    const isSunday = new Date().getDay() === 0;
 
     // Verifica isenção (inclui domingo)
     const exempt = await isAgentExempt(agentId, todayStr);

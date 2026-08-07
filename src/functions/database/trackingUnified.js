@@ -87,6 +87,15 @@ async function getAgentsLastPositionUnified(user = null) {
     const lastPointsMap = {};
     lastPoints.forEach(p => { lastPointsMap[p.agent_id] = p; });
 
+    // Buscar heartbeats
+    const { rows: heartbeats } = await sinergia_pool.query(`
+        SELECT agent_id, last_heartbeat_at, last_heartbeat_lat, last_heartbeat_lng
+        FROM agent_heartbeats
+        WHERE agent_id = ANY($1)
+    `, [agentIds]);
+    const hbMap = {};
+    heartbeats.forEach(h => { hbMap[h.agent_id] = h; });
+
     // Enriquecer com dados do colaborador
     const colLookup = async (ids) => {
         if (ids.length === 0) return {};
@@ -106,11 +115,17 @@ async function getAgentsLastPositionUnified(user = null) {
         const id = agent.agent_id.toUpperCase();
         const col = cols[id] || {};
         const point = lastPointsMap[agent.agent_id] || {};
+        const hb = hbMap[agent.agent_id];
+
+        const hbTime = hb?.last_heartbeat_at ? new Date(hb.last_heartbeat_at).getTime() : 0;
+        const ptTime = point.recorded_at ? new Date(point.recorded_at).getTime() : 0;
+        const useHb = hbTime > ptTime && hb.last_heartbeat_lat != null;
+
         return {
             agent_id: agent.agent_id,
             agent_estado: agent.agent_estado,
-            latitude: point.latitude ?? null,
-            longitude: point.longitude ?? null,
+            latitude: useHb ? hb.last_heartbeat_lat : (point.latitude ?? null),
+            longitude: useHb ? hb.last_heartbeat_lng : (point.longitude ?? null),
             speed: point.speed ?? null,
             accuracy: point.accuracy ?? null,
             battery_level: point.battery_level ?? null,
@@ -120,7 +135,7 @@ async function getAgentsLastPositionUnified(user = null) {
             device_model: point.device_model ?? null,
             device_platform: point.device_platform ?? null,
             os_version: point.os_version ?? null,
-            recorded_at: point.recorded_at ?? null,
+            recorded_at: useHb ? hb.last_heartbeat_at : (point.recorded_at ?? null),
             nome: col['Nome'] || null,
             regional: col['regional'] || null,
             seccional: col['seccional'] || null,
