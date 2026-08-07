@@ -10,6 +10,7 @@ const {
 } = require('../functions/database/trackingUnified');
 const { getTokensByAgent } = require('../functions/database/fcmTokens');
 const { sendToMultiple } = require('../functions/firebase');
+const { get_agent_proximity_alerts } = require('../functions/database/trackingAlerts');
 const {
     get_accidents_admin,
     resolve_accident,
@@ -55,6 +56,19 @@ router.get('/agent/:id/trail-extended', verifyToken(), verifyModule('tracking_hi
     } catch (err) {
         console.error('[TRACKING] Erro ao buscar trajeto extendido:', err);
         res.status(500).json({ error: 'Erro ao buscar trajeto' });
+    }
+});
+
+// GET /admin/tracking/agent/:id/alerts — alertas de proximidade recebidos pelo agente na janela
+router.get('/agent/:id/alerts', verifyToken(), verifyModule('tracking_history'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { from, to } = req.query;
+        const alerts = await get_agent_proximity_alerts(id, from || null, to || null);
+        res.json(alerts);
+    } catch (err) {
+        console.error('[TRACKING] Erro ao buscar alertas de proximidade:', err);
+        res.status(500).json({ error: 'Erro ao buscar alertas de proximidade' });
     }
 });
 

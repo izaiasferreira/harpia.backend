@@ -212,6 +212,7 @@ Recebe alert logs do dispositivo nativo. Registra em `agent_alerts_log`.
 | GET | `/admin/tracking/agents` | Todos os agentes (login) enriquecidos com último ponto de tracking |
 | GET | `/admin/tracking/agent/:id/trail?from=&to=` | Trajeto histórico (até 10000 pontos) |
 | GET | `/admin/tracking/agent/:id/trail-extended?from=&to=` | Trajeto + paradas detectadas |
+| GET | `/admin/tracking/agent/:id/alerts?from=&to=` | Alertas de proximidade recebidos pelo agente na janela (`agent_proximity_alerts`) |
 | GET | `/admin/tracking/speed_violations` | Pontos com `is_speed_violation = TRUE` |
 | DELETE | `/admin/tracking/speed_violations/:id` | Excluir infração (requer `COMPANY_ADMIN`) |
 | GET | `/admin/tracking/global-config` | Configurações globais |
@@ -348,6 +349,7 @@ ALTER TABLE tracking_session_points
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET | `/admin/tracking/agent/:id/trail-extended?from=&to=` | Pontos + paradas detectadas (`{ points, stops }`) |
+| GET | `/admin/tracking/agent/:id/alerts?from=&to=` | Alertas de proximidade recebidos pelo agente na janela (`agent_proximity_alerts`) |
 
 ### Frontend — HistoryTab (Painel Admin)
 

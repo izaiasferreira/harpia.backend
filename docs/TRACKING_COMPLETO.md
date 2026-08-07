@@ -949,6 +949,7 @@ last_heartbeat_at
 | **GET** | `/admin/tracking/agents-v2` | — | Heartbeat (online/offline) | LIVE |
 | **GET** | `/admin/tracking/agent/:id/trail` | `?from=&to=` | Pontos históricos do trajeto | HISTORY |
 | **GET** | `/admin/tracking/agent/:id/trail-extended` | `?from=&to=` | Pontos + paradas detectadas (`{ points, stops }`) | HISTORY |
+| **GET** | `/admin/tracking/agent/:id/alerts` | `?from=&to=` | Alertas de proximidade recebidos pelo agente na janela (`agent_proximity_alerts`) | HISTORY |
 | **GET** | `/admin/tracking/speed_violations` | `?agent_id=&from=&to=` | Infrações de velocidade | SPEED |
 | **DELETE** | `/admin/tracking/speed_violations/:id` | — | Excluir infração (só COMPANY_ADMIN) | SPEED |
 | **GET** | `/admin/tracking/global-config` | — | Configuração global | SETTINGS |
