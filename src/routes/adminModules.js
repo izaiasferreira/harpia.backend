@@ -188,7 +188,7 @@ router.get('/users_agents/profile', verifyToken(), verifyModule('users_agents'),
 
 router.get('/users_agents/services', verifyToken(), verifyModule('users_agents'), async (req, res) => {
     try {
-        const { id, page, date, filter, search } = req.query;
+        const { id, page, date, filter, search, limit } = req.query;
         if (!id) return res.status(400).json({ error: 'Parâmetro id é obrigatório' });
 
         const user = req.user;
@@ -204,6 +204,7 @@ router.get('/users_agents/services', verifyToken(), verifyModule('users_agents')
             id,
             date: today_date,
             page: page || 1,
+            limit: parseInt(limit, 10) || 999,
             filter: atual_filter,
             search: search || ''
         });

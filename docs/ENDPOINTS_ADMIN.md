@@ -310,6 +310,44 @@ Retorna listas de valores para filtros (regionais, seccionais, gestores, cargos,
 
 ---
 
+### `GET /admin/users_agents/services`
+Retorna a lista de serviços (leituras/atividades) executados por um agente em uma data, com paginação. Inclui `latitude`/`longitude` de cada serviço.
+
+**Módulo Requerido:** `users_agents`
+
+**Query Params:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| id | string | sim | Matrícula do agente |
+| date | string | não | Data no formato `DD.MM.YYYY` (default: hoje) |
+| page | number | não | Página (default: 1) |
+| limit | number | não | Limite por página (default: `999`) |
+| filter | string | não | `all` \| `pending` \| `completed` (default: `all`) |
+| search | string | não | Busca por instalação, regional, seccional, agente, supervisor ou perda |
+
+**Response 200:**
+```json
+[
+  {
+    "instalacao": "12345",
+    "etapa": "1",
+    "ntlei": "A1",
+    "data_conclusao": "DD/MM/YYYY",
+    "data_leit_prev": "DD/MM/YYYY",
+    "agente": "AG01",
+    "nome_agente": "JOSE SILVA",
+    "latitude": "-5.0892",
+    "longitude": "-42.8019",
+    "time": "08:30",
+    "justificado": false,
+    "regional": "NORTE",
+    "seccional": "S1"
+  }
+]
+```
+
+---
+
 ### `GET /admin/branch` / `POST /admin/branch`
 CRUD de filiais e regionais operacionais.
 

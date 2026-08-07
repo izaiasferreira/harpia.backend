@@ -11,4 +11,11 @@ describe('GET /admin/users_agents/services', () => {
         const res = await request(app).get('/admin/users_agents/services');
         expect(res.status).toBe(401);
     });
+
+    test('deve aceitar limit com default 999 sem lançar erro', async () => {
+        const res = await request(app)
+            .get('/admin/users_agents/services')
+            .query({ limit: 50 });
+        expect(res.status).toBe(401);
+    });
 });
