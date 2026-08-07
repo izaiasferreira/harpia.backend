@@ -1930,7 +1930,7 @@ async function get_instalations_admin({ query = [], type, user, estado }) {
         AND latitude <> 0 AND latitude IS NOT NULL
         AND longitude <> 0 AND longitude IS NOT NULL
         ORDER BY ${column}, data_conclusao DESC
-        LIMIT 100
+        LIMIT 500
     `;
 
     // Determina quais pools usar baseado no estado ou permissões

@@ -452,12 +452,13 @@ router.delete('/users_agents/:id', verifyToken(), verifyModule('delete_user_agen
 
 
 // Search installation
-router.post('/search_in', verifyToken(), verifyModule('search_in'), validate(z.object({ type: z.string(), queries: z.array(z.string()) })), async (req, res) => {
+router.post('/search_in', verifyToken(), verifyModule('search_in'), validate(z.object({ type: z.string(), queries: z.array(z.string()), estado: z.string().optional() })), async (req, res) => {
     try {
         const { type, queries, estado } = req.body;
+        console.log(type, estado);
         const cleanQueries = queries.map(q => q.trim()).filter(Boolean);
-        if (!cleanQueries.length) return res.status(400).json({ error: 'Nenhuma query fornecida' });
-        if (cleanQueries.length > 10) return res.status(400).json({ error: 'Limite de consulta excedido (máximo 10)' });
+        if (!cleanQueries.length) return res.status(400).json({ error: 'Nenhuma instalação fornecida' });
+        if (cleanQueries.length > 500) return res.status(400).json({ error: 'Limite de 500 instalações por consulta excedido!' });
         const results = await get_instalations_admin({ query: cleanQueries, type, user: req.user, estado });
         res.json(results);
     } catch (err) {
