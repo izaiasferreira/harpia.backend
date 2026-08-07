@@ -100,7 +100,7 @@ const fallIncidentSchema = z.object({
 });
 
 const crashIncidentSyncSchema = z.object({
-  id: z.string().optional(),                   // UUID gerado no nativo
+  id: z.string().optional(),                   // UUID gerado no nativo (device_incident_id)
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
   timestamp: z.number().int(),                // Unix ms
@@ -119,7 +119,7 @@ const crashIncidentSyncSchema = z.object({
   phaseImpact: z.boolean().nullable().optional(),
   phaseRotation: z.boolean().nullable().optional(),
   phaseImmobility: z.boolean().nullable().optional(),
-  // Validação GPS
+  // Validação GPS — null = GPS sem precisão suficiente
   speedDropConfirmed: z.boolean().nullable().optional(),
   // Timings
   freeFallDurationMs: z.number().int().nullable().optional(),
@@ -135,7 +135,14 @@ const crashIncidentSyncSchema = z.object({
   networkType: z.string().max(20).nullable().optional(),
   // Dados crus
   sensorRaw: z.record(z.any()).nullable().optional(),
+  // Item 2: banda de severidade do impacto
+  impactBand: z.enum(['normal', 'violent', 'extreme']).nullable().optional(),
+  // Item 3: fallback sem giroscópio (ROTATION pulada)
+  rotationFallbackUsed: z.boolean().nullable().optional(),
+  // Item 4: imobilidade verificada sem movimento sustentado
+  immobilityVerified: z.boolean().nullable().optional(),
 });
+
 
 const agentAlertLogSchema = z.object({
   id: z.number().int().optional(),
