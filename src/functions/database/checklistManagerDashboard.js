@@ -69,13 +69,13 @@ async function getManagerDashboardHistory({ matricula, page = 1, limit = 50 }) {
     // Total count query
     const countQuery = `
         WITH RECURSIVE subordinates AS (
-            SELECT "ID" as id, "MAT" as mat
+            SELECT "ID" as id, "MAT" as mat, "Nome" as nome
             FROM colaboradores
             WHERE TRIM(UPPER("MAT")) = TRIM(UPPER($1)) OR TRIM(UPPER("ID")) = TRIM(UPPER($1))
             
             UNION
             
-            SELECT c."ID" as id, c."MAT" as mat
+            SELECT c."ID" as id, c."MAT" as mat, c."Nome" as nome
             FROM colaboradores c
             INNER JOIN subordinates s ON TRIM(UPPER(c."GESTOR IMEDIATO")) = TRIM(UPPER(s.mat)) OR TRIM(UPPER(c."GESTOR IMEDIATO")) = TRIM(UPPER(s.id)) OR TRIM(UPPER(c."GESTOR IMEDIATO")) = TRIM(UPPER(s.nome))
         )
