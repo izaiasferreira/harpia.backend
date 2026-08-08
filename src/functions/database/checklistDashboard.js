@@ -51,11 +51,12 @@ function buildDateFilter({ date_from, date_to, params, idx }) {
 }
 
 function buildColaboradorJoins() {
-  return `LEFT JOIN colaboradores col ON c.agent_id = col."ID"`;
+  return `LEFT JOIN colaboradores col ON c.agent_id = col."ID" LEFT JOIN checklist_templates t ON c.template_id = t.id`;
 }
 
 function buildColaboradorFilters({ regional, sectional, estado, gestor, agent_name, params, idx, user }) {
   const filters = [];
+  if (typeof checklist_kind !== 'undefined') { if (checklist_kind === 'gestor') { filters.push("(COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)"); } else { filters.push("COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"); } }
   if (regional) { filters.push(`col.regional = $${idx}`); params.push(regional); idx++; }
   if (sectional) { filters.push(`col.seccional = $${idx}`); params.push(sectional); idx++; }
   if (estado) { filters.push(`col.estado = $${idx}`); params.push(estado); idx++; }
@@ -71,7 +72,7 @@ function buildColaboradorFilters({ regional, sectional, estado, gestor, agent_na
   return { filters, idx };
 }
 
-async function getDashboardStats({ date_from, date_to, regional, sectional, estado, gestor }, user) {
+async function getDashboardStats({date_from, date_to, regional, sectional, estado, gestor, checklist_kind}, user) {
   const dParams = [];
   let dIdx = 1;
   const dateFilter = buildDateFilter({ date_from, date_to, params: dParams, idx: dIdx });
@@ -84,10 +85,10 @@ async function getDashboardStats({ date_from, date_to, regional, sectional, esta
   });
   dIdx = colIdx;
 
-  const cFilters = [`c.status = 'submitted'`, ...dateFilters, ...colFilters];
+  const cFilters = [`c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`, ...dateFilters, ...colFilters];
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
-  const { agentIds } = await getV2TemplateAndAgentIds({ date_from, date_to }, user);
+  const { agentIds } = await getV2TemplateAndAgentIds({ date_from, date_to, checklist_kind }, user);
   if (agentIds.length === 0) {
     return {
       activeAgents: 0,
@@ -176,7 +177,7 @@ async function getDashboardStats({ date_from, date_to, regional, sectional, esta
   };
 }
 
-async function getDashboardNonCompliantItems({ date_from, date_to, regional, sectional, estado, gestor }, user) {
+async function getDashboardNonCompliantItems({date_from, date_to, regional, sectional, estado, gestor, checklist_kind}, user) {
   const dParams = [];
   let dIdx = 1;
   const dateFilter = buildDateFilter({ date_from, date_to, params: dParams, idx: dIdx });
@@ -189,7 +190,7 @@ async function getDashboardNonCompliantItems({ date_from, date_to, regional, sec
   });
   dIdx = colIdx;
 
-  const cFilters = [`c.status = 'submitted'`, ...dateFilters, ...colFilters];
+  const cFilters = [`c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`, ...dateFilters, ...colFilters];
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
   const { rows } = await cenos_pool.query(
@@ -207,7 +208,7 @@ async function getDashboardNonCompliantItems({ date_from, date_to, regional, sec
   return rows.map(r => ({ label: r.label, count: parseInt(r.count, 10) }));
 }
 
-async function getDashboardAlerts({ date_from, date_to, regional, sectional, estado, gestor }, user) {
+async function getDashboardAlerts({date_from, date_to, regional, sectional, estado, gestor, checklist_kind}, user) {
   const dParams = [];
   let dIdx = 1;
   const dateFilter = buildDateFilter({ date_from, date_to, params: dParams, idx: dIdx });
@@ -220,7 +221,7 @@ async function getDashboardAlerts({ date_from, date_to, regional, sectional, est
   });
   dIdx = colIdx;
 
-  const cFilters = [`c.status = 'submitted'`, ...dateFilters, ...colFilters];
+  const cFilters = [`c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`, ...dateFilters, ...colFilters];
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
   const { rows } = await cenos_pool.query(
@@ -245,7 +246,7 @@ async function getDashboardAlerts({ date_from, date_to, regional, sectional, est
 async function listDashboardChecklists({
   page = 1, limit = 15, agent_name, date_from, date_to,
   type, compliance_filter, status,
-  regional, sectional, estado, gestor
+  regional, sectional, estado, gestor, checklist_kind
 }, user) {
   const offset = (page - 1) * limit;
   const params = [];
@@ -262,6 +263,7 @@ async function listDashboardChecklists({
   idx = colIdx;
 
   const filters = [...dateFilters, ...colFilters];
+  if (typeof checklist_kind !== 'undefined') { if (checklist_kind === 'gestor') { filters.push("(COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)"); } else { filters.push("COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"); } }
 
   if (type) { filters.push(`c.type = $${idx}`); params.push(type); idx++; }
   if (status) { filters.push(`c.status = $${idx}`); params.push(status); idx++; }
@@ -293,13 +295,13 @@ async function listDashboardChecklists({
            col.regional as agent_regional, col.seccional as agent_seccional,
            col.estado as agent_estado, col."GESTOR IMEDIATO" as agent_gestor
     FROM checklists c
-    LEFT JOIN checklist_templates t ON c.template_id = t.id
     ${colJoin}
     ${whereClause}
     ORDER BY c.submitted_at DESC, c.date DESC
     LIMIT $${idx} OFFSET $${idx + 1}
   `;
-  const countQuery = `SELECT count(1) as total FROM checklists c ${colJoin} ${whereClause}`;
+  const countQuery = `SELECT count(1) as total FROM checklists c
+    ${colJoin} ${whereClause}`;
 
   const { rows } = await cenos_pool.query(query, [...params, limit, offset]);
   const countRes = await cenos_pool.query(countQuery, params);
@@ -326,11 +328,9 @@ async function listDashboardChecklists({
   return { data: enriched, total, page, limit, totalPages: Math.ceil(total / limit) };
 }
 
-async function getDashboardPendingAgents({
-  date_from, date_to, agent_name, regional, sectional, estado, gestor,
-  page = 1, limit = 20,
-}, user) {
-  const { agentIds } = await getV2TemplateAndAgentIds({ date_from, date_to }, user);
+async function getDashboardPendingAgents({date_from, date_to, agent_name, regional, sectional, estado, gestor,
+  page = 1, limit = 20, checklist_kind}, user) {
+  const { agentIds } = await getV2TemplateAndAgentIds({ date_from, date_to, checklist_kind }, user);
   if (agentIds.length === 0) {
     return { data: [], total: 0, page, limit, totalPages: 0 };
   }
@@ -357,6 +357,7 @@ async function getDashboardPendingAgents({
 
   // Filtros adicionais (nome, regional, seccional, estado, gestor)
   const filters = [];
+  if (typeof checklist_kind !== 'undefined') { if (checklist_kind === 'gestor') { filters.push("(COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)"); } else { filters.push("COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"); } }
   if (agent_name) { filters.push(`col."Nome" ILIKE $${idx}`); params.push(`%${agent_name}%`); idx++; }
   if (regional) { filters.push(`col.regional = $${idx}`); params.push(regional); idx++; }
   if (sectional) { filters.push(`col.seccional = $${idx}`); params.push(sectional); idx++; }
@@ -424,7 +425,7 @@ async function getDashboardPendingAgents({
  * Returns all active templates for dashboard filter dropdown.
  * Respects admin state permissions.
  */
-async function getDashboardTemplates(user) {
+async function getDashboardTemplates(user, checklist_kind) {
   const allowedPools = getUserAllowedStatePools(user);
   const allowedStates = allowedPools.map(p => p.state.toUpperCase());
 
@@ -432,7 +433,7 @@ async function getDashboardTemplates(user) {
 
   if (isMainAdmin) {
     const { rows } = await cenos_pool.query(
-      `SELECT id, title, estado FROM checklist_templates WHERE is_active = true ORDER BY title`
+      `SELECT id, title, estado FROM checklist_templates WHERE is_active = true${checklist_kind === 'gestor' ? ' AND COALESCE(is_gestor, false) = true' : ' AND COALESCE(is_gestor, false) = false'} ORDER BY title`
     );
     return rows;
   }
@@ -482,10 +483,13 @@ function buildTemplateAgentMatchSQL(templateData, params, idx) {
  * Helper: get all active agent IDs that match ANY of the given templates.
  * Returns a Set of agent ID strings.
  */
-async function getAgentsMatchingTemplates(templates, user, date_from, date_to) {
+async function getAgentsMatchingTemplates(templates, user, date_from, date_to, onlyInactive = false) {
   const from = date_from || getTodayStr();
   const to = date_to || getTodayStr();
   const allAgentIds = new Set();
+  const statusCond = onlyInactive
+    ? "(col.situacao != 'active' OR col.status = false)"
+    : "col.situacao = 'active' AND col.status = true";
 
   for (const tmpl of templates) {
     const params = [];
@@ -503,38 +507,38 @@ async function getAgentsMatchingTemplates(templates, user, date_from, date_to) {
       idx++;
     }
 
-    // Template matches ALL agents (no filters, no estado restriction, no user permission restrictions)
     if (match.conditions.length === 0 && !estadoClause && perm.conditions.length === 0) {
       const { rows } = await cenos_pool.query(
-        `SELECT col."ID" FROM colaboradores col WHERE col.situacao = 'active' AND col.status = true`
+        `SELECT col."ID" FROM colaboradores col WHERE ${statusCond}`
       );
       rows.forEach(r => allAgentIds.add(r.ID));
-      return allAgentIds; // All agents already included, no need to check more templates
+      continue;
     }
 
-    const whereClause = ['col.situacao = \'active\' AND col.status = true'];
+    const whereClause = [statusCond];
     if (match.conditions.length > 0) whereClause.push(match.conditions.join(' AND '));
     if (perm.conditions.length > 0) whereClause.push(perm.conditions.join(' AND '));
     if (estadoClause) whereClause.push(estadoClause.replace('AND ', ''));
 
-    params.push(from, to);
-    const d1 = idx++;
-    const d2 = idx++;
-    const extWhere = `
-      AND NOT EXISTS (
-        SELECT 1 FROM agent_exemptions ae
-        WHERE ae.agent_id = col."ID"
-          AND ae.start_date <= $${d2}::date AND ae.end_date >= $${d1}::date
-      )
-    `;
-
-    if (whereClause.length > 1) {
-      const { rows } = await cenos_pool.query(
-        `SELECT col."ID" FROM colaboradores col WHERE ${whereClause.join(' AND ')} ${extWhere}`,
-        params
-      );
-      rows.forEach(r => allAgentIds.add(r.ID));
+    let extWhere = '';
+    if (!onlyInactive) {
+      params.push(from, to);
+      const d1 = idx++;
+      const d2 = idx++;
+      extWhere = `
+        AND NOT EXISTS (
+          SELECT 1 FROM agent_exemptions ae
+          WHERE ae.agent_id = col."ID"
+            AND ae.start_date <= $${d2}::date AND ae.end_date >= $${d1}::date
+        )
+      `;
     }
+
+    const { rows } = await cenos_pool.query(
+      `SELECT col."ID" FROM colaboradores col WHERE ${whereClause.join(' AND ')} ${extWhere}`,
+      params
+    );
+    rows.forEach(r => allAgentIds.add(r.ID));
   }
 
   return allAgentIds;
@@ -591,11 +595,11 @@ async function computeV2RegionalBreakdown(templates, date_from, date_to, user) {
  * Get template IDs that the user is allowed to see.
  * Returns array of { id, title, data, estado }.
  */
-async function getAllowedTemplates(user) {
+async function getAllowedTemplates(user, checklist_kind) {
   // Admin users see all active templates regardless of estado
   if (user && (user.role || '').toLowerCase().includes('admin')) {
     const { rows } = await cenos_pool.query(
-      `SELECT id, title, data, estado FROM checklist_templates WHERE is_active = true`
+      `SELECT id, title, data, estado FROM checklist_templates WHERE is_active = true${checklist_kind === 'gestor' ? ' AND COALESCE(is_gestor, false) = true' : ' AND COALESCE(is_gestor, false) = false'}`
     );
     return rows;
   }
@@ -620,7 +624,7 @@ async function getAllowedTemplates(user) {
  * If template_id is provided, stats are per-template; otherwise aggregated.
  * Respects admin state permissions via getUserAllowedStatePools.
  */
-async function getDashboardStatsV2({ date_from, date_to, regional, sectional, estado, gestor, template_id }, user) {
+async function getDashboardStatsV2({date_from, date_to, regional, sectional, estado, gestor, template_id, checklist_kind}, user) {
   let templateIds = [];
   let templatesMap = {};
 
@@ -632,7 +636,7 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     templateIds = [template_id];
     templatesMap[template_id] = rows[0];
   } else {
-    const allowedTemplates = await getAllowedTemplates(user);
+    const allowedTemplates = await getAllowedTemplates(user, checklist_kind);
     templateIds = allowedTemplates.map(r => r.id);
     allowedTemplates.forEach(r => { templatesMap[r.id] = r; });
   }
@@ -699,7 +703,7 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     // Submitted checklists for this template (using colJoin so combinedColFilters can reference col.*)
     const combinedCFilters = [
       `c.template_id = $${tIdx}`,
-      `c.status = 'submitted'`,
+      `c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`,
       ...dateFilters,
       ...combinedColFilters
     ];
@@ -826,14 +830,29 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     }
   }
 
-
-
   // KPI: count of exempted agents considering UI filters and dates
-  const exemptionsResult = await listActiveExemptions({
-    date_from, date_to, regional, sectional, estado, gestor,
-    page: 1, limit: 1
-  }, user);
-  const exempted_count = exemptionsResult.total;
+  let exempted_count = 0;
+  if (checklist_kind === 'gestor') {
+    const inactiveAgentIdSet = await getAgentsMatchingTemplates(Object.values(templatesMap), user, pFrom, pTo, true);
+    if (inactiveAgentIdSet.size > 0) {
+      const inactiveAgentIds = Array.from(inactiveAgentIdSet);
+      const paramsEx = [inactiveAgentIds];
+      let idxEx = 2;
+      const { filters: colFiltersEx } = buildColaboradorFilters({
+        regional, sectional, estado, gestor, agent_name: undefined, params: paramsEx, idx: idxEx, user
+      });
+      const exWhere = colFiltersEx.length > 0 ? `AND ${colFiltersEx.join(' AND ')}` : '';
+      const exQuery = `SELECT COUNT(1) as total FROM colaboradores col WHERE col."ID" = ANY($1::varchar[]) ${exWhere}`;
+      const exRes = await cenos_pool.query(exQuery, paramsEx);
+      exempted_count = parseInt(exRes.rows[0].total || 0, 10);
+    }
+  } else {
+    const exemptionsResult = await listActiveExemptions({
+      date_from, date_to, regional, sectional, estado, gestor,
+      page: 1, limit: 1
+    }, user);
+    exempted_count = exemptionsResult.total;
+  }
 
   const refDate = date_to || new Date().toISOString().split('T')[0];
   const { isSunday } = await getExemptAgentIds(refDate);
@@ -861,10 +880,8 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
  * If template_id is provided, only finds agents matching that template.
  * Otherwise finds agents matching any active template.
  */
-async function getDashboardPendingAgentsV2({
-  date_from, date_to, agent_name, regional, sectional, estado, gestor,
-  template_id, page = 1, limit = 20,
-}, user) {
+async function getDashboardPendingAgentsV2({date_from, date_to, agent_name, regional, sectional, estado, gestor,
+  template_id, page = 1, limit = 20, checklist_kind}, user) {
   const offset = (page - 1) * limit;
   const today = new Date().toISOString().split('T')[0];
   const from = date_from || today;
@@ -878,7 +895,7 @@ async function getDashboardPendingAgentsV2({
     );
     templates = rows;
   } else {
-    templates = await getAllowedTemplates(user);
+    templates = await getAllowedTemplates(user, checklist_kind);
   }
 
   if (templates.length === 0) {
@@ -1022,10 +1039,8 @@ async function getDashboardPendingAgentsV2({
 /**
  * V2 Completed Agents — Uses dynamic template filters.
  */
-async function getDashboardCompletedAgentsV2({
-  page = 1, limit = 20, agent_name, date_from, date_to,
-  regional, sectional, estado, gestor, template_id,
-}, user) {
+async function getDashboardCompletedAgentsV2({page = 1, limit = 20, agent_name, date_from, date_to,
+  regional, sectional, estado, gestor, template_id, checklist_kind}, user) {
   const from = date_from || getTodayStr();
   const to = date_to || getTodayStr();
   const offset = (page - 1) * limit;
@@ -1038,14 +1053,14 @@ async function getDashboardCompletedAgentsV2({
     );
     if (rows.length > 0) allowedTemplates = rows;
   } else {
-    allowedTemplates = await getAllowedTemplates(user);
+    allowedTemplates = await getAllowedTemplates(user, checklist_kind);
   }
   
   if (allowedTemplates.length === 0) {
     return { data: [], total: 0, page, limit, totalPages: 0 };
   }
 
-  const { templateIds, agentIds: allowedAgentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
+  const { templateIds, agentIds: allowedAgentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to, checklist_kind }, user);
 
   if (templateIds.length === 0 || allowedAgentIds.length === 0) {
     return { data: [], total: 0, page, limit, totalPages: 0 };
@@ -1122,7 +1137,7 @@ async function getDashboardCompletedAgentsV2({
  * Helper: get template IDs and matching agent IDs for V2 queries.
  * Returns { templateIds, agentIds }.
  */
-async function getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user) {
+async function getV2TemplateAndAgentIds({template_id, date_from, date_to, checklist_kind}, user) {
   let templateIds = [];
 
   if (template_id) {
@@ -1135,7 +1150,7 @@ async function getV2TemplateAndAgentIds({ template_id, date_from, date_to }, use
     return { templateIds, agentIds: Array.from(agentIdSet) };
   }
 
-  const allowedTemplates = await getAllowedTemplates(user);
+  const allowedTemplates = await getAllowedTemplates(user, checklist_kind);
   if (allowedTemplates.length === 0) return { templateIds: [], agentIds: [] };
 
   templateIds = allowedTemplates.map(r => r.id);
@@ -1146,10 +1161,8 @@ async function getV2TemplateAndAgentIds({ template_id, date_from, date_to }, use
 /**
  * V2 Non-Compliant Items — uses dynamic template filters.
  */
-async function getDashboardNonCompliantItemsV2({
-  date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw
-}, user) {
-  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
+async function getDashboardNonCompliantItemsV2({date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind}, user) {
+  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to, checklist_kind }, user);
   if (templateIds.length === 0 || agentIds.length === 0) return [];
 
   const dParams = [];
@@ -1165,7 +1178,7 @@ async function getDashboardNonCompliantItemsV2({
   dIdx = colIdx;
 
   const cFilters = [
-    `c.status = 'submitted'`,
+    `c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`,
     `c.template_id = ANY($${dIdx})`,
     `c.agent_id = ANY($${dIdx + 1})`,
     ...dateFilters,
@@ -1289,10 +1302,8 @@ function splitIntoStreaks(allDates, resolutionDates = []) {
  *   The date range filters which items appear, but ALL historical dates are fetched.
  * In export_raw mode: returns individual entries for Excel export.
  */
-async function getDashboardAlertsV2({
-  date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw
-}, user) {
-  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
+async function getDashboardAlertsV2({date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind}, user) {
+  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to, checklist_kind }, user);
   if (templateIds.length === 0 || agentIds.length === 0) return [];
 
   const dParams = [];
@@ -1308,7 +1319,7 @@ async function getDashboardAlertsV2({
   dIdx = colIdx;
 
   const cFilters = [
-    `c.status = 'submitted'`,
+    `c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`,
     `c.template_id = ANY($${dIdx})`,
     `c.agent_id = ANY($${dIdx + 1})`,
     ...dateFilters,
@@ -1391,7 +1402,7 @@ async function getDashboardAlertsV2({
          SELECT DISTINCT ON (c.date) c.date, c.id
          FROM checklists c
          ${colJoin}
-         WHERE c.status = 'submitted'
+         WHERE c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}
            AND c.template_id = ANY($3::uuid[])
            AND c.agent_id = $1
            AND col."ID" = $1
@@ -1462,10 +1473,8 @@ async function getDashboardAlertsV2({
  *   The date range filters which items appear, but ALL historical dates are fetched.
  * In export_raw mode: returns individual entries for Excel export.
  */
-async function getDashboardNonConformitiesV2({
-  date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw
-}, user) {
-  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
+async function getDashboardNonConformitiesV2({date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind}, user) {
+  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to, checklist_kind }, user);
   if (templateIds.length === 0 || agentIds.length === 0) return [];
 
   const dParams = [];
@@ -1481,7 +1490,7 @@ async function getDashboardNonConformitiesV2({
   dIdx = colIdx;
 
   const cFilters = [
-    `c.status = 'submitted'`,
+    `c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`,
     `c.template_id = ANY($${dIdx})`,
     `c.agent_id = ANY($${dIdx + 1})`,
     ...dateFilters,
@@ -1564,7 +1573,7 @@ async function getDashboardNonConformitiesV2({
          SELECT DISTINCT ON (c.date) c.date, c.id
          FROM checklists c
          ${colJoin}
-         WHERE c.status = 'submitted'
+         WHERE c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}
            AND c.template_id = ANY($3::uuid[])
            AND c.agent_id = $1
            AND col."ID" = $1

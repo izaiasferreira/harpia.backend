@@ -1,6 +1,34 @@
 const { cenos_pool } = require('../../db');
 const { getUserAllowedStatePools, userIsAdmin, getColaboradoresFilter, checkAgentPermission, buildUserPermissionSQL } = require('./admin');
 
+function buildTemplateAgentMatchSQL(templateData, params, idx) {
+  const conditions = [];
+  const filters = templateData?.data?.filters;
+  if (!filters) return { conditions, params, idx };
+
+  if (filters.cargo?.length) {
+    conditions.push(`UPPER(TRIM(col."Cargo")) = ANY($${idx}::varchar[])`);
+    params.push(filters.cargo.map(c => c.toUpperCase()));
+    idx++;
+  }
+  if (filters.regional?.length) {
+    conditions.push(`col.regional = ANY($${idx}::varchar[])`);
+    params.push(filters.regional);
+    idx++;
+  }
+  if (filters.seccional?.length) {
+    conditions.push(`col.seccional = ANY($${idx}::varchar[])`);
+    params.push(filters.seccional);
+    idx++;
+  }
+  if (filters.processo?.length) {
+    conditions.push(`col."processo" = ANY($${idx}::varchar[])`);
+    params.push(filters.processo);
+    idx++;
+  }
+  return { conditions, params, idx };
+}
+
 /**
  * Verifica se um agente está isento no momento especificado.
  * Também verifica se a data alvo é um Domingo (dayOfWeek = 0).
@@ -112,7 +140,7 @@ async function deleteAgentExemption({ exemptionId, agentId }) {
  * filtrando isenções ativas em QUALQUER DIA dentro do período [date_from, date_to].
  */
 async function listActiveExemptions({
-  date_from, date_to, agent_name, regional, sectional, estado, gestor,
+  date_from, date_to, agent_name, regional, sectional, estado, gestor, checklist_kind, template_id,
   page = 1, limit = 20,
 }, user = null) {
   const offset = (page - 1) * limit;
@@ -127,6 +155,63 @@ async function listActiveExemptions({
   idx += 2;
 
   const filters = [];
+
+  if (checklist_kind === 'gestor') {
+    let allowedTemplates = [];
+    if (template_id) {
+      const { rows } = await cenos_pool.query(
+        `SELECT id, title, data, estado FROM checklist_templates WHERE id = $1 AND is_active = true`, [template_id]
+      );
+      allowedTemplates = rows;
+    } else {
+      const { rows } = await cenos_pool.query(
+        `SELECT id, title, data, estado FROM checklist_templates WHERE is_active = true AND COALESCE(is_gestor, false) = true ORDER BY title`
+      );
+      allowedTemplates = rows;
+    }
+
+    if (allowedTemplates.length === 0) {
+      return { data: [], total: 0, page, limit, totalPages: 0 };
+    }
+
+    const matchingInactiveSet = new Set();
+    for (const tmpl of allowedTemplates) {
+      const tParams = [];
+      let tIdx = 1;
+      const match = buildTemplateAgentMatchSQL(tmpl, tParams, tIdx);
+      tIdx = match.idx;
+
+      const perm = buildUserPermissionSQL(user, tParams, tIdx, 'col');
+      tIdx = perm.idx;
+
+      let estadoClause = '';
+      if (tmpl.estado) {
+        estadoClause = `AND UPPER(col.estado) = UPPER($${tIdx})`;
+        tParams.push(tmpl.estado);
+        tIdx++;
+      }
+
+      const whereClause = ["(col.situacao != 'active' OR col.status = false)"];
+      if (match.conditions.length > 0) whereClause.push(match.conditions.join(' AND '));
+      if (perm.conditions.length > 0) whereClause.push(perm.conditions.join(' AND '));
+      if (estadoClause) whereClause.push(estadoClause.replace('AND ', ''));
+
+      const { rows } = await cenos_pool.query(
+        `SELECT col."ID" FROM colaboradores col WHERE ${whereClause.join(' AND ')}`,
+        tParams
+      );
+      rows.forEach(r => matchingInactiveSet.add(r.ID));
+    }
+
+    if (matchingInactiveSet.size === 0) {
+      return { data: [], total: 0, page, limit, totalPages: 0 };
+    }
+
+    filters.push(`col."ID" = ANY($${idx}::varchar[])`);
+    params.push(Array.from(matchingInactiveSet));
+    idx++;
+  }
+
   if (agent_name) { filters.push(`UPPER(col."Nome") ILIKE UPPER($${idx})`); params.push(`%${agent_name}%`); idx++; }
   if (regional) { filters.push(`col.regional = $${idx}`); params.push(regional); idx++; }
   if (sectional) { filters.push(`col.seccional = $${idx}`); params.push(sectional); idx++; }
@@ -142,12 +227,16 @@ async function listActiveExemptions({
 
   const whereFilters = filters.length > 0 ? `AND ${filters.join(' AND ')}` : '';
 
+  const exemptionCondition = checklist_kind === 'gestor'
+    ? `(col.situacao != 'active' OR col.status = false)`
+    : `(ae.id IS NOT NULL OR col.situacao != 'active' OR col.status = false)`;
+
   const countQuery = `
     SELECT COUNT(*) as total
     FROM colaboradores col
     LEFT JOIN agent_exemptions ae ON ae.agent_id = col."ID" 
       AND ae.start_date <= $1::date AND ae.end_date >= $2::date
-    WHERE (ae.id IS NOT NULL OR col.situacao != 'active' OR col.status = false)
+    WHERE ${exemptionCondition}
       ${whereFilters}
   `;
 
@@ -159,7 +248,7 @@ async function listActiveExemptions({
     FROM colaboradores col
     LEFT JOIN agent_exemptions ae ON ae.agent_id = col."ID" 
       AND ae.start_date <= $1::date AND ae.end_date >= $2::date
-    WHERE (ae.id IS NOT NULL OR col.situacao != 'active' OR col.status = false)
+    WHERE ${exemptionCondition}
       ${whereFilters}
     ORDER BY ae.created_at DESC NULLS LAST, col."Nome" ASC
     LIMIT $${idx} OFFSET $${idx + 1}
@@ -187,7 +276,7 @@ async function listActiveExemptions({
     
     return {
       ...r,
-      reason: motivos.join('; ')
+      reason: motivos.join('; ') || 'Sem licença / Inativo'
     };
   });
 

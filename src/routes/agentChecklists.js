@@ -272,7 +272,7 @@ router.post('/manager-checklists', telegramAuth, async (req, res) => {
     );
 
     if (existingRows.length > 0) {
-      return res.status(409).json({ error: 'Este colaborador já possui checklist do gestor neste mês' });
+      return res.status(200).json({ success: true, ignored: true, message: 'Checklist já existe' });
     }
 
     const checklist = await saveChecklistSubmission(req.colaborador.id, { ...data, type: 'supplementary' });
@@ -280,7 +280,7 @@ router.post('/manager-checklists', telegramAuth, async (req, res) => {
   } catch (err) {
     console.error('[AGENT_CHECKLISTS] Erro POST /manager-checklists:', err);
     if (err.message && err.message.includes('gestor_target_mes')) {
-      return res.status(409).json({ error: 'Este colaborador já possui checklist do gestor neste mês' });
+      return res.status(200).json({ success: true, ignored: true, message: 'Este colaborador já possui checklist do gestor neste mês' });
     }
     if (err.status) return res.status(err.status).json({ error: err.message });
     res.status(500).json({ error: err.message });

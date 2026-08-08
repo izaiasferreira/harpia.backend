@@ -8,14 +8,14 @@ router.get('/exemptions/active', verifyToken(), verifyModule('checklists'), asyn
   try {
     const {
       page, limit, agent_name, date_from, date_to,
-      regional, sectional, estado, gestor,
+      regional, sectional, estado, gestor, checklist_kind
     } = req.query;
 
     const result = await listActiveExemptions({
       page: parseInt(page || 1, 10),
       limit: parseInt(limit || 20, 10),
       agent_name, date_from, date_to,
-      regional, sectional, estado, gestor,
+      regional, sectional, estado, gestor, checklist_kind,
     }, req.user);
 
     res.json(result);

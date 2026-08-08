@@ -334,6 +334,7 @@ async function listChecklistsAdmin({ page = 1, limit = 10, regional_id, sectiona
   if (severity_alert === 'true' || severity_alert === true) {
     filters.push(`c.has_critical_non_compliant = true`);
   }
+  filters.push(`c.target_agent_id IS NULL`);
 
   // Aplica filtro de permissão
   if (user && !userIsAdmin(user)) {
