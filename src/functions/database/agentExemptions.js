@@ -191,7 +191,7 @@ async function listActiveExemptions({
         tIdx++;
       }
 
-      const whereClause = ["(col.situacao != 'active' OR col.status = false)"];
+      const whereClause = ["(col.situacao != 'active' OR col.status = false)", "COALESCE(col.is_gestor, false) = false"];
       if (match.conditions.length > 0) whereClause.push(match.conditions.join(' AND '));
       if (perm.conditions.length > 0) whereClause.push(perm.conditions.join(' AND '));
       if (estadoClause) whereClause.push(estadoClause.replace('AND ', ''));
