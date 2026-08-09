@@ -469,6 +469,8 @@ async function saveChecklistSubmission(agentId, data) {
     target_agent_id = null
   } = data;
 
+  const saveAgentId = target_agent_id || agentId;
+
   let signature_url = data.signature_url;
   let selfie_url = data.selfie_url;
 
@@ -509,7 +511,7 @@ async function saveChecklistSubmission(agentId, data) {
     if (type === 'official') {
       const { rows: existingOfficial } = await client.query(
         'SELECT * FROM checklists WHERE agent_id = $1 AND date = $2 AND type = \'official\' AND template_id = $3',
-        [agentId, date, template_id]
+        [saveAgentId, date, template_id]
       );
       if (existingOfficial.length > 0) {
         const existing = existingOfficial[0];
@@ -605,7 +607,7 @@ async function saveChecklistSubmission(agentId, data) {
          VALUES ($1, $2, $3, $4, $5, $6, 'submitted',
                  $7, $8, $9, $10,
                  $11, $11, $12, $13)`,
-        [checklistId, template_id, agentId, type, parent_checklist_id, date,
+        [checklistId, template_id, saveAgentId, type, parent_checklist_id, date,
           signature_url, selfie_url, hasCriticalNonCompliant, complianceData,
           now, local_id, target_agent_id]
       );
@@ -773,12 +775,12 @@ async function listSubordinatesPendingMonth(gestorId, gestorNome, monthStart, mo
        AND c.status = true
        AND NOT EXISTS (
          SELECT 1 FROM checklists ch
-         WHERE ch.agent_id = $2
-           AND ch.target_agent_id = c."ID"
-           AND ch.date >= $3 AND ch.date < $4
+         WHERE ch.target_agent_id = c."ID"
+           AND ch.type = 'supplementary'
+           AND ch.date >= $2 AND ch.date < $3
        )
      ORDER BY c."Nome" ASC`,
-    [gestorNome, gestorId, monthStart, monthEnd]
+    [gestorNome, monthStart, monthEnd]
   );
   return rows;
 }
