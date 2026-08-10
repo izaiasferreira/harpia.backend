@@ -99,20 +99,32 @@ function generateCustomLinks({ state, id, user }) {
             "label": "Justificar pendências",
             "description": "Justifique suas pendências",
             "url": `/justify-pending`,
-            "emoji": "AlertTriangle",
-            "color": "text-indigo-600",
+            "emoji": "FileX",
+            "color": "text-red-600",
             "states": VALID_STATE_VALUES
         },
-        {
-            "id": "atestado-app",
-            "label": "Atestado",
-            "description": "Envie seu atestado",
-            "url": `https://docs.google.com/forms/d/e/1FAIpQLSccADjOMTX5FItKyJaEYQ_4Wqlrup2HgHEqHbkyXuzBrnax2Q/viewform?usp=send_form`,
-            "emoji": "FileText",
-            "color": "text-red-600",
-            "states": ['pi']
-        }
-    ]
+        // {
+        //     "id": "atestado-app",
+        //     "label": "Atestado",
+        //     "description": "Envie seu atestado",
+        //     "url": `https://docs.google.com/forms/d/e/1FAIpQLSccADjOMTX5FItKyJaEYQ_4Wqlrup2HgHEqHbkyXuzBrnax2Q/viewform?usp=send_form`,
+        //     "emoji": "FileText",
+        //     "color": "text-red-600",
+        //     "states": ['pi']
+        // }
+    ];
+
+    if (user && user.is_gestor) {
+        links.push({
+            "id": "manager-tracking-app",
+            "label": "Monitoramento",
+            "description": "Gestão de equipe e infrações",
+            "url": `/tracking`,
+            "emoji": "MapPin",
+            "color": "text-blue-600",
+            "states": VALID_STATE_VALUES
+        });
+    }
 
     let links_filtered = links.filter(link => link.states.includes(state));
 
