@@ -139,6 +139,9 @@ app.use('/admin/logout-pins', adminAppLogoutPinsRouter)
 const adminTrackingRouter = require('./routes/adminTracking')
 app.use('/admin/tracking', adminTrackingRouter)
 
+const adminTrackingResolutionsRouter = require('./routes/adminTrackingResolutions')
+app.use('/admin/tracking', adminTrackingResolutionsRouter)
+
 const adminGeofencesRouter = require('./routes/adminGeofences')
 app.use('/admin/tracking/fences', adminGeofencesRouter)
 

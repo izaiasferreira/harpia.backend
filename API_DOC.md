@@ -21,6 +21,7 @@ Consulte o documento específico na pasta `back/docs/` para obter detalhes de en
 | **[9. APIs de Auto-Update](docs/APP_UPDATE.md)**                          | Auto-update do app Android via self-hosted APK.                                                                                                                   | `/api/app/update/check`, `/api/app/update/versions`.                  |
 | **[10. APIs de Checklists de Segurança](docs/CHECKLISTS.md)**             | Gestão de templates, seções, perguntas e submissão de checklists de segurança. Inclui suporte a `is_gestor` para inspeção de liderados e dashboard de avaliações. | `/admin/checklists/*`, `/agent/checklists/*`, `/manager/dashboard/*`. |
 | **[11. APIs de Acidentes](docs/ACCIDENTS.md)**                            | Registro de acidentes do agente (FAB longo-press) e gestão administrativa.                                                                                        | `/agent/v2/accident`, `/admin/tracking/accidents/*`.                  |
+| **[12. APIs de Solução de Infrações de Velocidade](docs/SPEED_VIOLATIONS.md)** | Resolução anotativa de infrações de velocidade por agente+data (veredito, descrição, evidência e IDs dos pontos solucionados).                                      | `/admin/tracking/speed_violations/*`.                                |
 
 ---
 
