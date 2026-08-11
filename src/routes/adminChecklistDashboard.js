@@ -169,11 +169,11 @@ router.get('/v2/completed-agents', verifyToken(), verifyModule('checklists'), as
 
 router.get('/v2/non-compliant-items', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
-    const { date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind } = req.query;
+    const { date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind, export_mode } = req.query;
     const items = await getDashboardNonCompliantItemsV2({
       date_from, date_to, regional, sectional, estado, gestor, agent_name,
       template_id: template_id || undefined,
-      export_raw: export_raw === 'true', checklist_kind,
+      export_raw: export_raw === 'true', checklist_kind, export_mode,
     }, req.user);
     res.json(items);
   } catch (err) {
@@ -184,11 +184,12 @@ router.get('/v2/non-compliant-items', verifyToken(), verifyModule('checklists'),
 
 router.get('/v2/alerts', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
-    const { date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind } = req.query;
+    const { date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind, export_mode } = req.query;
     const alerts = await getDashboardAlertsV2({
       date_from, date_to, regional, sectional, estado, gestor, agent_name,
       export_raw: export_raw === 'true',
-      template_id: template_id || undefined, checklist_kind,
+
+      template_id: template_id || undefined, checklist_kind, export_mode,
     }, req.user);
     res.json(alerts);
   } catch (err) {
@@ -199,11 +200,11 @@ router.get('/v2/alerts', verifyToken(), verifyModule('checklists'), async (req, 
 
 router.get('/v2/non-conformities', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
-    const { date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind } = req.query;
+    const { date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind, export_mode } = req.query;
     const items = await getDashboardNonConformitiesV2({
       date_from, date_to, regional, sectional, estado, gestor, agent_name,
       template_id: template_id || undefined,
-      export_raw: export_raw === 'true', checklist_kind,
+      export_raw: export_raw === 'true', checklist_kind, export_mode,
     }, req.user);
     res.json(items);
   } catch (err) {

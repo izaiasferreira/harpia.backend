@@ -62,7 +62,7 @@ async function getExemptAgentIds(targetDate) {
      FROM colaboradores col
      LEFT JOIN agent_exemptions ae ON ae.agent_id = col."ID" 
        AND ae.start_date <= $1::date AND ae.end_date >= $1::date
-     WHERE (ae.id IS NOT NULL OR col.situacao != 'active' OR col.status = false)`,
+     WHERE (ae.id IS NOT NULL OR col.situacao != 'active') AND col.status = true`,
     [targetDate]
   );
   return { isSunday: false, ids: rows.map(r => r.agent_id) };
@@ -80,7 +80,7 @@ async function countActiveExemptions(targetDate) {
      FROM colaboradores col
      LEFT JOIN agent_exemptions ae ON ae.agent_id = col."ID" 
        AND ae.start_date <= $1::date AND ae.end_date >= $1::date
-     WHERE (ae.id IS NOT NULL OR col.situacao != 'active' OR col.status = false)`,
+     WHERE (ae.id IS NOT NULL OR col.situacao != 'active') AND col.status = true`,
     [targetDate]
   );
   return parseInt(rows[0]?.total || 0, 10);
@@ -191,7 +191,7 @@ async function listActiveExemptions({
         tIdx++;
       }
 
-      const whereClause = ["(col.situacao != 'active' OR col.status = false)", "COALESCE(col.is_gestor, false) = false"];
+      const whereClause = ["(col.situacao != 'active')", "col.status = true", "COALESCE(col.is_gestor, false) = false"];
       if (match.conditions.length > 0) whereClause.push(match.conditions.join(' AND '));
       if (perm.conditions.length > 0) whereClause.push(perm.conditions.join(' AND '));
       if (estadoClause) whereClause.push(estadoClause.replace('AND ', ''));
@@ -228,8 +228,8 @@ async function listActiveExemptions({
   const whereFilters = filters.length > 0 ? `AND ${filters.join(' AND ')}` : '';
 
   const exemptionCondition = checklist_kind === 'gestor'
-    ? `(col.situacao != 'active' OR col.status = false)`
-    : `(ae.id IS NOT NULL OR col.situacao != 'active' OR col.status = false)`;
+    ? `(col.situacao != 'active') AND col.status = true`
+    : `(ae.id IS NOT NULL OR col.situacao != 'active') AND col.status = true`;
 
   const countQuery = `
     SELECT COUNT(*) as total

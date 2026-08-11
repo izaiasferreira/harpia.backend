@@ -22,8 +22,8 @@ const trackingPointSchema = z.object({
 
 const unifiedPointSchema = z.object({
   id: z.string().optional(),
-  lat: z.number().or(z.string().transform(Number)),
-  lng: z.number().or(z.string().transform(Number)),
+  lat: z.coerce.number().finite(),
+  lng: z.coerce.number().finite(),
   speed: z.number().nullable().optional(),
   accuracy: z.number().nullable().optional(),
   batteryLevel: z.number().nullable().optional(),
@@ -33,7 +33,7 @@ const unifiedPointSchema = z.object({
   deviceModel: maxStr(200).nullable().optional(),
   devicePlatform: z.string().max(20).nullable().optional(),
   osVersion: z.string().max(20).nullable().optional(),
-  timestamp: z.number().or(z.string().transform(Number)),
+  timestamp: z.coerce.number().finite(),
   // Dead Reckoning / estimativa
   isEstimated: z.boolean().optional().default(false),
   estimatedFromLat: z.number().nullable().optional(),

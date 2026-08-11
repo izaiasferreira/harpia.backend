@@ -56,7 +56,6 @@ function buildColaboradorJoins() {
 
 function buildColaboradorFilters({ regional, sectional, estado, gestor, agent_name, params, idx, user }) {
   const filters = [];
-  if (typeof checklist_kind !== 'undefined') { if (checklist_kind === 'gestor') { filters.push("(COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)"); } else { filters.push("COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"); } }
   if (regional) { filters.push(`col.regional = $${idx}`); params.push(regional); idx++; }
   if (sectional) { filters.push(`col.seccional = $${idx}`); params.push(sectional); idx++; }
   if (estado) { filters.push(`col.estado = $${idx}`); params.push(estado); idx++; }
@@ -79,10 +78,10 @@ async function getDashboardStats({date_from, date_to, regional, sectional, estad
   const dateFilters = dateFilter.filters;
   dIdx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
-  });
+      });
   dIdx = colIdx;
 
   const cFilters = [`c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`, ...dateFilters, ...colFilters];
@@ -184,10 +183,10 @@ async function getDashboardNonCompliantItems({date_from, date_to, regional, sect
   const dateFilters = dateFilter.filters;
   dIdx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
-  });
+      });
   dIdx = colIdx;
 
   const cFilters = [`c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`, ...dateFilters, ...colFilters];
@@ -215,10 +214,10 @@ async function getDashboardAlerts({date_from, date_to, regional, sectional, esta
   const dateFilters = dateFilter.filters;
   dIdx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
-  });
+      });
   dIdx = colIdx;
 
   const cFilters = [`c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`, ...dateFilters, ...colFilters];
@@ -256,10 +255,10 @@ async function listDashboardChecklists({
   const dateFilters = dateFilter.filters;
   idx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, agent_name, params, idx, user
-  });
+      });
   idx = colIdx;
 
   const filters = [...dateFilters, ...colFilters];
@@ -653,10 +652,10 @@ async function getDashboardStatsV2({date_from, date_to, regional, sectional, est
   const dateFilters = dateFilter.filters;
   dIdx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
-  });
+      });
   dIdx = colIdx;
 
   // Stats per template
@@ -685,6 +684,9 @@ async function getDashboardStatsV2({date_from, date_to, regional, sectional, est
     const combinedColFilters = [...colFilters];
     if (tMatch.conditions.length > 0) combinedColFilters.push(...tMatch.conditions);
     if (estadoCondition) combinedColFilters.push(estadoCondition);
+    if (checklist_kind === 'gestor') {
+      combinedColFilters.push("COALESCE(col.is_gestor, false) = false");
+    }
 
     const colWhereClause = combinedColFilters.length > 0 ? `AND ${combinedColFilters.join(' AND ')}` : '';
 
@@ -762,8 +764,8 @@ async function getDashboardStatsV2({date_from, date_to, regional, sectional, est
     idx = match.idx;
 
     const { filters: colFilters, idx: newIdx } = buildColaboradorFilters({
-      regional, sectional, estado, gestor, agent_name: undefined, params, idx, user
-    });
+      regional, sectional, estado, gestor, agent_name: undefined, params, idx, user, checklist_kind
+      });
     idx = newIdx;
 
     let estadoClause = '';
@@ -841,7 +843,7 @@ async function getDashboardStatsV2({date_from, date_to, regional, sectional, est
       const paramsEx = [inactiveAgentIds];
       let idxEx = 2;
       const { filters: colFiltersEx } = buildColaboradorFilters({
-        regional, sectional, estado, gestor, agent_name: undefined, params: paramsEx, idx: idxEx, user
+        regional, sectional, estado, gestor, agent_name: undefined, params: paramsEx, idx: idxEx, user, checklist_kind
       });
       const exWhere = colFiltersEx.length > 0 ? `AND ${colFiltersEx.join(' AND ')}` : '';
       const exQuery = `SELECT COUNT(1) as total FROM colaboradores col WHERE col."ID" = ANY($1::varchar[]) AND COALESCE(col.is_gestor, false) = false ${exWhere}`;
@@ -924,7 +926,7 @@ async function getDashboardPendingAgentsV2({date_from, date_to, agent_name, regi
 
     const { filters: colFilters, idx: newIdx } = buildColaboradorFilters({
       regional, sectional, estado, gestor, agent_name, params, idx, user
-    });
+      });
     idx = newIdx;
 
     let estadoClause = '';
@@ -1176,10 +1178,10 @@ async function getDashboardNonCompliantItemsV2({date_from, date_to, regional, se
   const dateFilters = dateFilter.filters;
   dIdx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, agent_name, params: dParams, idx: dIdx, user
-  });
+      });
   dIdx = colIdx;
 
   const cFilters = [
@@ -1195,24 +1197,86 @@ async function getDashboardNonCompliantItemsV2({date_from, date_to, regional, se
 
   if (export_raw) {
     const { rows } = await cenos_pool.query(
-      `SELECT 
-          col."ID" as id,
-          col."MAT" as matricula,
-          col."Nome" as nome,
-          col.seccional,
-          col.regional,
-          col."GESTOR IMEDIATO" as gestor,
-          TO_CHAR(COALESCE(c.submitted_at, c.date), 'DD/MM/YYYY') as data,
-          a.item->>'question_label' as inconformidade
+      `SELECT c.agent_id as "Agente",
+              col."MAT" as "Matrícula",
+              col."Nome" as "Nome",
+              col.estado as "Estado",
+              col.seccional as "Seccional",
+              col.regional as "Regional",
+              col."GESTOR IMEDIATO" as "Gestor",
+              a.item->>'question_label' as "Item",
+              COALESCE(a.item->>'severity', 'critical') as "Nível",
+              TO_CHAR(c.date, 'DD/MM/YY') as "Data",
+              TO_CHAR(c.submitted_at, 'DD/MM/YY "às" HH24:MI:SS') as "Enviado em",
+              a.item->>'observation' as "Observação",
+              CASE WHEN (a.item->>'photo_url') IS NOT NULL AND (a.item->>'photo_url') != '' THEN 'HYPERLINK|' || (a.item->>'photo_url') ELSE NULL END as "Foto",
+              CASE WHEN r.id IS NOT NULL THEN 'Resolvido' ELSE 'Não resolvido' END as "Resolução",
+              r.description as "Descrição da resolução",
+              TO_CHAR(r.resolved_at, 'DD/MM/YY "às" HH24:MI:SS') as "Resolvido em"
        FROM checklists c
-       ${colJoin},
-       jsonb_array_elements(c.data->'answers') a(item)
-       ${cWhere} AND a.item->>'is_compliant' = 'false'
-       ORDER BY data DESC
+       ${colJoin}
+       CROSS JOIN LATERAL jsonb_array_elements(c.data->'answers') a(item)
+       LEFT JOIN checklist_nonconformity_resolutions r
+         ON r.agent_id = c.agent_id
+         AND r.question_label = a.item->>'question_label'
+         AND r.resolved_date = c.date
+       ${cWhere}
+         AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
+         AND COALESCE(a.item->>'severity', 'critical') IN ('critical', 'alert')
+       ORDER BY COALESCE(c.submitted_at, c.date) DESC, "Nível" ASC
        LIMIT 5000`,
       dParams
     );
-    return rows;
+
+    let finalRows = rows;
+    if (typeof export_mode !== 'undefined' && export_mode === 'compact') {
+      const grouped = {};
+      for (const row of rows) {
+        const key = `${row.Agente}-${row.Item}-${row.Nível}`;
+        if (!grouped[key]) {
+          grouped[key] = { ...row, _dates: [row.Data] };
+        } else {
+          grouped[key]._dates.push(row.Data);
+          if (!grouped[key].Foto && row.Foto) grouped[key].Foto = row.Foto;
+          if (grouped[key].Resolução === 'Não resolvido' && row.Resolução === 'Resolvido') {
+             grouped[key].Resolução = row.Resolução;
+             grouped[key]['Descrição da resolução'] = row['Descrição da resolução'];
+             grouped[key]['Resolvido em'] = row['Resolvido em'];
+          }
+        }
+      }
+      finalRows = Object.values(grouped).map(g => {
+        const parsed = g._dates.map(d => {
+           const [dd, mm, yy] = d.split('/');
+           return new Date(`20${yy}-${mm}-${dd}T00:00:00Z`);
+        }).sort((a,b) => a - b);
+        const minD = parsed[0];
+        const maxD = parsed[parsed.length - 1];
+        
+        const format = (d) => {
+          const dd = String(d.getUTCDate()).padStart(2, '0');
+          const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const yy = String(d.getUTCFullYear()).slice(2);
+          return `${dd}/${mm}/${yy}`;
+        };
+
+        if (minD.getTime() === maxD.getTime()) {
+           g.Data = format(minD);
+        } else {
+           g.Data = `Início: ${format(minD)}, Fim: ${format(maxD)}`;
+        }
+        delete g._dates;
+        return g;
+      });
+    }
+
+    finalRows = finalRows.map(row => {
+       if (row.Nível === 'alert') row.Nível = 'Alerta';
+       if (row.Nível === 'critical') row.Nível = 'Urgente';
+       return row;
+    });
+
+    return finalRows;
   }
 
   const { rows } = await cenos_pool.query(
@@ -1317,10 +1381,10 @@ async function getDashboardAlertsV2({date_from, date_to, regional, sectional, es
   const dateFilters = dateFilter.filters;
   dIdx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, agent_name, params: dParams, idx: dIdx, user
-  });
+      });
   dIdx = colIdx;
 
   const cFilters = [
@@ -1366,7 +1430,56 @@ async function getDashboardAlertsV2({date_from, date_to, regional, sectional, es
        LIMIT 5000`,
       dParams
     );
-    return rows;
+
+    let finalRows = rows;
+    if (typeof export_mode !== 'undefined' && export_mode === 'compact') {
+      const grouped = {};
+      for (const row of rows) {
+        const key = `${row.Agente}-${row.Item}-${row.Nível}`;
+        if (!grouped[key]) {
+          grouped[key] = { ...row, _dates: [row.Data] };
+        } else {
+          grouped[key]._dates.push(row.Data);
+          if (!grouped[key].Foto && row.Foto) grouped[key].Foto = row.Foto;
+          if (grouped[key].Resolução === 'Não resolvido' && row.Resolução === 'Resolvido') {
+             grouped[key].Resolução = row.Resolução;
+             grouped[key]['Descrição da resolução'] = row['Descrição da resolução'];
+             grouped[key]['Resolvido em'] = row['Resolvido em'];
+          }
+        }
+      }
+      finalRows = Object.values(grouped).map(g => {
+        const parsed = g._dates.map(d => {
+           const [dd, mm, yy] = d.split('/');
+           return new Date(`20${yy}-${mm}-${dd}T00:00:00Z`);
+        }).sort((a,b) => a - b);
+        const minD = parsed[0];
+        const maxD = parsed[parsed.length - 1];
+        
+        const format = (d) => {
+          const dd = String(d.getUTCDate()).padStart(2, '0');
+          const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const yy = String(d.getUTCFullYear()).slice(2);
+          return `${dd}/${mm}/${yy}`;
+        };
+
+        if (minD.getTime() === maxD.getTime()) {
+           g.Data = format(minD);
+        } else {
+           g.Data = `Início: ${format(minD)}, Fim: ${format(maxD)}`;
+        }
+        delete g._dates;
+        return g;
+      });
+    }
+
+    finalRows = finalRows.map(row => {
+       if (row.Nível === 'alert') row.Nível = 'Alerta';
+       if (row.Nível === 'critical') row.Nível = 'Urgente';
+       return row;
+    });
+
+    return finalRows;
   }
 
   // Step 1: Find which agent+question+severity combinations exist in the date range
@@ -1488,10 +1601,10 @@ async function getDashboardNonConformitiesV2({date_from, date_to, regional, sect
   const dateFilters = dateFilter.filters;
   dIdx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, agent_name, params: dParams, idx: dIdx, user
-  });
+      });
   dIdx = colIdx;
 
   const cFilters = [
@@ -1515,7 +1628,7 @@ async function getDashboardNonConformitiesV2({date_from, date_to, regional, sect
               col.regional as "Regional",
               col."GESTOR IMEDIATO" as "Gestor",
               a.item->>'question_label' as "Item",
-              COALESCE(a.item->>'severity', 'normal') as "Nível",
+              COALESCE(a.item->>'severity', 'critical') as "Nível",
               TO_CHAR(c.date, 'DD/MM/YY') as "Data",
               TO_CHAR(c.submitted_at, 'DD/MM/YY "às" HH24:MI:SS') as "Enviado em",
               a.item->>'observation' as "Observação",
@@ -1532,12 +1645,61 @@ async function getDashboardNonConformitiesV2({date_from, date_to, regional, sect
          AND r.resolved_date = c.date
        ${cWhere}
          AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
-         AND COALESCE(a.item->>'severity', 'normal') NOT IN ('critical', 'alert')
-       ORDER BY COALESCE(c.submitted_at, c.date) DESC
+         AND COALESCE(a.item->>'severity', 'critical') IN ('critical', 'alert')
+       ORDER BY COALESCE(c.submitted_at, c.date) DESC, "Nível" ASC
        LIMIT 5000`,
       dParams
     );
-    return rows;
+
+    let finalRows = rows;
+    if (typeof export_mode !== 'undefined' && export_mode === 'compact') {
+      const grouped = {};
+      for (const row of rows) {
+        const key = `${row.Agente}-${row.Item}-${row.Nível}`;
+        if (!grouped[key]) {
+          grouped[key] = { ...row, _dates: [row.Data] };
+        } else {
+          grouped[key]._dates.push(row.Data);
+          if (!grouped[key].Foto && row.Foto) grouped[key].Foto = row.Foto;
+          if (grouped[key].Resolução === 'Não resolvido' && row.Resolução === 'Resolvido') {
+             grouped[key].Resolução = row.Resolução;
+             grouped[key]['Descrição da resolução'] = row['Descrição da resolução'];
+             grouped[key]['Resolvido em'] = row['Resolvido em'];
+          }
+        }
+      }
+      finalRows = Object.values(grouped).map(g => {
+        const parsed = g._dates.map(d => {
+           const [dd, mm, yy] = d.split('/');
+           return new Date(`20${yy}-${mm}-${dd}T00:00:00Z`);
+        }).sort((a,b) => a - b);
+        const minD = parsed[0];
+        const maxD = parsed[parsed.length - 1];
+        
+        const format = (d) => {
+          const dd = String(d.getUTCDate()).padStart(2, '0');
+          const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const yy = String(d.getUTCFullYear()).slice(2);
+          return `${dd}/${mm}/${yy}`;
+        };
+
+        if (minD.getTime() === maxD.getTime()) {
+           g.Data = format(minD);
+        } else {
+           g.Data = `Início: ${format(minD)}, Fim: ${format(maxD)}`;
+        }
+        delete g._dates;
+        return g;
+      });
+    }
+
+    finalRows = finalRows.map(row => {
+       if (row.Nível === 'alert') row.Nível = 'Alerta';
+       if (row.Nível === 'critical') row.Nível = 'Urgente';
+       return row;
+    });
+
+    return finalRows;
   }
 
   // Step 1: Find which agent+question+severity combinations exist in the date range

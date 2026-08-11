@@ -129,8 +129,10 @@ GPS (celular do agente)
  ▼
  ┌─── BACKEND ─────────────────────────────────────────────┐
  │                                                         │
- │ 1. Valida com Zod (unifiedPointSchema)                  │
- │ 2. Busca speed_limit do agente (tracking_agent_config)  │
+  │ 1. Valida com Zod (unifiedPointSchema)                  │
+  │    • Ponto inválido (sem lat/lng, formato legado, etc.)  │
+  │      é logado e DESCARTADO — não derruba o lote          │
+  │ 2. Busca speed_limit do agente (tracking_agent_config)  │
  │    ↓ não encontrado                                     │
  │ 3. Usa default global (tracking_global_config = 81km/h) │
  │ 4. Normaliza: battery 0-1→0-100, speed heurística       │

@@ -30,23 +30,13 @@ const speedLimitCache = {};
  */
 function normalizePoint(agentId, raw, speedLimit) {
     const speedLimitNum = Number(speedLimit) || 81;
-
-    // Backwards compatibility for legacy offline payloads from mobile app
-    if (raw.lat === undefined && raw.latitude !== undefined) raw.lat = raw.latitude;
-    if (raw.lng === undefined && raw.longitude !== undefined) raw.lng = raw.longitude;
-    if (raw.timestamp === undefined) {
-        if (raw.recorded_at) raw.timestamp = new Date(raw.recorded_at).getTime();
-        else raw.timestamp = Date.now();
+    const parsed = unifiedPointSchema.safeParse(raw);
+    if (!parsed.success) {
+        const detail = parsed.error.issues.map(i => `${i.path.join('.') || 'root'}: ${i.message}`).join('; ');
+        console.warn(`[TRACKING_WORKER] Ponto inválido ignorado (agent=${agentId}) — ${detail}`, JSON.stringify(raw).slice(0, 400));
+        return null;
     }
-    if (raw.batteryLevel === undefined && raw.battery_level !== undefined) raw.batteryLevel = raw.battery_level;
-    if (raw.isCharging === undefined && raw.is_charging !== undefined) raw.isCharging = raw.is_charging;
-    if (raw.networkType === undefined && raw.network_type !== undefined) raw.networkType = raw.network_type;
-    if (raw.gpsEnabled === undefined && raw.gps_enabled !== undefined) raw.gpsEnabled = raw.gps_enabled;
-    if (raw.deviceModel === undefined && raw.device_model !== undefined) raw.deviceModel = raw.device_model;
-    if (raw.devicePlatform === undefined && raw.device_platform !== undefined) raw.devicePlatform = raw.device_platform;
-    if (raw.osVersion === undefined && raw.os_version !== undefined) raw.osVersion = raw.os_version;
-
-    const point = unifiedPointSchema.parse(raw);
+    const point = parsed.data;
 
     // Normalizar battery
     let batteryLevel = point.batteryLevel ?? null;
@@ -240,6 +230,7 @@ async function processBatch(rows) {
 
         for (const p of points) {
             const pt = normalizePoint(agentId, p, speedLimit);
+            if (!pt) continue; // Ponto inválido: logado e descartado (não derruba o lote)
             
             // FILTRO 1: Peneira de Precisão (Spider Webbing)
             if (pt.accuracy != null && pt.accuracy > 50) {
@@ -342,4 +333,4 @@ function start() {
     workerLoop();
 }
 
-module.exports = { start };
+module.exports = { start, normalizePoint };
