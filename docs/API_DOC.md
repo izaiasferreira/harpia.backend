@@ -126,6 +126,7 @@ Health check simples (sem prefixo).
 | `/admin/permission/*` | Perfis de permissão | `permission` |
 | `/admin/forms/*` | Formulários dinâmicos | `forms` |
 | `/admin/tracking/*` | Monitoramento GPS/quedas | `tracking` |
+| `/admin/tracking/area/trail` | Busca agentes por área (polígono) no histórico | `tracking_history` |
 | `/admin/tracking/speed_violations/*` | Infrações de velocidade (all, resoluções, resolve, stats) | `tracking_speed`, `resolve_speed_violation`, `update_speed_violation_resolution`, `delete_speed_violation_resolution` |
 | `/admin/agent/*` | PINs de acesso | — |
 | `/admin/message_templates/*` | Modelos de mensagem | `message_templates` |
