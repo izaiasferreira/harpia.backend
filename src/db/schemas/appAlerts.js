@@ -21,6 +21,11 @@ const appAlertCreateSchema = z.object({
     z.string().regex(/^weekday:[1-7](,[1-7])*$/, 'Formato de dia inválido. Use weekday:1,3,5')
   ).default('once'),
   expires_at: z.string().datetime({ offset: true }).nullable().optional(),
+  assets: z.array(z.object({
+    url: z.string(),
+    name: z.string(),
+    mimeType: z.string()
+  })).default([]),
 });
 
 const appAlertUpdateSchema = appAlertCreateSchema.partial();

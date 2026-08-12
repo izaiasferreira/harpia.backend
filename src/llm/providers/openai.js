@@ -4,20 +4,39 @@ async function generateResponse(messages, options = {}) {
 
   const model = options.model || process.env.LLM_MODEL || 'gpt-4o-mini';
 
-  const processedMessages = messages.map(msg => {
+  const processedMessages = [];
+  for (const msg of messages) {
     if (msg.attachments && msg.attachments.length > 0) {
       const contentArray = [{ type: 'text', text: msg.content }];
       for (const att of msg.attachments) {
         if (att.mimeType?.startsWith('image/')) {
-          // ensure absolute url if possible
-          const url = att.url.startsWith('http') ? att.url : `${process.env.PUBLIC_URL || 'http://localhost:3000'}/files/${att.url}`;
+          let url = att.url.startsWith('http') ? att.url : `${process.env.PUBLIC_URL || 'http://localhost:3000'}${att.url.startsWith('/') ? '' : '/'}${att.url}`;
+          
+          if (url.includes('localhost') || url.includes('127.0.0.1')) {
+            try {
+              const localPort = process.env.PORT || 3040;
+              const fetchUrl = url.replace(/localhost:\d+/, `127.0.0.1:${localPort}`).replace(/127\.0\.0\.1:\d+/, `127.0.0.1:${localPort}`);
+              const res = await fetch(fetchUrl);
+              if (res.ok) {
+                const buffer = await res.arrayBuffer();
+                const base64 = Buffer.from(buffer).toString('base64');
+                url = `data:${att.mimeType};base64,${base64}`;
+              } else {
+                console.error(`Falha ao baixar imagem de ${fetchUrl}: status ${res.status}`);
+              }
+            } catch (e) {
+              console.error('Erro ao converter imagem local para Base64:', e.message);
+            }
+          }
+
           contentArray.push({ type: 'image_url', image_url: { url } });
         }
       }
-      return { role: msg.role, content: contentArray };
+      processedMessages.push({ role: msg.role, content: contentArray });
+    } else {
+      processedMessages.push({ role: msg.role, content: msg.content });
     }
-    return { role: msg.role, content: msg.content };
-  });
+  }
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -49,6 +68,40 @@ async function* generateResponseStream(messages, options = {}) {
   const model = options.model || process.env.LLM_MODEL || 'gpt-4o-mini';
   const signal = options.signal;
 
+  const processedMessages = [];
+  for (const msg of messages) {
+    if (msg.attachments && msg.attachments.length > 0) {
+      const contentArray = [{ type: 'text', text: msg.content }];
+      for (const att of msg.attachments) {
+        if (att.mimeType?.startsWith('image/')) {
+          let url = att.url.startsWith('http') ? att.url : `${process.env.PUBLIC_URL || 'http://localhost:3000'}${att.url.startsWith('/') ? '' : '/'}${att.url}`;
+          
+          if (url.includes('localhost') || url.includes('127.0.0.1')) {
+            try {
+              const localPort = process.env.PORT || 3040;
+              const fetchUrl = url.replace(/localhost:\d+/, `127.0.0.1:${localPort}`).replace(/127\.0\.0\.1:\d+/, `127.0.0.1:${localPort}`);
+              const res = await fetch(fetchUrl);
+              if (res.ok) {
+                const buffer = await res.arrayBuffer();
+                const base64 = Buffer.from(buffer).toString('base64');
+                url = `data:${att.mimeType};base64,${base64}`;
+              } else {
+                console.error(`Falha ao baixar imagem de ${fetchUrl}: status ${res.status}`);
+              }
+            } catch (e) {
+              console.error('Erro ao converter imagem local para Base64:', e.message);
+            }
+          }
+
+          contentArray.push({ type: 'image_url', image_url: { url } });
+        }
+      }
+      processedMessages.push({ role: msg.role, content: contentArray });
+    } else {
+      processedMessages.push({ role: msg.role, content: msg.content });
+    }
+  }
+
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -57,7 +110,7 @@ async function* generateResponseStream(messages, options = {}) {
     },
     body: JSON.stringify({
       model,
-      messages,
+      messages: processedMessages,
       stream: true,
       temperature: options.temperature ?? 0.7,
       max_tokens: options.maxTokens ?? 16384,

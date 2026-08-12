@@ -22,10 +22,20 @@ async function clearAlertChatMessages(alertId) {
     await cenos_pool.query(`DELETE FROM app_alert_chat_messages WHERE alert_id = $1`, [alertId]);
 }
 
-async function sendAlertChatMessage(alertId, userMessage, currentContent, attachments = []) {
+async function sendAlertChatMessage(alertId, userMessage, currentContent, attachments = [], galleryAssets = undefined) {
     await addAlertChatMessage(alertId, 'user', userMessage, attachments);
 
     const history = await getAlertChatMessages(alertId);
+    
+    let assets = galleryAssets;
+    if (assets === undefined) {
+        // Fallback to database if not provided from frontend
+        const { rows } = await cenos_pool.query('SELECT assets FROM app_alerts WHERE id = $1', [alertId]);
+        assets = rows[0]?.assets || [];
+        if (typeof assets === 'string') {
+            try { assets = JSON.parse(assets); } catch (e) { assets = []; }
+        }
+    }
 
     const messages = [
         { role: 'system', content: ALERT_BUILDER_SYSTEM_PROMPT },
@@ -34,6 +44,15 @@ async function sendAlertChatMessage(alertId, userMessage, currentContent, attach
             content: `O HTML ATUAL do pop-up é:\n\`\`\`html\n${currentContent || '(vazio)'}\n\`\`\`\n\nConsidere este HTML como base para suas respostas.`
         }
     ];
+
+    if (assets && assets.length > 0) {
+        const assetsList = assets.map(a => `- Nome: ${a.name} | Path: ${a.url}`).join('\n');
+        messages.push({
+            role: 'user',
+            content: `Estas são as imagens atualmente disponíveis na galeria deste aviso (assets):\n${assetsList}`,
+            attachments: assets
+        });
+    }
 
     for (const m of history) {
         messages.push({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content, attachments: m.attachments });

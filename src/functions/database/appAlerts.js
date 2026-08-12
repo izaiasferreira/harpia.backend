@@ -109,8 +109,8 @@ async function getAlertById(id) {
 async function createAlert(data, userId) {
     const validated = appAlertCreateSchema.parse(data);
     const { rows } = await cenos_pool.query(
-        `INSERT INTO app_alerts (title, content_type, content, link_url, is_active, filters, frequency, expires_at, created_by, updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+        `INSERT INTO app_alerts (title, content_type, content, link_url, is_active, filters, frequency, expires_at, assets, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
          RETURNING *`,
         [
             validated.title,
@@ -121,6 +121,7 @@ async function createAlert(data, userId) {
             JSON.stringify(validated.filters),
             validated.frequency,
             validated.expires_at || null,
+            JSON.stringify(validated.assets),
             userId,
         ]
     );
@@ -141,6 +142,7 @@ async function updateAlert(id, data, userId) {
     if (validated.filters !== undefined) { fields.push(`filters = $${idx++}`); values.push(JSON.stringify(validated.filters)); }
     if (validated.frequency !== undefined) { fields.push(`frequency = $${idx++}`); values.push(validated.frequency); }
     if ('expires_at' in validated) { fields.push(`expires_at = $${idx++}`); values.push(validated.expires_at || null); }
+    if (validated.assets !== undefined) { fields.push(`assets = $${idx++}`); values.push(JSON.stringify(validated.assets)); }
 
     fields.push(`updated_by = $${idx++}`); values.push(userId);
     fields.push(`updated_at = NOW()`);
@@ -192,6 +194,22 @@ async function recordView(alertId, agentId) {
     await cenos_pool.query(
         `INSERT INTO app_alert_views (alert_id, agent_id) VALUES ($1, $2)`,
         [alertId, agentId]
+    );
+    return true;
+}
+
+async function deleteAlertView(alertId, agentId) {
+    await cenos_pool.query(
+        `DELETE FROM app_alert_views WHERE alert_id = $1 AND agent_id = $2`,
+        [alertId, agentId]
+    );
+    return true;
+}
+
+async function clearAlertViews(alertId) {
+    await cenos_pool.query(
+        `DELETE FROM app_alert_views WHERE alert_id = $1`,
+        [alertId]
     );
     return true;
 }
@@ -259,9 +277,11 @@ module.exports = {
     getAlertById,
     createAlert,
     updateAlert,
-    toggleAlert,
     deleteAlert,
     getAlertViews,
+    deleteAlertView,
+    clearAlertViews,
     recordView,
     getAlertsForAgent,
+    hasAgentSeenAlert
 };

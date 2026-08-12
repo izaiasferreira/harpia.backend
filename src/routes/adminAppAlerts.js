@@ -12,6 +12,9 @@ const {
     toggleAlert,
     deleteAlert,
     getAlertViews,
+    deleteAlertView,
+    clearAlertViews,
+    hasAgentSeenAlert,
 } = require('../functions/database/appAlerts');
 const {
     getAlertChatMessages,
@@ -149,6 +152,33 @@ router.get('/:id/views', verifyToken(), verifyModule('app_alerts'), async (req, 
     }
 });
 
+// DELETE /admin/app-alerts/:id/views/:agent_id
+router.delete('/:id/views/:agent_id', verifyToken(), verifyModule('app_alerts'), async (req, res) => {
+    try {
+        if (req.user.role !== 'COMPANY_ADMIN') {
+            return res.status(403).json({ error: 'Apenas administradores da empresa podem excluir visualizações.' });
+        }
+        await deleteAlertView(req.params.id, req.params.agent_id);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[APP_ALERTS] DELETE view', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE /admin/app-alerts/:id/views
+router.delete('/:id/views', verifyToken(), verifyModule('app_alerts'), async (req, res) => {
+    try {
+        if (req.user.role !== 'COMPANY_ADMIN') {
+            return res.status(403).json({ error: 'Apenas administradores da empresa podem limpar visualizações.' });
+        }
+        await clearAlertViews(req.params.id);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[APP_ALERTS] DELETE all views', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 // ─── Chat IA (apenas COMPANY_ADMIN) ──────────────────────────────────────────
 
 // GET /admin/app-alerts/:id/chat
@@ -167,11 +197,11 @@ router.get('/:id/chat', verifyToken(), async (req, res) => {
 router.post('/:id/chat', verifyToken(), async (req, res) => {
     try {
         if (req.user.role !== 'COMPANY_ADMIN') return res.status(403).json({ error: 'Acesso restrito' });
-        const { message, currentContent, attachments } = req.body;
+        const { message, currentContent, attachments, galleryAssets } = req.body;
         if (!message?.trim() && (!attachments || attachments.length === 0)) {
             return res.status(400).json({ error: 'Mensagem ou anexo é obrigatório' });
         }
-        const result = await sendAlertChatMessage(req.params.id, message, currentContent || '', attachments || []);
+        const result = await sendAlertChatMessage(req.params.id, message, currentContent || '', attachments || [], galleryAssets);
         res.json(result);
     } catch (err) {
         console.error('[APP_ALERTS] POST chat', err);
