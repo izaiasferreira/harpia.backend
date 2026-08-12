@@ -192,6 +192,13 @@ app.use('/admin/config', adminConfigRouter)
 const adminMessagesRouter = require('./routes/adminMessages')
 app.use('/admin/messages', adminMessagesRouter)
 
+const adminAppAlertsRouter = require('./routes/adminAppAlerts')
+app.use('/admin/app-alerts', adminAppAlertsRouter)
+
+const agentAppAlertsRouter = require('./routes/agentAppAlerts')
+app.use('/agent/app-alerts', agentAppAlertsRouter)
+
+
 const adminSecurityReportConfigsRouter = require('./routes/adminSecurityReportConfigs')
 app.use('/admin/security_reports/configs', adminSecurityReportConfigsRouter)
 

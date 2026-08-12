@@ -4,6 +4,21 @@ async function generateResponse(messages, options = {}) {
 
   const model = options.model || process.env.LLM_MODEL || 'gpt-4o-mini';
 
+  const processedMessages = messages.map(msg => {
+    if (msg.attachments && msg.attachments.length > 0) {
+      const contentArray = [{ type: 'text', text: msg.content }];
+      for (const att of msg.attachments) {
+        if (att.mimeType?.startsWith('image/')) {
+          // ensure absolute url if possible
+          const url = att.url.startsWith('http') ? att.url : `${process.env.PUBLIC_URL || 'http://localhost:3000'}/files/${att.url}`;
+          contentArray.push({ type: 'image_url', image_url: { url } });
+        }
+      }
+      return { role: msg.role, content: contentArray };
+    }
+    return { role: msg.role, content: msg.content };
+  });
+
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -12,7 +27,7 @@ async function generateResponse(messages, options = {}) {
     },
     body: JSON.stringify({
       model,
-      messages,
+      messages: processedMessages,
       temperature: options.temperature ?? 0.7,
       max_tokens: options.maxTokens ?? 16384,
     }),
