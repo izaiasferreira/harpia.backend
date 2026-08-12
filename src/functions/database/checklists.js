@@ -515,14 +515,9 @@ async function saveChecklistSubmission(agentId, data) {
       );
       if (existingOfficial.length > 0) {
         const existing = existingOfficial[0];
-        const submittedAt = new Date(existing.submitted_at);
-        const diffMinutes = (Date.now() - submittedAt.getTime()) / (1000 * 60);
-        if (diffMinutes <= 10) {
-          isEditing = true;
-          checklistId = existing.id;
-        } else {
-          throw { status: 409, message: 'Checklist diário do dia já foi enviado e o prazo de edição expirou (10 min).' };
-        }
+        // Ignora silenciosamente: já existe um oficial para hoje (edição desativada)
+        await client.query('COMMIT');
+        return existing;
       }
     }
 
