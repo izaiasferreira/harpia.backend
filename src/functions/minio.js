@@ -19,7 +19,7 @@ const CONFIG = {
     imageQuality: parseInt(process.env.IMAGE_QUALITY) || 80,
     imageMaxWidth: parseInt(process.env.IMAGE_MAX_WIDTH) || 1920,
     imageMaxHeight: parseInt(process.env.IMAGE_MAX_HEIGHT) || 1080,
-    
+    allowedBuckets: process.env.ALLOWED_BUCKETS || '',
     // URL pública da API
     publicBaseUrl: process.env.PUBLIC_BASE_URL
 };
