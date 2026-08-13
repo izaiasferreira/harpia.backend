@@ -71,6 +71,11 @@ function enrichAlertContent(alert) {
 // ─── Listagem admin ──────────────────────────────────────────────────────────
 
 async function listAlerts(user) {
+    // Migração segura: garante que a coluna existe antes de usá-la
+    await cenos_pool.query(
+        `ALTER TABLE app_alerts ADD COLUMN IF NOT EXISTS display_order INTEGER`
+    );
+
     const isCompanyAdmin = user.role === 'COMPANY_ADMIN';
     let query = `
         SELECT a.*,
@@ -86,10 +91,11 @@ async function listAlerts(user) {
         query += ` WHERE (a.filters->>'estado' IS NULL OR a.filters->'estado' = '[]'::jsonb OR a.filters->'estado' @> $1::jsonb)`;
         params.push(JSON.stringify([user.estado.toUpperCase()]));
     }
-    query += ` ORDER BY a.created_at DESC`;
+    query += ` ORDER BY a.display_order ASC NULLS LAST, a.created_at DESC`;
     const { rows } = await cenos_pool.query(query, params);
     return rows.map(enrichAlertContent);
 }
+
 
 async function getAlertById(id) {
     const { rows } = await cenos_pool.query(
@@ -214,6 +220,31 @@ async function clearAlertViews(alertId) {
     return true;
 }
 
+async function reorderAlerts(orderedIds) {
+    // Garante que a coluna existe (migração segura)
+    await cenos_pool.query(
+        `ALTER TABLE app_alerts ADD COLUMN IF NOT EXISTS display_order INTEGER`
+    );
+    // Atualiza cada ID com sua nova posição
+    const client = await cenos_pool.connect();
+    try {
+        await client.query('BEGIN');
+        for (let i = 0; i < orderedIds.length; i++) {
+            await client.query(
+                `UPDATE app_alerts SET display_order = $1 WHERE id = $2`,
+                [i + 1, orderedIds[i]]
+            );
+        }
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+    return true;
+}
+
 // ─── Elegibilidade para agente ───────────────────────────────────────────────
 
 async function getAlertsForAgent(agentId, agentEstado) {
@@ -235,7 +266,7 @@ async function getAlertsForAgent(agentId, agentEstado) {
         `SELECT * FROM app_alerts
          WHERE is_active = true
            AND (expires_at IS NULL OR expires_at > NOW())
-         ORDER BY created_at DESC`,
+         ORDER BY display_order ASC NULLS LAST, created_at DESC`,
     );
 
     const eligible = [];
@@ -277,10 +308,12 @@ module.exports = {
     getAlertById,
     createAlert,
     updateAlert,
+    toggleAlert,
     deleteAlert,
     getAlertViews,
     deleteAlertView,
     clearAlertViews,
+    reorderAlerts,
     recordView,
     getAlertsForAgent,
     hasAgentSeenAlert

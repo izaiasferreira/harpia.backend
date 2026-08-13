@@ -14,6 +14,7 @@ const {
     getAlertViews,
     deleteAlertView,
     clearAlertViews,
+    reorderAlerts,
     hasAgentSeenAlert,
 } = require('../functions/database/appAlerts');
 const {
@@ -135,6 +136,23 @@ router.delete('/:id', verifyToken(), verifyModule('delete_app_alert'), async (re
     } catch (err) {
         console.error('[APP_ALERTS] DELETE /:id', err);
         if (err.status) return res.status(err.status).json({ error: err.message });
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── Reordenação ──────────────────────────────────────────────────────────────
+
+// PATCH /admin/app-alerts/reorder
+router.patch('/reorder', verifyToken(), verifyModule('update_app_alert'), async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: 'Campo ids (array) é obrigatório' });
+        }
+        await reorderAlerts(ids);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[APP_ALERTS] PATCH reorder', err);
         res.status(500).json({ error: err.message });
     }
 });
