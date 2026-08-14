@@ -107,7 +107,8 @@ async function listSpeedViolationResolutions(filters = {}, user = null) {
                c.estado as agent_estado,
                c.regional as regional,
                c.seccional as seccional,
-               c."GESTOR IMEDIATO" as gestor
+               c."GESTOR IMEDIATO" as gestor,
+               c."Cargo" as cargo
         FROM speed_violation_resolutions r
         INNER JOIN colaboradores c ON UPPER(c."ID") = UPPER(r.agent_id)
         WHERE 1=1`;
@@ -149,6 +150,7 @@ async function listSpeedViolationResolutions(filters = {}, user = null) {
                 regional: r.regional,
                 seccional: r.seccional,
                 gestor: r.gestor,
+                cargo: r.cargo,
                 estado: r.agent_estado,
             };
             return checkAgentPermission(agentData, user);
@@ -172,6 +174,7 @@ async function getSpeedViolationsResolvable(filters = {}, user = null) {
                c.regional as regional,
                c.seccional as seccional,
                c."GESTOR IMEDIATO" as gestor,
+               c."Cargo" as cargo,
                tsp.speed_limit_applied as speed_limit,
                r.id as resolution_id,
                r.is_valid as resolution_is_valid,
@@ -227,6 +230,7 @@ async function getSpeedViolationsResolvable(filters = {}, user = null) {
                 regional: r.regional,
                 seccional: r.seccional,
                 gestor: r.gestor,
+                cargo: r.cargo,
                 estado: r.agent_estado,
             };
             return checkAgentPermission(agentData, user);

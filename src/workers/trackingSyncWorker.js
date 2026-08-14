@@ -11,7 +11,7 @@ const {
     markBatchFailed,
     cleanOldStaging,
 } = require('../functions/database/trackingStaging');
-const { getAgentSpeedLimit } = require('../functions/database/trackingUnified');
+const { getAgentSpeedLimit, getSpeedEligibleConfig } = require('../functions/database/trackingUnified');
 const { updateHeartbeat } = require('../functions/database/heartbeat');
 const { unifiedPointSchema } = require('../db/schemas/tracking');
 const { point: turfPoint, polygon: turfPolygon } = require('@turf/helpers');
@@ -179,19 +179,29 @@ async function getActiveGeofences() {
 }
 
 /**
- * Agent State cache
+ * Agent Profile cache
  */
-const agentStateCache = {};
-async function getAgentStateCached(agentId) {
-    const cached = agentStateCache[agentId];
+const agentProfileCache = {};
+async function getAgentProfileCached(agentId) {
+    const cached = agentProfileCache[agentId];
     if (cached && (Date.now() - cached.timestamp < 300000)) { // 5 mins cache
-        return cached.estado;
+        return cached.profile;
     }
     // Busca do banco
-    const { rows } = await cenos_pool.query(`SELECT estado FROM colaboradores WHERE lower("ID") = $1 LIMIT 1`, [agentId.toLowerCase()]);
-    const estado = rows.length > 0 ? rows[0].estado : null;
-    agentStateCache[agentId] = { estado, timestamp: Date.now() };
-    return estado;
+    const { rows } = await cenos_pool.query(`SELECT estado, "Cargo" as cargo, regional, seccional FROM colaboradores WHERE lower("ID") = $1 LIMIT 1`, [agentId.toLowerCase()]);
+    const profile = rows.length > 0 ? rows[0] : null;
+    agentProfileCache[agentId] = { profile, timestamp: Date.now() };
+    return profile;
+}
+
+let eligibleConfigCache = { timestamp: 0, config: null };
+async function getEligibleConfigCached() {
+    if (Date.now() - eligibleConfigCache.timestamp < 60000 && eligibleConfigCache.config) {
+        return eligibleConfigCache.config;
+    }
+    const config = await getSpeedEligibleConfig();
+    eligibleConfigCache = { config, timestamp: Date.now() };
+    return config;
 }
 
 /**
@@ -211,16 +221,48 @@ async function processBatch(rows) {
         agentPoints[agentId].push(row.payload);
     }
 
+    const uniqueAgentIds = Object.keys(agentPoints);
+    if (uniqueAgentIds.length > 0) {
+        const params = uniqueAgentIds;
+        const placeholders = params.map((_, i) => `lower($${i + 1})`).join(',');
+        const { rows: validAgentsRows } = await cenos_pool.query(
+            `SELECT id FROM login WHERE lower(id) IN (${placeholders})`,
+            params
+        );
+        const validAgentIds = new Set(validAgentsRows.map(r => r.id.toLowerCase()));
+
+        for (const agentId of uniqueAgentIds) {
+            if (!validAgentIds.has(agentId.toLowerCase())) {
+                console.warn(`[TRACKING_WORKER] Descartando pontos do staging para agente inexistente: ${agentId}`);
+                delete agentPoints[agentId];
+            }
+        }
+    }
+
     let totalInserted = 0;
 
     const allFences = await getActiveGeofences();
+    const eligibleConfig = await getEligibleConfigCached();
 
     for (const [agentId, points] of Object.entries(agentPoints)) {
         const speedLimit = await getAgentSpeedLimitCached(agentId);
-        const agentState = await getAgentStateCached(agentId);
+        const agentProfile = await getAgentProfileCached(agentId);
+        const agentState = agentProfile?.estado || null;
         
         // Filtrar cercas do estado deste agente
         const agentFences = agentState ? allFences.filter(f => f.estado === agentState && f.polygon != null) : [];
+
+        // Check speed eligibility
+        let isEligibleForSpeed = true;
+        if (agentProfile) {
+            const matchCargo = eligibleConfig.cargos.length === 0 || eligibleConfig.cargos.some(c => c.toUpperCase() === (agentProfile.cargo || '').toUpperCase());
+            const matchEstado = eligibleConfig.estados.length === 0 || eligibleConfig.estados.some(e => e.toUpperCase() === (agentProfile.estado || '').toUpperCase());
+            const matchRegional = eligibleConfig.regionais.length === 0 || eligibleConfig.regionais.some(r => r.toUpperCase() === (agentProfile.regional || '').toUpperCase());
+            const matchSeccional = eligibleConfig.seccionais.length === 0 || eligibleConfig.seccionais.some(s => s.toUpperCase() === (agentProfile.seccional || '').toUpperCase());
+            
+            // If any filter is defined but the agent doesn't match, they are not eligible
+            isEligibleForSpeed = matchCargo && matchEstado && matchRegional && matchSeccional;
+        }
 
         // 1. Ordenar pontos por tempo para garantir análise cronológica
         points.sort((a, b) => new Date(a.timestamp || a.recorded_at).getTime() - new Date(b.timestamp || b.recorded_at).getTime());
@@ -230,7 +272,11 @@ async function processBatch(rows) {
 
         for (const p of points) {
             const pt = normalizePoint(agentId, p, speedLimit);
-            if (!pt) continue; // Ponto inválido: logado e descartado (não derruba o lote)
+            if (!pt) continue;
+
+            if (!isEligibleForSpeed) {
+                pt.isViolation = false;
+            } // Ponto inválido: logado e descartado (não derruba o lote)
             
             // FILTRO 1: Peneira de Precisão (Spider Webbing)
             if (pt.accuracy != null && pt.accuracy > 50) {
@@ -254,14 +300,17 @@ async function processBatch(rows) {
             // Verificação de Geofencing
             if (agentFences.length > 0 && pt.lat != null && pt.lng != null) {
                 const turfPt = turfPoint([pt.lng, pt.lat]);
+                // Geofence check can override speedLimitApplied and isViolation
                 for (const fence of agentFences) {
-                    if (booleanPointInPolygon(turfPt, fence.polygon)) {
-                        if (fence.type === 'speed' && fence.speed_limit != null) {
+                    if (fence.type === 'speed_limit' && fence.speed_limit != null) {
+                        if (booleanPointInPolygon(turfPt, fence.polygon)) {
                             pt.speedLimitApplied = fence.speed_limit;
-                            pt.isViolation = pt.speed != null && pt.speed > fence.speed_limit;
+                            if (isEligibleForSpeed) {
+                                pt.isViolation = pt.speed != null && pt.speed > pt.speedLimitApplied;
+                            }
+                            // Assume first matched fence overrides global (could prioritize by stricter limit if needed)
+                            break;
                         }
-                        // Pode expandir para min_speed, enter, exit...
-                        break; // Aplicou a primeira cerca encontrada (ordem não garantida)
                     }
                 }
             }

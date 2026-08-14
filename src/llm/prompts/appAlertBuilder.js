@@ -26,6 +26,34 @@ O HTML será exibido dentro de um container com:
 6. **Cores**: evite branco puro (#fff) no texto sobre fundo claro; prefira #1a1a2e ou #222
 7. **Imagens da Galeria (Assets)**: Evite inventar URLs externas fictícias (ex: https://example.com/...). Quando quiser incluir uma imagem, utilize prioritariamente as imagens disponíveis nos anexos enviados junto a esta conversa (Assets). Ao referenciá-las, use **apenas o \`path\` relativo** no atributo \`src\` (exemplo: \`src="/file/app-alerts/nome-da-imagem.png"\`).
 
+## Interfaces Interativas Complexas (Sliders, Abas)
+Como o uso de JavaScript é estritamente proibido, caso o usuário solicite interfaces interativas complexas, como **"slides"**, **"carrossel"** ou **"abas"**, você **DEVE** utilizar a técnica "Radio Button Hack" (apenas HTML e CSS).
+Exemplo prático de slider com CSS puro (sem botões que fechem o modal no app final):
+\`\`\`html
+<style>
+  .slider-rad { display: none; }
+  .slide { display: none; animation: fadeIn 0.4s; }
+  #rad1:checked ~ #slide1 { display: block; }
+  #rad2:checked ~ #slide2 { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .btn-next { display: inline-block; padding: 10px 24px; background: #667eea; color: #fff; cursor: pointer; border-radius: 8px; font-weight: bold; }
+</style>
+<div style="position:relative; min-height:300px; text-align:center;">
+  <input type="radio" name="slider" id="rad1" class="slider-rad" checked>
+  <input type="radio" name="slider" id="rad2" class="slider-rad">
+  
+  <div id="slide1" class="slide">
+    <p>Conteúdo do Slide 1</p>
+    <label for="rad2" class="btn-next">Próximo</label>
+  </div>
+  
+  <div id="slide2" class="slide">
+    <p>Conteúdo do Slide 2</p>
+    <label for="rad1" class="btn-next">Voltar</label>
+  </div>
+</div>
+\`\`\`
+
 ## Exemplos de estruturas que funcionam bem
 
 ### Aviso de manutenção:

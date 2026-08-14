@@ -6,10 +6,10 @@ const formSchema = z.object({
   title: z.string().min(1),
   description: z.string().nullable().optional(),
   cover_url: z.string().nullable().optional(),
-  is_active: z.boolean().default(false),
+  is_active: z.boolean().optional(),
   badge_id: z.number().int().nullable().optional(),
-  settings: z.union([z.string(), z.record(z.any())]).default('{}'),
-  structure: z.union([z.string(), z.array(z.any())]).default('[]'),
+  settings: z.union([z.string(), z.record(z.any())]).optional(),
+  structure: z.union([z.string(), z.array(z.any())]).optional(),
   created_at: z.date().optional(),
   updated_at: z.date().optional()
 });
