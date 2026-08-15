@@ -4,22 +4,22 @@ const { VALID_STATE_VALUES } = require('../constants/states');
 function generateCustomLinks({ state, id, user }) {
 
     const links = [
-        {
-            "id": "leituras-app",
-            "label": "Leituras",
-            "url": `/services`,
-            "emoji": "BookCheck",
-            "color": "text-emerald-600",
-            "states": VALID_STATE_VALUES
-        },
-        {
-            "id": "perdas-app",
-            "label": "Perdas",
-            "url": `/perdas`,
-            "emoji": "Zap",
-            "color": "text-amber-600",
-            "states": VALID_STATE_VALUES
-        },
+        // {
+        //     "id": "leituras-app",
+        //     "label": "Leituras",
+        //     "url": `/services`,
+        //     "emoji": "BookCheck",
+        //     "color": "text-emerald-600",
+        //     "states": VALID_STATE_VALUES
+        // },
+        // {
+        //     "id": "perdas-app",
+        //     "label": "Perdas",
+        //     "url": `/perdas`,
+        //     "emoji": "Zap",
+        //     "color": "text-amber-600",
+        //     "states": VALID_STATE_VALUES
+        // },
         {
             "id": "agenda-app",
             "label": "Agenda",
@@ -84,14 +84,14 @@ function generateCustomLinks({ state, id, user }) {
             "color": "text-green-600",
             "states": VALID_STATE_VALUES
         },
-        {
-            "id": "justify-pending-app",
-            "label": "Pendências",
-            "url": `/justify-pending`,
-            "emoji": "AlertTriangle",
-            "color": "text-indigo-600",
-            "states": VALID_STATE_VALUES
-        }
+        // {
+        //     "id": "justify-pending-app",
+        //     "label": "Pendências",
+        //     "url": `/justify-pending`,
+        //     "emoji": "AlertTriangle",
+        //     "color": "text-indigo-600",
+        //     "states": VALID_STATE_VALUES
+        // }
     ]
 
     let links_filtered = links.filter(link => link.states.includes(state));

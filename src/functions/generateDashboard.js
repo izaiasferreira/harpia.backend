@@ -27,11 +27,11 @@ function generateDashboard({ state, id, stats }) {
         {
             id: 'stat_leituras',
             type: 'statCard',
-            size: { colSpan: 1, rowSpan: 1 },
+            size: { colSpan: 2, rowSpan: 1 },
             data: {
-                title: 'Leituras Realizadas',
+                title: 'Serviços Realizados',
                 value: String(stats.quant_leituras),
-                icon: 'BookCheck',
+                icon: 'Check',
                 color: 'text-emerald-500 bg-emerald-50/10'
             },
             action: { type: 'link', url: '/services?filter=all' }
@@ -41,24 +41,12 @@ function generateDashboard({ state, id, stats }) {
             type: 'statCard',
             size: { colSpan: 1, rowSpan: 1 },
             data: {
-                title: 'Leituras Pendentes',
+                title: 'Serviços Pendentes',
                 value: String(stats.pending.length),
                 icon: 'AlertTriangle',
                 color: 'text-red-500 bg-red-50/10'
             },
             action: { type: 'link', url: '/justify-pending' }
-        },
-        {
-            id: 'stat_perdas',
-            type: 'statCard',
-            size: { colSpan: 1, rowSpan: 1 },
-            data: {
-                title: 'Perdas Geradas',
-                value: `${stats.perdas} Kwh`,
-                icon: 'Zap',
-                color: 'text-yellow-500 bg-yellow-50/10'
-            },
-            action: { type: 'link', url: '/perdas' }
         },
         // {
         //     id: 'banner_promo',
@@ -75,7 +63,7 @@ function generateDashboard({ state, id, stats }) {
             size: { colSpan: 3, rowSpan: 1 },
             data: {
                 chartType: 'bar',
-                title: 'Leituras por Hora',
+                title: 'Serviços por Hora',
                 dataset: stats.hourly_dataset
             },
         },
@@ -113,149 +101,147 @@ function generateDashboard({ state, id, stats }) {
                 color: 'text-blue-500 bg-blue-50/10'
             }
         },
-        {
-            id: 'stat_cnl',
-            type: 'statCard',
-            size: { colSpan: 2, rowSpan: 1 },
-            data: {
-                title: 'Quantidade de CNL',
-                value: String(stats.cnl),
-                icon: 'UserX',
-                color: 'text-red-500 bg-red-50/10'
-            },
-            action: { type: 'link', url: '/services?filter=cnl' }
-        },
-        {
-            id: 'stat_percent_cnl',
-            type: 'statCard',
-            size: { colSpan: 1, rowSpan: 1 },
-            data: {
-                title: 'Percentual de CNL',
-                value: `${stats.percent_cnl.toFixed(1)}%`,
-                icon: 'TrendingUp',
-                color: 'text-red-500 bg-red-50/10'
-            },
-            action: { type: 'link', url: '/services?filter=cnl' }
-        },
-        {
-            id: 'chart_cnl_semana',
-            type: 'chartCard',
-            size: { colSpan: 3, rowSpan: 1 },
-            data: {
-                chartType: 'bar',
-                title: 'CNL da semana',
-                dataset:
-                    stats.weekly_cnl_stats['labels'].map((label, i) => {
-                        return {
-                            label: label,
-                            value: parseInt(stats.weekly_cnl_stats['series'][i])
-                        }
-                    })
-            },
-        },
-        {
-            id: 'stat_c12_hora',
-            type: 'statCard',
-            size: { colSpan: 1, rowSpan: 1 },
-            data: {
-                title: 'C12 Fora de Horário',
-                value: String(stats.quant_c12_out_hour),
-                subtitle: 'Antes das 08:00',
-                icon: 'Moon',
-                color: 'text-red-500 bg-red-50/10'
-            },
-            action: { type: 'link', url: '/services?filter=c12_out_time' }
-        },
-        {
-            id: 'stat_c12',
-            type: 'statCard',
-            size: { colSpan: 2, rowSpan: 1 },
-            data: {
-                title: 'Total de C12',
-                value: String(stats.quant_c12),
-                icon: 'House',
-                color: 'text-red-500 bg-red-50/10'
-            },
-            action: { type: 'link', url: '/services?filter=c12' }
-        },
-        {
-            id: 'stat_c12_nova',
-            type: 'statCard',
-            size: { colSpan: 1, rowSpan: 1 },
-            data: {
-                title: 'C12 em Ligação Nova',
-                value: String(stats.licacao_nova_c12),
-                icon: 'HousePlus',
-                color: 'text-red-500 bg-red-50/10'
-            },
-            action: { type: 'link', url: '/services?filter=c12_ligacao_nova' }
-        },
-        {
-            id: 'stat_c12_fast',
-            type: 'statCard',
-            size: { colSpan: 1, rowSpan: 1 },
-            data: {
-                title: 'C12 Rápido',
-                value: String(stats.fast_c12),
-                icon: 'UserPlus',
-                color: 'text-red-500 bg-red-50/10'
-            },
-            action: { type: 'link', url: '/services?filter=fast_c12' }
-        },
-        {
-            id: 'stat_first_c12',
-            type: 'statCard',
-            size: { colSpan: 1, rowSpan: 1 },
-            data: {
-                title: 'C12 Entrante',
-                value: String(stats.first_c12),
-                icon: 'SearchAlert',
-                color: 'text-red-500 bg-red-50/10'
-            },
-            action: { type: 'link', url: '/services?filter=first_c12' }
-        },
-        {
-            id: 'chart_month_leituras',
-            type: 'chartCard',
-            size: { colSpan: 2, rowSpan: 1 },
-            data: {
-                chartType: 'bar',
-                title: 'Leituras do mês',
-                description: 'Leituras realizadas e não lidas',
-                dataset: [
-                    { label: "Lidos", value: stats.month_leituras },
-                    { label: "Não lidos", value: stats.month_cnl }
-                ],
+        // {
+        //     id: 'stat_cnl',
+        //     type: 'statCard',
+        //     size: { colSpan: 2, rowSpan: 1 },
+        //     data: {
+        //         title: 'Quantidade de CNL',
+        //         value: String(stats.cnl),
+        //         icon: 'UserX',
+        //         color: 'text-red-500 bg-red-50/10'
+        //     },
+        //     action: { type: 'link', url: '/services?filter=cnl' }
+        // },
+        // {
+        //     id: 'stat_percent_cnl',
+        //     type: 'statCard',
+        //     size: { colSpan: 1, rowSpan: 1 },
+        //     data: {
+        //         title: 'Percentual de CNL',
+        //         value: `${stats.percent_cnl.toFixed(1)}%`,
+        //         icon: 'TrendingUp',
+        //         color: 'text-red-500 bg-red-50/10'
+        //     },
+        //     action: { type: 'link', url: '/services?filter=cnl' }
+        // },
+        // {
+        //     id: 'chart_cnl_semana',
+        //     type: 'chartCard',
+        //     size: { colSpan: 3, rowSpan: 1 },
+        //     data: {
+        //         chartType: 'bar',
+        //         title: 'CNL da semana',
+        //         dataset:
+        //             stats.weekly_cnl_stats['labels'].map((label, i) => {
+        //                 return {
+        //                     label: label,
+        //                     value: parseInt(stats.weekly_cnl_stats['series'][i])
+        //                 }
+        //             })
+        //     },
+        // },
+        // {
+        //     id: 'stat_c12_hora',
+        //     type: 'statCard',
+        //     size: { colSpan: 1, rowSpan: 1 },
+        //     data: {
+        //         title: 'C12 Fora de Horário',
+        //         value: String(stats.quant_c12_out_hour),
+        //         subtitle: 'Antes das 08:00',
+        //         icon: 'Moon',
+        //         color: 'text-red-500 bg-red-50/10'
+        //     },
+        //     action: { type: 'link', url: '/services?filter=c12_out_time' }
+        // },
+        // {
+        //     id: 'stat_c12',
+        //     type: 'statCard',
+        //     size: { colSpan: 2, rowSpan: 1 },
+        //     data: {
+        //         title: 'Total de C12',
+        //         value: String(stats.quant_c12),
+        //         icon: 'House',
+        //         color: 'text-red-500 bg-red-50/10'
+        //     },
+        //     action: { type: 'link', url: '/services?filter=c12' }
+        // },
+        // {
+        //     id: 'stat_c12_nova',
+        //     type: 'statCard',
+        //     size: { colSpan: 1, rowSpan: 1 },
+        //     data: {
+        //         title: 'C12 em Ligação Nova',
+        //         value: String(stats.licacao_nova_c12),
+        //         icon: 'HousePlus',
+        //         color: 'text-red-500 bg-red-50/10'
+        //     },
+        //     action: { type: 'link', url: '/services?filter=c12_ligacao_nova' }
+        // },
+        // {
+        //     id: 'stat_c12_fast',
+        //     type: 'statCard',
+        //     size: { colSpan: 1, rowSpan: 1 },
+        //     data: {
+        //         title: 'C12 Rápido',
+        //         value: String(stats.fast_c12),
+        //         icon: 'UserPlus',
+        //         color: 'text-red-500 bg-red-50/10'
+        //     },
+        //     action: { type: 'link', url: '/services?filter=fast_c12' }
+        // },
+        // {
+        //     id: 'stat_first_c12',
+        //     type: 'statCard',
+        //     size: { colSpan: 1, rowSpan: 1 },
+        //     data: {
+        //         title: 'C12 Entrante',
+        //         value: String(stats.first_c12),
+        //         icon: 'SearchAlert',
+        //         color: 'text-red-500 bg-red-50/10'
+        //     },
+        //     action: { type: 'link', url: '/services?filter=first_c12' }
+        // },
+        // {
+        //     id: 'chart_month_leituras',
+        //     type: 'chartCard',
+        //     size: { colSpan: 2, rowSpan: 1 },
+        //     data: {
+        //         chartType: 'bar',
+        //         title: 'Leituras do mês',
+        //         description: 'Leituras realizadas e não lidas',
+        //         dataset: [
+        //             { label: "Lidos", value: stats.month_leituras },
+        //             { label: "Não lidos", value: stats.month_cnl }
+        //         ],
 
-            },
-        },
-        {
-            id: 'stat_month_total_leituras',
-            type: 'statCard',
-            size: { colSpan: 1, rowSpan: 1 },
-            data: {
-                title: 'Total de leituras',
-                value: String(stats.month_total_leituras),
-                icon: 'Check',
-                color: 'text-emerald-500 bg-emerald-50/10'
-            },
-            action: { type: 'link', url: '/services?filter=all' }
-        },
+        //     },
+        // },
+        // {
+        //     id: 'stat_month_total_leituras',
+        //     type: 'statCard',
+        //     size: { colSpan: 1, rowSpan: 1 },
+        //     data: {
+        //         title: 'Total de leituras',
+        //         value: String(stats.month_total_leituras),
+        //         icon: 'Check',
+        //         color: 'text-emerald-500 bg-emerald-50/10'
+        //     },
+        //     action: { type: 'link', url: '/services?filter=all' }
+        // },
 
     ];
 
-    // if (stats.pending_justifies.length > 0) {
-    //     widgets.unshift({
-    //         id: 'alert_2',
-    //         type: 'alertCard',
-    //         size: { colSpan: 3, rowSpan: 1 },
-    //         data: {
-    //             title: "ATENÇÃO!",
-    //             message: "Você possui pendências a justificar. Por favor, acesse o menu lateral e clique em 'Justificar Pendências'.",
-    //             severity: "warning"
-    //         },
-    //     });
-    // }
+    widgets.unshift({
+        id: 'alert_2',
+        type: 'alertCard',
+        size: { colSpan: 3, rowSpan: 1 },
+        data: {
+            title: "PARABÉNS!",
+            message: "Você está acima da meta com relação a semana anterior.",
+            severity: "success"
+        },
+    });
 
     return {
         layout: {
@@ -305,8 +291,8 @@ async function generateDashboardAdmin({ user, stats }) {
                 chartType: 'donut',
                 title: 'Quantidade por estado',
                 dataset: APP_STATES.map(s => ({
-                    label: s.label, 
-                    value: stats.users_agents?.filter(u => u.estado === s.value).length 
+                    label: s.label,
+                    value: stats.users_agents?.filter(u => u.estado === s.value).length
                 })),
             },
         },
