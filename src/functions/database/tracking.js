@@ -9,7 +9,13 @@ async function insertFallIncident(agentId, incident) {
         ...incident,
         agent_id: agentId,
     });
-    const { rows } = await sinergia_pool.query(
+
+    // Se o agente marcou "Estou Bem", não registrar no servidor (só telemetria local no celular).
+    if (validated.userCancelled === true) {
+        return null;
+    }
+
+    const { rows } = await cenos_pool.query(
         `INSERT INTO fall_incidents (
             agent_id, latitude, longitude, status, recorded_at,
             free_fall_gravity, impact_gravity,
@@ -20,7 +26,9 @@ async function insertFallIncident(agentId, incident) {
             free_fall_duration_ms, impact_latency_ms,
             user_cancelled, user_cancelled_at,
             device_model, os_version, battery_level, is_charging, network_type,
-            sensor_raw
+            sensor_raw,
+            impact_band, rotation_fallback_used, immobility_verified,
+            device_incident_id
         ) VALUES (
             $1, $2, $3, 'pending', $4,
             $5, $6,
@@ -31,8 +39,18 @@ async function insertFallIncident(agentId, incident) {
             $18, $19,
             $20, $21,
             $22, $23, $24, $25, $26,
-            $27
-        ) RETURNING *`,
+            $27,
+            $28, $29, $30,
+            $31::uuid
+        )
+        ON CONFLICT (device_incident_id) WHERE device_incident_id IS NOT NULL DO UPDATE SET
+            user_cancelled     = EXCLUDED.user_cancelled,
+            user_cancelled_at  = EXCLUDED.user_cancelled_at,
+            status             = CASE WHEN EXCLUDED.user_cancelled THEN 'cancelled' ELSE fall_incidents.status END,
+            impact_band        = COALESCE(EXCLUDED.impact_band, fall_incidents.impact_band),
+            rotation_fallback_used = COALESCE(EXCLUDED.rotation_fallback_used, fall_incidents.rotation_fallback_used),
+            immobility_verified    = COALESCE(EXCLUDED.immobility_verified, fall_incidents.immobility_verified)
+        RETURNING *`,
         [
             agentId,
             validated.lat ?? null,
@@ -50,7 +68,7 @@ async function insertFallIncident(agentId, incident) {
             validated.phaseImpact ?? false,
             validated.phaseRotation ?? false,
             validated.phaseImmobility ?? false,
-            validated.speedDropConfirmed ?? false,
+            validated.speedDropConfirmed ?? null,
             validated.freeFallDurationMs ?? null,
             validated.impactLatencyMs ?? null,
             validated.userCancelled ?? false,
@@ -61,10 +79,16 @@ async function insertFallIncident(agentId, incident) {
             validated.isCharging ?? null,
             validated.networkType ?? null,
             validated.sensorRaw ? JSON.stringify(validated.sensorRaw) : null,
+            validated.impactBand ?? null,
+            validated.rotationFallbackUsed ?? false,
+            validated.immobilityVerified ?? true,
+            validated.id ?? null,  // device_incident_id = UUID gerado no celular
         ]
     );
     return rows[0];
 }
+
+
 
 async function getFallIncidents(filters = {}, user = null) {
     const params = [];

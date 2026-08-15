@@ -71,6 +71,7 @@ router.get('/profile', telegramAuth, async (req, res) => {
             role: userData.cargo || 'Desconhecido',
             location: userData.regional || 'Desconhecido',
             photo: userData.profilePicUrl || "https://api.izi.tec.br/files/assets/profile.png",
+            is_gestor: user.is_gestor || false,
             stats: {
                 level: 0
             }

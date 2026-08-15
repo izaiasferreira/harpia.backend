@@ -52,6 +52,11 @@ const AVAILABLE_MODULES = [
     { id: 'update_message_template', name: 'Atualizar Modelo de Mensagem', group: 'Comunicação' },
     { id: 'delete_message_template', name: 'Deletar Modelo de Mensagem', group: 'Comunicação' },
     { id: 'chat', name: 'Chat Suporte Técnico', group: 'Comunicação' },
+    // Avisos do App
+    { id: 'app_alerts', name: 'Consultar Avisos do App', group: 'Comunicação' },
+    { id: 'create_app_alert', name: 'Criar Aviso do App', group: 'Comunicação' },
+    { id: 'update_app_alert', name: 'Editar Aviso do App', group: 'Comunicação' },
+    { id: 'delete_app_alert', name: 'Excluir Aviso do App', group: 'Comunicação' },
     // Segurança e Monitoramento
     { id: 'security_reports', name: 'Consultar Relatórios de Segurança', group: 'Segurança e Monitoramento' },
     { id: 'create_security_report', name: 'Criar Reporte de Segurança (Perigo)', group: 'Segurança e Monitoramento' },
@@ -66,6 +71,9 @@ const AVAILABLE_MODULES = [
     { id: 'tracking_live', name: 'Monitoramento: Ao Vivo', group: 'Segurança e Monitoramento' },
     { id: 'tracking_history', name: 'Monitoramento: Histórico', group: 'Segurança e Monitoramento' },
     { id: 'tracking_speed', name: 'Monitoramento: Velocidade', group: 'Segurança e Monitoramento' },
+    { id: 'resolve_speed_violation', name: 'Solucionar Infrações de Velocidade', group: 'Segurança e Monitoramento' },
+    { id: 'update_speed_violation_resolution', name: 'Editar Resolução de Infração de Velocidade', group: 'Segurança e Monitoramento' },
+    { id: 'delete_speed_violation_resolution', name: 'Excluir Resolução de Infração de Velocidade', group: 'Segurança e Monitoramento' },
     { id: 'tracking_falls', name: 'Monitoramento: Quedas', group: 'Segurança e Monitoramento' },
     { id: 'tracking_settings', name: 'Configurações de Tracking', group: 'Segurança e Monitoramento' },
     { id: 'tracking_alerts', name: 'Monitoramento: Disparar Alertas Sonoros', group: 'Segurança e Monitoramento' },

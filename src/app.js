@@ -140,6 +140,12 @@ app.use('/admin/logout-pins', adminAppLogoutPinsRouter)
 const adminTrackingRouter = require('./routes/adminTracking')
 app.use('/admin/tracking', adminTrackingRouter)
 
+const managerTrackingRouter = require('./routes/managerTracking')
+app.use('/agent/manager-tracking', managerTrackingRouter)
+
+const adminTrackingResolutionsRouter = require('./routes/adminTrackingResolutions')
+app.use('/admin/tracking', adminTrackingResolutionsRouter)
+
 const adminGeofencesRouter = require('./routes/adminGeofences')
 app.use('/admin/tracking/fences', adminGeofencesRouter)
 
@@ -186,6 +192,13 @@ app.use('/admin/config', adminConfigRouter)
 
 const adminMessagesRouter = require('./routes/adminMessages')
 app.use('/admin/messages', adminMessagesRouter)
+
+const adminAppAlertsRouter = require('./routes/adminAppAlerts')
+app.use('/admin/app-alerts', adminAppAlertsRouter)
+
+const agentAppAlertsRouter = require('./routes/agentAppAlerts')
+app.use('/agent/app-alerts', agentAppAlertsRouter)
+
 
 const adminSecurityReportConfigsRouter = require('./routes/adminSecurityReportConfigs')
 app.use('/admin/security_reports/configs', adminSecurityReportConfigsRouter)

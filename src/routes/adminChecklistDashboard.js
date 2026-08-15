@@ -29,8 +29,8 @@ router.get('/filter-options', verifyToken(), verifyModule('checklists'), async (
 
 router.get('/stats', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
-    const { date_from, date_to, regional, sectional, estado, gestor } = req.query;
-    const stats = await getDashboardStats({ date_from, date_to, regional, sectional, estado, gestor }, req.user);
+    const { date_from, date_to, regional, sectional, estado, gestor, checklist_kind } = req.query;
+    const stats = await getDashboardStats({ date_from, date_to, regional, sectional, estado, gestor, checklist_kind }, req.user);
     res.json(stats);
   } catch (err) {
     console.error('[DASHBOARD] Erro GET /stats:', err);
@@ -40,8 +40,8 @@ router.get('/stats', verifyToken(), verifyModule('checklists'), async (req, res)
 
 router.get('/non-compliant-items', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
-    const { date_from, date_to, regional, sectional, estado, gestor } = req.query;
-    const items = await getDashboardNonCompliantItems({ date_from, date_to, regional, sectional, estado, gestor }, req.user);
+    const { date_from, date_to, regional, sectional, estado, gestor, checklist_kind } = req.query;
+    const items = await getDashboardNonCompliantItems({ date_from, date_to, regional, sectional, estado, gestor, checklist_kind }, req.user);
     res.json(items);
   } catch (err) {
     console.error('[DASHBOARD] Erro GET /non-compliant-items:', err);
@@ -51,8 +51,8 @@ router.get('/non-compliant-items', verifyToken(), verifyModule('checklists'), as
 
 router.get('/alerts', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
-    const { date_from, date_to, regional, sectional, estado, gestor } = req.query;
-    const alerts = await getDashboardAlerts({ date_from, date_to, regional, sectional, estado, gestor }, req.user);
+    const { date_from, date_to, regional, sectional, estado, gestor, checklist_kind } = req.query;
+    const alerts = await getDashboardAlerts({ date_from, date_to, regional, sectional, estado, gestor, checklist_kind }, req.user);
     res.json(alerts);
   } catch (err) {
     console.error('[DASHBOARD] Erro GET /alerts:', err);
@@ -65,13 +65,13 @@ router.get('/checklists', verifyToken(), verifyModule('checklists'), async (req,
     const {
       page, limit, agent_name, date_from, date_to,
       type, compliance_filter, status,
-      regional, sectional, estado, gestor
+      regional, sectional, estado, gestor, checklist_kind
     } = req.query;
     const result = await listDashboardChecklists({
       page: parseInt(page || 1, 10),
       limit: parseInt(limit || 15, 10),
       agent_name, date_from, date_to, type, compliance_filter, status,
-      regional, sectional, estado, gestor,
+      regional, sectional, estado, gestor, checklist_kind,
     }, req.user);
     res.json(result);
   } catch (err) {
@@ -84,13 +84,13 @@ router.get('/pending-agents', verifyToken(), verifyModule('checklists'), async (
   try {
     const {
       page, limit, agent_name, date_from, date_to,
-      regional, sectional, estado, gestor,
+      regional, sectional, estado, gestor, checklist_kind
     } = req.query;
     const result = await getDashboardPendingAgents({
       page: parseInt(page || 1, 10),
       limit: parseInt(limit || 20, 10),
       agent_name, date_from, date_to,
-      regional, sectional, estado, gestor,
+      regional, sectional, estado, gestor, checklist_kind,
     }, req.user);
     res.json(result);
   } catch (err) {
@@ -103,7 +103,8 @@ router.get('/pending-agents', verifyToken(), verifyModule('checklists'), async (
 
 router.get('/v2/templates', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
-    const templates = await getDashboardTemplates(req.user);
+    const { checklist_kind } = req.query;
+    const templates = await getDashboardTemplates(req.user, checklist_kind);
     res.json(templates);
   } catch (err) {
     console.error('[DASHBOARD_V2] Erro GET /templates:', err);
@@ -113,10 +114,10 @@ router.get('/v2/templates', verifyToken(), verifyModule('checklists'), async (re
 
 router.get('/v2/stats', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
-    const { date_from, date_to, regional, sectional, estado, gestor, template_id } = req.query;
+    const { date_from, date_to, regional, sectional, estado, gestor, template_id, checklist_kind } = req.query;
     const stats = await getDashboardStatsV2({
       date_from, date_to, regional, sectional, estado, gestor,
-      template_id: template_id || undefined,
+      template_id: template_id || undefined, checklist_kind,
     }, req.user);
     if (!stats) return res.status(404).json({ error: 'Template não encontrado ou inativo' });
     res.json(stats);
@@ -130,14 +131,14 @@ router.get('/v2/pending-agents', verifyToken(), verifyModule('checklists'), asyn
   try {
     const {
       page, limit, agent_name, date_from, date_to,
-      regional, sectional, estado, gestor, template_id,
+      regional, sectional, estado, gestor, template_id, checklist_kind
     } = req.query;
     const result = await getDashboardPendingAgentsV2({
       page: parseInt(page || 1, 10),
       limit: parseInt(limit || 20, 10),
       agent_name, date_from, date_to,
       regional, sectional, estado, gestor,
-      template_id: template_id || undefined,
+      template_id: template_id || undefined, checklist_kind,
     }, req.user);
     res.json(result);
   } catch (err) {
@@ -150,14 +151,14 @@ router.get('/v2/completed-agents', verifyToken(), verifyModule('checklists'), as
   try {
     const {
       page, limit, agent_name, date_from, date_to,
-      regional, sectional, estado, gestor, template_id,
+      regional, sectional, estado, gestor, template_id, checklist_kind
     } = req.query;
     const result = await getDashboardCompletedAgentsV2({
       page: parseInt(page || 1, 10),
       limit: parseInt(limit || 20, 10),
       agent_name, date_from, date_to,
       regional, sectional, estado, gestor,
-      template_id: template_id || undefined,
+      template_id: template_id || undefined, checklist_kind,
     }, req.user);
     res.json(result);
   } catch (err) {
@@ -167,15 +168,15 @@ router.get('/v2/completed-agents', verifyToken(), verifyModule('checklists'), as
 });
 
 router.get('/v2/non-compliant-items', verifyToken(), verifyModule('checklists'), async (req, res) => {
-    try {
-      const { date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw } = req.query;
-      const items = await getDashboardNonCompliantItemsV2({
-        date_from, date_to, regional, sectional, estado, gestor, agent_name,
-        template_id: template_id || undefined,
-        export_raw: export_raw === 'true'
-      }, req.user);
-      res.json(items);
-    } catch (err) {
+  try {
+    const { date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind, export_mode } = req.query;
+    const items = await getDashboardNonCompliantItemsV2({
+      date_from, date_to, regional, sectional, estado, gestor, agent_name,
+      template_id: template_id || undefined,
+      export_raw: export_raw === 'true', checklist_kind, export_mode,
+    }, req.user);
+    res.json(items);
+  } catch (err) {
     console.error('[DASHBOARD_V2] Erro GET /v2/non-compliant-items:', err);
     res.status(500).json({ error: err.message });
   }
@@ -183,11 +184,12 @@ router.get('/v2/non-compliant-items', verifyToken(), verifyModule('checklists'),
 
 router.get('/v2/alerts', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
-    const { date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw } = req.query;
+    const { date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind, export_mode } = req.query;
     const alerts = await getDashboardAlertsV2({
       date_from, date_to, regional, sectional, estado, gestor, agent_name,
       export_raw: export_raw === 'true',
-      template_id: template_id || undefined,
+
+      template_id: template_id || undefined, checklist_kind, export_mode,
     }, req.user);
     res.json(alerts);
   } catch (err) {
@@ -198,11 +200,11 @@ router.get('/v2/alerts', verifyToken(), verifyModule('checklists'), async (req, 
 
 router.get('/v2/non-conformities', verifyToken(), verifyModule('checklists'), async (req, res) => {
   try {
-    const { date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw } = req.query;
+    const { date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind, export_mode } = req.query;
     const items = await getDashboardNonConformitiesV2({
       date_from, date_to, regional, sectional, estado, gestor, agent_name,
       template_id: template_id || undefined,
-      export_raw: export_raw === 'true',
+      export_raw: export_raw === 'true', checklist_kind, export_mode,
     }, req.user);
     res.json(items);
   } catch (err) {

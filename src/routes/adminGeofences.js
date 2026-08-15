@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { sinergia_pool } = require('../db');
 const { verifyToken, verifyModule } = require('../middlewares/jwtAuth');
+const { validate } = require('../middlewares/validate');
+const { geofenceCreateSchema, geofenceUpdateSchema } = require('../db/schemas/geofences');
 
 // Listar todas as cercas virtuais (limitado ao estado do admin se ele não for super)
 router.get('/', verifyToken(), verifyModule('geofences'), async (req, res) => {
@@ -30,7 +32,7 @@ router.get('/', verifyToken(), verifyModule('geofences'), async (req, res) => {
 });
 
 // Criar nova cerca virtual
-router.post('/', verifyToken(), verifyModule('create_geofence'), async (req, res) => {
+router.post('/', verifyToken(), verifyModule('create_geofence'), validate(geofenceCreateSchema), async (req, res) => {
     try {
         const { name, type, estado, geometry, speed_limit, is_active } = req.body;
         
@@ -61,7 +63,7 @@ router.post('/', verifyToken(), verifyModule('create_geofence'), async (req, res
 });
 
 // Atualizar cerca
-router.put('/:id', verifyToken(), verifyModule('update_geofence'), async (req, res) => {
+router.put('/:id', verifyToken(), verifyModule('update_geofence'), validate(geofenceUpdateSchema), async (req, res) => {
     try {
         const fenceId = parseInt(req.params.id);
         const { name, type, estado, geometry, speed_limit, is_active } = req.body;

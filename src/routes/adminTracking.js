@@ -10,6 +10,8 @@ const {
 } = require('../functions/database/trackingUnified');
 const { getTokensByAgent } = require('../functions/database/fcmTokens');
 const { sendToMultiple } = require('../functions/firebase');
+const { get_agent_proximity_alerts } = require('../functions/database/trackingAlerts');
+const { getAgentsTrailInArea } = require('../functions/database/trackingAreaSearch');
 const {
     get_accidents_admin,
     resolve_accident,
@@ -55,6 +57,51 @@ router.get('/agent/:id/trail-extended', verifyToken(), verifyModule('tracking_hi
     } catch (err) {
         console.error('[TRACKING] Erro ao buscar trajeto extendido:', err);
         res.status(500).json({ error: 'Erro ao buscar trajeto' });
+    }
+});
+
+// GET /admin/tracking/agent/:id/alerts — alertas de proximidade recebidos pelo agente na janela
+router.get('/agent/:id/alerts', verifyToken(), verifyModule('tracking_history'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { from, to } = req.query;
+        const alerts = await get_agent_proximity_alerts(id, from || null, to || null);
+        res.json(alerts);
+    } catch (err) {
+        console.error('[TRACKING] Erro ao buscar alertas de proximidade:', err);
+        res.status(500).json({ error: 'Erro ao buscar alertas de proximidade' });
+    }
+});
+
+// POST /admin/tracking/area/trail — busca agentes que passaram por uma área (polígono) no dia
+router.post('/area/trail', verifyToken(), verifyModule('tracking_history'), async (req, res) => {
+    try {
+        const { polygon, date } = req.body;
+
+        if (!Array.isArray(polygon) || polygon.length < 3) {
+            return res.status(400).json({ error: 'Polígono inválido: desenhe pelo menos 3 pontos na área' });
+        }
+        for (const p of polygon) {
+            if (!p || typeof p.lat !== 'number' || typeof p.lng !== 'number' ||
+                !isFinite(p.lat) || !isFinite(p.lng)) {
+                return res.status(400).json({ error: 'Polígono inválido: cada ponto deve ter lat/lng numéricos' });
+            }
+        }
+        if (!date || typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return res.status(400).json({ error: 'Data inválida: use o formato YYYY-MM-DD' });
+        }
+
+        const result = await getAgentsTrailInArea({
+            polygon,
+            dateFrom: `${date}T00:00:00`,
+            dateTo: `${date}T23:59:59`,
+            user: req.user,
+        });
+
+        res.json(result);
+    } catch (err) {
+        console.error('[TRACKING] Erro ao buscar agentes por área:', err);
+        res.status(500).json({ error: 'Erro ao buscar agentes por área' });
     }
 });
 

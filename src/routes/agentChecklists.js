@@ -121,7 +121,8 @@ router.get('/requirements', telegramAuth, async (req, res) => {
 
     console.log('exempt', {exempt, agentId, todayStr})
     if (exempt) {
-      
+      const d = new Date(todayStr + 'T12:00:00Z');
+      const isSunday = d.getUTCDay() === 0;
       
       return res.json({
         checklist_required: false,
@@ -265,23 +266,23 @@ router.post('/manager-checklists', telegramAuth, async (req, res) => {
 
     const { rows: existingRows } = await sinergia_pool.query(
       `SELECT 1 FROM checklists 
-       WHERE agent_id = $1 AND target_agent_id = $2 
-         AND template_id = $3
-         AND TO_CHAR(date, 'YYYY-MM') = TO_CHAR($4::date, 'YYYY-MM')
+       WHERE (agent_id = $1 OR target_agent_id = $1)
+         AND template_id = $2
+         AND TO_CHAR(date, 'YYYY-MM') = TO_CHAR($3::date, 'YYYY-MM')
        LIMIT 1`,
-      [req.colaborador.id, data.target_agent_id, data.template_id, data.date]
+      [data.target_agent_id, data.template_id, data.date]
     );
 
     if (existingRows.length > 0) {
-      return res.status(409).json({ error: 'Este colaborador já possui checklist do gestor neste mês' });
+      return res.status(200).json({ success: true, ignored: true, message: 'Checklist já existe' });
     }
 
-    const checklist = await saveChecklistSubmission(req.colaborador.id, { ...data, type: 'supplementary' });
+    const checklist = await saveChecklistSubmission(data.target_agent_id, { ...data, type: 'supplementary', target_agent_id: data.target_agent_id });
     res.status(201).json({ success: true, checklist });
   } catch (err) {
     console.error('[AGENT_CHECKLISTS] Erro POST /manager-checklists:', err);
     if (err.message && err.message.includes('gestor_target_mes')) {
-      return res.status(409).json({ error: 'Este colaborador já possui checklist do gestor neste mês' });
+      return res.status(200).json({ success: true, ignored: true, message: 'Este colaborador já possui checklist do gestor neste mês' });
     }
     if (err.status) return res.status(err.status).json({ error: err.message });
     res.status(500).json({ error: err.message });

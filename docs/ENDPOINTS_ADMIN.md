@@ -310,6 +310,44 @@ Retorna listas de valores para filtros (regionais, seccionais, gestores, cargos,
 
 ---
 
+### `GET /admin/users_agents/services`
+Retorna a lista de serviços (leituras/atividades) executados por um agente em uma data, com paginação. Inclui `latitude`/`longitude` de cada serviço.
+
+**Módulo Requerido:** `users_agents`
+
+**Query Params:**
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| id | string | sim | Matrícula do agente |
+| date | string | não | Data no formato `DD.MM.YYYY` (default: hoje) |
+| page | number | não | Página (default: 1) |
+| limit | number | não | Limite por página (default: `999`) |
+| filter | string | não | `all` \| `pending` \| `completed` (default: `all`) |
+| search | string | não | Busca por instalação, regional, seccional, agente, supervisor ou perda |
+
+**Response 200:**
+```json
+[
+  {
+    "instalacao": "12345",
+    "etapa": "1",
+    "ntlei": "A1",
+    "data_conclusao": "DD/MM/YYYY",
+    "data_leit_prev": "DD/MM/YYYY",
+    "agente": "AG01",
+    "nome_agente": "JOSE SILVA",
+    "latitude": "-5.0892",
+    "longitude": "-42.8019",
+    "time": "08:30",
+    "justificado": false,
+    "regional": "NORTE",
+    "seccional": "S1"
+  }
+]
+```
+
+---
+
 ### `GET /admin/branch` / `POST /admin/branch`
 CRUD de filiais e regionais operacionais.
 
@@ -643,6 +681,50 @@ Retorna as coordenadas históricas (trilha) percorridas por um agente específic
 
 ---
 
+### `POST /admin/tracking/area/trail`
+Busca **todos os agentes** que passaram por uma área desenhada (polígono) em uma única data, retornando para cada um a trilha completa do dia (pontos + paradas detectadas) e os alertas de proximidade do dia. Requer o módulo `tracking_history`.
+
+Pontos **estimados** (`is_estimated = TRUE`) **não** contam para a detecção de passagem pela área, mas continuam visíveis nos trails retornados. A busca é limitada aos **100 primeiros agentes** — o campo `truncated` indica quando o total excede esse limite (a data única é por design para economizar banda).
+
+**Body:**
+```json
+{
+  "polygon": [
+    { "lat": -5.09, "lng": -42.81 },
+    { "lat": -5.09, "lng": -42.79 },
+    { "lat": -5.08, "lng": -42.79 },
+    { "lat": -5.08, "lng": -42.81 }
+  ],
+  "date": "2026-08-11"
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| polygon | array | sim | Vértices do polígono (mínimo 3) — cada ponto com `lat`/`lng` numéricos |
+| date | string | sim | Data da busca no formato `YYYY-MM-DD` |
+
+**Response 200:**
+```json
+{
+  "agents": [
+    {
+      "agent_id": "G1234567",
+      "agent_nome": "Agente de Teste",
+      "points": [ { "latitude": "-5.0892000", "longitude": "-42.8016000", "speed": "12.00", "recorded_at": "2026-08-11T10:00:00.000Z", "is_estimated": false } ],
+      "stops": [ { "lat": -5.0892, "lng": -42.8016, "stopped_at": "...", "resumed_at": "...", "duration_seconds": 300 } ],
+      "alerts": [ { "id": "...", "agent_id": "G1234567", "motivo": "...", "recorded_at": "..." } ]
+    }
+  ],
+  "total_agents": 1,
+  "truncated": false
+}
+```
+
+**Response 400:** `{ "error": "Polígono inválido: desenhe pelo menos 3 pontos na área" }` ou `{ "error": "Data inválida: use o formato YYYY-MM-DD" }`.
+
+---
+
 ### `GET /admin/tracking/speed_violations`
 Lista as infrações de limite de velocidade (> 50 km/h) disparadas em campo.
 
@@ -656,6 +738,122 @@ Exclui uma infração de velocidade. Requer role `COMPANY_ADMIN`.
 
 ---
 
+### `GET /admin/tracking/fences`
+Lista as cercas virtuais (geofences). Requer o módulo `geofences`. Admin com role `COMPANY_ADMIN` vê todas as cercas; usuários comuns veem apenas as do seu próprio estado (`estado = $1`).
+
+**Response 200:**
+```json
+[
+  {
+    "id": 1,
+    "name": "CERCA TERESINA 01",
+    "type": "speed",
+    "estado": "pi",
+    "geometry": [ { "lat": -5.0892, "lng": -42.8016 } ],
+    "speed_limit": 40,
+    "is_active": true,
+    "created_at": "2026-08-11T12:00:00.000Z",
+    "updated_at": "2026-08-11T12:00:00.000Z"
+  }
+]
+```
+
+---
+
+### `POST /admin/tracking/fences`
+Cria uma cerca virtual. Requer o módulo `create_geofence`. Valida payload via `geofenceCreateSchema`.
+
+**Body:**
+```json
+{
+  "name": "CERCA TERESINA 01",
+  "type": "speed",
+  "estado": "pi",
+  "geometry": [
+    { "lat": -5.09, "lng": -42.81 },
+    { "lat": -5.09, "lng": -42.79 },
+    { "lat": -5.08, "lng": -42.79 },
+    { "lat": -5.08, "lng": -42.81 }
+  ],
+  "speed_limit": 40,
+  "is_active": true
+}
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| name | string | sim | Nome da cerca (1-100 caracteres, aparado) |
+| type | string | sim | `speed`, `min_speed`, `enter` ou `exit` |
+| estado | string | sim | `pi` ou `ma` (caixa baixa) |
+| geometry | array | sim | Vértices do polígono (mínimo 3, máximo 10000) — cada ponto `{ lat, lng }` numéricos (lat -90..90, lng -180..180) |
+| speed_limit | integer | condicional | Obrigatório quando `type = 'speed'`; 1-300 |
+| is_active | boolean | não | Default `true` |
+
+**Response 201:**
+```json
+{
+  "id": 1,
+  "name": "CERCA TERESINA 01",
+  "type": "speed",
+  "estado": "pi",
+  "geometry": [ { "lat": -5.09, "lng": -42.81 } ],
+  "speed_limit": 40,
+  "is_active": true,
+  "lat_min": -5.09,
+  "lat_max": -5.08,
+  "lng_min": -42.81,
+  "lng_max": -42.79,
+  "created_at": "2026-08-11T12:00:00.000Z",
+  "updated_at": "2026-08-11T12:00:00.000Z"
+}
+```
+
+**Response 400 (validação):** `{ "error": "Dados inválidos", "details": [{ "campo": "geometry", "mensagem": "..." }] }`
+
+---
+
+### `PUT /admin/tracking/fences/:id`
+Atualiza uma cerca virtual. Requer o módulo `update_geofence`. Aceita apenas os campos que serão alterados.
+
+**Body:**
+```json
+{ "speed_limit": 60, "name": "CERCA TERESINA 01 NOVA" }
+```
+
+**Response 200:** retorna a cerca atualizada (mesmo formato do `POST`).
+
+**Response 404:** `{ "error": "Cerca não encontrada" }`
+
+---
+
+### `DELETE /admin/tracking/fences/:id`
+Remove uma cerca virtual. Requer o módulo `delete_geofence`.
+
+**Response 200:**
+```json
+{ "success": true }
+```
+
+**Response 404:** `{ "error": "Cerca não encontrada" }`
+
+---
+
+### Script de importação em massa (`back/scripts/import_fences.js`)
+Importa cercas de um JSON externo (formato LCTracker: campos `name` e `coordinates[{latitude, longitude}]`) para `tracking_fences`, normalizando para `{ lat, lng }`.
+
+```bash
+node scripts/import_fences.js --file ../fences.json --estado pi --speed-limit 40
+```
+
+| Flag | Default | Descrição |
+|---|---|---|
+| --file | `../fences.json` | Caminho do arquivo JSON com as cercas |
+| --estado | `pi` | Estado atribuído a todas as cercas |
+| --speed-limit | `40` | Limite de velocidade das cercas `speed` |
+
+Comportamento: cerca com nome já existente no banco é **pulada**; geometrias inválidas (ex.: coordenadas fora do range) são reportadas como erro sem interromper o restante da importação.
+
+---
 
 
 ## 9. PINs de Aplicativo Standalone

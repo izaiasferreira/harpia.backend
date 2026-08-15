@@ -40,6 +40,34 @@ async function upsertGlobalSpeedLimit(speedLimitKmh) {
     `, [String(speedLimitKmh)]);
 }
 
+async function getSpeedEligibleConfig() {
+    const { rows } = await cenos_pool.query(`
+        SELECT key, value FROM tracking_global_config 
+        WHERE key IN ('speed_eligible_cargos', 'speed_eligible_estados', 'speed_eligible_regionais', 'speed_eligible_seccionais')
+    `);
+    
+    const config = {
+        cargos: [],
+        estados: [],
+        regionais: [],
+        seccionais: []
+    };
+    
+    rows.forEach(r => {
+        try {
+            const parsed = JSON.parse(r.value);
+            if (Array.isArray(parsed)) {
+                if (r.key === 'speed_eligible_cargos') config.cargos = parsed;
+                if (r.key === 'speed_eligible_estados') config.estados = parsed;
+                if (r.key === 'speed_eligible_regionais') config.regionais = parsed;
+                if (r.key === 'speed_eligible_seccionais') config.seccionais = parsed;
+            }
+        } catch(e) {}
+    });
+    
+    return config;
+}
+
 async function getAgentsLastPositionUnified(user = null) {
     // Primeiro: buscar agentes do sistema (ativos) baseado em permissões
     let query = `
@@ -377,6 +405,7 @@ module.exports = {
     upsertAgentSpeedLimit,
     getGlobalSpeedLimit,
     upsertGlobalSpeedLimit,
+    getSpeedEligibleConfig,
     getAgentsLastPositionUnified,
     getAgentTrailUnified,
     getAgentTrailWithStops,

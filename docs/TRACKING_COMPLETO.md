@@ -129,8 +129,10 @@ GPS (celular do agente)
  ▼
  ┌─── BACKEND ─────────────────────────────────────────────┐
  │                                                         │
- │ 1. Valida com Zod (unifiedPointSchema)                  │
- │ 2. Busca speed_limit do agente (tracking_agent_config)  │
+  │ 1. Valida com Zod (unifiedPointSchema)                  │
+  │    • Ponto inválido (sem lat/lng, formato legado, etc.)  │
+  │      é logado e DESCARTADO — não derruba o lote          │
+  │ 2. Busca speed_limit do agente (tracking_agent_config)  │
  │    ↓ não encontrado                                     │
  │ 3. Usa default global (tracking_global_config = 81km/h) │
  │ 4. Normaliza: battery 0-1→0-100, speed heurística       │
@@ -949,6 +951,7 @@ last_heartbeat_at
 | **GET** | `/admin/tracking/agents-v2` | — | Heartbeat (online/offline) | LIVE |
 | **GET** | `/admin/tracking/agent/:id/trail` | `?from=&to=` | Pontos históricos do trajeto | HISTORY |
 | **GET** | `/admin/tracking/agent/:id/trail-extended` | `?from=&to=` | Pontos + paradas detectadas (`{ points, stops }`) | HISTORY |
+| **GET** | `/admin/tracking/agent/:id/alerts` | `?from=&to=` | Alertas de proximidade recebidos pelo agente na janela (`agent_proximity_alerts`) | HISTORY |
 | **GET** | `/admin/tracking/speed_violations` | `?agent_id=&from=&to=` | Infrações de velocidade | SPEED |
 | **DELETE** | `/admin/tracking/speed_violations/:id` | — | Excluir infração (só COMPANY_ADMIN) | SPEED |
 | **GET** | `/admin/tracking/global-config` | — | Configuração global | SETTINGS |

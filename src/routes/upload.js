@@ -301,10 +301,11 @@ router.get('/file/:path(*)', async (req, res) => {
  * Serve arquivos de bucket específico com cache e compressão sob demanda
  * Restringe a buckets conhecidos para evitar enumeration arbitrária.
  */
-const ALLOWED_BUCKETS = new Set([CONFIG.bucket, 'apk', 'assets']);
+const ALLOWED_BUCKETS = new Set([CONFIG.bucket, ...CONFIG.allowedBuckets.split(',')]);
 router.get('/files/:bucket/:path(*)', async (req, res) => {
     try {
         const { bucket, path: objectName } = req.params;
+        console.log(bucket, ALLOWED_BUCKETS)
         if (!ALLOWED_BUCKETS.has(bucket)) {
             return res.status(403).json({ error: 'Bucket não permitido' });
         }

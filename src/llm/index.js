@@ -1,6 +1,5 @@
 const providers = {
   openai: require('./providers/openai'),
-  gemini: require('./providers/gemini'),
 };
 
 function getProvider(name) {

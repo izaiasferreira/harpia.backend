@@ -1,6 +1,6 @@
 const { sinergia_pool } = require('../../db');
-const { getUserAllowedStatePools, getColaboradoresFilter, userIsAdmin, buildUserPermissionSQL } = require('./admin');
-const { getExemptAgentIds, countActiveExemptions, listActiveExemptions } = require('./agentExemptions');
+const { getUserAllowedStatePools, buildUserPermissionSQL } = require('./admin');
+const { getExemptAgentIds, listActiveExemptions } = require('./agentExemptions');
 const { batchGetResolutions, batchGetResolutionsFull } = require('./nonconformityResolutions');
 
 /** Returns today's date as 'YYYY-MM-DD' in local time. */
@@ -51,7 +51,7 @@ function buildDateFilter({ date_from, date_to, params, idx }) {
 }
 
 function buildColaboradorJoins() {
-  return `LEFT JOIN colaboradores col ON c.agent_id = col."ID"`;
+  return `LEFT JOIN colaboradores col ON c.agent_id = col."ID" LEFT JOIN checklist_templates t ON c.template_id = t.id`;
 }
 
 function buildColaboradorFilters({ regional, sectional, estado, gestor, agent_name, params, idx, user }) {
@@ -71,23 +71,23 @@ function buildColaboradorFilters({ regional, sectional, estado, gestor, agent_na
   return { filters, idx };
 }
 
-async function getDashboardStats({ date_from, date_to, regional, sectional, estado, gestor }, user) {
+async function getDashboardStats({date_from, date_to, regional, sectional, estado, gestor, checklist_kind}, user) {
   const dParams = [];
   let dIdx = 1;
   const dateFilter = buildDateFilter({ date_from, date_to, params: dParams, idx: dIdx });
   const dateFilters = dateFilter.filters;
   dIdx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
-  });
+      });
   dIdx = colIdx;
 
-  const cFilters = [`c.status = 'submitted'`, ...dateFilters, ...colFilters];
+  const cFilters = [`c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`, ...dateFilters, ...colFilters];
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
-  const { agentIds } = await getV2TemplateAndAgentIds({ date_from, date_to }, user);
+  const { agentIds } = await getV2TemplateAndAgentIds({ date_from, date_to, checklist_kind }, user);
   if (agentIds.length === 0) {
     return {
       activeAgents: 0,
@@ -176,20 +176,20 @@ async function getDashboardStats({ date_from, date_to, regional, sectional, esta
   };
 }
 
-async function getDashboardNonCompliantItems({ date_from, date_to, regional, sectional, estado, gestor }, user) {
+async function getDashboardNonCompliantItems({date_from, date_to, regional, sectional, estado, gestor, checklist_kind}, user) {
   const dParams = [];
   let dIdx = 1;
   const dateFilter = buildDateFilter({ date_from, date_to, params: dParams, idx: dIdx });
   const dateFilters = dateFilter.filters;
   dIdx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
-  });
+      });
   dIdx = colIdx;
 
-  const cFilters = [`c.status = 'submitted'`, ...dateFilters, ...colFilters];
+  const cFilters = [`c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`, ...dateFilters, ...colFilters];
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
   const { rows } = await sinergia_pool.query(
@@ -207,20 +207,20 @@ async function getDashboardNonCompliantItems({ date_from, date_to, regional, sec
   return rows.map(r => ({ label: r.label, count: parseInt(r.count, 10) }));
 }
 
-async function getDashboardAlerts({ date_from, date_to, regional, sectional, estado, gestor }, user) {
+async function getDashboardAlerts({date_from, date_to, regional, sectional, estado, gestor, checklist_kind}, user) {
   const dParams = [];
   let dIdx = 1;
   const dateFilter = buildDateFilter({ date_from, date_to, params: dParams, idx: dIdx });
   const dateFilters = dateFilter.filters;
   dIdx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
-  });
+      });
   dIdx = colIdx;
 
-  const cFilters = [`c.status = 'submitted'`, ...dateFilters, ...colFilters];
+  const cFilters = [`c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`, ...dateFilters, ...colFilters];
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
   const { rows } = await sinergia_pool.query(
@@ -245,7 +245,7 @@ async function getDashboardAlerts({ date_from, date_to, regional, sectional, est
 async function listDashboardChecklists({
   page = 1, limit = 15, agent_name, date_from, date_to,
   type, compliance_filter, status,
-  regional, sectional, estado, gestor
+  regional, sectional, estado, gestor, checklist_kind
 }, user) {
   const offset = (page - 1) * limit;
   const params = [];
@@ -255,13 +255,14 @@ async function listDashboardChecklists({
   const dateFilters = dateFilter.filters;
   idx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, agent_name, params, idx, user
-  });
+      });
   idx = colIdx;
 
   const filters = [...dateFilters, ...colFilters];
+  if (typeof checklist_kind !== 'undefined') { if (checklist_kind === 'gestor') { filters.push("(COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)"); } else { filters.push("COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"); } }
 
   if (type) { filters.push(`c.type = $${idx}`); params.push(type); idx++; }
   if (status) { filters.push(`c.status = $${idx}`); params.push(status); idx++; }
@@ -293,13 +294,13 @@ async function listDashboardChecklists({
            col.regional as agent_regional, col.seccional as agent_seccional,
            col.estado as agent_estado, col."GESTOR IMEDIATO" as agent_gestor
     FROM checklists c
-    LEFT JOIN checklist_templates t ON c.template_id = t.id
     ${colJoin}
     ${whereClause}
     ORDER BY c.submitted_at DESC, c.date DESC
     LIMIT $${idx} OFFSET $${idx + 1}
   `;
-  const countQuery = `SELECT count(1) as total FROM checklists c ${colJoin} ${whereClause}`;
+  const countQuery = `SELECT count(1) as total FROM checklists c
+    ${colJoin} ${whereClause}`;
 
   const { rows } = await sinergia_pool.query(query, [...params, limit, offset]);
   const countRes = await sinergia_pool.query(countQuery, params);
@@ -326,11 +327,9 @@ async function listDashboardChecklists({
   return { data: enriched, total, page, limit, totalPages: Math.ceil(total / limit) };
 }
 
-async function getDashboardPendingAgents({
-  date_from, date_to, agent_name, regional, sectional, estado, gestor,
-  page = 1, limit = 20,
-}, user) {
-  const { agentIds } = await getV2TemplateAndAgentIds({ date_from, date_to }, user);
+async function getDashboardPendingAgents({date_from, date_to, agent_name, regional, sectional, estado, gestor,
+  page = 1, limit = 20, checklist_kind}, user) {
+  const { agentIds } = await getV2TemplateAndAgentIds({ date_from, date_to, checklist_kind }, user);
   if (agentIds.length === 0) {
     return { data: [], total: 0, page, limit, totalPages: 0 };
   }
@@ -357,6 +356,7 @@ async function getDashboardPendingAgents({
 
   // Filtros adicionais (nome, regional, seccional, estado, gestor)
   const filters = [];
+  if (typeof checklist_kind !== 'undefined') { if (checklist_kind === 'gestor') { filters.push("(COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)"); } else { filters.push("COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"); } }
   if (agent_name) { filters.push(`col."Nome" ILIKE $${idx}`); params.push(`%${agent_name}%`); idx++; }
   if (regional) { filters.push(`col.regional = $${idx}`); params.push(regional); idx++; }
   if (sectional) { filters.push(`col.seccional = $${idx}`); params.push(sectional); idx++; }
@@ -424,15 +424,15 @@ async function getDashboardPendingAgents({
  * Returns all active templates for dashboard filter dropdown.
  * Respects admin state permissions.
  */
-async function getDashboardTemplates(user) {
+async function getDashboardTemplates(user, checklist_kind) {
   const allowedPools = getUserAllowedStatePools(user);
   const allowedStates = allowedPools.map(p => p.state.toUpperCase());
 
   const isMainAdmin = user && (user.role || '').toLowerCase().includes('admin') && allowedPools.length >= 2;
 
   if (isMainAdmin) {
-    const { rows } = await sinergia_pool.query(
-      `SELECT id, title, estado FROM checklist_templates WHERE is_active = true ORDER BY title`
+    const { rows } = await cenos_pool.query(
+      `SELECT id, title, estado FROM checklist_templates WHERE is_active = true${checklist_kind === 'gestor' ? ' AND COALESCE(is_gestor, false) = true' : ' AND COALESCE(is_gestor, false) = false'} ORDER BY title`
     );
     return rows;
   }
@@ -482,10 +482,14 @@ function buildTemplateAgentMatchSQL(templateData, params, idx) {
  * Helper: get all active agent IDs that match ANY of the given templates.
  * Returns a Set of agent ID strings.
  */
-async function getAgentsMatchingTemplates(templates, user, date_from, date_to) {
+async function getAgentsMatchingTemplates(templates, user, date_from, date_to, onlyInactive = false, excludeGestores = false) {
   const from = date_from || getTodayStr();
   const to = date_to || getTodayStr();
   const allAgentIds = new Set();
+  const gestorCond = excludeGestores ? " AND COALESCE(col.is_gestor, false) = false" : "";
+  const statusCond = (onlyInactive
+    ? "(col.situacao != 'active' OR col.status = false)"
+    : "col.situacao = 'active' AND col.status = true") + gestorCond;
 
   for (const tmpl of templates) {
     const params = [];
@@ -503,99 +507,53 @@ async function getAgentsMatchingTemplates(templates, user, date_from, date_to) {
       idx++;
     }
 
-    // Template matches ALL agents (no filters, no estado restriction, no user permission restrictions)
     if (match.conditions.length === 0 && !estadoClause && perm.conditions.length === 0) {
-      const { rows } = await sinergia_pool.query(
-        `SELECT col."ID" FROM colaboradores col WHERE col.situacao = 'active' AND col.status = true`
+      const { rows } = await cenos_pool.query(
+        `SELECT col."ID" FROM colaboradores col WHERE ${statusCond}`
       );
       rows.forEach(r => allAgentIds.add(r.ID));
-      return allAgentIds; // All agents already included, no need to check more templates
+      continue;
     }
 
-    const whereClause = ['col.situacao = \'active\' AND col.status = true'];
+    const whereClause = [statusCond];
     if (match.conditions.length > 0) whereClause.push(match.conditions.join(' AND '));
     if (perm.conditions.length > 0) whereClause.push(perm.conditions.join(' AND '));
     if (estadoClause) whereClause.push(estadoClause.replace('AND ', ''));
 
-    params.push(from, to);
-    const d1 = idx++;
-    const d2 = idx++;
-    const extWhere = `
-      AND NOT EXISTS (
-        SELECT 1 FROM agent_exemptions ae
-        WHERE ae.agent_id = col."ID"
-          AND ae.start_date <= $${d2}::date AND ae.end_date >= $${d1}::date
-      )
-    `;
-
-    if (whereClause.length > 1) {
-      const { rows } = await sinergia_pool.query(
-        `SELECT col."ID" FROM colaboradores col WHERE ${whereClause.join(' AND ')} ${extWhere}`,
-        params
-      );
-      rows.forEach(r => allAgentIds.add(r.ID));
+    let extWhere = '';
+    if (!onlyInactive) {
+      params.push(from, to);
+      const d1 = idx++;
+      const d2 = idx++;
+      extWhere = `
+        AND NOT EXISTS (
+          SELECT 1 FROM agent_exemptions ae
+          WHERE ae.agent_id = col."ID"
+            AND ae.start_date <= $${d2}::date AND ae.end_date >= $${d1}::date
+        )
+      `;
     }
+
+    const { rows } = await cenos_pool.query(
+      `SELECT col."ID" FROM colaboradores col WHERE ${whereClause.join(' AND ')} ${extWhere}`,
+      params
+    );
+    rows.forEach(r => allAgentIds.add(r.ID));
   }
 
   return allAgentIds;
 }
 
-/**
- * Compute regional breakdown for V2: group template-matched agents by regional.
- */
-async function computeV2RegionalBreakdown(templates, date_from, date_to, user) {
-  const todayStr = new Date().toISOString().split('T')[0];
-  const from = date_from || todayStr;
-  const to = date_to || todayStr;
-
-  const agentIdSet = await getAgentsMatchingTemplates(templates, user, from, to);
-  if (agentIdSet.size === 0) return [];
-
-  const agentIds = Array.from(agentIdSet);
-
-  const { rows } = await sinergia_pool.query(
-    `SELECT
-       col.regional,
-       COUNT(DISTINCT col."ID") as total_agents,
-       COUNT(DISTINCT CASE WHEN c.id IS NOT NULL THEN col."ID" END) as submitted,
-       COUNT(DISTINCT CASE WHEN c.id IS NULL THEN col."ID" END) as pending
-     FROM colaboradores col
-     LEFT JOIN checklists c ON c.agent_id = col."ID"
-       AND c.date >= $2 AND c.date <= $3
-       AND c.status = 'submitted'
-     WHERE col.situacao = 'active' AND col.status = true
-       AND col.regional IS NOT NULL
-       AND col."ID" = ANY($1::varchar[])
-       AND NOT EXISTS (
-         SELECT 1 FROM agent_exemptions ae
-         WHERE ae.agent_id = col."ID"
-           AND ae.start_date <= $3::date AND ae.end_date >= $2::date
-       )
-     GROUP BY col.regional
-     ORDER BY col.regional`,
-    [agentIds, from, to]
-  );
-
-  return rows.map(r => ({
-    regional: r.regional,
-    total_agents: parseInt(r.total_agents, 10),
-    submitted: parseInt(r.submitted, 10),
-    pending: parseInt(r.pending, 10),
-    percentage: r.total_agents > 0
-      ? Math.round((parseInt(r.pending, 10) / parseInt(r.total_agents, 10)) * 100)
-      : 0,
-  }));
-}
 
 /**
  * Get template IDs that the user is allowed to see.
  * Returns array of { id, title, data, estado }.
  */
-async function getAllowedTemplates(user) {
+async function getAllowedTemplates(user, checklist_kind) {
   // Admin users see all active templates regardless of estado
   if (user && (user.role || '').toLowerCase().includes('admin')) {
-    const { rows } = await sinergia_pool.query(
-      `SELECT id, title, data, estado FROM checklist_templates WHERE is_active = true`
+    const { rows } = await cenos_pool.query(
+      `SELECT id, title, data, estado FROM checklist_templates WHERE is_active = true${checklist_kind === 'gestor' ? ' AND COALESCE(is_gestor, false) = true' : ' AND COALESCE(is_gestor, false) = false'}`
     );
     return rows;
   }
@@ -620,7 +578,7 @@ async function getAllowedTemplates(user) {
  * If template_id is provided, stats are per-template; otherwise aggregated.
  * Respects admin state permissions via getUserAllowedStatePools.
  */
-async function getDashboardStatsV2({ date_from, date_to, regional, sectional, estado, gestor, template_id }, user) {
+async function getDashboardStatsV2({date_from, date_to, regional, sectional, estado, gestor, template_id, checklist_kind}, user) {
   let templateIds = [];
   let templatesMap = {};
 
@@ -632,7 +590,7 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     templateIds = [template_id];
     templatesMap[template_id] = rows[0];
   } else {
-    const allowedTemplates = await getAllowedTemplates(user);
+    const allowedTemplates = await getAllowedTemplates(user, checklist_kind);
     templateIds = allowedTemplates.map(r => r.id);
     allowedTemplates.forEach(r => { templatesMap[r.id] = r; });
   }
@@ -648,10 +606,10 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
   const dateFilters = dateFilter.filters;
   dIdx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, params: dParams, idx: dIdx, user
-  });
+      });
   dIdx = colIdx;
 
   // Stats per template
@@ -680,6 +638,9 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     const combinedColFilters = [...colFilters];
     if (tMatch.conditions.length > 0) combinedColFilters.push(...tMatch.conditions);
     if (estadoCondition) combinedColFilters.push(estadoCondition);
+    if (checklist_kind === 'gestor') {
+      combinedColFilters.push("COALESCE(col.is_gestor, false) = false");
+    }
 
     const colWhereClause = combinedColFilters.length > 0 ? `AND ${combinedColFilters.join(' AND ')}` : '';
 
@@ -699,12 +660,11 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     // Submitted checklists for this template (using colJoin so combinedColFilters can reference col.*)
     const combinedCFilters = [
       `c.template_id = $${tIdx}`,
-      `c.status = 'submitted'`,
+      `c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`,
       ...dateFilters,
       ...combinedColFilters
     ];
     tParams.push(tId);
-    const templateIdIdx = tIdx;
     tIdx++;
 
     const submittedRes = await sinergia_pool.query(
@@ -757,8 +717,8 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     idx = match.idx;
 
     const { filters: colFilters, idx: newIdx } = buildColaboradorFilters({
-      regional, sectional, estado, gestor, agent_name: undefined, params, idx, user
-    });
+      regional, sectional, estado, gestor, agent_name: undefined, params, idx, user, checklist_kind
+      });
     idx = newIdx;
 
     let estadoClause = '';
@@ -783,10 +743,11 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
       )
     `;
 
-    const { rows } = await sinergia_pool.query(
+    const isGestorFilter = checklist_kind === 'gestor' ? " AND COALESCE(col.is_gestor, false) = false" : "";
+    const { rows } = await cenos_pool.query(
       `SELECT col."ID" as agent_id
        FROM colaboradores col
-       WHERE col.situacao = 'active' AND col.status = true ${whereClause} ${extWhere}`,
+       WHERE col.situacao = 'active' AND col.status = true${isGestorFilter} ${whereClause} ${extWhere}`,
       params
     );
 
@@ -826,14 +787,29 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
     }
   }
 
-
-
   // KPI: count of exempted agents considering UI filters and dates
-  const exemptionsResult = await listActiveExemptions({
-    date_from, date_to, regional, sectional, estado, gestor,
-    page: 1, limit: 1
-  }, user);
-  const exempted_count = exemptionsResult.total;
+  let exempted_count = 0;
+  if (checklist_kind === 'gestor') {
+    const inactiveAgentIdSet = await getAgentsMatchingTemplates(Object.values(templatesMap), user, pFrom, pTo, true, true);
+    if (inactiveAgentIdSet.size > 0) {
+      const inactiveAgentIds = Array.from(inactiveAgentIdSet);
+      const paramsEx = [inactiveAgentIds];
+      let idxEx = 2;
+      const { filters: colFiltersEx } = buildColaboradorFilters({
+        regional, sectional, estado, gestor, agent_name: undefined, params: paramsEx, idx: idxEx, user, checklist_kind
+      });
+      const exWhere = colFiltersEx.length > 0 ? `AND ${colFiltersEx.join(' AND ')}` : '';
+      const exQuery = `SELECT COUNT(1) as total FROM colaboradores col WHERE col."ID" = ANY($1::varchar[]) AND COALESCE(col.is_gestor, false) = false ${exWhere}`;
+      const exRes = await cenos_pool.query(exQuery, paramsEx);
+      exempted_count = parseInt(exRes.rows[0].total || 0, 10);
+    }
+  } else {
+    const exemptionsResult = await listActiveExemptions({
+      date_from, date_to, regional, sectional, estado, gestor,
+      page: 1, limit: 1
+    }, user);
+    exempted_count = exemptionsResult.total;
+  }
 
   const refDate = date_to || new Date().toISOString().split('T')[0];
   const { isSunday } = await getExemptAgentIds(refDate);
@@ -861,10 +837,8 @@ async function getDashboardStatsV2({ date_from, date_to, regional, sectional, es
  * If template_id is provided, only finds agents matching that template.
  * Otherwise finds agents matching any active template.
  */
-async function getDashboardPendingAgentsV2({
-  date_from, date_to, agent_name, regional, sectional, estado, gestor,
-  template_id, page = 1, limit = 20,
-}, user) {
+async function getDashboardPendingAgentsV2({date_from, date_to, agent_name, regional, sectional, estado, gestor,
+  template_id, page = 1, limit = 20, checklist_kind}, user) {
   const offset = (page - 1) * limit;
   const today = new Date().toISOString().split('T')[0];
   const from = date_from || today;
@@ -878,7 +852,7 @@ async function getDashboardPendingAgentsV2({
     );
     templates = rows;
   } else {
-    templates = await getAllowedTemplates(user);
+    templates = await getAllowedTemplates(user, checklist_kind);
   }
 
   if (templates.length === 0) {
@@ -905,7 +879,7 @@ async function getDashboardPendingAgentsV2({
 
     const { filters: colFilters, idx: newIdx } = buildColaboradorFilters({
       regional, sectional, estado, gestor, agent_name, params, idx, user
-    });
+      });
     idx = newIdx;
 
     let estadoClause = '';
@@ -932,11 +906,12 @@ async function getDashboardPendingAgentsV2({
       )
     `;
 
-    const { rows } = await sinergia_pool.query(
+    const isGestorFilter = checklist_kind === 'gestor' ? " AND COALESCE(col.is_gestor, false) = false" : "";
+    const { rows } = await cenos_pool.query(
       `SELECT col."ID" as agent_id, col."Nome" as nome, col.regional, col.seccional,
               col.estado, col."Cargo" as cargo, col."GESTOR IMEDIATO" as gestor
        FROM colaboradores col
-       WHERE col.situacao = 'active' AND col.status = true ${whereClause} ${extWhere}`,
+       WHERE col.situacao = 'active' AND col.status = true${isGestorFilter} ${whereClause} ${extWhere}`,
       params
     );
 
@@ -1022,10 +997,8 @@ async function getDashboardPendingAgentsV2({
 /**
  * V2 Completed Agents — Uses dynamic template filters.
  */
-async function getDashboardCompletedAgentsV2({
-  page = 1, limit = 20, agent_name, date_from, date_to,
-  regional, sectional, estado, gestor, template_id,
-}, user) {
+async function getDashboardCompletedAgentsV2({page = 1, limit = 20, agent_name, date_from, date_to,
+  regional, sectional, estado, gestor, template_id, checklist_kind}, user) {
   const from = date_from || getTodayStr();
   const to = date_to || getTodayStr();
   const offset = (page - 1) * limit;
@@ -1038,14 +1011,14 @@ async function getDashboardCompletedAgentsV2({
     );
     if (rows.length > 0) allowedTemplates = rows;
   } else {
-    allowedTemplates = await getAllowedTemplates(user);
+    allowedTemplates = await getAllowedTemplates(user, checklist_kind);
   }
   
   if (allowedTemplates.length === 0) {
     return { data: [], total: 0, page, limit, totalPages: 0 };
   }
 
-  const { templateIds, agentIds: allowedAgentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
+  const { templateIds, agentIds: allowedAgentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to, checklist_kind }, user);
 
   if (templateIds.length === 0 || allowedAgentIds.length === 0) {
     return { data: [], total: 0, page, limit, totalPages: 0 };
@@ -1080,7 +1053,8 @@ async function getDashboardCompletedAgentsV2({
     `SELECT col."ID" as agent_id, col."Nome" as nome, col.regional, col.seccional,
             col.estado, col."Cargo" as cargo, col."GESTOR IMEDIATO" as gestor
      FROM colaboradores col
-     WHERE col."ID" = ANY($1::varchar[])`,
+     WHERE col."ID" = ANY($1::varchar[])
+       ${checklist_kind === 'gestor' ? "AND COALESCE(col.is_gestor, false) = false" : ""}`,
     [submittedAgentIds]
   );
 
@@ -1122,8 +1096,9 @@ async function getDashboardCompletedAgentsV2({
  * Helper: get template IDs and matching agent IDs for V2 queries.
  * Returns { templateIds, agentIds }.
  */
-async function getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user) {
+async function getV2TemplateAndAgentIds({template_id, date_from, date_to, checklist_kind}, user) {
   let templateIds = [];
+  const excludeGestores = checklist_kind === 'gestor';
 
   if (template_id) {
     const { rows } = await sinergia_pool.query(
@@ -1131,25 +1106,23 @@ async function getV2TemplateAndAgentIds({ template_id, date_from, date_to }, use
     );
     if (rows.length === 0) return { templateIds: [], agentIds: [] };
     templateIds = [template_id];
-    const agentIdSet = await getAgentsMatchingTemplates(rows, user, date_from, date_to);
+    const agentIdSet = await getAgentsMatchingTemplates(rows, user, date_from, date_to, false, excludeGestores);
     return { templateIds, agentIds: Array.from(agentIdSet) };
   }
 
-  const allowedTemplates = await getAllowedTemplates(user);
+  const allowedTemplates = await getAllowedTemplates(user, checklist_kind);
   if (allowedTemplates.length === 0) return { templateIds: [], agentIds: [] };
 
   templateIds = allowedTemplates.map(r => r.id);
-  const agentIdSet = await getAgentsMatchingTemplates(allowedTemplates, user, date_from, date_to);
+  const agentIdSet = await getAgentsMatchingTemplates(allowedTemplates, user, date_from, date_to, false, excludeGestores);
   return { templateIds, agentIds: Array.from(agentIdSet) };
 }
 
 /**
  * V2 Non-Compliant Items — uses dynamic template filters.
  */
-async function getDashboardNonCompliantItemsV2({
-  date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw
-}, user) {
-  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
+async function getDashboardNonCompliantItemsV2({date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind}, user) {
+  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to, checklist_kind }, user);
   if (templateIds.length === 0 || agentIds.length === 0) return [];
 
   const dParams = [];
@@ -1158,14 +1131,14 @@ async function getDashboardNonCompliantItemsV2({
   const dateFilters = dateFilter.filters;
   dIdx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, agent_name, params: dParams, idx: dIdx, user
-  });
+      });
   dIdx = colIdx;
 
   const cFilters = [
-    `c.status = 'submitted'`,
+    `c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`,
     `c.template_id = ANY($${dIdx})`,
     `c.agent_id = ANY($${dIdx + 1})`,
     ...dateFilters,
@@ -1176,25 +1149,87 @@ async function getDashboardNonCompliantItemsV2({
   const cWhere = `WHERE ${cFilters.join(' AND ')}`;
 
   if (export_raw) {
-    const { rows } = await sinergia_pool.query(
-      `SELECT 
-          col."ID" as id,
-          col."MAT" as matricula,
-          col."Nome" as nome,
-          col.seccional,
-          col.regional,
-          col."GESTOR IMEDIATO" as gestor,
-          TO_CHAR(COALESCE(c.submitted_at, c.date), 'DD/MM/YYYY') as data,
-          a.item->>'question_label' as inconformidade
+    const { rows } = await cenos_pool.query(
+      `SELECT c.agent_id as "Agente",
+              col."MAT" as "Matrícula",
+              col."Nome" as "Nome",
+              col.estado as "Estado",
+              col.seccional as "Seccional",
+              col.regional as "Regional",
+              col."GESTOR IMEDIATO" as "Gestor",
+              a.item->>'question_label' as "Item",
+              COALESCE(a.item->>'severity', 'critical') as "Nível",
+              TO_CHAR(c.date, 'DD/MM/YY') as "Data",
+              TO_CHAR(c.submitted_at, 'DD/MM/YY "às" HH24:MI:SS') as "Enviado em",
+              a.item->>'observation' as "Observação",
+              CASE WHEN (a.item->>'photo_url') IS NOT NULL AND (a.item->>'photo_url') != '' THEN 'HYPERLINK|' || (a.item->>'photo_url') ELSE NULL END as "Foto",
+              CASE WHEN r.id IS NOT NULL THEN 'Resolvido' ELSE 'Não resolvido' END as "Resolução",
+              r.description as "Descrição da resolução",
+              TO_CHAR(r.resolved_at, 'DD/MM/YY "às" HH24:MI:SS') as "Resolvido em"
        FROM checklists c
-       ${colJoin},
-       jsonb_array_elements(c.data->'answers') a(item)
-       ${cWhere} AND a.item->>'is_compliant' = 'false'
-       ORDER BY data DESC
+       ${colJoin}
+       CROSS JOIN LATERAL jsonb_array_elements(c.data->'answers') a(item)
+       LEFT JOIN checklist_nonconformity_resolutions r
+         ON r.agent_id = c.agent_id
+         AND r.question_label = a.item->>'question_label'
+         AND r.resolved_date = c.date
+       ${cWhere}
+         AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
+         AND COALESCE(a.item->>'severity', 'critical') IN ('critical', 'alert')
+       ORDER BY COALESCE(c.submitted_at, c.date) DESC, "Nível" ASC
        LIMIT 5000`,
       dParams
     );
-    return rows;
+
+    let finalRows = rows;
+    if (typeof export_mode !== 'undefined' && export_mode === 'compact') {
+      const grouped = {};
+      for (const row of rows) {
+        const key = `${row.Agente}-${row.Item}-${row.Nível}`;
+        if (!grouped[key]) {
+          grouped[key] = { ...row, _dates: [row.Data] };
+        } else {
+          grouped[key]._dates.push(row.Data);
+          if (!grouped[key].Foto && row.Foto) grouped[key].Foto = row.Foto;
+          if (grouped[key].Resolução === 'Não resolvido' && row.Resolução === 'Resolvido') {
+             grouped[key].Resolução = row.Resolução;
+             grouped[key]['Descrição da resolução'] = row['Descrição da resolução'];
+             grouped[key]['Resolvido em'] = row['Resolvido em'];
+          }
+        }
+      }
+      finalRows = Object.values(grouped).map(g => {
+        const parsed = g._dates.map(d => {
+           const [dd, mm, yy] = d.split('/');
+           return new Date(`20${yy}-${mm}-${dd}T00:00:00Z`);
+        }).sort((a,b) => a - b);
+        const minD = parsed[0];
+        const maxD = parsed[parsed.length - 1];
+        
+        const format = (d) => {
+          const dd = String(d.getUTCDate()).padStart(2, '0');
+          const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const yy = String(d.getUTCFullYear()).slice(2);
+          return `${dd}/${mm}/${yy}`;
+        };
+
+        if (minD.getTime() === maxD.getTime()) {
+           g.Data = format(minD);
+        } else {
+           g.Data = `Início: ${format(minD)}, Fim: ${format(maxD)}`;
+        }
+        delete g._dates;
+        return g;
+      });
+    }
+
+    finalRows = finalRows.map(row => {
+       if (row.Nível === 'alert') row.Nível = 'Alerta';
+       if (row.Nível === 'critical') row.Nível = 'Urgente';
+       return row;
+    });
+
+    return finalRows;
   }
 
   const { rows } = await sinergia_pool.query(
@@ -1289,10 +1324,8 @@ function splitIntoStreaks(allDates, resolutionDates = []) {
  *   The date range filters which items appear, but ALL historical dates are fetched.
  * In export_raw mode: returns individual entries for Excel export.
  */
-async function getDashboardAlertsV2({
-  date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw
-}, user) {
-  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
+async function getDashboardAlertsV2({date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind}, user) {
+  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to, checklist_kind }, user);
   if (templateIds.length === 0 || agentIds.length === 0) return [];
 
   const dParams = [];
@@ -1301,14 +1334,14 @@ async function getDashboardAlertsV2({
   const dateFilters = dateFilter.filters;
   dIdx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, agent_name, params: dParams, idx: dIdx, user
-  });
+      });
   dIdx = colIdx;
 
   const cFilters = [
-    `c.status = 'submitted'`,
+    `c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`,
     `c.template_id = ANY($${dIdx})`,
     `c.agent_id = ANY($${dIdx + 1})`,
     ...dateFilters,
@@ -1350,7 +1383,56 @@ async function getDashboardAlertsV2({
        LIMIT 5000`,
       dParams
     );
-    return rows;
+
+    let finalRows = rows;
+    if (typeof export_mode !== 'undefined' && export_mode === 'compact') {
+      const grouped = {};
+      for (const row of rows) {
+        const key = `${row.Agente}-${row.Item}-${row.Nível}`;
+        if (!grouped[key]) {
+          grouped[key] = { ...row, _dates: [row.Data] };
+        } else {
+          grouped[key]._dates.push(row.Data);
+          if (!grouped[key].Foto && row.Foto) grouped[key].Foto = row.Foto;
+          if (grouped[key].Resolução === 'Não resolvido' && row.Resolução === 'Resolvido') {
+             grouped[key].Resolução = row.Resolução;
+             grouped[key]['Descrição da resolução'] = row['Descrição da resolução'];
+             grouped[key]['Resolvido em'] = row['Resolvido em'];
+          }
+        }
+      }
+      finalRows = Object.values(grouped).map(g => {
+        const parsed = g._dates.map(d => {
+           const [dd, mm, yy] = d.split('/');
+           return new Date(`20${yy}-${mm}-${dd}T00:00:00Z`);
+        }).sort((a,b) => a - b);
+        const minD = parsed[0];
+        const maxD = parsed[parsed.length - 1];
+        
+        const format = (d) => {
+          const dd = String(d.getUTCDate()).padStart(2, '0');
+          const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const yy = String(d.getUTCFullYear()).slice(2);
+          return `${dd}/${mm}/${yy}`;
+        };
+
+        if (minD.getTime() === maxD.getTime()) {
+           g.Data = format(minD);
+        } else {
+           g.Data = `Início: ${format(minD)}, Fim: ${format(maxD)}`;
+        }
+        delete g._dates;
+        return g;
+      });
+    }
+
+    finalRows = finalRows.map(row => {
+       if (row.Nível === 'alert') row.Nível = 'Alerta';
+       if (row.Nível === 'critical') row.Nível = 'Urgente';
+       return row;
+    });
+
+    return finalRows;
   }
 
   // Step 1: Find which agent+question+severity combinations exist in the date range
@@ -1391,7 +1473,7 @@ async function getDashboardAlertsV2({
          SELECT DISTINCT ON (c.date) c.date, c.id
          FROM checklists c
          ${colJoin}
-         WHERE c.status = 'submitted'
+         WHERE c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}
            AND c.template_id = ANY($3::uuid[])
            AND c.agent_id = $1
            AND col."ID" = $1
@@ -1462,10 +1544,8 @@ async function getDashboardAlertsV2({
  *   The date range filters which items appear, but ALL historical dates are fetched.
  * In export_raw mode: returns individual entries for Excel export.
  */
-async function getDashboardNonConformitiesV2({
-  date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw
-}, user) {
-  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to }, user);
+async function getDashboardNonConformitiesV2({date_from, date_to, regional, sectional, estado, gestor, agent_name, template_id, export_raw, checklist_kind}, user) {
+  const { templateIds, agentIds } = await getV2TemplateAndAgentIds({ template_id, date_from, date_to, checklist_kind }, user);
   if (templateIds.length === 0 || agentIds.length === 0) return [];
 
   const dParams = [];
@@ -1474,14 +1554,14 @@ async function getDashboardNonConformitiesV2({
   const dateFilters = dateFilter.filters;
   dIdx = dateFilter.nextIdx;
 
-  const colJoin = buildColaboradorJoins();
+  const colJoin = buildColaboradorJoins(checklist_kind || (typeof req !== "undefined" && req.query.checklist_kind) || undefined);
   const { filters: colFilters, idx: colIdx } = buildColaboradorFilters({
     regional, sectional, estado, gestor, agent_name, params: dParams, idx: dIdx, user
-  });
+      });
   dIdx = colIdx;
 
   const cFilters = [
-    `c.status = 'submitted'`,
+    `c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}`,
     `c.template_id = ANY($${dIdx})`,
     `c.agent_id = ANY($${dIdx + 1})`,
     ...dateFilters,
@@ -1501,7 +1581,7 @@ async function getDashboardNonConformitiesV2({
               col.regional as "Regional",
               col."GESTOR IMEDIATO" as "Gestor",
               a.item->>'question_label' as "Item",
-              COALESCE(a.item->>'severity', 'normal') as "Nível",
+              COALESCE(a.item->>'severity', 'critical') as "Nível",
               TO_CHAR(c.date, 'DD/MM/YY') as "Data",
               TO_CHAR(c.submitted_at, 'DD/MM/YY "às" HH24:MI:SS') as "Enviado em",
               a.item->>'observation' as "Observação",
@@ -1518,12 +1598,61 @@ async function getDashboardNonConformitiesV2({
          AND r.resolved_date = c.date
        ${cWhere}
          AND (a.item->>'is_compliant' = 'false' OR (a.item->>'is_compliant')::boolean = false)
-         AND COALESCE(a.item->>'severity', 'normal') NOT IN ('critical', 'alert')
-       ORDER BY COALESCE(c.submitted_at, c.date) DESC
+         AND COALESCE(a.item->>'severity', 'critical') IN ('critical', 'alert')
+       ORDER BY COALESCE(c.submitted_at, c.date) DESC, "Nível" ASC
        LIMIT 5000`,
       dParams
     );
-    return rows;
+
+    let finalRows = rows;
+    if (typeof export_mode !== 'undefined' && export_mode === 'compact') {
+      const grouped = {};
+      for (const row of rows) {
+        const key = `${row.Agente}-${row.Item}-${row.Nível}`;
+        if (!grouped[key]) {
+          grouped[key] = { ...row, _dates: [row.Data] };
+        } else {
+          grouped[key]._dates.push(row.Data);
+          if (!grouped[key].Foto && row.Foto) grouped[key].Foto = row.Foto;
+          if (grouped[key].Resolução === 'Não resolvido' && row.Resolução === 'Resolvido') {
+             grouped[key].Resolução = row.Resolução;
+             grouped[key]['Descrição da resolução'] = row['Descrição da resolução'];
+             grouped[key]['Resolvido em'] = row['Resolvido em'];
+          }
+        }
+      }
+      finalRows = Object.values(grouped).map(g => {
+        const parsed = g._dates.map(d => {
+           const [dd, mm, yy] = d.split('/');
+           return new Date(`20${yy}-${mm}-${dd}T00:00:00Z`);
+        }).sort((a,b) => a - b);
+        const minD = parsed[0];
+        const maxD = parsed[parsed.length - 1];
+        
+        const format = (d) => {
+          const dd = String(d.getUTCDate()).padStart(2, '0');
+          const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const yy = String(d.getUTCFullYear()).slice(2);
+          return `${dd}/${mm}/${yy}`;
+        };
+
+        if (minD.getTime() === maxD.getTime()) {
+           g.Data = format(minD);
+        } else {
+           g.Data = `Início: ${format(minD)}, Fim: ${format(maxD)}`;
+        }
+        delete g._dates;
+        return g;
+      });
+    }
+
+    finalRows = finalRows.map(row => {
+       if (row.Nível === 'alert') row.Nível = 'Alerta';
+       if (row.Nível === 'critical') row.Nível = 'Urgente';
+       return row;
+    });
+
+    return finalRows;
   }
 
   // Step 1: Find which agent+question+severity combinations exist in the date range
@@ -1564,7 +1693,7 @@ async function getDashboardNonConformitiesV2({
          SELECT DISTINCT ON (c.date) c.date, c.id
          FROM checklists c
          ${colJoin}
-         WHERE c.status = 'submitted'
+         WHERE c.status = 'submitted'${checklist_kind === 'gestor' ? " AND (COALESCE(t.is_gestor, false) = true OR c.type = 'gestor' OR c.target_agent_id IS NOT NULL)" : " AND COALESCE(t.is_gestor, false) = false AND c.type != 'gestor' AND c.target_agent_id IS NULL"}
            AND c.template_id = ANY($3::uuid[])
            AND c.agent_id = $1
            AND col."ID" = $1

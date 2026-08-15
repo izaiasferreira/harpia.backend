@@ -12,6 +12,7 @@
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | Estrutura de diretórios, pools, Redis |
 | [`ENVIRONMENT.md`](./ENVIRONMENT.md) | Variáveis de ambiente |
 | [`TRACKING.md`](./TRACKING.md) | Tracking GPS, velocidade, quedas |
+| [`SPEED_VIOLATIONS.md`](./SPEED_VIOLATIONS.md) | Resolução de infrações de velocidade + dashboard mensal |
 | [`NOTIFICATIONS.md`](./NOTIFICATIONS.md) | Notificações push, overlay, endpoint unificado |
 | [`SERVICE_NOTES.md`](./SERVICE_NOTES.md) | Notas de Serviço (admin + agente + offline) |
 | [`APP_UPDATE.md`](./APP_UPDATE.md) | Auto-update Android (APK self-hosted) |
@@ -125,6 +126,8 @@ Health check simples (sem prefixo).
 | `/admin/permission/*` | Perfis de permissão | `permission` |
 | `/admin/forms/*` | Formulários dinâmicos | `forms` |
 | `/admin/tracking/*` | Monitoramento GPS/quedas | `tracking` |
+| `/admin/tracking/area/trail` | Busca agentes por área (polígono) no histórico | `tracking_history` |
+| `/admin/tracking/speed_violations/*` | Infrações de velocidade (all, resoluções, resolve, stats) | `tracking_speed`, `resolve_speed_violation`, `update_speed_violation_resolution`, `delete_speed_violation_resolution` |
 | `/admin/agent/*` | PINs de acesso | — |
 | `/admin/message_templates/*` | Modelos de mensagem | `message_templates` |
 | `/admin/services` | Consulta de serviços | `services_consult` |
@@ -164,6 +167,7 @@ Health check simples (sem prefixo).
 | `permission` | Perfis de acesso |
 | `forms`, `create_form`, `update_form`, `delete_form` | Formulários |
 | `tracking` | Monitoramento |
+| `tracking_speed`, `resolve_speed_violation`, `update_speed_violation_resolution`, `delete_speed_violation_resolution` | Monitoramento de velocidade + resoluções |
 | `service_notes`, `create_service_note`, `update_service_note`, `delete_service_note`, `assign_service_notes`, `import_service_notes` | Notas de Serviço |
 | `badges`, `create_badge`, `update_badge`, `delete_badge` | Badges |
 | `ceneduc`, `create_ceneduc`, `update_ceneduc`, `delete_ceneduc` | CenEduc |

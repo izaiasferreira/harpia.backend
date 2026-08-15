@@ -47,7 +47,7 @@ function generateCustomLinks({ state, id, user }) {
         {
             "id": "ceneduc-app",
             "label": "Educação",
-            "url": `/ceneduc`,
+            "url": `/education`,
             "emoji": "BookOpen",
             "color": "text-blue-600",
             "states": VALID_STATE_VALUES
@@ -86,13 +86,36 @@ function generateCustomLinks({ state, id, user }) {
         },
         // {
         //     "id": "justify-pending-app",
-        //     "label": "Pendências",
+        //     "label": "Justificar pendências",
+        //     "description": "Justifique suas pendências",
         //     "url": `/justify-pending`,
-        //     "emoji": "AlertTriangle",
-        //     "color": "text-indigo-600",
+        //     "emoji": "FileX",
+        //     "color": "text-red-600",
         //     "states": VALID_STATE_VALUES
+        // },
+        // {
+        //     "id": "atestado-app",
+        //     "label": "Atestado",
+        //     "description": "Envie seu atestado",
+        //     "url": `https://docs.google.com/forms/d/e/1FAIpQLSccADjOMTX5FItKyJaEYQ_4Wqlrup2HgHEqHbkyXuzBrnax2Q/viewform?usp=send_form`,
+        //     "emoji": "FileText",
+        //     "color": "text-red-600",
+        //     "states": ['pi'],
+        //     "forceIframe": true
         // }
-    ]
+    ];
+
+    if (user && user.is_gestor) {
+        links.push({
+            "id": "manager-tracking-app",
+            "label": "Monitoramento",
+            "description": "Localização e infrações",
+            "url": `/tracking`,
+            "emoji": "MapPin",
+            "color": "text-blue-600",
+            "states": VALID_STATE_VALUES
+        });
+    }
 
     let links_filtered = links.filter(link => link.states.includes(state));
 
