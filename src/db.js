@@ -34,5 +34,5 @@ const localizacoes_pi_pool = new Pool({
     ...POOL_CONFIG,
 });
 
-module.exports = { sinergia_pool, pi_pool, ma_pool, localizacoes_pi_pool };
+module.exports = { sinergia_pool, cenos_pool: sinergia_pool, pi_pool, ma_pool, localizacoes_pi_pool };
 
